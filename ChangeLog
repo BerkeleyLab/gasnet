@@ -21,11 +21,22 @@ GASNet-EX ChangeLog
 20XX.YY.ZZ: PENDING
 
 * General and Misc.
+  - GASNet trace/stats now categorize AMPoll calls in tracemask category 'X'
   - BLCR integration, deprecated since 1.32.0 (July 2018), has been removed.
+
+* Portable UDP support (udp-conduit)
+  - The amudprun spawning protocol has changed slightly, breaking backwards
+    compatibility for amudprun binaries built against earlier versions.
+
+* Platform support/portability
+  - Installs on Cray XC systems now default to using linker options for
+    low-level libraries that are more resilient to minor system upgrades. 
+  - PMI-based spawner cleanups to reduce memory use and improve robustness
 
 * Notable bugs fixed in this release:
   - bug4060: tools atomics using constructs deprecated in C++20
   - bug4061: aries-conduit startup time regression
+  - bug4074: cross-configure scripts for KNL now default to --enable-large-pshm
   - bug4075: gex_TM_Split is not thread-safe
   - bug4076: valgrind 'invalid read' errors on GASNet/UPC++ startup
   - bug4079: udp-conduit localhost spawn fails to search PATH for wrappers
