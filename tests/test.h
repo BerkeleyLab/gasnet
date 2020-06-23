@@ -119,7 +119,7 @@ GASNETT_BEGIN_EXTERNC
 #define test_makeMsg(baseformatargs, msgpred, isfatal, msgeval)     \
   BUG3343_WORKAROUND(                                               \
   ( _test_makeErrMsg baseformatargs ,                               \
-    ( (msgpred) ? (void)(msgeval) : (void)(_test_squashmsg = 1) ) , \
+    ( (msgpred) ? (void)(msgeval) : (_test_squashmsg = 1, (void)0) ) , \
     _test_doErrMsg##isfatal ) )
 
 #ifdef _INCLUDED_GASNET_H
@@ -770,7 +770,7 @@ static gex_TM_t _test_tm0;
       static volatile int phase = 0;
       const int myphase = phase;
       gasnett_mutex_lock(&(barrier[myphase].mutex));
-      barrier_count++;
+      barrier_count = 1 + barrier_count; // C++20 deprecates ++ and += on volatile
       if (barrier_count < local_pthread_count) {
 	/* CAUTION: changing the "do-while" to a "while" triggers a bug in the SunStudio 2006-08
          * compiler for x86_64.  See https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1858

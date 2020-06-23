@@ -231,9 +231,14 @@ GASNETI_NORETURNP(_gasneti_assert_fail)
 #if GASNET_DEBUG
   #define gasneti_assume(cond) gasneti_assert_always(cond)
 #elif GASNETT_USE_BUILTIN_ASSUME
-  #define gasneti_assume(cond) ((void)__builtin_assume(cond))
+  #if PLATFORM_COMPILER_INTEL
+    // workaround Intel's defective implementation of __builtin_assume
+    #define gasneti_assume(cond) ((void)__builtin_assume((cond) != 0))
+  #else
+    #define gasneti_assume(cond) ((void)__builtin_assume(cond))
+  #endif
 #elif GASNETT_USE_ASSUME
-  #define gasneti_assume(cond) ((void)__assume(cond))
+  #define gasneti_assume(cond) ((void)__assume((cond) != 0))
 #else
   #define gasneti_assume(cond) (GASNETT_PREDICT_TRUE(cond) ? (void)0 : gasneti_unreachable())
 #endif

@@ -2119,12 +2119,18 @@ static gasneti_auxseg_request_t *gasneti_auxseg_alignedsz = NULL;
   gasneti_auxseg_request_t gasneti_auxseg_dummy(gasnet_seginfo_t *auxseg_info) {
     gasneti_auxseg_request_t retval;
     static gasnet_seginfo_t *auxseg_save = NULL;
-    int i, selftest=0;
+    int selftest = (auxseg_info == (void*)(uintptr_t)-1);
+    if (gasneti_nodes > 4) {
+      if (selftest && !gasneti_mynode) 
+         gasneti_console_message("auxseg-diagnostic", "self-test SKIPPED due to job scale");
+      retval.minsz = 0;
+      retval.optimalsz = 0;
+      return retval;
+    }
     retval.minsz = 213;
     retval.optimalsz = GASNETI_AUXSEG_DUMMY_SZ;
     if (auxseg_info == NULL) return retval; /* initial query */
-    if (auxseg_info == (void*)(uintptr_t)-1) { /* self test */
-      selftest = 1;
+    if (selftest) { /* self test */
       gasneti_assert(auxseg_save);
     } else { /* auxseg granted */
       gasneti_assert(!auxseg_save);
@@ -2132,14 +2138,14 @@ static gasneti_auxseg_request_t *gasneti_auxseg_alignedsz = NULL;
       memcpy(auxseg_save, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
       gasneti_leak(auxseg_save); /* Needed by self test, if any */
     }
-    for (i=0; i < gasneti_nodes; i++) {
+    for (int i=0; i < gasneti_nodes; i++) {
       gasneti_assert(auxseg_save[i].addr);
       gasneti_assert_uint(((uintptr_t)auxseg_save[i].addr) % GASNETI_CACHE_LINE_BYTES ,==, 0);
       gasneti_assert_uint(((uintptr_t)auxseg_save[i].addr) % 8 ,==, 0);
       gasneti_assert_uint(auxseg_save[i].size ,>=, retval.minsz);
       gasneti_assert_uint(auxseg_save[i].size ,<=, retval.optimalsz);
     }
-    for (i=0; i < auxseg_save[gasneti_mynode].size; i++) {
+    for (int i=0; i < auxseg_save[gasneti_mynode].size; i++) {
       uint8_t *p = (uint8_t *)auxseg_save[gasneti_mynode].addr;
       #define AUXSEG_TESTVAL(i) ((uint8_t)(8|((i+0x3F)^(i>>8))))
       if (selftest) gasneti_assert_uint(p[i] ,==, AUXSEG_TESTVAL(i));

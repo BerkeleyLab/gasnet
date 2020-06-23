@@ -325,8 +325,10 @@ void gasnete_amref_get_nbi_inner(gex_TM_t tm,
     uint8_t *psrc = src;
     uint8_t *pdest = dest;
     #if GASNETE_USE_LONG_GETS
+      gasneti_assert(tm);
       gasneti_memcheck(gasneti_seginfo); // TODO-EX: more needed to ensure gasneti_in_segment() is "ready"?
-      if (gasneti_in_segment(tm, gasneti_mynode, dest, nbytes)) {
+      gasneti_EP_t i_ep = gasneti_import_ep(gex_TM_QueryEP(tm));
+      if (gasneti_in_local_segment(i_ep, dest, nbytes)) {
         chunksz = gex_AM_LUBReplyLong();
         reqhandler = gasneti_handleridx(gasnete_amref_getlong_reqh);
       }

@@ -46,6 +46,7 @@ typedef struct {
   #define gasneti_memcheck_one() _gasneti_memcheck_one(__FILE__ ":" _STRINGIFY(__LINE__))
   #define gasneti_memcheck_all() _gasneti_memcheck_all(__FILE__ ":" _STRINGIFY(__LINE__))
   extern int gasneti_getheapstats(gasneti_heapstats_t *pstat);
+  extern void gasneti_heapinfo_dump(const char *filename, int show_live_objects);
 #else
   #define GASNETI_CURLOCFARG 
   #define GASNETI_CURLOCAARG 
@@ -54,6 +55,7 @@ typedef struct {
   #define gasneti_memcheck_one()  ((void)0)
   #define gasneti_memcheck_all()  ((void)0)
   #define gasneti_getheapstats(pstat) (memset(pstat, 0, sizeof(gasneti_heapstats_t)),1)
+  #define gasneti_heapinfo_dump(f,s) ((void)0)
 #endif
 
 /* extern versions of gasnet malloc fns for use in public headers */
@@ -79,16 +81,29 @@ GASNETI_MALLOCP(_gasneti_extern_strndup)
 
 /* aligned malloc - allocated size bytes with given power-of-2 alignment
    may only be freed using gasneti_free_aligned */
+#if HAVE_POSIX_MEMALIGN && !GASNET_DEBUGMALLOC
+  // when debug mallocator is disabled, posix_memalign is friendlier
+  // for use with heap analysis tools like valgrind
+  #define GASNETI_USE_POSIX_MEMALIGN 1
+#endif
 GASNETI_INLINE(_gasneti_malloc_aligned) GASNETI_MALLOC
 void * _gasneti_malloc_aligned(size_t alignment, size_t size GASNETI_CURLOCFARG) {
+  gasneti_assert(GASNETI_POWEROFTWO(alignment));
+  gasneti_assert(alignment <= GASNET_PAGESIZE);
+#if GASNETI_USE_POSIX_MEMALIGN
+  if_pf(alignment < sizeof(void*)) alignment = sizeof(void*);
+  void *result = NULL; // init to avoid -Wmaybe-uninitialized warnings
+  gasneti_assert_zeroret(posix_memalign(&result, alignment, size));
+#else
   size_t alloc_size = size + sizeof(void *) + alignment;
   void *base = _gasneti_extern_malloc(alloc_size GASNETI_CURLOCPARG);
   void **result = (void **)GASNETI_ALIGNUP((uintptr_t)base + sizeof(void *), alignment);
   *(result - 1) = base; /* hidden base ptr for free() */
-  gasneti_assert(GASNETI_POWEROFTWO(alignment));
-  gasneti_assert_ptr(result ,==, (void **)GASNETI_ALIGNUP(result, alignment));
   gasneti_assert_ptr((void *)(result - 1) ,>=, base);
   gasneti_assert_ptr(((uint8_t *)result + size) ,<=, ((uint8_t *)base + alloc_size));
+#endif
+  gasneti_assume(result);
+  gasneti_assert_ptr(result ,==, (void **)GASNETI_ALIGNUP(result, alignment));
   return (void *)result;
 }
 GASNETI_MALLOCP(_gasneti_malloc_aligned)
@@ -96,21 +111,25 @@ GASNETI_MALLOCP(_gasneti_malloc_aligned)
 
 GASNETI_INLINE(_gasneti_free_aligned)
 void _gasneti_free_aligned(void *ptr GASNETI_CURLOCFARG) {
-  void *base;
   gasneti_assert(ptr);
-  base = *((void **)ptr - 1);
+#if GASNETI_USE_POSIX_MEMALIGN
+  free(ptr);
+#else
+  void *base = *((void **)ptr - 1);
   gasneti_assert(base);
   _gasneti_extern_free(base GASNETI_CURLOCPARG);
+#endif
 }
 #define gasneti_free_aligned(ptr) _gasneti_free_aligned((ptr) GASNETI_CURLOCAARG)
 
 GASNETI_INLINE(_gasneti_leak_aligned)
 void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
-  void *base;
   gasneti_assert(ptr);
-  base = *((void **)ptr - 1);
+#if !GASNETI_USE_POSIX_MEMALIGN
+  void *base = *((void **)ptr - 1);
   gasneti_assert(base);
   _gasneti_extern_leak(base GASNETI_CURLOCPARG);
+#endif
 }
 #define gasneti_leak_aligned(ptr) _gasneti_leak_aligned((ptr) GASNETI_CURLOCAARG)
 
@@ -154,17 +173,18 @@ extern gex_Rank_t gasneti_tm_fwd_lookup(gasneti_TM_t tm, gex_Rank_t rank);
 extern gex_Rank_t gasneti_tm_rev_lookup(gasneti_TM_t tm, gex_Rank_t jobrank);
 
 #if GASNET_DEBUG
-GASNETI_INLINE(__gasneti_check_tm_rank)
-void __gasneti_check_tm_rank(gex_TM_t _e_tm, gex_Rank_t _rank, int _allownull) {
-  if (!_allownull) gasneti_assert(_e_tm);
-  if (_e_tm) gasneti_assert_uint(_rank ,<, gex_TM_QuerySize(_e_tm));
+GASNETI_INLINE(gasneti_check_tm_rank)
+void gasneti_check_tm_rank(gex_TM_t _e_tm, gex_Rank_t _rank) {
+  gasneti_assert(_e_tm);
+  gasneti_assert_uint(_rank ,<, gex_TM_QuerySize(_e_tm));
 }
+#define gasneti_check_jobrank(jobrank) \
+  gasneti_assert_uint(jobrank ,<, gex_System_QuerySize());
 #else
-  #define __gasneti_check_tm_rank(tm,rank,allownull) ((void)0)
+  #define gasneti_check_tm_rank(tm,rank) ((void)0)
+  #define gasneti_check_jobrank(jobrank) ((void)0)
 #endif
 
-#define gasneti_check_tm_rank(tm,rank) __gasneti_check_tm_rank((tm),(rank),0)
-        
 GASNETI_INLINE(gasneti_i_tm_rank_to_jobrank)
 gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
   gasneti_assert(_i_tm);
@@ -185,32 +205,19 @@ gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank)
 #define gasneti_e_tm_jobrank_to_rank(e_tm,jobrank) \
         gasneti_i_tm_jobrank_to_rank(gasneti_import_tm(e_tm),jobrank)
 
-// Variants to allow tm=NULL to substitute for TM0
-// TODO-EX: These will necessarily be superceeded when multi-{EP,segment}
-// support is added.  So, avoid creating new callers.
-#define _gasneti_check_tm_rank_allownull(tm,rank) __gasneti_check_tm_rank(tm,rank,1)
-GASNETI_INLINE(_gasneti_e_tm_rank_to_jobrank_allownull)
-gex_Rank_t _gasneti_e_tm_rank_to_jobrank_allownull(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  gasneti_TM_t _i_tm = gasneti_import_tm(_e_tm);
-  if (_i_tm) gasneti_assert_uint(_rank ,<, _i_tm->_size);
-  if (gasneti_is_tm0(_i_tm)) return _rank; // gasneti_is_tm0(NULL) true by construction
-  gasneti_assert(_i_tm);
-  return gasneti_tm_fwd_lookup(_i_tm, _rank);
-}
-
 extern gasnet_seginfo_t *gasneti_seginfo;
 extern gasnet_seginfo_t *gasneti_seginfo_aux;
 
 // TODO: generalize for multi-{EP,segment} support
 // TODO: work towards dropping non-scalable seginfo tables
-GASNETI_INLINE(_gasneti_seginfo_lookup)
-const gasnet_seginfo_t *_gasneti_seginfo_lookup(gex_TM_t _e_tm, gex_Rank_t _rank, int _is_aux) {
-  gex_Rank_t _jobrank = _gasneti_e_tm_rank_to_jobrank_allownull(_e_tm,_rank);
-  gasnet_seginfo_t *_seg_table = _is_aux ? gasneti_seginfo_aux : gasneti_seginfo;
-  return _seg_table + _jobrank;
+GASNETI_INLINE(gasneti_client_seginfo)
+const gasnet_seginfo_t *gasneti_client_seginfo(gex_TM_t _e_tm, gex_Rank_t _rank) {
+  return gasneti_seginfo + gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
 }
-#define gasneti_client_seginfo(tm,rank) _gasneti_seginfo_lookup(tm,rank,0)
-#define gasneti_aux_seginfo(tm,rank)    _gasneti_seginfo_lookup(tm,rank,1)
+GASNETI_INLINE(gasneti_aux_seginfo)
+const gasnet_seginfo_t *gasneti_aux_seginfo(gex_Rank_t _jobrank) {
+  return gasneti_seginfo_aux + _jobrank;
+}
 
 GASNETI_INLINE(_gasneti_in_seginfo_t)
 int _gasneti_in_seginfo_t(const void *_ptr, size_t _nbytes, const gasnet_seginfo_t *_seginfo) {
@@ -228,21 +235,30 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
   return (_uptr >= (uintptr_t)(_i_seg->_addr) && (_uptr + _nbytes) <= (uintptr_t)_i_seg->_ub);
 }
 
-// These in-segment checks accept e_tm=NULL to indicate rank is a jobrank
-// (NULL,gasneti_mynode) is a common case for this.
-// NOTE: This behavior will no longer work when multi-{EP,segment} support is
-// added.  So avoid adding new callers which depend upon it.
 #if GASNET_SEGMENT_EVERYTHING
-  #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes)  (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
-  #define gasneti_in_auxsegment(e_tm,rank,ptr,nbytes)     (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
-  #define gasneti_in_fullsegment(e_tm,rank,ptr,nbytes)    (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
+  // Do not remove calls to gasneti_inseg_helper() or reduce it to a macro.
+  // The function call ensures ptr and nbytes evaluated exactly once for possible side-effects.
+  GASNETI_INLINE(gasneti_inseg_helper)
+  void gasneti_inseg_helper(const void *_ptr, size_t _nbytes) {
+    gasneti_assert(_nbytes);
+    gasneti_assert(_ptr);
+  }
+  #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes) \
+          (gasneti_inseg_helper(ptr,nbytes),gasneti_check_tm_rank(e_tm,rank), 1)
+  #define gasneti_in_auxsegment(jobrank,ptr,nbytes) \
+          (gasneti_inseg_helper(ptr,nbytes),gasneti_check_jobrank(jobrank), 1)
+  #define gasneti_in_fullsegment(e_tm,rank,ptr,nbytes) \
+          (gasneti_inseg_helper(ptr,nbytes), gasneti_check_tm_rank(e_tm,rank), 1)
 #else
   #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes) \
           _gasneti_in_seginfo_t(ptr,nbytes,gasneti_client_seginfo(e_tm,rank))
-  #define gasneti_in_auxsegment(e_tm,rank,ptr,nbytes) \
-          _gasneti_in_seginfo_t(ptr,nbytes,gasneti_aux_seginfo(e_tm,rank))
-  #define gasneti_in_fullsegment(e_tm,rank,ptr,nbytes) \
-    (gasneti_in_clientsegment(e_tm,rank,ptr,nbytes) || gasneti_in_auxsegment(e_tm,rank,ptr,nbytes))
+  #define gasneti_in_auxsegment(jobrank,ptr,nbytes) \
+          _gasneti_in_seginfo_t(ptr,nbytes,gasneti_aux_seginfo(jobrank))
+  GASNETI_INLINE(gasneti_in_fullsegment)
+  int gasneti_in_fullsegment(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_ptr, size_t _nbytes) {
+    return gasneti_in_clientsegment(_e_tm, _rank, _ptr, _nbytes) ||
+           gasneti_in_auxsegment(gasneti_e_tm_rank_to_jobrank(_e_tm, _rank), _ptr, _nbytes);
+  }
 #endif
 
 // Local-only in-segment checks, taking a gasneti_EP_t to name the local endpoint
@@ -281,16 +297,16 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
 #ifdef GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET
   /* in-segment check for internal put/gets that may exploit outofseg support */
   #define gasneti_in_segment_allowoutseg(e_tm,rank,ptr,nbytes) \
-          (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
+          (gasneti_check_tm_rank(e_tm,rank), 1)
 #else
   #define gasneti_in_segment_allowoutseg  gasneti_in_segment
 #endif
 
 #define _gasneti_boundscheck(e_tm,rank,ptr,nbytes,segtest) do {         \
     gex_TM_t _gex_bc_tm = (e_tm);                                              \
+    gasneti_assert(_gex_bc_tm);                                                \
     gex_Rank_t _gex_bc_rank = (rank);                                          \
-    gex_Rank_t _gex_bc_size = _gex_bc_tm ? gex_TM_QuerySize(_gex_bc_tm)        \
-                                         : gasneti_nodes;                      \
+    gex_Rank_t _gex_bc_size = gex_TM_QuerySize(_gex_bc_tm);                    \
     const void *_gex_bc_ptr = (const void *)(ptr);                             \
     size_t _gex_bc_nbytes = (size_t)(nbytes);                                  \
     gasneti_assert(_gex_bc_nbytes); /* avoids "fence post" error */            \
@@ -302,8 +318,9 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
            !segtest(_gex_bc_tm,_gex_bc_rank,_gex_bc_ptr,_gex_bc_nbytes)) {     \
       const gasnet_seginfo_t *_gex_bc_client_seg =                             \
                        gasneti_client_seginfo(_gex_bc_tm,_gex_bc_rank);        \
+      gex_Rank_t _gex_bc_jobrank = gasneti_e_tm_rank_to_jobrank(_gex_bc_tm, _gex_bc_rank); \
       const gasnet_seginfo_t *_gex_bc_aux_seg =                                \
-                       gasneti_aux_seginfo(_gex_bc_tm,_gex_bc_rank);           \
+                                         gasneti_aux_seginfo(_gex_bc_jobrank); \
       gasneti_fatalerror("Remote address out of range (" GASNETI_TMRANKFMT     \
          " ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"                 \
          "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
@@ -324,10 +341,6 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
 
 
 // gasneti_boundscheck() and gasneti_boundscheck_allowoutseg()
-// both accept e_tm=NULL to indicate rank is a jobrank
-// (NULL,gasneti_mynode) is a common case for this.
-// NOTE: This behavior will no longer work when multi-{EP,segment} support is
-// added.  So avoid adding new callers which depend upon it.
 #if GASNET_NDEBUG
   #define gasneti_boundscheck(e_tm,rank,ptr,nbytes) ((void)0)
   #define gasneti_boundscheck_allowoutseg(e_tm,rank,ptr,nbytes) ((void)0)
@@ -1129,7 +1142,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   /* GASNet client calls gasnet_AMPoll(), which throttles and traces */
   GASNETI_INLINE(_gasnet_AMPoll)
   int _gasnet_AMPoll(GASNETI_THREAD_FARG_ALONE) {
-    GASNETI_TRACE_EVENT(I, AMPOLL);
+    GASNETI_TRACE_EVENT(X, AMPOLL);
     return _gasneti_AMPoll(GASNETI_THREAD_PASS_ALONE);
   }
   #define gasnet_AMPoll() _gasnet_AMPoll(GASNETI_THREAD_GET_ALONE)

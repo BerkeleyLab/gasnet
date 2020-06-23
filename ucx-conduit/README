@@ -214,12 +214,12 @@ precedence.
   The main difference from ibv-conduit design is an "election" procedure
   in case global exit experienced timeout.
   In ibv-conduit, rank 0 is used to arbitrate between other ranks in 
-  competition for "master" role.
-  In ucx-conduit, rank 0 is always considered to be "master". It takes this
+  competition for "leader" role.
+  In ucx-conduit, rank 0 is always considered to be "leader". It takes this
   role when it receives the request to perform exit from other ranks.
   There might be a further improvement of the non-global exit protocol by
   sequentially trying ranks 1, 2, ..., <myself> if rank 0 failed to confirm
-  it has taken "master" role (noted in the Further work section).
+  it has taken "leader" role (noted in the Further work section).
 
 @ Section: Future work @
 

@@ -162,10 +162,10 @@ extern int AMUDP_SPMDLocalSpawn(int nproc, int argc, char **argv, char **extra_e
         #endif
 
         /*  exec the program, with the given arguments  */
-        execv(argv[0], argv);
+        execvp(argv[0], argv);
 
         /*  if execv returns, an error occurred */
-        perror("execv");
+        perror("execvp");
         _exit(1); /*  use _exit() to prevent corrupting parent's io buffers */
       } /*  child */
     #endif

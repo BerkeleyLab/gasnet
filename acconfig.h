@@ -245,6 +245,9 @@
 /* have ptmalloc's mallopt() options */
 #undef HAVE_PTMALLOC
 
+/* has posix_memalign() */
+#undef HAVE_POSIX_MEMALIGN
+
 /* have declarations/definitions */
 #undef HAVE_SETENV_DECL
 #undef HAVE_UNSETENV_DECL
@@ -281,9 +284,6 @@
 
 /* hugetlbfs support enabled */
 #undef GASNETI_USE_HUGETLBFS
-
-/* BLCR support, path and features */
-#undef GASNETI_BLCR_ENABLED
 
 /* support for backtracing */
 #undef HAVE_EXECINFO_H

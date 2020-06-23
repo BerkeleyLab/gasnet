@@ -1225,7 +1225,7 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETI_THREAD_FARG
   
   /* State 0: In barrier (if needed)*/
   if(data->state == 0) {
-    if(op->team->total_ranks>1) 
+    if(op->scratch_req)
       if(!gasnete_coll_scratch_alloc_nb(op GASNETI_THREAD_PASS)) 
         return 0;
     
@@ -1301,7 +1301,7 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETI_THREAD_FARG
     }
     
     /*free up the scratch space used by this op*/
-    if(op->team->total_ranks > 1) gasnete_coll_free_scratch(op);    
+    if(op->scratch_req) gasnete_coll_free_scratch(op);    
     gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     
@@ -1323,10 +1323,8 @@ gasnete_coll_gall_Dissem(gasnet_team_handle_t team,
    Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
-  GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH;
-  
-  
-
+  GASNETE_COLL_GENERIC_OPT_P2P |
+  ((team->total_ranks > 1) ? GASNETE_COLL_USE_SCRATCH : 0);
   
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_Dissem, options,
@@ -1408,9 +1406,9 @@ static int gasnete_coll_pf_exchg_Dissem(gasnete_coll_op_t *op GASNETI_THREAD_FAR
   /*states 2 through dissem_phases*2+1 represent intermediary steps*/
   /*each dissem phase will get two steps, one for sending and one for recieiving*/
   if(data->state == 0) {
-    if_pt(op->team->total_ranks != 1) 
-    if(!gasnete_coll_scratch_alloc_nb(op GASNETI_THREAD_PASS)) 
-      return 0;
+    if_pt(op->scratch_req)
+      if(!gasnete_coll_scratch_alloc_nb(op GASNETI_THREAD_PASS))
+        return 0;
     data->state = 1;
   } 
   
@@ -1522,7 +1520,7 @@ static int gasnete_coll_pf_exchg_Dissem(gasnete_coll_op_t *op GASNETI_THREAD_FAR
     }
     
     /*free up the scratch space used by this op*/
-    if(op->team->total_ranks != 1) gasnete_coll_free_scratch(op);    
+    if(op->scratch_req) gasnete_coll_free_scratch(op);
     gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     
@@ -1537,9 +1535,10 @@ gasnete_coll_exchg_Dissem2(gasnet_team_handle_t team,
                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                           GASNETI_THREAD_FARG)
 {
-  int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
+  int options =  GASNETE_COLL_GENERIC_OPT_P2P |
   GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
-  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
+  ((team->total_ranks > 1) ? GASNETE_COLL_USE_SCRATCH : 0);
   int radix;
   
   radix = 2;

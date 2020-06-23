@@ -93,13 +93,13 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   /* Bounds check any local portion of dst which user claims is in-segment */
   gasneti_assert(dstlen > 0);
   if ((dstrank == team->myrank) && (flags & GASNET_COLL_DST_IN_SEGMENT)) {
-      gasneti_boundscheck(NULL/*team*/, gasneti_mynode, dst, dstlen);
+      gasneti_boundscheck(gasneti_THUNK_TM, gasneti_mynode, dst, dstlen);
   }
 
   /* Bounds check any local portion of src which user claims is in-segment */
   gasneti_assert(srclen > 0);
   if ((srcrank == team->myrank) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
-      gasneti_boundscheck(NULL/*team*/, gasneti_mynode, src, srclen);
+      gasneti_boundscheck(gasneti_THUNK_TM, gasneti_mynode, src, srclen);
   }
 
   /* XXX: TO DO
@@ -131,6 +131,7 @@ extern gasnete_coll_eop_t gasnete_coll_eop_create(GASNETI_THREAD_FARG_ALONE) {
   } else {
     /* XXX: allocate in large chunks and scatter across cache lines (and update gasnete_coll_cleanup_threaddata) */
     result = (gasnete_coll_eop_t)gasneti_malloc(sizeof(*result));
+    GASNETI_STAT_EVENT_VAL(W, COLL_EOP_ALLOC, sizeof(*result));
   }
 
     result->next = NULL;
@@ -336,27 +337,37 @@ gasnete_coll_active_fini(void) {
 #endif
 
 /*---------------------------------------------------------------------------------*/
-static void gasnete_coll_cleanup_freelist(void **head) {
+static int gasnete_coll_cleanup_freelist(void **head) {
   void **next;
+  int count = 0;
   while ((next = (void **)*head) != NULL) {
     *head = *next;
     gasneti_free(next);
+    count++;
   }
+  return count;
 }
 static void gasnete_coll_cleanup_threaddata(void *_td) {
+  int count;
+
   gasnete_coll_threaddata_t *td = (gasnete_coll_threaddata_t *)_td;
 
   /* these free lists are all linked by initial pointer */
-  gasnete_coll_cleanup_freelist((void **)&(td->op_freelist));
-  gasnete_coll_cleanup_freelist((void **)&(td->generic_data_freelist));
+  count = gasnete_coll_cleanup_freelist((void **)&(td->op_freelist));
+  GASNETI_STAT_EVENT_VAL(W, COLL_OP_FREE, count * sizeof(gasnete_coll_op_t));
+  count = gasnete_coll_cleanup_freelist((void **)&(td->generic_data_freelist));
+  GASNETI_STAT_EVENT_VAL(W, COLL_GDATA_FREE, count * sizeof(gasnete_coll_generic_data_t));
 
 #ifndef GASNETE_COLL_HANDLE_OVERRIDE
 #if GASNET_PAR
+  count = 0;
   while (td->eop_freelist) {
     gasnete_coll_eop_t next = td->eop_freelist->next;
     gasneti_free((void *)td->eop_freelist);
     td->eop_freelist = next;
+    count++;
   }
+  GASNETI_STAT_EVENT_VAL(W, COLL_EOP_FREE, count * sizeof(gasnete_coll_eop_t));
 #endif
 #endif
 
@@ -417,6 +428,7 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, int flags GA
     /* XXX: allocate in chunks and scatter across cache lines */
     /* XXX: destroy freelist at exit */
     op = (gasnete_coll_op_t *)gasneti_malloc(sizeof(gasnete_coll_op_t));
+    GASNETI_STAT_EVENT_VAL(W, COLL_OP_ALLOC, sizeof(gasnete_coll_op_t));
   }
 
     gasnete_coll_active_new(op);
@@ -657,9 +669,8 @@ void gasnete_coll_consensus_do_notify(gasnete_coll_team_t team) {
 
 extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_consensus_t id) {
 #if GASNET_DEBUG
-  // This function is neither thread-safe nor recursion-safe
-  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-  gasneti_assert_always_int(gasneti_mutex_trylock(&lock) ,==, GASNET_OK);
+  // With respect to any given team, this function is neither thread-safe nor recursion-safe
+  gasneti_assert_always_int(gasneti_mutex_trylock(&team->barrier_lock) ,==, GASNET_OK);
 #endif
 
   gasneti_assert(! (id & 1)); // always even
@@ -698,7 +709,7 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
   int done = GASNETE_COLL_SEQ32_GE(team->consensus_id, id + 2);
 
 #if GASNET_DEBUG
-  gasneti_mutex_unlock(&lock);
+  gasneti_mutex_unlock(&team->barrier_lock);
 #endif
 
   return done ? GASNET_OK : GASNET_ERR_NOT_READY;
@@ -772,7 +783,10 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
       /* Round to 8-byte alignment of entry array */
       size_t alloc_size = GASNETI_ALIGNUP(sizeof(gasnete_coll_p2p_t) + statesz + countersz,8)
         + gasnete_coll_p2p_eager_buffersz;
-      uintptr_t p = (uintptr_t)gasneti_malloc(alloc_size);
+      void *alloc_ptr = gasneti_malloc(alloc_size);
+      gasneti_leak(alloc_ptr);
+      uintptr_t p = (uintptr_t)alloc_ptr;
+      GASNETI_STAT_EVENT_VAL(W, COLL_P2P_ALLOC, alloc_size);
           
       p2p = (gasnete_coll_p2p_t *)p;
       p += sizeof(gasnete_coll_p2p_t);
@@ -1326,6 +1340,7 @@ extern gasnete_coll_generic_data_t *gasnete_coll_generic_alloc(GASNETI_THREAD_FA
     /* XXX: allocate in chunks and scatter across cache lines */
     /* XXX: destroy freelist at exit */
     result = (gasnete_coll_generic_data_t *)gasneti_calloc(1, sizeof(gasnete_coll_generic_data_t));
+    GASNETI_STAT_EVENT_VAL(W, COLL_GDATA_ALLOC, sizeof(gasnete_coll_generic_data_t));
   }
 
   memset(result, 0, sizeof(*result));
@@ -2496,6 +2511,9 @@ gasnete_tm_reduce_nb_default(
       alg = &gasnete_tm_reduce_TreePut;
     } else if ((dt_sz * (max_radix + 1) <= smallest_scratch) && (dt_sz <= gex_AM_LUBRequestLong())) {
       alg = &gasnete_tm_reduce_TreePutSeg;
+    } else if ((dt_sz * binomial_root_radix <= gasnete_coll_p2p_eager_buffersz) &&
+               (dt_sz <= gex_AM_LUBRequestMedium())) {
+      alg = &gasnete_tm_reduce_BinomialEagerSeg;
     } else {
       gasneti_assert(dt == GEX_DT_USER);
       gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz == %"PRIuSZ") is TOO LARGE for this implementation",
