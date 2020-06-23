@@ -92,6 +92,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   for (int i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
     team->p2p_table[i] = NULL;
   }
+  team->p2p_eager_buffersz = MAX(gasnete_coll_p2p_eager_min, num_members * gasnete_coll_p2p_eager_scale);
 #endif
 }
 

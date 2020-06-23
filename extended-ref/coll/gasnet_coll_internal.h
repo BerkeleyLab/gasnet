@@ -145,7 +145,6 @@ typedef struct gasnete_coll_implementation_t_ *gasnete_coll_implementation_t;
 
 extern size_t gasnete_coll_p2p_eager_min;
 extern size_t gasnete_coll_p2p_eager_scale;
-extern size_t gasnete_coll_p2p_eager_buffersz;
 
 
 #ifndef GASNETE_COLL_IMAGE_OVERRIDE
@@ -356,6 +355,9 @@ struct gasnete_coll_team_t_ {
   gex_HSL_t p2p_lock; /* Protects freelist and table */
   gasnete_coll_p2p_t *p2p_freelist;
   gasnete_coll_p2p_t *p2p_table[GASNETE_COLL_P2P_TABLE_SIZE];
+  
+  // Size of p2p "data" (eager buffer)
+  size_t p2p_eager_buffersz;
 #endif
   
   /* Hook for conduit-specific extensions/overrides */
