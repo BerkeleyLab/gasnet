@@ -427,7 +427,9 @@ struct gasneti_team_member_internal_s;
     gasneti_EP_t       _ep;            \
     gex_Rank_t         _rank;          \
     gex_Rank_t         _size;          \
-    void *             _coll_team;
+    void *             _coll_team;     \
+    gex_Rank_t *       _rank_map;      \
+    gex_EP_Index_t *   _index_map;
   #ifdef __cplusplus  // ensure this struct is anonymous to prevent C++ linkage issues
     #define gasneti_team_member_internal_s
   #endif
