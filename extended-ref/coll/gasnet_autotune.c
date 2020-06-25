@@ -593,9 +593,6 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
   ret->exchange_dissem_limit = MIN(dissem_limit, temp_size);
   ret->exchange_dissem_radix = MIN(gasneti_getenv_int_withdefault("GASNET_COLL_EXCHANGE_DISSEM_RADIX", 2, 0),total_images);
 
-  if(min_scratch_size < total_images) {
-    gasneti_fatalerror("SCRATCH SPACE TOO SMALL Please set it to at least (%"PRIuPTR" bytes) through the GASNET_COLL_SCRATCH_SIZE environment variable", (uintptr_t) total_images);
-  }
   ret->pipe_seg_size = gasneti_getenv_int_withdefault("GASNET_COLL_PIPE_SEG_SIZE", MIN(min_scratch_size, gex_AM_LUBRequestLong())/total_images, 1);
   /*  if(ret->pipe_seg_size == 0) {
    ret->pipe_seg_size = MIN(min_scratch_size, gex_AM_LUBRequestLong())/total_images;
@@ -618,14 +615,7 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
     }
     
   } 
-  if(ret->pipe_seg_size == 0) {
-    if(mynode == 0) {
-      fprintf(stderr, "WARNING: GASNET_COLL_PIPE_SEG_SIZE has been set to 0 bytes\n");
-      fprintf(stderr, "WARNING: Disabling Optimized Rooted Collectives\n");
-    } 
-    
-  }
-  
+
 	/*initialize the autotune size array to 2 so we always get a binary tree*/
 	for(i=0; i<GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN; i++) {
 		ret->bcast_tree_radix_limits[i] = 3;

@@ -92,17 +92,30 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
     return result;
   }
 
+  // Split's scratch address is GEX_FLAG_TM_LOCAL_SCRATCH by default,
+  // but GEX_FLAG_TM_NO_SCRATCH is also accepted.
+  // TODO: support GEX_FLAG_TM_SYMMETRIC_SCRATCH too
+  if (flags & GEX_FLAG_TM_GLOBAL_SCRATCH) {
+    gasneti_fatalerror("Invalid call to gex_TM_Split with GEX_FLAG_TM_GLOBAL_SCRATCH");
+  } else if (flags & GEX_FLAG_TM_SYMMETRIC_SCRATCH) {
+    gasneti_fatalerror("Invalid call to gex_TM_Split with GEX_FLAG_TM_SYMMETRIC_SCRATCH");
+  } else if (! (flags & GEX_FLAG_TM_NO_SCRATCH)) {
+    flags |= GEX_FLAG_TM_LOCAL_SCRATCH;
+  }
+
   if (!new_tm_p) {
     color = -1; // tell gasnete_coll_team_split() not to create a team for this caller
   } else {
     gasneti_assert_int(color ,>=, 0);
 #if !GASNET_SEGMENT_EVERYTHING
     gasneti_assert(ep->_segment);
-    gasneti_assert_ptr(addr     ,>=, ep->_segment->_addr);
-    gasneti_assert_ptr((uint8_t*)addr+len ,<=, ep->_segment->_ub);
 #endif
-    if (!len) {
-      gasneti_fatalerror("Invalid call to gex_TM_Split with scratch_size = 0");
+    if (! (flags & GEX_FLAG_TM_NO_SCRATCH)) {
+      gasneti_assert_ptr(addr     ,>=, ep->_segment->_addr);
+      gasneti_assert_ptr((uint8_t*)addr+len ,<=, ep->_segment->_ub);
+      if (!len) {
+        gasneti_fatalerror("Invalid call to gex_TM_Split with scratch_size = 0");
+      }
     }
   }
 
@@ -140,7 +153,6 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
 //     - (num_new_tms > 1)
 //     - non-zero gex_ep_index
 //     - caller's EP not in members[]
-//   + GEX_FLAG_TM_NO_SCRATCH (fails "down stream" due to bug 4090)
 //   + GEX_FLAG_SCRATCH_SEG_OFFSET
 size_t gasneti_TM_Create(
             gex_TM_t *new_tms,
@@ -175,7 +187,7 @@ size_t gasneti_TM_Create(
   }
 
   if (num_new_tms && nmembers) {
-    if (!scratch_size) {
+    if (!scratch_size && !(flags & GEX_FLAG_TM_NO_SCRATCH)) {
       gasneti_fatalerror("Invalid call to gex_TM_Create with scratch_size = 0");
     }
     GASNETI_TRACE_PRINTF(D,("TM_Create: members[ %s ]", gasneti_format_eploc(members, nmembers)));

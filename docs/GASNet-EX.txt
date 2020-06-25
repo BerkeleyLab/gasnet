@@ -454,7 +454,7 @@ typedef [some integer type] gex_Flags_t;
 #define GEX_FLAG_TM_GLOBAL_SCRATCH     ((gex_Flags_t)???) // gex_TM_Create only
 #define GEX_FLAG_TM_LOCAL_SCRATCH      ((gex_Flags_t)???) // gex_TM_Create only
 #define GEX_FLAG_TM_SYMMETRIC_SCRATCH  ((gex_Flags_t)???) // gex_TM_Create only
-#define GEX_FLAG_TM_NO_SCRATCH         ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_TM_NO_SCRATCH         ((gex_Flags_t)???) // gex_TM_Create and gex_TM_Split
 //
 // SCRATCH_SEG_OFFSET
 //
@@ -735,7 +735,7 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 // that creates zero or more new teams.  While this call is collective, the
 // arguments are NOT required to be single-valued over the parent team, except
 // as noted for certain bits in 'flags'.  However, the value of 'scratch_size'
-// must be collective over callers passing the same 'color'.
+// (if applicable) must be collective over callers passing the same 'color'.
 //
 // + When passing any of the GEX_FLAG_TM_SCRATCH_SIZE_* family of flags, this
 //   call is a collective query to determine the recommended value
@@ -762,8 +762,8 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //   or passed to any GASNet function, nor may the segment be destroyed, for
 //   the lifetime of the newly created team.  When the team is destroyed,
 //   ownership of this memory is returned to the client.
-//   [NOTE: this release *requires* the caller to provide this space, but it
-//    is intended that this be optional in a future release.]
+//   To NOT provide a scratch space, the client must pass 'flags' containing
+//   'GEX_FLAG_TM_NO_SCRATCH'.
 //   [TBD: what about Unbind of the segment w/o destroying it?]
 //
 // new_tm_p:  An OUT parameter that receives the gex_TM_t representing the
@@ -773,7 +773,8 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //            same new team.
 // key:       An integer used to order the ranks within newly created teams.
 // scratch_addr, scratch_size:
-//            If scratch_addr is non-NULL, then the memory
+//            If 'GEX_FLAG_TM_NO_SCRATCH' appears in 'flags', then these two
+//            arguments are ignored.  Otherwise, the memory
 //               [scratch_addr, scratch_addr+scratch_size)
 //            is granted to the implementation for internal use.
 //            The value of 'scratch_size' must be single-valued over the members
@@ -791,6 +792,15 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //           Return values are guaranteed to be single-valued over the members
 //           of each new team to be created (non-NULL 'new_tm_p' and same 'color').
 //         No team is created in the presence of this flag.
+//   Partially single valued:
+//       GEX_FLAG_TM_NO_SCRATCH
+//         This flag causes creation of a team without a scratch space.  The
+//         'scratch_addr' and 'scratch_size' arguments are ignored.  This flag
+//         is intended for use when creating teams which will not perform any
+//         significant collectives, and its use otherwise will most likely
+//         degrade the performance of collectives.
+//         Presence/absence of this flag must be single-valued over the members
+//         of each new team to be created (non-NULL 'new_tm_p' and same 'color').
 //   Non-single valued:
 //        None currently defined 
 //
