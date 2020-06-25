@@ -177,11 +177,12 @@ void gasnete_coll_register_broadcast_collectives(gasnete_coll_autotune_info_t* i
   {
     GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_MIN_PIPE_SEG_SIZE, MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch), 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
     
+    size_t largest_seg_size =  MIN(gex_AM_LUBRequestLong(),MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch));
     info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP, 
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 0,
-                                             GASNET_COLL_MIN_PIPE_SEG_SIZE*GASNETE_COLL_MAX_NUM_SEGS, GASNET_COLL_MIN_PIPE_SEG_SIZE, 1,
+                                             largest_seg_size*GASNETE_COLL_MAX_NUM_SEGS, GASNET_COLL_MIN_PIPE_SEG_SIZE, 1,
                                              1,tuning_params,gasnete_coll_bcast_TreePutSeg, "BROADCAST_TREE_PUT_SEG");
     
     
@@ -248,7 +249,7 @@ void gasnete_coll_register_scatter_collectives(gasnete_coll_autotune_info_t* inf
     info->collective_algorithms[GASNET_COLL_SCATTER_OP][GASNETE_COLL_SCATTER_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_SCATTER_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 0, 
-                                             smallest_seg_size*GASNETE_COLL_MAX_NUM_SEGS, smallest_seg_size, 1,
+                                             largest_seg_size*GASNETE_COLL_MAX_NUM_SEGS, smallest_seg_size, 1,
                                              1, tuning_params, gasnete_coll_scat_TreePutSeg, "SCATTER_TREE_PUT_SEG");
   }
 
@@ -304,7 +305,7 @@ void gasnete_coll_register_gather_collectives(gasnete_coll_autotune_info_t* info
     info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHER_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 0, 
-                                             smallest_seg_size*GASNETE_COLL_MAX_NUM_SEGS, smallest_seg_size, 1,
+                                             largest_seg_size*GASNETE_COLL_MAX_NUM_SEGS, smallest_seg_size, 1,
                                              1, tuning_params, gasnete_coll_gath_TreePutSeg, "GATHER_TREE_PUT_SEG");
   }
   info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_TREE_EAGER]=
@@ -1819,11 +1820,14 @@ gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst
     } else if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_SCATTER_OP, flags)) {
       ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_SCATTER_OP][GASNETE_COLL_SCATTER_TREE_PUT_NO_COPY].fn_ptr.scatter_fn;
       ret->fn_idx = GASNETE_COLL_SCATTER_TREE_PUT_NO_COPY;
-    } else {
+    } else if(nbytes <= team->autotune_info->collective_algorithms[GASNET_COLL_SCATTER_OP][GASNETE_COLL_SCATTER_TREE_PUT_SEG].max_num_bytes) {
       ret->num_params = 1;
       ret->param_list[0] = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_SCATTER_OP, flags);
       ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_SCATTER_OP][GASNETE_COLL_SCATTER_TREE_PUT_SEG].fn_ptr.scatter_fn;
       ret->fn_idx = GASNETE_COLL_SCATTER_TREE_PUT_SEG;
+    } else {
+      ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_SCATTER_OP][GASNETE_COLL_SCATTER_RVOUS].fn_ptr.scatter_fn;
+      ret->fn_idx = GASNETE_COLL_SCATTER_RVOUS;
     }
   } else if (nbytes <= eager_limit) {
     /* Small enough for Eager, which works for out-of-segment src and/or dst */
@@ -1886,11 +1890,14 @@ gasnete_coll_autotune_get_gather_algorithm(gasnet_team_handle_t team,gasnet_imag
       if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_GATHER_OP, flags)) {
         ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_TREE_PUT_NO_COPY].fn_ptr.gather_fn;
         ret->fn_idx = GASNETE_COLL_GATHER_TREE_PUT_NO_COPY;
-      } else {
+      } else if(nbytes <= team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_TREE_PUT_SEG].max_num_bytes) {
         ret->num_params = 1;
         ret->param_list[0] = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_GATHER_OP, flags);
         ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_TREE_PUT_SEG].fn_ptr.gather_fn;
         ret->fn_idx = GASNETE_COLL_GATHER_TREE_PUT_SEG;
+      } else {
+        ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_RVOUS].fn_ptr.gather_fn;
+        ret->fn_idx = GASNETE_COLL_GATHER_RVOUS;
       }
     } else {
       if (nbytes <= eager_limit) {

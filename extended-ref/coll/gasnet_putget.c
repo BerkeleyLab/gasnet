@@ -222,8 +222,9 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
   
   gasneti_assert(coll_params->num_params >= 1);
   seg_size = (size_t)coll_params->param_list[0];
+  gasneti_assert(seg_size);
   num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  gasneti_assert(num_segs < GASNETE_COLL_MAX_NUM_SEGS);
+  gasneti_assert_int(num_segs ,<=, GASNETE_COLL_MAX_NUM_SEGS);
 
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
@@ -778,8 +779,9 @@ gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
   size_t seg_size;
   gasneti_assert(coll_params->num_params >= 1);
   seg_size = coll_params->param_list[0];
+  gasneti_assert(seg_size);
   num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  gasneti_assert(num_segs < GASNETE_COLL_MAX_NUM_SEGS);
+  gasneti_assert_int(num_segs ,<=, GASNETE_COLL_MAX_NUM_SEGS);
 
 
     return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
@@ -1200,9 +1202,10 @@ GASNETE_COLL_DECLARE_GATHER_ALG(TreePutSeg) {
   int num_segs;
   gasneti_assert(coll_params->num_params >= 1);
   seg_size = (size_t)coll_params->param_list[0];
+  gasneti_assert(seg_size);
   num_segs = (nbytes + seg_size - 1)/seg_size;
   
-  gasneti_assert(num_segs < GASNETE_COLL_MAX_NUM_SEGS);
+  gasneti_assert_int(num_segs ,<=, GASNETE_COLL_MAX_NUM_SEGS);
   
 
 

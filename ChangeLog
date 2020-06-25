@@ -42,6 +42,7 @@ GASNet-EX ChangeLog
   - bug4079: udp-conduit localhost spawn fails to search PATH for wrappers
   - bug4086: AM performance bug for --enable-{debug,trace}
   - bug4089: gex_Coll_ReduceToOne failures under some conditions
+  - bug4095: Incorrect algorithms for small scratch and/or large data
 
 ----------------------------------------------------------------------
 03-12-2020: GASNet-EX 2020.3.0 Release
