@@ -476,6 +476,29 @@ typedef struct {
 // a local representative of an isolated communication context
 typedef ... gex_EP_t;
 
+// gex_EP_Index_t is an unsigned integer type.
+// [PROPOSED]
+// Every EP within a given gex_Client_t can be uniquely identified by
+// the jobrank of a process and an endpoint index.
+// The primordial endpoint, created by gex_Client_Init(), will always have
+// an index of 0.  At this time, there are no other guarantees regarding how
+// endpoint indices are allocated/assigned.
+typedef ... gex_EP_Index_t;
+
+// Max supported number of endpoints per client in each process.
+// This is an optimistic compile-time constant which cannot account
+// for limitations due to scarcity of network resources and/or memory.
+// The value is implementation-defined and may be conduit-specific.
+// [PROPOSED]
+#define GASNET_MAXEPS ...
+
+// gex_EP_Location_t is a (rank, ep_index) tuple
+// [PROPOSED]
+typedef struct {
+  gex_Rank_t     gex_rank;
+  gex_EP_Index_t gex_ep_index;
+} gex_EP_Location_t;
+
 // gex_Client_t is an opaque scalar handle to a Client,
 // an instance of the client interface to the GASNet library
 typedef ... gex_Client_t;
@@ -755,6 +778,28 @@ size_t gex_TM_Split(gex_TM_t *new_tm_p, gex_TM_t parent_tm, int color, int key,
 gex_Rank_t gex_TM_TranslateRankToJobrank(gex_TM_t tm, gex_Rank_t rank);
 gex_Rank_t gex_TM_TranslateJobrankToRank(gex_TM_t tm, gex_Rank_t jobrank);
 
+// Translation from (tm,rank) to gex_EP_Location_t
+// [PROPOSED]
+//
+// This function provides translation from a (tm,rank) pair to a
+// gex_EP_Location_t, which is a (jobrank,epidx) pair.
+//
+// tm:      A valid gex_TM_t
+// rank:    The rank of some member of tm.
+//          Requires 0 <= rank < gex_TM_QuerySize(tm).
+// flags:   Flags are reserved for future use and must currently be zero
+//
+// Returns: A gex_EP_Location_t describing the given member of tm.
+//
+// This query MAY communicate.
+// [TBD: exception for 'self' in one both directions?]
+// This call is not legal in contexts which prohibit communication,
+// including (but not limited to) AM Handler context or when holding an HSL.
+//
+gex_EP_Location_t gex_TM_TranslateRankToEP(
+                gex_TM_t        tm,
+                gex_Rank_t      rank,
+                gex_Flags_t     flags);
 
 //
 // Operations on gex_EP_t
@@ -771,6 +816,10 @@ gex_Flags_t   gex_EP_QueryFlags(gex_EP_t ep);
 // Query the bound segment
 // Newly-created EPs have no bound segment and will yield GEX_SEGMENT_INVALID.
 gex_Segment_t gex_EP_QuerySegment(gex_EP_t ep);
+
+// Query the endpoint index
+// [PROPOSED]
+gex_EP_Index_t gex_EP_QueryIndex(gex_EP_t ep);
 
 // Create an endpoint [UNIMPLEMENTED]
 extern int gex_EP_Create(
