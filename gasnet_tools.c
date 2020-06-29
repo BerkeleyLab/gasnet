@@ -423,6 +423,7 @@ int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 
 static gasneti_atomic_t gasneti_backtrace_enabled = gasneti_atomic_init(1);
+static int volatile gasneti_internal_crash = 0;
 
 extern uint64_t gasnett_release_version(void) { // motivated by xSDK Community Policy M8
   return GASNET_RELEASE_VERSION_MAJOR * (uint64_t)1000000 +
@@ -745,6 +746,13 @@ extern void gasneti_console_message(const char *prefix, const char *msg, ...) {
   va_end(argptr);
 }
 
+static void gasneti_output_config(void) {
+  gasneti_console_message("Details for bug reporting", 
+                          "config=" GASNETT_CONFIG_STRING
+                          " compiler=" _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME) "/" PLATFORM_COMPILER_VERSION_STR
+                          " sys=" GASNETT_SYSTEM_TUPLE);
+}
+
 /* Because some glibc headers annotate nearly all system calls
  * with "__attribute__ ((__warn_unused_result__))", we need to
  * do "something" with return values to avoid gcc warnings.
@@ -756,6 +764,7 @@ extern void gasneti_console_message(const char *prefix, const char *msg, ...) {
 static int gasneti_rc_unused;
 
 extern void gasneti_error_abort(void) {
+  gasneti_internal_crash = 1;
 
   gasnett_freezeForDebuggerErr(); /* allow freeze */
 
@@ -783,6 +792,7 @@ extern void gasneti_error_abort(void) {
   // ensure this function never returns, even if abort does
   _exit(1);
 }
+
 
 const char *_gasneti_fatalerror_funcname;
 const char *_gasneti_fatalerror_filename;
@@ -1937,6 +1947,7 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
 #endif
   if (gasneti_backtrace_userenabled) {
     GASNETI_NDEBUG_ADVISORY();
+    if (gasneti_internal_crash) gasneti_output_config(); // GEX info iff this looks like a GEX-related crash
     return gasneti_print_backtrace(fd);
   } else if (gasneti_backtrace_mechanism_count && !noticeshown) {
     fprintf(stderr, "NOTICE: Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace. \n");
