@@ -33,7 +33,7 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Data movement */
-      if (op->team->myrank == args->srcnode) {
+      if (op->team->myrank == args->srcrank) {
         int i;
         for (i = op->team->myrank + 1; i < op->team->total_ranks; ++i) {
           gasnete_tm_p2p_eager_put(op, i, args->src, args->nbytes, GEX_EVENT_NOW, 0, 0, 1 GASNETI_THREAD_PASS);
@@ -101,13 +101,13 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_
       
       case 1:	/* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
-          !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count GASNETI_THREAD_PASS)) {
+          !gasnete_coll_generic_upsync_acq(op, args->srcrank, 0, child_count GASNETI_THREAD_PASS)) {
         break;
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Data movement */
-      if (op->team->myrank == args->srcnode) {
+      if (op->team->myrank == args->srcrank) {
         for (child=0;child<child_count; child++){
           gasnete_tm_p2p_eager_put_tree(op, children[child], args->src, args->nbytes GASNETI_THREAD_PASS);
         }
@@ -177,7 +177,7 @@ static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Data movement */
-      if (op->team->myrank == args->srcnode) {
+      if (op->team->myrank == args->srcrank) {
         int i;
         uintptr_t src_addr;
         
@@ -245,13 +245,13 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
       
     case 1:	/* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
-          !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count GASNETI_THREAD_PASS)) {
+          !gasnete_coll_generic_upsync_acq(op, args->srcrank, 0, child_count GASNETI_THREAD_PASS)) {
         break;
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
     case 2:	/* Data movement */
-      if (op->team->myrank == args->srcnode) {
+      if (op->team->myrank == args->srcrank) {
         uint8_t *src;
       
         if(op->team->myrank !=0) {
@@ -335,8 +335,8 @@ static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
       }
       
       /* Initiate data movement */
-      if (op->team->myrank != args->dstnode) {
-        gasnete_tm_p2p_eager_put(op, args->dstnode, args->src, args->nbytes, GEX_EVENT_NOW, 0, op->team->myrank, 1 GASNETI_THREAD_PASS);
+      if (op->team->myrank != args->dstrank) {
+        gasnete_tm_p2p_eager_put(op, args->dstrank, args->src, args->nbytes, GEX_EVENT_NOW, 0, op->team->myrank, 1 GASNETI_THREAD_PASS);
       } else {
         GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
                                             args->src, args->nbytes);
@@ -345,7 +345,7 @@ static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Complete data movement */
-      if (op->team->myrank == args->dstnode) {
+      if (op->team->myrank == args->dstrank) {
         gasnete_coll_p2p_t *p2p = data->p2p;
         volatile uint32_t *state;
         uintptr_t dst_addr, src_addr;
@@ -429,7 +429,7 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
         if (gasneti_weakatomic_read(&data->p2p->counter[0], 0) != child_count) {
           break;
         }
-        if(op->team->myrank != args->dstnode) {
+        if(op->team->myrank != args->dstrank) {
           gasnete_tm_p2p_counting_eager_put(op, parent, data->p2p->data,
                                             args->nbytes*geom->mysubtree_size, args->nbytes,
                                             (geom->sibling_offset+1), 0 GASNETI_THREAD_PASS);
@@ -438,7 +438,7 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
           gasnete_coll_local_rotate_right(args->dst,data->p2p->data, 
                                           args->nbytes, op->team->total_ranks, geom->rotation_points[0]);
         }
-      } else if(op->team->myrank !=args->dstnode){
+      } else if(op->team->myrank !=args->dstrank){
         gasnete_tm_p2p_counting_eager_put(op, parent, args->src,
                                           args->nbytes, args->nbytes,
                                           (geom->sibling_offset+1), 0 GASNETI_THREAD_PASS);
@@ -452,7 +452,7 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
 #if FOLD_OUT_BARRIER
       if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
         int i;
-        if(args->dstnode != op->team->myrank) {
+        if(args->dstrank != op->team->myrank) {
           /*wait for parent to signal*/
           if(gasneti_weakatomic_read(&(data->p2p->counter[1]), 0) == 0) {
             break;
@@ -601,11 +601,11 @@ static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETI_THREAD
   if(data->state >= 2 && data->state <= (dissem->dissemination_phases-1)*2+1) {
     uint32_t phase = (data->state-2)/2;
     size_t curr_len = args->nbytes*(1<<phase); /* length = nbytes * 2^phase*/
-    gex_Rank_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
+    gex_Rank_t dstrank = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
     
     if(data->state % 2 == 0) {
       /* send in this phase */
-      gasnete_tm_p2p_counting_eager_put(op, dstnode, data->p2p->data,
+      gasnete_tm_p2p_counting_eager_put(op, dstrank, data->p2p->data,
                                         curr_len, 1, curr_len, phase GASNETI_THREAD_PASS);
       data->state++;
     } 
@@ -622,8 +622,8 @@ static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETI_THREAD
     uint32_t phase = (data->state-2)/2;
     size_t nblk = op->team->total_ranks - (1<<phase); 
     size_t curr_len = args->nbytes*(nblk);
-    gex_Rank_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
-    gasnete_tm_p2p_counting_eager_put(op, dstnode, data->p2p->data, curr_len,
+    gex_Rank_t dstrank = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
+    gasnete_tm_p2p_counting_eager_put(op, dstrank, data->p2p->data, curr_len,
                                       args->nbytes, (1<<phase), phase GASNETI_THREAD_PASS);
 
     data->state++;

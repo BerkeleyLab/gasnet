@@ -1817,7 +1817,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETI_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, broadcast);
     data->args.broadcast.dst        = dst;
-    data->args.broadcast.srcnode    = srcimage;
+    data->args.broadcast.srcrank    = srcimage;
     data->args.broadcast.src        = src;
     data->args.broadcast.nbytes     = nbytes;
     data->options = options;
@@ -1899,7 +1899,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETI_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, scatter);
     data->args.scatter.dst        = dst;
-    data->args.scatter.srcnode    = srcimage;
+    data->args.scatter.srcrank    = srcimage;
     data->args.scatter.src        = src;
     data->args.scatter.nbytes     = nbytes;
     data->args.scatter.dist     = dist;
@@ -1980,7 +1980,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
   if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETI_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, gather);
-    data->args.gather.dstnode    = dstimage;
+    data->args.gather.dstrank    = dstimage;
     data->args.gather.dst        = dst;
     data->args.gather.src        = src;
     data->args.gather.nbytes     = nbytes;
