@@ -93,13 +93,13 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   /* Bounds check any local portion of dst which user claims is in-segment */
   gasneti_assert(dstlen > 0);
   if ((dstrank == team->myrank) && (flags & GASNET_COLL_DST_IN_SEGMENT)) {
-      gasneti_boundscheck(gasneti_THUNK_TM, gasneti_mynode, dst, dstlen);
+      gasneti_boundscheck(team->e_tm, dstrank, dst, dstlen);
   }
 
   /* Bounds check any local portion of src which user claims is in-segment */
   gasneti_assert(srclen > 0);
   if ((srcrank == team->myrank) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
-      gasneti_boundscheck(gasneti_THUNK_TM, gasneti_mynode, src, srclen);
+      gasneti_boundscheck(team->e_tm, srcrank, src, srclen);
   }
 
   /* XXX: TO DO
@@ -552,7 +552,7 @@ extern void gasnete_coll_init_subsystem(void)
 
     /* setup information for TM0 */
     gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode,
-                           GASNET_TEAM_ALL->rel2act_map, gasnete_coll_auxseg_save,
+                           NULL, gasnete_coll_auxseg_save,
                            NULL GASNETI_THREAD_PASS);
     gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
     GASNET_TEAM_ALL->e_tm = gasneti_THUNK_TM;
@@ -1150,29 +1150,31 @@ MEDIUM_HANDLER(gasnete_coll_p2p_memcpy_reqh,4,5,
 
 /* Put up to gex_AM_LUBRequestLong() bytes, signalling the recipient */
 /* Returns as soon as local buffer is reusable */
-void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                   void *src, size_t nbytes, uint32_t idx) {
-      
+void gasnete_tm_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                 void *src, size_t nbytes, uint32_t idx
+                                 GASNETI_THREAD_FARG)
+{
   uint32_t seq_num = op->sequence;
   const uint32_t team_id = op->team->team_id;
 
   gasneti_assert(nbytes <= gex_AM_LUBRequestLong());
   
-  gex_AM_RequestLong(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+  gex_AM_RequestLong(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
                          src, nbytes, dst, GEX_EVENT_NOW, 0, team_id, seq_num, idx);
 }
 /* Put up to gex_AM_LUBRequestLong() bytes, signalling the recipient */
 /* Returns immediately even if the local buffer is not yet reusable */
-void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                        void *src, size_t nbytes, uint32_t idx) {
-  
+void gasnete_tm_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                      void *src, size_t nbytes, uint32_t idx
+                                      GASNETI_THREAD_FARG)
+{
   uint32_t seq_num = op->sequence;
   const uint32_t team_id = op->team->team_id;
   
   gasneti_assert(nbytes <= gex_AM_LUBRequestLong());
   
   // TODO-EX: restore "Async"
-  gex_AM_RequestLong(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+  gex_AM_RequestLong(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
                          src, nbytes, dst, GEX_EVENT_NOW, 0, team_id, seq_num, idx);
 }
     
@@ -1181,14 +1183,15 @@ void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstnod
   Takes a Segment ID as an argument and sends the message such that it will be put in the right location
   and update the list of active intervals indicating which chunk of the message has arrived
 */
-void gasnete_coll_p2p_sig_seg_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                  void *src, size_t nbytes, size_t seg_id) {
+void gasnete_tm_p2p_sig_seg_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                void *src, size_t nbytes, size_t seg_id GASNETI_THREAD_FARG)
+ {
   uint32_t seq_num = op->sequence;
   const uint32_t team_id = op->team->team_id;
 
   gasneti_assert(nbytes <= gex_AM_LUBRequestLong());
       
-  gex_AM_RequestLong(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_seg_put_reqh),
+  gex_AM_RequestLong(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_seg_put_reqh),
                          src, nbytes, dst, GEX_EVENT_NOW, 0, team_id, seq_num, seg_id);
 }
 
@@ -1196,7 +1199,7 @@ void gasnete_coll_p2p_sig_seg_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, voi
 /* Send data to be buffered by the recipient */
 int gasnete_tm_p2p_eager_putM(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         const void *src, uint32_t count, size_t size,
                         gex_Event_t *lc_opt, gex_Flags_t flags,
                         uint32_t offset, uint32_t state
@@ -1211,7 +1214,7 @@ int gasnete_tm_p2p_eager_putM(
     flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX: support maybe IMMEDIATE for multi-AM case?
     do {
       gasneti_assert_zeroret(
-         gex_AM_RequestMedium6(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+         gex_AM_RequestMedium6(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                                (void*)src, nbytes, GEX_EVENT_NOW, flags,
                                team_id, sequence, chunk, offset, state, size));
       offset += chunk;
@@ -1219,7 +1222,7 @@ int gasnete_tm_p2p_eager_putM(
       count -= chunk;
     } while (count > chunk);
   }
-  return gex_AM_RequestMedium6(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+  return gex_AM_RequestMedium6(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                                (void*)src, count * size, lc_opt, flags,
                                team_id, sequence, count, offset, state, size);
 }
@@ -1227,15 +1230,15 @@ int gasnete_tm_p2p_eager_putM(
 /* a simplification for eager putM so that we send less bits on the wire*/ 
 /* we hardcode the assumption that we want to send to state 0 and set a value of 1*/
 /* for cases in which we are just sending down the tree (such as a broadcast) this is sufficient*/
-void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                     void *src, size_t size) {
+void gasnete_tm_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstrank,
+                                   void *src, size_t size GASNETI_THREAD_FARG)
+{
   uint32_t seq_num = op->sequence;
   const uint32_t team_id = op->team->team_id;
 
   gasneti_assert(size <= gex_AM_LUBRequestMedium());
-  gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_tree_reqh),
+  gex_AM_RequestMedium(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_med_tree_reqh),
                            src, size, GEX_EVENT_NOW, 0, team_id, seq_num);
-      
 }
 
 /* Memcpy up to gex_AM_LUBRequestMedium() bytes, signalling the recipient */
@@ -1252,11 +1255,13 @@ int gasnete_tm_p2p_memcpy(gasnete_coll_op_t *op, gex_Rank_t rank, void *dst,
 }
 
 
-extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                                void *src, size_t nbytes, size_t offset_size, uint32_t offset, uint32_t idx){
+extern void gasnete_tm_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstrank,
+                                              void *src, size_t nbytes, size_t offset_size,
+                                              uint32_t offset, uint32_t idx GASNETI_THREAD_FARG)
+{
   const uint32_t team_id = op->team->team_id;
   
-  gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_counting_reqh),
+  gex_AM_RequestMedium(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_med_counting_reqh),
                            src, nbytes, GEX_EVENT_NOW, 0, team_id, op->sequence, offset, idx, offset_size);
 }
 
@@ -1273,7 +1278,7 @@ int gasnete_tm_p2p_send_rtr(
   tmp.sent = 0;
   /* TODO: we send addr+"0", when only the addr is needed (need custom AM instead of eager_put). */
   int retval =
-    gasnete_tm_p2p_eager_put(op, op->e_tm, rank, &tmp, sizeof(tmp),
+    gasnete_tm_p2p_eager_put(op, rank, &tmp, sizeof(tmp),
                              GEX_EVENT_NOW, flags, offset, 1 GASNETI_THREAD_PASS);
   if (retval) {
     // back pressure
@@ -1812,7 +1817,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETI_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, broadcast);
     data->args.broadcast.dst        = dst;
-    data->args.broadcast.srcnode    = srcimage;
+    data->args.broadcast.srcrank    = srcimage;
     data->args.broadcast.src        = src;
     data->args.broadcast.nbytes     = nbytes;
     data->options = options;
@@ -1894,7 +1899,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETI_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, scatter);
     data->args.scatter.dst        = dst;
-    data->args.scatter.srcnode    = srcimage;
+    data->args.scatter.srcrank    = srcimage;
     data->args.scatter.src        = src;
     data->args.scatter.nbytes     = nbytes;
     data->args.scatter.dist     = dist;
@@ -1975,7 +1980,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
   if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETI_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, gather);
-    data->args.gather.dstnode    = dstimage;
+    data->args.gather.dstrank    = dstimage;
     data->args.gather.dst        = dst;
     data->args.gather.src        = src;
     data->args.gather.nbytes     = nbytes;

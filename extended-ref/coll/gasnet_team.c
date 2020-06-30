@@ -102,7 +102,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   fprintf(stderr, "gasnete_coll_team_init: team %p, team_id %x, total_ranks %u, myrank %u\n", 
           team, team_id, total_ranks, myrank);
   fflush(stderr);
-  if (myrank == 0) {
+  if (myrank == 0 && team_id) {
     PRINT_ARRAY(stderr, rel2act_map, total_ranks, "%u");
     fflush(stderr);
   }
@@ -115,15 +115,17 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   team->total_ranks = total_ranks;
   team->myrank = myrank;
 
-  /* Build rel2act map (unless already constructed) */
-  if (team->rel2act_map == NULL) {
+  // Build rel2act_map (except for TEAM_ALL)
+  if (team_id) {
+    gasneti_assert(team->rel2act_map == NULL);
+
     size_t alloc_size = total_ranks * sizeof(gex_Rank_t);
     team->rel2act_map = (gex_Rank_t *)gasneti_malloc(alloc_size);
     memcpy(team->rel2act_map, rel2act_map, alloc_size);
   }
 
-  /* Build peer lists (unless already constructed) */
-  if (total_ranks > 1 && !team->peers.num) {
+  // Build peer lists (except for TEAM_ALL)
+  if (total_ranks > 1 && team_id) {
     unsigned int count = 0;
     for (i=1; i<total_ranks; i*=2) ++count;
     team->peers.num = count;
@@ -135,8 +137,8 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   }
 
 #if GASNET_PSHM
-  /* Build supernode stats (unless already constructed) */
-  if (!team->supernode.node_count) {
+  // Build supernode stats (except for TEAM_ALL)
+  if (team_id) {
     gex_Rank_t *node_vector;
     int count, rank;
 
@@ -214,7 +216,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
 #endif
   /* unlock */
 
-  if (team != GASNET_TEAM_ALL) {
+  if (team_id) {
     gasnete_coll_barrier_init(team, GASNETE_COLL_BARRIER_ENVDEFAULT,
                               rel2act_map, supernodes);
   }
@@ -418,7 +420,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   for (i=0; i < new_total_ranks; i++) {
     j = members[i].parent_rank;
     if (j == team->myrank) new_myrank = i;
-    rel2act_map[i] = team->rel2act_map[j];
+    rel2act_map[i] = team->team_id ? team->rel2act_map[j] : j;
     segments[i] = all_args[j].segment;
   }
   gasneti_assert(new_myrank != GEX_RANK_INVALID);

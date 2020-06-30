@@ -1814,13 +1814,12 @@ void gasnete_amcbarrier_kick(gasnete_coll_team_t team) {
     gex_HSL_Unlock(&barrier_data->amcbarrier_lock);
 
     if (gotit) { /*  ambarrier is complete */
-      int i;
-
       gasnete_barrier_pf_disable(team);
 
       /*  inform the active nodes */
-      for (i=0; i < barrier_data->amcbarrier_max; i++) {
-        gex_AM_RequestShort4(gasneti_THUNK_TM, barrier_data->amcbarrier_active[i],
+      for (int i=0; i < barrier_data->amcbarrier_max; i++) {
+        gex_Rank_t rank = barrier_data->amcbarrier_active ? barrier_data->amcbarrier_active[i] : i;
+        gex_AM_RequestShort4(gasneti_THUNK_TM, rank,
                                  gasneti_handleridx(gasnete_amcbarrier_done_reqh), 0,
                                  team->team_id, phase, flags, value);
       }
@@ -1982,10 +1981,10 @@ static void gasnete_amcbarrier_init(gasnete_coll_team_t team, gex_Rank_t *nodes,
   barrier_data->amcbarrier_max = total_ranks;
 
   /* Choice of last active node as "master" is arbitrary (as long as all agree) */
-  barrier_data->amcbarrier_master = active[total_ranks-1];
+  barrier_data->amcbarrier_master = active ? active[total_ranks-1] : (total_ranks-1);
 
   /* Only master needs the vector of active nodes */
-  if (gasneti_mynode == barrier_data->amcbarrier_master) {
+  if (gasneti_mynode == barrier_data->amcbarrier_master && active) {
     size_t alloc_size = total_ranks * sizeof(gex_Rank_t);
     gasneti_leak(barrier_data->amcbarrier_active = gasneti_malloc(alloc_size));
     memcpy(barrier_data->amcbarrier_active, active, alloc_size);
@@ -2269,10 +2268,6 @@ void gasnete_barrier_init(void) {
   team->team_id = 0;
   team->myrank = gasneti_mynode;
   team->total_ranks = gasneti_nodes;
-  team->rel2act_map = (gex_Rank_t *)gasneti_malloc(sizeof(gex_Rank_t)*gasneti_nodes);
-  gasneti_leak(team->rel2act_map);
-  for (i=0; i<gasneti_nodes; i++)
-    team->rel2act_map[i] = i;
   if (gasneti_nodes > 1) {
     unsigned int count = 0;
     for (i=1; i<gasneti_nodes; i*=2) ++count;
@@ -2309,7 +2304,7 @@ void gasnete_barrier_init(void) {
 
   GASNET_TEAM_ALL = team;
 
-  gasnete_coll_barrier_init(team, 0, team->rel2act_map, supernodes);
+  gasnete_coll_barrier_init(team, 0, NULL, supernodes);
 }
 
 /* ------------------------------------------------------------------------------------ */

@@ -362,8 +362,6 @@ struct gasnete_coll_team_t_ {
 #endif
 };
 
-#define GASNETE_COLL_REL2ACT(TEAM, IDX) ((TEAM) == GASNET_TEAM_ALL ? IDX : (TEAM)->rel2act_map[IDX])
-
 /*---------------------------------------------------------------------------------*/
 
 /* Serialization of polling collective ops: */
@@ -470,14 +468,15 @@ struct gasnete_coll_p2p_t_ {
 
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
-extern void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                          void *src, size_t nbytes, uint32_t idx);
-extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                                void *src, size_t nbytes, size_t offset_size, uint32_t offset, uint32_t idx);
-extern void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                               void *src, size_t nbytes, uint32_t idx);
-extern void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                            void *src, size_t size);
+extern void gasnete_tm_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                        void *src, size_t nbytes, uint32_t idx GASNETI_THREAD_FARG);
+extern void gasnete_tm_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstrank,
+                                              void *src, size_t nbytes, size_t offset_size,
+                                              uint32_t offset, uint32_t idx GASNETI_THREAD_FARG);
+extern void gasnete_tm_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                             void *src, size_t nbytes, uint32_t idx GASNETI_THREAD_FARG);
+extern void gasnete_tm_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstrank,
+                                          void *src, size_t size GASNETI_THREAD_FARG);
 
 extern int gasnete_tm_p2p_send_rtr(
                         gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
@@ -500,80 +499,57 @@ struct gasnete_tm_p2p_send_struct { void *addr; size_t sent; };
 GASNETI_INLINE(gasnete_tm_p2p_change_states)
 int gasnete_tm_p2p_change_states(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         gex_Flags_t flags,
                         uint32_t count, uint32_t offset, uint32_t state
                         GASNETI_THREAD_FARG)
 {
   // TODO-EX: flags |= INTERNAL to prevent tracing
-  return gex_AM_RequestShort5(tm, rank, gasneti_handleridx(gasnete_coll_p2p_short_reqh), flags,
+  int rc = gex_AM_RequestShort5(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_short_reqh), flags,
                               op->team->team_id, op->sequence, count, offset, state);
+  gasneti_assert(!rc || (flags & GEX_FLAG_IMMEDIATE));
+  return rc;
 }
-#define gasnete_tm_p2p_change_state(op,tm,rank,flags,offset,stateTI) \
-        gasnete_tm_p2p_change_states(op,tm,rank,flags,1,offset,stateTI)
-
-// TODO-EX: deprecate and remove:
-#define gasnete_coll_p2p_change_states(op,node,count,offset,state) \
-        gasneti_assert_zeroret(                                \
-        gasnete_tm_p2p_change_states(op,gasneti_THUNK_TM,node, \
-                                     0,count,offset,state GASNETI_THREAD_GET))
-#define gasnete_coll_p2p_change_state(op,node,offset,state) \
-        gasneti_assert_zeroret(                                \
-        gasnete_tm_p2p_change_states(op,gasneti_THUNK_TM,node, \
-                                     0,1,offset,state GASNETI_THREAD_GET))
+#define gasnete_tm_p2p_change_state(op,rank,flags,offset,stateTI) \
+        gasnete_tm_p2p_change_states(op,rank,flags,1,offset,stateTI)
 
 /* Advance counter[idx] */
 GASNETI_INLINE(gasnete_tm_p2p_advance)
 int gasnete_tm_p2p_advance(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         gex_Flags_t flags, uint32_t idx
                         GASNETI_THREAD_FARG)
 {
   // TODO-EX: flags |= INTERNAL to prevent tracing
-  return gex_AM_RequestShort3(tm, rank, gasneti_handleridx(gasnete_coll_p2p_advance_reqh), flags,
+  return gex_AM_RequestShort3(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_advance_reqh), flags,
                               op->team->team_id, op->sequence, idx);
 }
-
-// TODO-EX: deprecate and remove:
-#define gasnete_coll_p2p_advance(op,node,idx) \
-        gasneti_assert_zeroret(                                \
-        gasnete_tm_p2p_advance(op,gasneti_THUNK_TM,node,0,idx GASNETI_THREAD_GET))
-
 
 /* Put up to gex_AM_LUBRequestLong() bytes, signalling the recipient */
 GASNETI_INLINE(gasnete_tm_p2p_signalling_put)
 int gasnete_tm_p2p_signalling_put(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         void *dst, const void *src, size_t nbytes,
                         gex_Event_t *lc_opt, gex_Flags_t flags,
                         uint32_t offset, uint32_t state
                         GASNETI_THREAD_FARG)
 {
   // TODO-EX: flags |= INTERNAL to prevent tracing
-  return gex_AM_RequestLong5(tm, rank, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
+  return gex_AM_RequestLong5(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
                              (void*)src, nbytes, dst, lc_opt, flags,
                              op->team->team_id, op->sequence, 1, offset, state);
 }
 
 
-// TODO-EX: deprecate and remove:
-#define gasnete_coll_p2p_signalling_put(op,node,dst,src,nbytes,pos,state)            \
-        gasneti_assert_zeroret(                                                      \
-        gasnete_tm_p2p_signalling_put(op,gasneti_THUNK_TM,node,dst,src,nbytes,       \
-                                      GEX_EVENT_NOW,0,pos,state GASNETI_THREAD_GET))
-// NOTE: this has *not* been Async since the loss of LongAsync
-#define gasnete_coll_p2p_signalling_putAsync gasnete_coll_p2p_signalling_put
-
-
-/* Treat the eager buffer space at dstnode as an array of elements of length 'size'.
+/* Treat the eager buffer space at rank as an array of elements of length 'size'.
 * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
 * Set the corresponding entries of the state array to 'state'.
 */
 extern int gasnete_tm_p2p_eager_putM(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         const void *src, uint32_t count, size_t size,
                         gex_Event_t *lc_opt, gex_Flags_t flags,
                         uint32_t offset, uint32_t state
@@ -583,112 +559,66 @@ extern int gasnete_tm_p2p_eager_putM(
 GASNETI_INLINE(gasnete_tm_p2p_eager_put)
 int gasnete_tm_p2p_eager_put(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         const void *src, size_t size,
                         gex_Event_t *lc_opt, gex_Flags_t flags,
                         uint32_t offset, uint32_t state
                         GASNETI_THREAD_FARG)
 {
   // TODO-EX: flags |= INTERNAL to prevent tracing
-  return gex_AM_RequestMedium6(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+  int rc = gex_AM_RequestMedium6(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                                (void*)src, size, lc_opt, flags,
                                op->team->team_id, op->sequence, 1, offset, state, size);
+  gasneti_assert(!rc || (flags & GEX_FLAG_IMMEDIATE));
+  return rc;
 }
     
 
-// TODO-EX: deprecate and remove
-#define gasnete_coll_p2p_eager_putM(op,node,src,count,size,offset,state)            \
-        gasneti_assert_zeroret(                                                     \
-        gasnete_tm_p2p_eager_putM(op,gasneti_THUNK_TM,node,src,count,size,          \
-                                  GEX_EVENT_NOW,0,offset,state GASNETI_THREAD_GET))
-#define gasnete_coll_p2p_eager_put(op,node,src,size,offset,state)                   \
-        gasneti_assert_zeroret(                                                     \
-        gasnete_tm_p2p_eager_put(op,gasneti_THUNK_TM,node,src,size,                 \
-                                 GEX_EVENT_NOW,0,offset,state GASNETI_THREAD_GET))
-
-
-/* Treat the eager buffer space at dstnode as an array of (void *)s.
+/* Treat the eager buffer space at dstrank as an array of (void *)s.
 * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
 * Set the corresponding entries of the state array to 'state'.
 */
-#ifndef gasnete_coll_p2p_eager_addrM
-GASNETI_INLINE(gasnete_coll_p2p_eager_addrM)
-void gasnete_coll_p2p_eager_addrM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
+GASNETI_INLINE(gasnete_tm_p2p_eager_addrM)
+void gasnete_tm_p2p_eager_addrM(gasnete_coll_op_t *op, gex_Rank_t dstrank,
                                   void * addrlist[], uint32_t count,
-                                  uint32_t offset, uint32_t state) {
-  gasnete_coll_p2p_eager_putM(op, dstnode, addrlist, count, sizeof(void *), offset, state);
+                                  uint32_t offset, uint32_t state
+                                  GASNETI_THREAD_FARG)
+{
+  gasneti_assert_zeroret(
+    gasnete_tm_p2p_eager_putM(op, dstrank, addrlist, count, sizeof(void *),
+                              GEX_EVENT_NOW, 0, offset, state GASNETI_THREAD_PASS));
 }
-#endif
 
-/* Shorthand for gasnete_coll_p2p_eager_addrM with count == 1, taking
+/* Shorthand for gasnete_tm_p2p_eager_addrM with count == 1, taking
 * the address argument by value rather than reference.
 */
-#ifndef gasnete_coll_p2p_eager_addr
-GASNETI_INLINE(gasnete_coll_p2p_eager_addr)
-void gasnete_coll_p2p_eager_addr(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                 void *addr, uint32_t offset, uint32_t state) {
-  gasnete_coll_p2p_eager_addrM(op, dstnode, &addr, 1, offset, state);
+GASNETI_INLINE(gasnete_tm_p2p_eager_addr)
+void gasnete_tm_p2p_eager_addr(gasnete_coll_op_t *op, gex_Rank_t dstrank,
+                                 void *addr, uint32_t offset, uint32_t state
+                                 GASNETI_THREAD_FARG)
+{
+  gasnete_tm_p2p_eager_addrM(op, dstrank, &addr, 1, offset, state GASNETI_THREAD_PASS);
 }
-#endif
 
-/* Treat the eager buffer space on each node as an array of elements of length 'size'.
-* Send (to all but the local node) one element to position 'offset' of that array.
-* Set the corresponding entries of the state array to 'state'.
-* When 'scatter' == 0, the same local element is sent to all nodes (broadcast).
-* When 'scatter' != 0, the source is an array with elements of length 'size', with
-* the ith element sent to node i.
-*/
-#ifndef gasnete_coll_p2p_eager_put_all
-GASNETI_INLINE(gasnete_coll_p2p_eager_put_all)
-void gasnete_coll_p2p_eager_put_all(gasnete_coll_op_t *op, void *src, size_t size,
-                                    int scatter, uint32_t offset, uint32_t state) {
-  gex_Rank_t i;
-  
-  if (scatter) {
-    uintptr_t src_addr;
-    
-    /* Send to nodes to the "right" of ourself */
-    src_addr = (uintptr_t)src + size * (gasneti_mynode + 1);
-    for (i = gasneti_mynode + 1; i < gasneti_nodes; ++i, src_addr += size) {
-      gasnete_coll_p2p_eager_put(op, i, (void *)src_addr, size, offset, state);
-    }
-    /* Send to nodes to the "left" of ourself */
-    src_addr = (uintptr_t)src;
-    for (i = 0; i < gasneti_mynode; ++i, src_addr += size) {
-      gasnete_coll_p2p_eager_put(op, i, (void *)src_addr, size, offset, state);
-    }
-  } else {
-    /* Send to nodes to the "right" of ourself */
-    for (i = gasneti_mynode + 1; i < gasneti_nodes; ++i) {
-      gasnete_coll_p2p_eager_put(op, i, src, size, offset, state);
-    }
-    /* Send to nodes to the "left" of ourself */
-    for (i = 0; i < gasneti_mynode; ++i) {
-      gasnete_coll_p2p_eager_put(op, i, src, size, offset, state);
-    }
-  }
-}
-#endif
-
-/* Loop over calls to gasnete_coll_p2p_eager_addr() to send the same
+/* Loop over calls to gasnete_tm_p2p_eager_addr() to send the same
 * address to all nodes except the local node.
 */
-#ifndef gasnete_coll_p2p_eager_addr_all
-GASNETI_INLINE(gasnete_coll_p2p_eager_addr_all)
-void gasnete_coll_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
-                                     uint32_t offset, uint32_t state, gasnet_team_handle_t team) {
+GASNETI_INLINE(gasnete_tm_p2p_eager_addr_all)
+void gasnete_tm_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
+                                     uint32_t offset, uint32_t state, gasnet_team_handle_t team
+                                     GASNETI_THREAD_FARG)
+{
   gex_Rank_t i;
   
   /* Send to nodes to the "right" of ourself */
   for (i = team->myrank + 1; i < team->total_ranks; ++i) {
-    gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(team, i), addr, offset, state);
+    gasnete_tm_p2p_eager_addr(op, i, addr, offset, state GASNETI_THREAD_PASS);
   }
   /* Send to nodes to the "left" of ourself */
   for (i = 0; i < team->myrank; ++i) {
-    gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(team, i), addr, offset, state);
+    gasnete_tm_p2p_eager_addr(op, i, addr, offset, state GASNETI_THREAD_PASS);
   }
 }
-#endif
 
 /*---------------------------------------------------------------------------------*/
 
@@ -919,21 +849,21 @@ extern void gasnete_coll_sync_saved_events(GASNETI_THREAD_FARG_ALONE);
 
 typedef struct {
   void *dst;
-  gex_Rank_t srcnode;
+  gex_Rank_t srcrank;
   void *src;
   size_t nbytes;
 } gasnete_coll_broadcast_args_t;
 
 typedef struct {
   void *dst;
-  gex_Rank_t srcnode;
+  gex_Rank_t srcrank;
   void *src;
   size_t nbytes;
   size_t dist;
 } gasnete_coll_scatter_args_t;
 
 typedef struct {
-  gex_Rank_t dstnode;
+  gex_Rank_t dstrank;
   void *dst;
   void *src;
   size_t nbytes;
@@ -1103,12 +1033,14 @@ int gasnete_coll_generic_outsync(gasnete_coll_team_t team, gasnete_coll_generic_
 /* Optional UP half-barrier over the collective tree.
  * No memory fences. */
 GASNETI_INLINE(gasnete_coll_generic_upsync)
-int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gex_Rank_t rootnode,
-                                    const int counter, const int count) {
+int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gex_Rank_t rootrank,
+                                    const int counter, const int count
+                                    GASNETI_THREAD_FARG)
+{
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
-    if (op->team->myrank != rootnode) {
-      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom)),0);
+    if (op->team->myrank != rootrank) {
+      gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom), 0, 0 GASNETI_THREAD_PASS);
     }
     return 1;
   }
@@ -1116,17 +1048,19 @@ int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gex_Rank_t rootnode,
 }
 
 /* Optional UP half-barrier over the collective tree.
- * Root node will rmb() and non-root will wmb() to ensure that writes
+ * Root rank will rmb() and non-root will wmb() to ensure that writes
  * to root's memory will be read by root.  This is appropriate to the
  * needs of a "push" based broadcast or scatter. */
 GASNETI_INLINE(gasnete_coll_generic_upsync_acq)
-int gasnete_coll_generic_upsync_acq(gasnete_coll_op_t *op, gex_Rank_t rootnode,
-                                    const int counter, const int count) {
+int gasnete_coll_generic_upsync_acq(gasnete_coll_op_t *op, gex_Rank_t rootrank,
+                                    const int counter, const int count
+                                    GASNETI_THREAD_FARG)
+{
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
-    if (op->team->myrank != rootnode) {
+    if (op->team->myrank != rootrank) {
       gasneti_local_wmb();
-      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom)),0);
+      gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom), 0, 0 GASNETI_THREAD_PASS);
     } else {
       gasneti_local_rmb();
     }
