@@ -59,6 +59,12 @@ typedef struct _gex_event_s *gex_Event_t;
 #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)3)
 
 //================================================
+// gex_Addr_t
+//================================================
+
+typedef void* gex_Addr_t;
+
+//================================================
 // GEX_DT_*
 // Data types for atomics and reductions
 //================================================

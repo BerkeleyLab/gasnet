@@ -461,6 +461,14 @@ typedef [some unsigned integer type] gex_RMA_Value_t;
 // Synonymous with SIZEOF_GASNET_REGISTER_VALUE_T
 #define SIZEOF_GEX_RMA_VALUE_T ...
 
+// gex_Addr_t [PROPOSED]
+// Type which is suitable to hold both addresses and offsets.
+//
+// This is always an alias for `void*`, but is given a distinct type to make
+// prototypes self-documenting with respect to arguments which may (with the
+// proper flags) be interepreted alternatively as addresses or offsets.
+typedef void* gex_Addr_t;
+
 // Memvec
 // A "memvec" describes a tuple of memory address and length
 // gex_Memvec_t is guaranteed to have the same in-memory representation as gasnet_memvec_t;
