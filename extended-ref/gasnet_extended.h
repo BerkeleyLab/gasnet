@@ -690,6 +690,11 @@ extern size_t gasneti_TM_Split(gex_TM_t *_new_tm_p, gex_TM_t _parent_tm,
 // extern gex_Rank_t gex_TM_TranslateJobrankToRank(gex_TM_t tm, gex_Rank_t jobrank);
 #define gex_TM_TranslateJobrankToRank(tm,jobrank) \
         gasneti_e_tm_jobrank_to_rank(tm,jobrank)
+
+// extern gex_EP_Location_t gex_TM_TranslateRankToEP(gex_TM_t tm, gex_Rank_t rank, gex_Flags_t flags);
+#define gex_TM_TranslateRankToEP(tm,rank,flags) \
+        gasneti_e_tm_rank_to_location(tm,rank,flags)
+
 /* ------------------------------------------------------------------------------------ */
 
 // TODO-EX: remove these checks for conduits using legacy internal APIs

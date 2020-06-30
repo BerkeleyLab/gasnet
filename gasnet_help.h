@@ -166,11 +166,14 @@ int gasneti_is_tm0(gasneti_TM_t _i_tm) {
   return (!((uintptr_t)(_i_tm) & (GASNETI_TM0_ALIGN-1)));
 }
 
-// Given (tm,rank) return the jobrank
-extern gex_Rank_t gasneti_tm_fwd_lookup(gasneti_TM_t tm, gex_Rank_t rank);
+// Given (tm,rank) return the jobrank or ep_location
+extern GASNETI_PURE gex_Rank_t        gasneti_tm_fwd_rank(gasneti_TM_t tm, gex_Rank_t rank);
+GASNETI_PUREP(gasneti_tm_fwd_rank)
+extern GASNETI_PURE gex_EP_Location_t gasneti_tm_fwd_location(gasneti_TM_t tm, gex_Rank_t rank, gex_Flags_t flags);
+GASNETI_PUREP(gasneti_tm_fwd_location)
 
 // Given (tm,jobrank) return the rank of jobrank in tm, or GEX_RANK_INVALID
-extern gex_Rank_t gasneti_tm_rev_lookup(gasneti_TM_t tm, gex_Rank_t jobrank);
+extern gex_Rank_t gasneti_tm_rev_rank(gasneti_TM_t tm, gex_Rank_t jobrank);
 
 #if GASNET_DEBUG
 GASNETI_INLINE(gasneti_check_tm_rank)
@@ -185,22 +188,50 @@ void gasneti_check_tm_rank(gex_TM_t _e_tm, gex_Rank_t _rank) {
   #define gasneti_check_jobrank(jobrank) ((void)0)
 #endif
 
+// TODO-EX: remove when a runtime branch on tm->_rank_map is necessary
+#define GASNETI_ALLOW_SPARSE_TEAMREP 0
+
 GASNETI_INLINE(gasneti_i_tm_rank_to_jobrank)
 gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
   gasneti_assert(_i_tm);
   gasneti_assert_uint(_rank ,<, _i_tm->_size);
   if (gasneti_is_tm0(_i_tm)) return _rank;
-  return gasneti_tm_fwd_lookup(_i_tm, _rank);
+  if (!GASNETI_ALLOW_SPARSE_TEAMREP || _i_tm->_rank_map) {
+    gasneti_assert(_i_tm->_rank_map);
+    return _i_tm->_rank_map[_rank];
+  }
+  return gasneti_tm_fwd_rank(_i_tm, _rank);
 }
 #define gasneti_e_tm_rank_to_jobrank(e_tm,rank) \
         gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
+
+GASNETI_INLINE(gasneti_i_tm_rank_to_location)
+gex_EP_Location_t gasneti_i_tm_rank_to_location(gasneti_TM_t _i_tm, gex_Rank_t _rank, gex_Flags_t _flags) {
+  gasneti_assert(_i_tm);
+  gasneti_assert_uint(_rank ,<, _i_tm->_size);
+  gex_EP_Location_t _result;
+  if (gasneti_is_tm0(_i_tm)) {
+    _result.gex_rank = _rank;
+    _result.gex_ep_index = 0;
+  } else if (!GASNETI_ALLOW_SPARSE_TEAMREP || _i_tm->_rank_map) {
+    gasneti_assert(_i_tm->_rank_map);
+    _result.gex_rank = _i_tm->_rank_map[_rank];
+    // NULL _index_map indicates all members of TM are primordial EPs (idx==0)
+    _result.gex_ep_index = _i_tm->_index_map ? _i_tm->_index_map[_rank] : 0;
+  } else {
+    _result = gasneti_tm_fwd_location(_i_tm, _rank, _flags);
+  }
+  return _result;
+}
+#define gasneti_e_tm_rank_to_location(e_tm,rank,flags) \
+        gasneti_i_tm_rank_to_location(gasneti_import_tm(e_tm),rank,flags)
 
 GASNETI_INLINE(gasneti_i_tm_jobrank_to_rank)
 gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank) {
   gasneti_assert(_i_tm);
   gasneti_assert_uint(_jobrank ,<, gex_System_QueryJobSize());
   if (gasneti_is_tm0(_i_tm)) return _jobrank;
-  return gasneti_tm_rev_lookup(_i_tm, _jobrank);
+  return gasneti_tm_rev_rank(_i_tm, _jobrank);
 }
 #define gasneti_e_tm_jobrank_to_rank(e_tm,jobrank) \
         gasneti_i_tm_jobrank_to_rank(gasneti_import_tm(e_tm),jobrank)

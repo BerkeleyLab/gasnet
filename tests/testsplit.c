@@ -170,6 +170,9 @@ int main(int argc, char **argv)
     gex_Rank_t jobrank = myrow*ncols + rank;
     assert_always(gex_TM_TranslateRankToJobrank(rowtm, rank) == jobrank);
     assert_always(gex_TM_TranslateJobrankToRank(rowtm, jobrank) == rank);
+    gex_EP_Location_t ep_loc = gex_TM_TranslateRankToEP(rowtm, rank, 0);
+    assert_always(ep_loc.gex_rank     == jobrank);
+    assert_always(ep_loc.gex_ep_index == 0);
   }
 
   // Column team:
@@ -185,6 +188,9 @@ int main(int argc, char **argv)
     gex_Rank_t jobrank = mycol + ncols*rank;
     assert_always(gex_TM_TranslateRankToJobrank(coltm, rank) == jobrank);
     assert_always(gex_TM_TranslateJobrankToRank(coltm, jobrank) == rank);
+    gex_EP_Location_t ep_loc = gex_TM_TranslateRankToEP(coltm, rank, 0);
+    assert_always(ep_loc.gex_rank     == jobrank);
+    assert_always(ep_loc.gex_ep_index == 0);
   }
 
   // Allocate scratch for Singleton and Odds teams

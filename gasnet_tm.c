@@ -14,15 +14,29 @@
 // storage.
 
 // Given (tm,rank) return the jobrank
-gex_Rank_t gasneti_tm_fwd_lookup(gasneti_TM_t tm, gex_Rank_t rank) {
+gex_Rank_t gasneti_tm_fwd_rank(gasneti_TM_t tm, gex_Rank_t rank) {
   gasnete_coll_team_t team = tm->_coll_team;
   gasneti_assert(team != GASNET_TEAM_ALL); // TM0 should not reach here
-  return team->rel2act_map[rank];
+  gasneti_assert(!tm->_rank_map); // Teams with dense rank map should not reach here
+
+  gasneti_unreachable_error(("Unimplemented gasneti_tm_fwd_rank() call"));
+  return GEX_RANK_INVALID;
+}
+
+// Given (tm,rank) return the ep_location
+gex_EP_Location_t gasneti_tm_fwd_location(gasneti_TM_t tm, gex_Rank_t rank, gex_Flags_t flags) {
+  gasnete_coll_team_t team = tm->_coll_team;
+  gasneti_assert(team != GASNET_TEAM_ALL); // TM0 should not reach here
+  gasneti_assert(!tm->_rank_map); // Teams with dense rank map should not reach here
+
+  gasneti_unreachable_error(("Unimplemented gasneti_tm_fwd_location() call"));
+  gex_EP_Location_t result = {GEX_RANK_INVALID, 0};
+  return result;
 }
 
 // Given (tm,jobrank) return the rank or GEX_RANK_INVALID
 // TODO-EX: THIS IS A HORRIBLE O(size(tm)) SCAN!
-gex_Rank_t gasneti_tm_rev_lookup(gasneti_TM_t tm, gex_Rank_t jobrank) {
+gex_Rank_t gasneti_tm_rev_rank(gasneti_TM_t tm, gex_Rank_t jobrank) {
   gasnete_coll_team_t team = tm->_coll_team;
   gasneti_assert(team != GASNET_TEAM_ALL); // TM0 should not reach here
   gex_Rank_t size = tm->_size;
@@ -126,6 +140,9 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   gex_TM_t e_tm = gasneti_export_tm(i_tm);
   team->e_tm = e_tm;
   *new_tm_p = e_tm;
+
+  i_tm->_rank_map = team->rel2act_map;
+  i_tm->_index_map = NULL; // TODO-EX: provide this for teams w/ non-primordial EPs
 
   GASNETI_TRACE_PRINTF(W,("Split: parent="GASNETI_TMSELFFMT" color=%d key=%d result="GASNETI_TMSELFFMT,
                           GASNETI_TMSELFSTR(e_parent), color, key, GASNETI_TMSELFSTR(e_tm)));
