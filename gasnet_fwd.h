@@ -184,6 +184,11 @@ typedef uint32_t gex_Flags_t;
 
 #define GEX_FLAG_TM_SCRATCH_SIZE_MIN          (1U <<  0)
 #define GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED  (1U <<  1)
+#define GEX_FLAG_TM_GLOBAL_SCRATCH            (1U <<  2)
+#define GEX_FLAG_TM_LOCAL_SCRATCH             (1U <<  3)
+#define GEX_FLAG_TM_SYMMETRIC_SCRATCH         (1U <<  4)
+#define GEX_FLAG_TM_NO_SCRATCH                (1U <<  5)
+#define GEX_FLAG_SCRATCH_SEG_OFFSET           (1U <<  6)
 
 #define GEX_FLAG_RANK_IS_JOBRANK        (1U << 13)
 

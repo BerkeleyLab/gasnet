@@ -438,6 +438,32 @@ typedef [some integer type] gex_Flags_t;
 #define GEX_FLAG_SELF_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
 #define GEX_FLAG_PEER_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
 
+// COLLECTIVE SCRATCH ALLOCATION [PROPOSED]
+//
+// The following family of flags control the interpretation of address ranges
+// provided to team construction APIs to describe collective scratch spaces.
+//
+// TM_{GLOBAL,LOCAL,SYMMETRIC,NO}_SCRATCH
+//   This mutually-exclusive group indicates the number and meaning of
+//   a gex_Addr_t specified to certain team construction APIs.
+//      GLOBAL: gex_Addr_t per member of the output team
+//       LOCAL: gex_Addr_t per local member of the output team
+//   SYMMETRIC: single gex_Addr_t used for all members of the output team
+//          NO: no gex_Addr_t (and no scratch space is allocated).
+//
+#define GEX_FLAG_TM_GLOBAL_SCRATCH     ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_TM_LOCAL_SCRATCH      ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_TM_SYMMETRIC_SCRATCH  ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_TM_NO_SCRATCH         ((gex_Flags_t)???) [UNIMPLEMENTED]
+//
+// SCRATCH_SEG_OFFSET
+//
+// This flag bit indicates that the corresponding gex_Addr_t argument(s)
+// are byte *offsets* relative to the bound segment base address.
+// Implies that the respective endpoint has a bound segment, and
+// that the specified range(s) are contained entirely within that segment.
+#define GEX_FLAG_SCRATCH_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
+
 // A "token" is an opaque scalar type
 // This type is interoperable with gasnet_token_t
 typedef ... gex_Token_t;
