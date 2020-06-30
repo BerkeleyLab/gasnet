@@ -334,7 +334,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEagerSeg(gasnete_coll_op_t *op GASN
     case 4: {
       // Send partial result to parent (if any)
       if (pdata->rel_rank) { // NOT root
-        if (gasnete_tm_p2p_eager_put(op, tm, pdata->parent, pdata->payload, pdata->curr_len,
+        if (gasnete_tm_p2p_eager_put(op, pdata->parent, pdata->payload, pdata->curr_len,
                                      GEX_EVENT_NOW, flags, pdata->age, pdata->phase
                                      GASNETI_THREAD_PASS)) {
           break; // back pressure
@@ -351,7 +351,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEagerSeg(gasnete_coll_op_t *op GASN
         for (int idx = pdata->child_cnt - 1; idx >= 0; --idx) { // Reverse order for deepest subtree first
           gex_Rank_t distance = 1 << idx;
           gex_Rank_t peer = (distance >= size - self) ? self - (size - distance) : self + distance;
-          if (gasnete_tm_p2p_change_state(op, tm, peer, flags, pdata->width,
+          if (gasnete_tm_p2p_change_state(op, peer, flags, pdata->width,
                                           next_phase GASNETI_THREAD_PASS)) {
             state[idx] = 2;  // mark for retry
             comms_done = 0;
@@ -379,7 +379,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEagerSeg(gasnete_coll_op_t *op GASN
           gex_Rank_t distance = 1 << idx;
           gex_Rank_t peer = (distance >= size - self) ? self - (size - distance) : self + distance;
           if (state[idx] == 2) {
-            gasnete_tm_p2p_change_state(op, tm, peer, flags, pdata->width,
+            gasnete_tm_p2p_change_state(op, peer, flags, pdata->width,
                                         next_phase GASNETI_THREAD_PASS);
           }
         }
