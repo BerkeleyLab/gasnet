@@ -1,7 +1,7 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_core.c $
  * Description: GASNet ucx conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
- * Copyright 2019, Mellanox Technologies LTD. All rights reserved.
+ * Copyright 2019-2020, Mellanox Technologies LTD. All rights reserved.
  * Terms of use are as specified in license.txt
  */
 
@@ -1375,8 +1375,10 @@ static void gasnetc_exit_body(void) {
     /* doing a poll of the receive queue while there are unreceived requests */
     alarm(10);
     /* waiting to completion all requests */
-    GASNETC_EXIT_STATE("flushing ucx requests");
+    GASNETC_EXIT_STATE("flushing ucx requests: waiting for sends completions");
     gasnetc_send_list_wait(GASNETC_LOCK_REGULAR);
+    gasneti_bootstrapBarrier();
+    GASNETC_EXIT_STATE("flushing ucx requests: waiting for recvs completions");
     while(gasnetc_req_poll(GASNETC_LOCK_REGULAR));
 
     alarm(10);

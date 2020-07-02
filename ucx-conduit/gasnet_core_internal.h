@@ -1,7 +1,7 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_core_internal.h $
  * Description: GASNet ucx conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
- * Copyright 2019, Mellanox Technologies LTD. All rights reserved.
+ * Copyright 2019-2020, Mellanox Technologies LTD. All rights reserved.
  * Terms of use are as specified in license.txt
  */
 
@@ -259,7 +259,6 @@ typedef struct _gasneti_ucx_module {
     ucp_worker_h                ucp_worker;
     gasneti_mutex_t             ucp_worker_lock;
     gasnet_ep_info_t          * ep_tbl;
-    gasneti_list_t              send_pool;   /* buffer pool */
     gasneti_list_t              recv_pool;   /* recv buffer pool */
     gasneti_list_t              am_req_pool; /* AM requests pool */
     gasneti_list_t              recv_list;   /* list of completed but not handled requests */
