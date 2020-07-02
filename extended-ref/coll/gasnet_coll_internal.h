@@ -309,8 +309,7 @@ struct gasnete_coll_team_t_ {
 
   /* scratch segments allocated on team creation*/
   gasnet_seginfo_t *scratch_segs;
-  size_t smallest_scratch_seg;
-  size_t symmetric_scratch_size;   // if non-zero then all scratch segments are this size
+  size_t scratch_size;             // (symmetric) scratch size
   size_t symmetric_scratch_offset; // added to scratch_segs[*].addr
   
   /*scratch space management*/

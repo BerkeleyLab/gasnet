@@ -35,24 +35,20 @@ static void initialize_team_fields(gasnete_coll_team_t team,
                                    gasnet_seginfo_t * scratch_segments GASNETI_THREAD_FARG) {
 
   size_t image_size = num_members*sizeof(gasnet_image_t);
-  size_t smallest_scratch_seg;
-  size_t symmetric_scratch_size; // if non-zero then all scratch segments are this size
+  size_t scratch_size;
   size_t symmetric_scratch_offset = 0;
 
   team->sequence = 0xfffffff8;  // Intentionally near to wrap-around
 
   if (scratch_segments) {
-    smallest_scratch_seg = symmetric_scratch_size = scratch_segments[0].size;
+    scratch_size = scratch_segments[0].size;
     for (int i = 1; i < num_members; ++i) {
-      smallest_scratch_seg = MIN(smallest_scratch_seg, scratch_segments[i].size);
-      if (symmetric_scratch_size != scratch_segments[i].size) {
-        symmetric_scratch_size = 0;
-      }
+      gasneti_assert_uint(scratch_size ,==, scratch_segments[i].size);
     }
   } else {
     gasneti_assert(team == GASNET_TEAM_ALL);
     gasneti_assert(gasnete_coll_auxseg_size);
-    smallest_scratch_seg = symmetric_scratch_size = gasnete_coll_auxseg_size;
+    scratch_size = gasnete_coll_auxseg_size;
     symmetric_scratch_offset = gasnete_coll_auxseg_offset;
     scratch_segments = gasneti_seginfo_aux;
   }
@@ -74,10 +70,9 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->myrank = myrank;
   team->total_ranks = num_members;
   team->scratch_segs = scratch_segments;
-  team->smallest_scratch_seg = smallest_scratch_seg;
-  team->symmetric_scratch_size = symmetric_scratch_size;
+  team->scratch_size = scratch_size;
   team->symmetric_scratch_offset = symmetric_scratch_offset;
-  team->autotune_info = gasnete_coll_autotune_init(team, smallest_scratch_seg GASNETI_THREAD_PASS);
+  team->autotune_info = gasnete_coll_autotune_init(team, scratch_size GASNETI_THREAD_PASS);
   team->consensus_id = team->consensus_issued_id = 0xfffffff8;  // Intentionally near to wrap-around
   gasnete_coll_alloc_new_scratch_status(team);
   team->scratch_free_list = NULL;

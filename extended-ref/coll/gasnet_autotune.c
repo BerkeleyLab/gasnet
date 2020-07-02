@@ -1961,7 +1961,7 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
   ret->optype = GASNET_COLL_GATHER_ALL_OP;
 
   if(nbytes <=  gasnete_coll_get_dissem_limit(team->autotune_info, GASNET_COLL_GATHER_ALL_OP, flags) &&
-     max_dissem_msg_size <= MIN(team->smallest_scratch_seg, gex_AM_LUBRequestLong())) {
+     max_dissem_msg_size <= MIN(team->scratch_size, gex_AM_LUBRequestLong())) {
     ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][GASNETE_COLL_GATHER_ALL_DISSEM].fn_ptr.gather_all_fn;
     ret->fn_idx = GASNETE_COLL_GATHER_ALL_DISSEM;
   } else {
@@ -2002,7 +2002,7 @@ gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *ds
   ret->optype = GASNET_COLL_EXCHANGE_OP;
 
   if (nbytes <=  gasnete_coll_get_dissem_limit(team->autotune_info, GASNET_COLL_EXCHANGE_OP, flags) &&
-      nbytes*team->total_ranks+(max_dissem_msg_size*2)<= team->smallest_scratch_seg  &&
+      nbytes*team->total_ranks+(max_dissem_msg_size*2)<= team->scratch_size  &&
       max_dissem_msg_size <=  gex_AM_LUBRequestLong()) {
     ret->fn_ptr =  team->autotune_info->collective_algorithms[GASNET_COLL_EXCHANGE_OP][GASNETE_COLL_EXCHANGE_DISSEM2].fn_ptr.exchange_fn;
     ret->fn_idx = GASNETE_COLL_EXCHANGE_DISSEM2;

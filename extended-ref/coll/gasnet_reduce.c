@@ -529,7 +529,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePut)
   gasnete_coll_local_tree_geom_t *geom = (gasnete_coll_local_tree_geom_t *)coll_params;
 
   // make sure this is a valid choice of algorithm
-  gasneti_assert(team->smallest_scratch_seg >= nbytes * geom->max_radix);
+  gasneti_assert(team->scratch_size >= nbytes * geom->max_radix);
   gasneti_assert(gex_AM_LUBRequestLong() >= nbytes);
 
   // Scratch space
@@ -859,7 +859,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePutSeg)
   gasnete_coll_local_tree_geom_t *geom = (gasnete_coll_local_tree_geom_t *)coll_params;
 
   // Determine what can fit in scratch space or Long
-  const size_t slot_sz = team->smallest_scratch_seg / (1 + geom->max_radix);
+  const size_t slot_sz = team->scratch_size / (1 + geom->max_radix);
   const size_t limit = MIN(slot_sz, gex_AM_LUBRequestLong());
   size_t chunk_cnt;
 #if 1 // Branches are cheaper than integer division
