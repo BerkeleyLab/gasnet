@@ -37,14 +37,20 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   size_t image_size = num_members*sizeof(gasnet_image_t);
   size_t scratch_size;
   size_t symmetric_scratch_offset = 0;
+  void **scratch_addrs = NULL;
 
   team->sequence = 0xfffffff8;  // Intentionally near to wrap-around
 
   if (scratch_segments) {
+    // TODO-EX: callers shouldn't need to pass us this seginfo_t at all
+    scratch_addrs = gasneti_malloc(num_members * sizeof(void*));
     scratch_size = scratch_segments[0].size;
-    for (int i = 1; i < num_members; ++i) {
-      gasneti_assert_uint(scratch_size ,==, scratch_segments[i].size);
+    for (int i = 0; i < num_members; ++i) {
+      scratch_addrs[i] = scratch_segments[i].addr;
+      gasneti_assert_uint(scratch_size ,==, scratch_segments[i].size); // check single-valued
     }
+    gasneti_free(scratch_segments);  // retains legacy behavior pending removal of this argument
+    scratch_segments = NULL;
   } else {
     gasneti_assert(team == GASNET_TEAM_ALL);
     gasneti_assert(gasnete_coll_auxseg_size);
@@ -70,6 +76,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->myrank = myrank;
   team->total_ranks = num_members;
   team->scratch_segs = scratch_segments;
+  team->scratch_addrs = scratch_addrs;
   team->scratch_size = scratch_size;
   team->symmetric_scratch_offset = symmetric_scratch_offset;
   team->autotune_info = gasnete_coll_autotune_init(team, scratch_size GASNETI_THREAD_PASS);
