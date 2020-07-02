@@ -148,6 +148,8 @@ precedence.
   + See the GASNet Bugzilla server for details on known bugs:
     https://gasnet-bugs.lbl.gov/
   + This version is known to have issues with Mellanox ConnectX-4 adapters
+  + Support for segment-everything mode is experimental and is known to
+    suffer from unbounded memory use in AMLong (and amref-based Put/Get).
 
 @ Section: Design Overview @
 
@@ -227,3 +229,5 @@ precedence.
   + Additional round of performance analysis and tuning.
   + Investigate older UCX versions and hardware compatibility and update README.
   + Support Graceful exits if rank 0 has failed.
+  + Fix robustness problems with AMLong in `--enable-segment-everything` mode.
+  + Apply ODP to optimize `--enable-segment-everything` mode.
