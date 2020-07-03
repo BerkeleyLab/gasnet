@@ -423,6 +423,7 @@ int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 
 static gasneti_atomic_t gasneti_backtrace_enabled = gasneti_atomic_init(1);
+static int volatile gasneti_internal_crash = 0;
 
 extern uint64_t gasnett_release_version(void) { // motivated by xSDK Community Policy M8
   return GASNET_RELEASE_VERSION_MAJOR * (uint64_t)1000000 +
@@ -636,14 +637,18 @@ extern double gasneti_tick_metric(int idx) {
 extern const char *gasneti_procid_str;
 const char *gasneti_procid_str = NULL;
 
-extern void gasneti_console_messageVA(const char *prefix, const char *msg, va_list argptr) {
+extern void gasneti_console_messageVA(const char *funcname, const char *filename, int linenum,
+                                      const char *prefix, const char *msg, va_list argptr) {
   #ifndef GASNETI_CONSOLEMSG_PREFIX_LEN
   #define GASNETI_CONSOLEMSG_PREFIX_LEN 128
   #endif
   #ifndef GASNETI_CONSOLEMSG_IDSTR_LEN
   #define GASNETI_CONSOLEMSG_IDSTR_LEN MIN(MAXHOSTNAMELEN,128)
   #endif
-  char expandedmsg[GASNETI_CONSOLEMSG_PREFIX_LEN+GASNETI_CONSOLEMSG_IDSTR_LEN+20];
+  #ifndef GASNETI_CONSOLEMSG_CONTEXT_LEN
+  #define GASNETI_CONSOLEMSG_CONTEXT_LEN 128
+  #endif
+  char expandedmsg[GASNETI_CONSOLEMSG_PREFIX_LEN+GASNETI_CONSOLEMSG_IDSTR_LEN+GASNETI_CONSOLEMSG_CONTEXT_LEN+20];
   if (gasneti_procid_str) {
     snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s (%s): ", prefix, gasneti_procid_str);
   } else {
@@ -659,17 +664,48 @@ extern void gasneti_console_messageVA(const char *prefix, const char *msg, va_li
       snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s (:%i): ", prefix, pid);
     }
   }
-  const size_t maxmsg = sizeof(expandedmsg)-4 - strlen(expandedmsg);
+
+  if (funcname || filename) { // append location information, if any
+    #ifndef GASNETI_CONSOLEMSG_NAME_LEN
+    #define GASNETI_CONSOLEMSG_NAME_LEN  55
+    #endif
+    // use the last NAME_LEN characters of funcname and filename
+    if (!funcname) funcname = "";
+    size_t funclen = strlen(funcname);
+    if (funclen > GASNETI_CONSOLEMSG_NAME_LEN) funcname += (funclen - GASNETI_CONSOLEMSG_NAME_LEN);
+    if (!filename || !*filename) filename = "*unknown file*";
+    size_t filelen = strlen(filename);
+    if (filelen > GASNETI_CONSOLEMSG_NAME_LEN) filename += (filelen - GASNETI_CONSOLEMSG_NAME_LEN);
+
+    // format location info
+    char linestr[8] = { 0 };
+    if (linenum > 0 && linenum <= 999999) { // format up to 6-char linenum, if provided
+      snprintf(linestr, sizeof(linestr), ":%i", linenum);
+    }
+    gasneti_static_assert(GASNETI_CONSOLEMSG_CONTEXT_LEN >= 2*GASNETI_CONSOLEMSG_NAME_LEN + 18);
+    const size_t pos = strlen(expandedmsg);
+    if (*funcname)
+      snprintf(expandedmsg+pos, sizeof(expandedmsg)-4 - pos, 
+               "in %s%s at %s%s: ",
+               funcname, (funcname[strlen(funcname)-1] != ')'?"()":""),
+               filename, linestr);
+    else
+      snprintf(expandedmsg+pos, sizeof(expandedmsg)-4 - pos, 
+               "at %s%s: ",
+               filename, linestr);
+  }
+
+  const size_t maxshortmsg = sizeof(expandedmsg)-4 - strlen(expandedmsg);
   const size_t msglen = strlen(msg);
 
   int isshort = 0;
   int isveryshort = 0;
   #ifndef GASNETI_CONSOLEMSG_VERYSHORT_LEN
-  #define GASNETI_CONSOLEMSG_VERYSHORT_LEN 256
+  #define GASNETI_CONSOLEMSG_VERYSHORT_LEN 384
   #endif
   char veryshort_msg[GASNETI_CONSOLEMSG_VERYSHORT_LEN];
-  if (msglen <= maxmsg) { // short enough to send to fprintf(stderr) in a single operation
-    strncat(expandedmsg, msg, maxmsg);
+  if (msglen <= maxshortmsg) { // short enough to send to fprintf(stderr) in a single operation
+    strncat(expandedmsg, msg, maxshortmsg);
     if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
     isshort = 1;
 
@@ -706,8 +742,15 @@ extern void gasneti_console_messageVA(const char *prefix, const char *msg, va_li
 extern void gasneti_console_message(const char *prefix, const char *msg, ...) {
   va_list argptr;
   va_start(argptr, msg); /*  pass in last argument */
-    gasneti_console_messageVA(prefix, msg, argptr);
+    gasneti_console_messageVA(0,0,0, prefix, msg, argptr);
   va_end(argptr);
+}
+
+static void gasneti_output_config(void) {
+  gasneti_console_message("Details for bug reporting", 
+                          "config=" GASNETT_CONFIG_STRING
+                          " compiler=" _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME) "/" PLATFORM_COMPILER_VERSION_STR
+                          " sys=" GASNETT_SYSTEM_TUPLE);
 }
 
 /* Because some glibc headers annotate nearly all system calls
@@ -721,6 +764,7 @@ extern void gasneti_console_message(const char *prefix, const char *msg, ...) {
 static int gasneti_rc_unused;
 
 extern void gasneti_error_abort(void) {
+  gasneti_internal_crash = 1;
 
   gasnett_freezeForDebuggerErr(); /* allow freeze */
 
@@ -749,46 +793,36 @@ extern void gasneti_error_abort(void) {
   _exit(1);
 }
 
-extern void gasneti_fatalerror(const char *msg, ...) {
+
+const char *_gasneti_fatalerror_funcname;
+const char *_gasneti_fatalerror_filename;
+int         _gasneti_fatalerror_linenum;
+extern void _gasneti_fatalerror(const char *msg, ...) {
   va_list argptr;
   va_start(argptr, msg); /*  pass in last argument */
-    gasneti_console_messageVA("FATAL ERROR", msg, argptr);
+    gasneti_console_messageVA(_gasneti_fatalerror_funcname,
+                              _gasneti_fatalerror_filename, 
+                              _gasneti_fatalerror_linenum,
+                              "FATAL ERROR", msg, argptr);
+  va_end(argptr);
+  gasneti_error_abort();
+}
+
+extern void gasneti_fatalerror_nopos(const char *msg, ...) {
+  va_list argptr;
+  va_start(argptr, msg); /*  pass in last argument */
+    gasneti_console_messageVA(0,0,0, "FATAL ERROR", msg, argptr);
   va_end(argptr);
   gasneti_error_abort();
 }
 
 extern void _gasneti_assert_fail(const char *funcname, const char *filename, int linenum,
                                  const char *fmt, ...) {
-  #ifndef GASNETI_ASSERT_FMT_LEN
-  #define GASNETI_ASSERT_FMT_LEN 256
-  #endif
-  #ifndef GASNETI_ASSERT_NAME_LEN
-  #define GASNETI_ASSERT_NAME_LEN  80
-  #endif
-  // use the last NAME_LEN characters of funcname and filename
-  if (!funcname) funcname = "";
-  size_t funclen = strlen(funcname);
-  if (funclen > GASNETI_ASSERT_NAME_LEN) funcname += (funclen - GASNETI_ASSERT_NAME_LEN);
-  if (!filename || !*filename) filename = "*unknown file*";
-  size_t filelen = strlen(filename);
-  if (filelen > GASNETI_ASSERT_NAME_LEN) filename += (filelen - GASNETI_ASSERT_NAME_LEN);
-
-  // prepend formatted location info to the assertion format string
-  char expandedfmt[GASNETI_ASSERT_FMT_LEN];
-  if (*funcname)
-    snprintf(expandedfmt, sizeof(expandedfmt), 
-             "Assertion failure in %s%s at %s:%i: %s",
-             funcname, (funcname[strlen(funcname)-1] != ')'?"()":""),
-             filename, linenum, fmt);
-  else
-    snprintf(expandedfmt, sizeof(expandedfmt), 
-             "Assertion failure at %s:%i: %s",
-             filename, linenum, fmt);
-
   // generate the fatal error and crash
   va_list argptr;
   va_start(argptr, fmt); /*  pass in last argument */
-    gasneti_console_messageVA("FATAL ERROR", expandedfmt, argptr);
+    gasneti_console_messageVA(funcname, filename, linenum,
+                              "FATAL ERROR: Assertion failure", fmt, argptr);
   va_end(argptr);
   gasneti_error_abort();
 }
@@ -1913,6 +1947,7 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
 #endif
   if (gasneti_backtrace_userenabled) {
     GASNETI_NDEBUG_ADVISORY();
+    if (gasneti_internal_crash) gasneti_output_config(); // GEX info iff this looks like a GEX-related crash
     return gasneti_print_backtrace(fd);
   } else if (gasneti_backtrace_mechanism_count && !noticeshown) {
     fprintf(stderr, "NOTICE: Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace. \n");
@@ -3508,7 +3543,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     int64_t cpuspeed = 0;
     size_t len = sizeof(cpuspeed);
     if (sysctlbyname("machdep.tsc_freq", &cpuspeed, &len, NULL, 0) == -1)
-      gasneti_fatalerror("*** ERROR: Failure in sysctlbyname('machdep.tsc_freq')=%s",strerror(errno));
+      gasneti_fatalerror("Failure in sysctlbyname('machdep.tsc_freq')=%s",strerror(errno));
     // ensure it looks reasonable
     gasneti_assert_dbl(cpuspeed ,>, 1E6); 
     gasneti_assert_dbl(cpuspeed ,<, 1E11); 
@@ -3520,7 +3555,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     mib[0] = CTL_HW;
     mib[1] = HW_CPUSPEED;
     if (sysctl(mib, 2, &MHz, &len, NULL, 0))
-      gasneti_fatalerror("*** ERROR: Failure in sysctl(CTL_HW.HW_CPUSPEED)=%s",strerror(errno));
+      gasneti_fatalerror("Failure in sysctl(CTL_HW.HW_CPUSPEED)=%s",strerror(errno));
     // ensure it looks reasonable
     gasneti_assert_int(MHz ,>, 1);
     gasneti_assert_int(MHz ,<, 100000); 
@@ -3528,7 +3563,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
   #elif PLATFORM_ARCH_IA64  /* && ( PLATFORM_OS_LINUX || PLATFORM_OS_CNL ) */
     FILE *fp = fopen("/proc/cpuinfo","r");
     char input[255];
-    if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+    if (!fp) gasneti_fatalerror("Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
     while (!feof(fp) && fgets(input, sizeof(input), fp)) {
       if (strstr(input,"itc MHz")) {
         char *p = strchr(input,':');
@@ -3548,7 +3583,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
   double MHz = 0.0;
 
   fp = fopen("/proc/cpuinfo","r");
-  if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+  if (!fp) gasneti_fatalerror("Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
 
   /* First pass gets speed from /proc/cpuinfo */
   while (!feof(fp) && fgets(input, sizeof(input), fp)) {
