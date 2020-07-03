@@ -312,6 +312,7 @@ struct gasnete_coll_team_t_ {
   void **scratch_addrs;            //   otherwise, storage of scratch as void*
   size_t scratch_size;             // (symmetric) scratch size, indep of segs-v-addrs
   size_t symmetric_scratch_offset; // added to scratch_segs[*].addr or scratch_addrs
+  void *myscratch;                 // local scratch address
   
   /*scratch space management*/
   gasnete_coll_scratch_status_t* scratch_status;

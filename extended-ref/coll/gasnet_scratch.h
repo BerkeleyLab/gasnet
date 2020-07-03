@@ -125,22 +125,20 @@ GASNETI_INLINE(gasnete_coll_scratch_base)
 uintptr_t gasnete_coll_scratch_base(gasnete_coll_team_t team, gex_Rank_t rank) {
   void *addr = team->scratch_segs ? team->scratch_segs[rank].addr
                                   : team->scratch_addrs[rank];
-  return (uintptr_t)addr;
+  return (uintptr_t)addr + team->symmetric_scratch_offset;
 }
 
 GASNETI_INLINE(gasnete_coll_scratch_myaddr)
 void* gasnete_coll_scratch_myaddr(gasnete_coll_op_t *op, uintptr_t byte_offset) {
   const gasnete_coll_team_t team = op->team;
   return (void *)(byte_offset + op->myscratchpos +
-                  team->symmetric_scratch_offset +
-                  gasnete_coll_scratch_base(team, team->myrank));
+                  (uintptr_t)team->myscratch);
 }
 
 GASNETI_INLINE(gasnete_coll_scratch_addr)
 void* gasnete_coll_scratch_addr(gasnete_coll_op_t *op, gex_Rank_t rank, int index, uintptr_t byte_offset) {
   const gasnete_coll_team_t team = op->team;
   return (void *)(byte_offset + op->scratchpos[index] +
-                  team->symmetric_scratch_offset +
                   gasnete_coll_scratch_base(team, rank));
 }
 
