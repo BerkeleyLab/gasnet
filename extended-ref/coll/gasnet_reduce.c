@@ -475,7 +475,7 @@ static int gasnete_coll_pf_tm_reduce_TreePut(gasnete_coll_op_t *op GASNETI_THREA
 
       // Compute reduction (if any)
       if (child_cnt) {
-        void *myscratch = (void*)(op->myscratchpos + (uintptr_t)team->scratch_segs[myrank].addr);
+        void *myscratch = gasnete_coll_scratch_myaddr(op, 0);
         payload = local_reduce_helper(args, args->dt_cnt, nbytes, child_cnt, args->src, myscratch);
       } else {
         payload = (/*non-const*/ void*) args->src;
@@ -495,7 +495,7 @@ static int gasnete_coll_pf_tm_reduce_TreePut(gasnete_coll_op_t *op GASNETI_THREA
       const size_t nbytes = args->dt_sz * args->dt_cnt; // TODO: compute *once*
       const gex_Rank_t parent = GASNETE_COLL_TREE_GEOM_PARENT(geom);
       const gex_Rank_t offset = GASNETE_COLL_TREE_GEOM_SIBLING_ID(geom);
-      void* parent_scratch = (void*)(op->scratchpos[0] + (uintptr_t)team->scratch_segs[parent].addr);
+      void* parent_scratch = gasnete_coll_scratch_addr(op, parent, 0, 0);
       void* destaddr = gasnete_coll_scale_ptr(parent_scratch, offset, nbytes);
       payload = data->private_data;
       // TODO-EX: use lc_opt for async injection
@@ -529,7 +529,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePut)
   gasnete_coll_local_tree_geom_t *geom = (gasnete_coll_local_tree_geom_t *)coll_params;
 
   // make sure this is a valid choice of algorithm
-  gasneti_assert(team->smallest_scratch_seg >= nbytes * geom->max_radix);
+  gasneti_assert(team->scratch_size >= nbytes * geom->max_radix);
   gasneti_assert(gex_AM_LUBRequestLong() >= nbytes);
 
   // Scratch space
@@ -654,10 +654,9 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
       if (!gasnete_coll_scratch_alloc_nb(op GASNETI_THREAD_PASS)) {
         break;
       }
-      const gex_Rank_t myrank = gex_TM_QueryRank(op->e_tm);
-      pdata->myscratch = (void*)(op->myscratchpos + (uintptr_t)op->team->scratch_segs[myrank].addr);
+      pdata->myscratch = gasnete_coll_scratch_myaddr(op, 0);
       if (parent != GEX_RANK_INVALID) {
-        pdata->upscratch = (void*)(op->scratchpos[0] + (uintptr_t)op->team->scratch_segs[parent].addr);
+        pdata->upscratch = gasnete_coll_scratch_addr(op, parent, 0, 0);
       }
       data->state = 2; GASNETI_FALLTHROUGH
     }
@@ -860,7 +859,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePutSeg)
   gasnete_coll_local_tree_geom_t *geom = (gasnete_coll_local_tree_geom_t *)coll_params;
 
   // Determine what can fit in scratch space or Long
-  const size_t slot_sz = team->smallest_scratch_seg / (1 + geom->max_radix);
+  const size_t slot_sz = team->scratch_size / (1 + geom->max_radix);
   const size_t limit = MIN(slot_sz, gex_AM_LUBRequestLong());
   size_t chunk_cnt;
 #if 1 // Branches are cheaper than integer division
