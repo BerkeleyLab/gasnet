@@ -62,7 +62,7 @@
 /*---------------------------------------------------------------------------------*/
 /* conduits may override this to relocate the ref-coll handlers */
 #ifndef GASNETE_COLL_HANDLER_BASE
-#define GASNETE_COLL_HANDLER_BASE 119
+#define GASNETE_COLL_HANDLER_BASE 117
 #endif
 
 #define _hidx_gasnete_coll_p2p_memcpy_reqh          (GASNETE_COLL_HANDLER_BASE+0)
@@ -74,20 +74,8 @@
 #define _hidx_gasnete_coll_p2p_put_and_advance_reqh (GASNETE_COLL_HANDLER_BASE+6)
 #define _hidx_gasnete_coll_p2p_med_counting_reqh    (GASNETE_COLL_HANDLER_BASE+7)
 #define _hidx_gasnete_coll_p2p_seg_put_reqh         (GASNETE_COLL_HANDLER_BASE+8)
-
-// TODO-EX: this is taking the last extended handler slot, but should be allocated more "normally"
-#define GASNETE_COLL_NUM_SCRATCH_HANDLERS 1
-#ifndef GASNETE_COLL_SCRATCH_HANDLER_BASE
-#define GASNETE_COLL_SCRATCH_HANDLER_BASE (GASNETE_COLL_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
-#endif
-#define _hidx_gasnete_coll_scratch_update_reqh (GASNETE_COLL_SCRATCH_HANDLER_BASE+0)
-
-// TODO-EX: this is taking the next-to-last extended handler slot, but should be allocated more "normally"
-#define GASNETE_COLL_NUM_TEAM_HANDLERS 1
-#ifndef GASNETE_COLL_TEAM_HANDLER_BASE
-#define GASNETE_COLL_TEAM_HANDLER_BASE (GASNETE_COLL_SCRATCH_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
-#endif
-#define _hidx_gasnete_coll_teamid_reqh (GASNETE_COLL_TEAM_HANDLER_BASE+0)
+#define _hidx_gasnete_coll_scratch_update_reqh      (GASNETE_COLL_HANDLER_BASE+9)
+#define _hidx_gasnete_coll_teamid_reqh              (GASNETE_COLL_HANDLER_BASE+10)
 
 /*---------------------------------------------------------------------------------*/
 /* Forward type decls and typedefs:                                                */
