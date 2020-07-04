@@ -119,12 +119,9 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
                                                   flags | GEX_FLAG_TM_SCRATCH_SIZE_MIN));
   }
 
-  gasnet_seginfo_t scratch;
-  scratch.addr = addr;
-  scratch.size = len;
   gasnete_coll_team_t team =
       gasnete_coll_team_split(i_parent->_coll_team, color, key,
-                              &scratch GASNETI_THREAD_PASS);
+                              len, addr, flags GASNETI_THREAD_PASS);
 
   if (team == NULL) {
     gasneti_assert(!new_tm_p);
