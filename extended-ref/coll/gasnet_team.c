@@ -79,7 +79,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->scratch_addrs = scratch_addrs;
   team->scratch_size = scratch_size;
   team->symmetric_scratch_offset = symmetric_scratch_offset;
-  team->myscratch = gasnete_coll_scratch_base(team, myrank);
+  team->myscratch = (void *)gasnete_coll_scratch_base(team, myrank);
   team->autotune_info = gasnete_coll_autotune_init(team, scratch_size GASNETI_THREAD_PASS);
   team->consensus_id = team->consensus_issued_id = 0xfffffff8;  // Intentionally near to wrap-around
   gasnete_coll_alloc_new_scratch_status(team);
