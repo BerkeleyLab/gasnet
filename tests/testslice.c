@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 
     if (seedoffset == 0) {
       seedoffset = (((unsigned int)TIME()) & 0xFFFF);
-      TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(&seedoffset));
+      TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(seedoffset));
     }
     TEST_SRAND(myproc+seedoffset);
 
