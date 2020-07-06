@@ -47,6 +47,16 @@
    obj:*/libudreg.so*
 }
 
+# aries-conduit: suppress Cray memory leak in UDREG_CacheCreate
+# see: https://github.com/ofi-cray/libfabric-cray/issues/990
+{
+   UDREG-UDREG_CacheCreate-leak
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   ...
+   fun:UDREG_CacheCreate
+}
 
 #
 # The following are suppressions for known-benign memory leaks.
