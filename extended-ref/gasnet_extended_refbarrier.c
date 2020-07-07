@@ -2051,8 +2051,8 @@ int gasnete_barrier_default(gasnete_coll_team_t team, int id, int flags) {
 
 static gasnete_coll_barrier_type_t gasnete_coll_default_barrier_type=GASNETE_COLL_BARRIER_ENVDEFAULT;
 
-extern void gasnete_coll_barrier_init(gasnete_coll_team_t team, int barrier_type_in,
-                                      gex_Rank_t *nodes, gex_Rank_t *supernodes) {
+extern void gasnete_coll_barrier_init(gasnete_coll_team_t team, int barrier_type_in)
+{
   gasnete_coll_barrier_type_t barrier_type= (gasnete_coll_barrier_type_t) barrier_type_in;
   static int envdefault_set = 0;
   
@@ -2095,7 +2095,7 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team, int barrier_type
   /* conduit plugin to select a barrier - 
      should use GASNETE_ISBARRIER("whatever") to check if enabled, and then set the
      barrier function pointers */
-  #define GASNETE_BARRIER_INIT(team, barrier_type, nodes, supernodes)
+    #define GASNETE_BARRIER_INIT(team, barrier_type) ((void)0)
   #endif
   /*reset the barrier types*/
   team->barrier_data = NULL;
@@ -2105,7 +2105,7 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team, int barrier_type
   team->barrier = &gasnete_barrier_default;
   team->barrier_result = NULL;
   GASNETE_SPLITSTATE_LEAVE(team);
-  GASNETE_BARRIER_INIT(team, barrier_type, nodes, supernodes);
+  GASNETE_BARRIER_INIT(team, barrier_type);
   if (team->barrier_notify) { /* conduit has identified a barrier mechanism */
     /*make sure that wait and try were also defined*/
     gasneti_assert(team->barrier_wait && team->barrier_try);
@@ -2142,7 +2142,6 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team, int barrier_type
 }
 
 void gasnete_barrier_init(void) {
-  gex_Rank_t *supernodes = NULL;
   gasnete_coll_team_t team;
   int i;
 
@@ -2182,13 +2181,11 @@ void gasnete_barrier_init(void) {
   team->supernode.node_rank  = gasneti_mysupernode.node_rank;
   team->supernode.grp_count  = gasneti_mysupernode.grp_count;
   team->supernode.grp_rank   = gasneti_mysupernode.grp_rank;
-
-  supernodes = gasneti_pshm_firsts;
 #endif
 
   GASNET_TEAM_ALL = team;
 
-  gasnete_coll_barrier_init(team, 0, NULL, supernodes);
+  gasnete_coll_barrier_init(team, 0);
 }
 
 /* ------------------------------------------------------------------------------------ */

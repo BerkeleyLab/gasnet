@@ -252,8 +252,7 @@ typedef enum {
 } gasnete_coll_barrier_type_t;
 
 /* intialize the barriers for a given team */
-extern void gasnete_coll_barrier_init(gasnete_coll_team_t _team, int _barrier_type,
-                                      gex_Rank_t *_nodes, gex_Rank_t *_super_nodes);
+extern void gasnete_coll_barrier_init(gasnete_coll_team_t _team, int _barrier_type);
 
 /* "peers" are sets of nodes at distances +/- powers of two, taken from some parent set */
 typedef struct {

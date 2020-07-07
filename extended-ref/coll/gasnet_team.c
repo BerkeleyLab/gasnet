@@ -129,7 +129,6 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   }
 #endif
   
-  gex_Rank_t *supernodes = NULL;
   uint32_t i;
   initialize_team_fields(team, images, myrank, total_ranks, scratch_segs GASNETI_THREAD_PASS); 
   team->team_id = team_id;
@@ -160,10 +159,10 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
 #if GASNET_PSHM
   // Build supernode stats (except for TEAM_ALL)
   if (team_id) {
-    gex_Rank_t *node_vector;
+    gex_Rank_t *node_vector, *supernodes;
     int count, rank;
 
-    /* A list with a representative for each supernode (needed by some barriers) */
+    // A list with a representative for each supernode (for hierarchical comms)
     supernodes = gasneti_malloc(gasneti_nodemap_global_count * sizeof(gex_Rank_t));
 
     /* Created a sorted vector of (supernode,node) for members of this team
@@ -216,6 +215,8 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
         team->supernode_peers.fwd[i] = supernodes[(rank + dist) % count];
       }
     }
+
+    gasneti_free(supernodes);
   }
 #endif
 
@@ -238,13 +239,8 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   /* unlock */
 
   if (team_id) {
-    gasnete_coll_barrier_init(team, GASNETE_COLL_BARRIER_ENVDEFAULT,
-                              rel2act_map, supernodes);
+    gasnete_coll_barrier_init(team, GASNETE_COLL_BARRIER_ENVDEFAULT);
   }
-
-#if GASNET_PSHM
-  gasneti_free(supernodes);
-#endif
 }
 
 void gasnete_coll_team_fini(gasnet_team_handle_t team)
