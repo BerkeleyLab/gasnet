@@ -75,7 +75,7 @@
 #define _hidx_gasnete_coll_p2p_med_counting_reqh    (GASNETE_COLL_HANDLER_BASE+7)
 #define _hidx_gasnete_coll_p2p_seg_put_reqh         (GASNETE_COLL_HANDLER_BASE+8)
 #define _hidx_gasnete_coll_scratch_update_reqh      (GASNETE_COLL_HANDLER_BASE+9)
-#define _hidx_gasnete_coll_teamid_reqh              (GASNETE_COLL_HANDLER_BASE+10)
+#define _hidx_gasnete_subteam_op_reqh               (GASNETE_COLL_HANDLER_BASE+10)
 
 /*---------------------------------------------------------------------------------*/
 /* Forward type decls and typedefs:                                                */
@@ -313,8 +313,14 @@ struct gasnete_coll_team_t_ {
   gasneti_mutex_t threads_mutex;
 #endif
   
-  /*Stuff for split*/
-  volatile uint32_t new_team_id; // TODO_EX: generalize for multi-EP
+  /*Stuff for sub-team creation*/
+  struct {
+    gasneti_weakatomic32_t team_id;
+    volatile int phase;
+    uint8_t *data[2];
+    gasneti_weakatomic32_t step_rcvd[2][32];
+    gex_HSL_t lock; // protects data[]
+  } child; // TODO_EX: generalize for multi-EP
 
   /*Stuff for consensus*/
   uint32_t consensus_issued_id;

@@ -189,6 +189,9 @@ size_t gasneti_TM_Create(
     return nmembers ? get_scratch_size(i_parent, nmembers, flags) : 0;
   }
 
+  // TODO-EX: remove when subteam collectives no longer require a parent-scope entry barrier
+  gasnete_coll_consensus_barrier(i_parent->_coll_team GASNETI_THREAD_PASS);
+
   if (! nmembers) {
     GASNETI_TRACE_PRINTF(W,("Create: parent="GASNETI_TMSELFFMT" [No team created]",
                             GASNETI_TMSELFSTR(e_parent)));
@@ -283,8 +286,6 @@ size_t gasneti_TM_Create(
   result = 1; // return is documented as undefined
 
 done:
-  // TODO: barrier over only the NEW team if any
-  gasnete_coll_consensus_barrier(i_parent->_coll_team GASNETI_THREAD_PASS);
   return result;
 }
 
