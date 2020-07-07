@@ -137,25 +137,22 @@ size_t gasnetc_AMHeaderSize(void);
 
 #define GASNETC_MAX_MEDIUM_NBRHD    GASNETC_MAX_MED
 
+#define GASNETC_ARGS_SIZE(numargs) (sizeof(gex_AM_Arg_t) * (numargs))
+
 #define GASNETC_MAX_MED_(nargs)                                                \
   (GASNETC_MAX_MED - GASNETI_ALIGNUP_NOASSERT(GASNETC_UCX_HDR_SIZE +           \
-                                              sizeof(gex_AM_Arg_t)*(nargs), 8))
+                                              GASNETC_ARGS_SIZE(nargs), 8))
 
-#define GASNETC_MAX_LONG_(nargs) \
+#define GASNETC_MAX_LONG_(nargs)                                                \
   (GASNETC_MAX_LONG - (GASNETC_UCX_HDR_SIZE +  sizeof(gex_AM_Arg_t)*(nargs) +  \
                                                sizeof(void*)))
 
 #define GASNETC_MAX_ARGS_SIZE (sizeof(gex_AM_Arg_t) * GASNETC_MAX_ARGS)
 
-#define GASNETC_ARGS_SIZE(numargs) (sizeof(gex_AM_Arg_t) * (numargs))
-
-#define GASNETC_AMMED_PADDING_SIZE \
-  (GASNETI_ALIGNUP(GASNETC_MAX_ARGS_SIZE, GASNETI_MEDBUF_ALIGNMENT) - \
-    GASNETC_UCX_HDR_SIZE - GASNETC_MAX_ARGS_SIZE)
-
-#define GASNETC_MAX_MED_BUF \
-  (GASNETC_UCX_HDR_SIZE + GASNETC_MAX_ARGS_SIZE + \
-    GASNETC_AMMED_PADDING_SIZE + GASNETC_MAX_MED)
+#define GASNETC_AMMED_PADDING_SIZE(__nargs)                                 \
+  (GASNETI_ALIGNUP(GASNETC_ARGS_SIZE(__nargs) + GASNETC_UCX_HDR_SIZE,       \
+                  GASNETI_MEDBUF_ALIGNMENT) -                               \
+                  (GASNETC_UCX_HDR_SIZE + GASNETC_ARGS_SIZE(__nargs)))
 
 #define gex_AM_MaxArgs()          ((unsigned int)GASNETC_MAX_ARGS)
 #define gex_AM_LUBRequestMedium() (GASNETC_MAX_MED_(GASNETC_MAX_ARGS))

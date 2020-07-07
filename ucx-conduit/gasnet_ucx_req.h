@@ -28,7 +28,14 @@ typedef enum {
   GASNETC_UCX_FAILED
 } gasnetc_ucx_req_status_t;
 
+#if GASNET_DEBUG
+#define GASNETC_HDR_MAGIC 0x11223344
+#endif
+
 typedef struct {
+#if GASNET_DEBUG
+  int magic;
+#endif
   gex_Rank_t            dst;
   gex_Rank_t            src;
   gex_AM_Index_t        handler;
@@ -36,14 +43,11 @@ typedef struct {
   uint8_t               is_req   : 1;
   uint8_t               is_packed: 1;
   uint8_t               numargs  : 5;
-  uint32_t              nbytes;
+  uint32_t              size;
+  uint32_t              payload_size;
   /* for Long AM only */
   void                 *dst_addr;
 } gasnetc_sreq_hdr_t;
-
-typedef enum {
-  GASNETC_BUF_RECV_POOL
-} gasnetc_buf_pool_type_t;
 
 typedef struct {
   GASNETC_LIST_CLASS;
@@ -70,7 +74,7 @@ typedef struct {
     GASNETC_LIST_CLASS;
     gasnetc_ucx_req_status_t  status;
     gasnetc_am_req_t         *am_req;
-    gasnetc_buffer_t         *buffer;
+    gasnetc_buffer_t          buffer;
     uint8_t                   is_sync;
     int                       is_packed;
     void                     *result_p;
@@ -78,13 +82,23 @@ typedef struct {
       gasnetc_cbfunc_t        cbfunc;
       gasneti_atomic_val_t   *cbdata;
     } completion;
+    ucs_status_t              ucs_status;
 } gasnetc_ucx_request_t;
 
 #define GASNETC_BUF_DATA(__buf)               ((__buf).data)
 #define GASNETC_BUF_PTR(__buf)                ((__buf).data + (__buf).bytes_used)
 #define GASNETC_BUF_SIZE(__buf)               ((__buf).bytes_used)
 #define GASNETC_BUF_SET_OFFSET(__buf, __offs) ((__buf).bytes_used = (__offs))
-#define GASNETC_BUF_ADD_BYTES(__buf, __offs)  ((__buf).bytes_used += (__offs))
+
+#define GASNETC_AM_HDR_ADD_BYTES(__req, __bytes) \
+  ((__req)->am_hdr->size += __bytes)
+
+#define GASNETC_BUF_ADD_SEND_BYTES(__req, __offs) \
+do {                                              \
+  GASNETC_AM_HDR_ADD_BYTES(__req, __offs);        \
+  (__req)->buffer.bytes_used += (__offs);         \
+} while(0)
+
 
 #if GASNETC_PIN_SEGMENT
 #define GASNETC_BUF_RESET(__buf)              ((__buf).bytes_used = 0)
@@ -99,5 +113,7 @@ do {                                          \
 #endif
 
 extern void gasnetc_req_init(void *request);
+extern int  gasnetc_recv_init(void);
+extern void gasnetc_recv_fini(void);
 
 #endif /* GASNET_UCX_REQ_H */

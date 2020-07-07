@@ -227,3 +227,4 @@ precedence.
   + Additional round of performance analysis and tuning.
   + Investigate older UCX versions and hardware compatibility and update README.
   + Support Graceful exits if rank 0 has failed.
+  + Apply ODP to optimize `--enable-segment-everything` mode.

@@ -1,7 +1,7 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_extended.c $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
- * Copyright 2019, Mellanox Technologies LTD. All rights reserved.
+ * Copyright 2019-2020, Mellanox Technologies LTD. All rights reserved.
  * Terms of use are as specified in license.txt
  */
 
@@ -112,6 +112,7 @@ void gasnetc_ucx_rma_cb(void *request, ucs_status_t status)
   return;
 }
 
+#if GASNETC_PIN_SEGMENT
 extern
 gex_Event_t gasnete_get_nb(
                      gex_TM_t tm,
@@ -120,6 +121,7 @@ gex_Event_t gasnete_get_nb(
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
+  GASNETC_MYTID_POST();
   GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
 
   gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
@@ -141,6 +143,7 @@ gex_Event_t gasnete_put_nb(
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
+  GASNETC_MYTID_POST();
   GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
   gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
 
@@ -194,6 +197,7 @@ extern
 int gasnete_get_nbi (gex_TM_t tm, void *dest, gex_Rank_t rank, void *src,
                      size_t nbytes, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
+  GASNETC_MYTID_POST();
   GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   int ret;
 
@@ -216,6 +220,7 @@ int gasnete_put_nbi (gex_TM_t tm, gex_Rank_t rank, void *dest,
                      void *src, size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
+  GASNETC_MYTID_POST();
   GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
 
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
@@ -250,6 +255,7 @@ int gasnete_put_nbi (gex_TM_t tm, gex_Rank_t rank, void *dest,
   }
   return 0;
 }
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*

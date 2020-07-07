@@ -22,7 +22,7 @@
 
 /* Configure use of AM-based implementation of get/put */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-#if GASNETC_PIN_SEGMENT
+#if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
 #define GASNETE_USING_REF_EXTENDED_GET      0
 #define GASNETE_USING_REF_EXTENDED_PUT      0
 #else
@@ -78,10 +78,11 @@
 //#define GASNETI_DIRECT_BLOCKING_PUT 1
 
 /* Implement all "base" operations directly via amref: */
-/*#define gasnete_amref_get_nb        gasnete_get_nb
+#if !defined(GASNET_SEGMENT_FAST) && !defined(GASNET_SEGMENT_LARGE)
+#define gasnete_amref_get_nb        gasnete_get_nb
 #define gasnete_amref_put_nb        gasnete_put_nb
 #define gasnete_amref_get_nbi       gasnete_get_nbi
 #define gasnete_amref_put_nbi       gasnete_put_nbi
-*/
+#endif
 
 #endif

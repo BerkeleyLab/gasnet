@@ -471,10 +471,8 @@ static void gasnetc_ucx_fini(void)
   GASNETC_EXIT_STATE("gasnetc_ucx_fini called");
   gasnetc_ucx_worker_flush();
   GASNETC_EXIT_STATE("gasnetc_ucx_worker_flush called");
-  gasnetc_sreq_list_free();
-  GASNETC_EXIT_STATE("gasnetc_sreq_list_free called");
-  gasnetc_am_req_pool_free();
-  GASNETC_EXIT_STATE("gasnetc_am_req_pool_free called");
+  gasnetc_send_fini();
+  GASNETC_EXIT_STATE("gasnetc_send_fini called");
 
   /* cleanup UCX */
   gasnetc_connect_shutdown();
@@ -485,10 +483,8 @@ static void gasnetc_ucx_fini(void)
 #endif
   ucp_worker_destroy(gasneti_ucx_module.ucp_worker);
   GASNETC_EXIT_STATE("ucp_worker_destroy called");
-  gasnetc_rreq_list_free();
-  GASNETC_EXIT_STATE("gasnetc_rreq_list_free called");
-  gasnetc_buffer_pool_free();
-  GASNETC_EXIT_STATE("gasnetc_buffer_pool_free called");
+  gasnetc_recv_fini();
+  GASNETC_EXIT_STATE("gasnetc_recv_fini called");
   ucp_cleanup(gasneti_ucx_module.ucp_context);
   GASNETC_EXIT_STATE("ucp_cleanup called");
 
@@ -506,6 +502,7 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   gasnet_ep_info_t local_ep;
   ucp_address_t *ucx_local_addr;
   gex_Rank_t i;
+  int rc;
 
   /*  check system sanity */
   gasnetc_check_config();
@@ -567,6 +564,10 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   }
 
   gasneti_mutex_init(&gasneti_ucx_module.ucp_worker_lock);
+#ifdef GASNETC_UCX_THREADS
+  gasneti_ucx_module.lock_cnt = 0;
+  gasneti_ucx_module.lock_tid = GASNETE_INVALID_THREADIDX;
+#endif
 
   worker_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE;
   worker_params.thread_mode = UCS_THREAD_MODE_SINGLE;
@@ -612,10 +613,6 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   ucp_worker_release_address(gasneti_ucx_module.ucp_worker, local_ep.ucx_addr);
   gasneti_free(ep_sizes);
   gasneti_free(ucx_local_addr);
-
-  gasnetc_am_req_pool_alloc();
-  gasnetc_buffer_pool_alloc();
-  gasnetc_req_list_init();
 
   for (i = 0; i < gasneti_nodes; i++) {
     gasneti_list_init(&gasneti_ucx_module.ep_tbl[i].mem_tbl);
@@ -708,6 +705,11 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
     fflush(NULL);
   }
   gasneti_registerExitHandler(gasnetc_atexit);
+
+  if (GASNET_OK != (rc = gasnetc_recv_init())) {
+    return rc;
+  }
+  gasnetc_send_init();
 
   return GASNET_OK;
 }
@@ -1102,18 +1104,16 @@ static void gasnetc_exit_sighandler(int sig) {
  * returns zero on all subsequent calls
  */
 static int gasnetc_exit_head(int exitcode) {
+  GASNET_BEGIN_FUNCTION();
   int rc = 0;
+  GASNETC_MYTID_POST();
 
   GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
   if (!gasnetc_exit_running) {
     gasneti_atomic_set(&gasnetc_exit_code, exitcode, GASNETI_ATOMIC_WMB_POST);
     gasnetc_exit_running = 1;
 #ifdef GASNETC_UCX_THREADS
-    {
-      gasnete_threadidx_t threadidx;
-      GASNETC_MY_THREAD_IDX(threadidx);
-      gasnetc_exit_thread = threadidx;
-    }
+    gasnetc_exit_thread = GASNETC_MY_THREADIDX;
 #endif
     rc = 1;
   }
@@ -1129,7 +1129,9 @@ static void gasnetc_exit_tail(void) {
 }
 
 void gasnetc_exit_threads(void) {
+  GASNET_BEGIN_FUNCTION();
 #if GASNET_DEBUG
+  GASNETC_MYTID_POST();
   GASNETC_LOCK_UCX();
   gasneti_assert(gasnetc_exit_running);
   GASNETC_UNLOCK_UCX();
@@ -1144,6 +1146,7 @@ void gasnetc_exit_threads(void) {
 
 static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 {
+  GASNET_BEGIN_FUNCTION();
   gasneti_tick_t start_time = gasneti_ticks_now();
   int rc, i;
 
@@ -1161,7 +1164,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
     if (rc != GASNET_OK) return -1;
     do { /* wait for completion of the proper receive, which might arrive out of order */
       if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
-      gasnetc_req_poll(GASNETC_LOCK_REGULAR);
+      gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
       if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
     } while (!(distance & gasneti_atomic_read(&gasnetc_exit_dist, 0)));
     exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
@@ -1203,6 +1206,7 @@ static void gasnetc_exit_role_reph(gex_Token_t token, gex_AM_Arg_t arg0) {
 
 static int gasnetc_get_exit_role(void)
 {
+  GASNET_BEGIN_FUNCTION();
   int role;
   int64_t timeout_us = gasnetc_exittimeout * 1.0e6;
   gex_Rank_t rank;
@@ -1221,7 +1225,7 @@ static int gasnetc_get_exit_role(void)
     start_time = gasneti_ticks_now();
     /* Now spin until somebody tells us what our role is */
     do {
-      gasnetc_req_poll(GASNETC_LOCK_REGULAR);
+      gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
       role = gasneti_atomic_read(&gasnetc_exit_role, 0);
       if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 >
           timeout_us) {
@@ -1237,6 +1241,7 @@ static int gasnetc_get_exit_role(void)
 }
 
 static int gasnetc_exit_leader(int exitcode, int64_t timeout_us) {
+  GASNET_BEGIN_FUNCTION();
   int i, rc;
   gasneti_tick_t start_time;
 
@@ -1258,7 +1263,7 @@ static int gasnetc_exit_leader(int exitcode, int64_t timeout_us) {
   /* Wait phase - wait for replies from our N-1 peers */
   while (gasneti_atomic_read(&gasnetc_exit_reps, 0) < (gasneti_nodes - 1)) {
     if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
-    gasnetc_req_poll(GASNETC_LOCK_REGULAR);
+    gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
   }
 
   return 0;
@@ -1273,6 +1278,7 @@ static int gasnetc_exit_leader(int exitcode, int64_t timeout_us) {
  * Returns 0 on success, non-zero on timeout.
  */
 static int gasnetc_exit_member(int64_t timeout_us) {
+  GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
   gasneti_tick_t start_time;
 
   gasneti_assert(timeout_us > 0);
@@ -1281,30 +1287,32 @@ static int gasnetc_exit_member(int64_t timeout_us) {
 
   /* wait until the exit request is received from the leader */
   while (gasneti_atomic_read(&gasnetc_exit_reqs, 0) == 0) {
-    if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
-
-    gasnetc_req_poll(GASNETC_LOCK_REGULAR);
+    if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) {
+      return -1;
+    }
+    gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
   }
 
   /* wait until our reply has been placed on the wire */
   gasneti_sync_reads(); /* For non-atomic portion of gasnetc_exit_repl_oust */
-  GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
   gasnetc_counter_wait(&gasnetc_exit_repl_oust, 1 GASNETI_THREAD_PASS);
 
   return 0;
 }
 
 static void gasnetc_exit_body(void) {
+  GASNET_BEGIN_FUNCTION();
   int exitcode;
   int graceful = 0;
   int64_t timeout_us = gasnetc_exittimeout * 1.0e6;
   int role;
 #if GASNET_DEBUG && GASNET_PAR
-  gasnete_threadidx_t threadidx;
-  GASNETC_MY_THREAD_IDX(threadidx);
-  GASNETC_LOCK_UCX();
-  gasneti_assert(threadidx == gasnetc_exit_thread);
-  GASNETC_UNLOCK_UCX();
+  {
+    GASNETC_MYTID_POST();
+    GASNETC_LOCK_UCX();
+    gasneti_assert(GASNETC_MY_THREADIDX == gasnetc_exit_thread);
+    GASNETC_UNLOCK_UCX();
+  }
 #endif
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
@@ -1376,10 +1384,10 @@ static void gasnetc_exit_body(void) {
     alarm(10);
     /* waiting to completion all requests */
     GASNETC_EXIT_STATE("flushing ucx requests: waiting for sends completions");
-    gasnetc_send_list_wait(GASNETC_LOCK_REGULAR);
+    gasnetc_send_list_wait(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
     gasneti_bootstrapBarrier();
     GASNETC_EXIT_STATE("flushing ucx requests: waiting for recvs completions");
-    while(gasnetc_req_poll(GASNETC_LOCK_REGULAR));
+    while(gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS));
 
     alarm(10);
     GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
@@ -1592,7 +1600,7 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
   /* protected progress of UCX */
-  gasnetc_req_poll(GASNETC_LOCK_REGULAR);
+  gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
   return GASNET_OK;
 }
 
@@ -1612,7 +1620,7 @@ extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
   GASNETI_TRACE_AMREQUESTMEDIUM(gasneti_THUNK_TM,jobrank,handler,NULL,0,/*flags*/0,numargs);
 
   /* ensure AM progress, but NOT progress functions */
-  gasnetc_req_poll_rcv(GASNETC_LOCK_REGULAR);
+  gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
 
   va_start(argptr, numargs);
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
