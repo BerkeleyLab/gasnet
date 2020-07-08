@@ -5213,6 +5213,7 @@ other/contrib/Makefile
 other/contrib/gasnet_trace
 other/firehose/Makefile
 other/firehose/firehose.mak
+other/valgrind/Makefile
 
  dnl Conduit Makefiles and scripts
 

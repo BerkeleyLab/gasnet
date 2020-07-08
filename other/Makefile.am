@@ -15,7 +15,8 @@ CONDUITMODE_SUBDIRS = \
         ammpi      \
 	amudp	   \
 	contrib    \
-	firehose   
+	firehose   \
+	valgrind
 
 CONDUITMODE_EXTRADIST = \
 	amx         \
