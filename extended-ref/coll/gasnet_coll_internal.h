@@ -245,9 +245,7 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t _team, int _barrier_ty
 typedef struct {
   unsigned int   num; /* ceil(log_2(ranks)) */
   gex_Rank_t *fwd; /* fwd[i] is global rank of member (myrank + 2^i) */
-#if 0 /* Not used yet */
   gex_Rank_t *bwd; /* bwd[i] is global rank of member (myrank - 2^i) */
-#endif
 } gasnete_coll_peer_list_t;
 
 /* Type for collective teams: */

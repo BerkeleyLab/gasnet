@@ -193,10 +193,12 @@ gasnet_team_handle_t gasnete_coll_team_alloc(
     unsigned int count = 0;
     for (gex_Rank_t i=1; i<total_ranks; i*=2) ++count;
     team->peers.num = count;
-    team->peers.fwd = gasneti_malloc(sizeof(gex_Rank_t) * count);
+    team->peers.fwd = gasneti_malloc(sizeof(gex_Rank_t) * count * 2);
+    team->peers.bwd = team->peers.fwd + count;
     for (gex_Rank_t i=0; i<count; i++) {
       unsigned int dist = 1 << i;
       team->peers.fwd[i] = rel2act_map[(myrank + dist) % total_ranks];
+      team->peers.bwd[i] = rel2act_map[(myrank + total_ranks - dist) % total_ranks];
     }
   }
 
@@ -289,16 +291,15 @@ gasnet_team_handle_t gasnete_coll_team_create(
 
   gasnet_team_handle_t team = gasnete_coll_team_alloc(total_ranks, myrank, rel2act_map);
 
-  // Reset sub-team collectives phase prior to use
-  parent->child.phase = 0;
-
   // Allocatate/communicate the new team's ID
-  team->team_id = gasnete_subteam_ID(parent, myrank, total_ranks, rel2act_map GASNETI_THREAD_PASS);
+  // Must follow team_alloc and precede gasnete_subteam_*
+  gasnete_subteam_ID(parent, team GASNETI_THREAD_PASS);
 
 #ifdef DEBUG_TEAM
     fprintf(stderr, "myrank %u, get new_team_id %x\n", myrank, team->team_id);
     fflush(stderr);
 #endif
+
   // Construct global scratch_addrs[] array
   gex_Addr_t *global_scratch_addrs = NULL;
   gex_Flags_t scratch_mask = GEX_FLAG_TM_GLOBAL_SCRATCH    |
@@ -313,7 +314,7 @@ gasnet_team_handle_t gasnete_coll_team_create(
 
     case GEX_FLAG_TM_LOCAL_SCRATCH:
       global_scratch_addrs = gasneti_malloc(total_ranks * sizeof(gex_Addr_t));
-      gasnete_subteam_Exchange(parent, myrank, total_ranks, rel2act_map,
+      gasnete_subteam_Exchange(parent, team,
                                scratch_addrs, sizeof(gex_Addr_t), global_scratch_addrs
                                GASNETI_THREAD_PASS);
       break;
@@ -342,7 +343,7 @@ gasnet_team_handle_t gasnete_coll_team_create(
 #if GASNET_DEBUG
   // Verify single-valued scratch_size
   size_t leader_scratch_size = myrank ? 0xcafef00d : scratch_size;
-  gasnete_subteam_Broadcast(parent, myrank, total_ranks, rel2act_map,
+  gasnete_subteam_Broadcast(parent, team,
                             &leader_scratch_size, sizeof(leader_scratch_size)
                             GASNETI_THREAD_PASS);
   gasneti_assert_uint(scratch_size ,==, leader_scratch_size);
@@ -352,7 +353,7 @@ gasnet_team_handle_t gasnete_coll_team_create(
 #ifdef DEBUG_TEAM
   gasnete_print_team(team, stderr);
 #endif
-  gasnete_subteam_Barrier(parent, myrank, total_ranks, rel2act_map GASNETI_THREAD_PASS);
+  gasnete_subteam_Barrier(parent, team GASNETI_THREAD_PASS);
 
   return team;
 }
@@ -502,7 +503,6 @@ void gasnete_print_team(gasnet_team_handle_t team, FILE *fp)
 //
 // TODO-EX: multi-EP, especially Create using EPs not in parent
 // TODO-EX: remove THUNK_TM via gex_TM_Pair()
-// TODO-EX: use peers[] in place of rel2act_map?
 // TODO-EX: revisit use of phase[2] vs sequence numbers (or similar)
 // TODO-EX: seek to remove requirement for an entry barrier over parent_tm
 // TODO-EX: determine if one can remove memory fences from start/end of initiators
@@ -590,18 +590,19 @@ void gasnete_subteam_op_reqh(
 
 void gasnete_subteam_Barrier(
                         gasnete_coll_team_t parent,
-                        gex_Rank_t myrank, gex_Rank_t nranks, gex_Rank_t *rel2act_map
+                        gasnete_coll_team_t child
                         GASNETI_THREAD_FARG)
 {
   const int phase = parent->child.phase;
+  gex_Rank_t nranks = child->total_ranks;
+  gex_Rank_t myrank = child->myrank;
   gasneti_sync_reads();
 
   if (nranks == 1) goto out;
 
   // Dissemination barrier
   for (unsigned int step = 0, distance = 1; distance < nranks; ++step, distance *= 2) {
-    gex_Rank_t rank = (myrank + distance) % nranks;
-    gex_Rank_t jobrank = rel2act_map[rank];
+    gex_Rank_t jobrank = child->peers.fwd[step];
 
     // Send payload using 0-byte AMMedium due to sharing single handler
     gex_AM_Arg_t arg0 = GASNETE_SUBTEAM_OP_ARG0(barrier, phase, step, 0);
@@ -627,13 +628,15 @@ out:
 // broadcast prior to return on any given ranks.
 void gasnete_subteam_Broadcast(
                         gasnete_coll_team_t parent,
-                        gex_Rank_t myrank, gex_Rank_t nranks, gex_Rank_t *rel2act_map,
+                        gasnete_coll_team_t child,
                         void *ptr, size_t elemsz
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert_uint(elemsz ,<=, gex_AM_LUBRequestMedium());
 
   const int phase = parent->child.phase;
+  gex_Rank_t nranks = child->total_ranks;
+  gex_Rank_t myrank = child->myrank;
   gasneti_sync_reads();
 
   if (nranks == 1) goto out;
@@ -647,8 +650,7 @@ void gasnete_subteam_Broadcast(
   // Essentially an AllgatherV with len=elemsz on rank 0, and zero on all others
   gex_Rank_t recv_count = 0;
   for (unsigned int step = 0, distance = 1; distance < nranks; ++step, distance *= 2) {
-    gex_Rank_t rank = (myrank + distance) % nranks;
-    gex_Rank_t jobrank = rel2act_map[rank];
+    gex_Rank_t jobrank = child->peers.fwd[step];
 
     // Send payload using AMMedium
     size_t nbytes = (recv_count >= myrank) ? elemsz : 0; // non-zero if have recv'd data from rank 0
@@ -678,13 +680,15 @@ out:
 
 void gasnete_subteam_Exchange(
                         gasnete_coll_team_t parent,
-                        gex_Rank_t myrank, gex_Rank_t nranks, gex_Rank_t *rel2act_map,
+                        gasnete_coll_team_t child,
                         void *src, size_t elemsz, void *dst
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert(elemsz);
 
   const int phase = parent->child.phase;
+  gex_Rank_t nranks = child->total_ranks;
+  gex_Rank_t myrank = child->myrank;
   gasneti_sync_reads();
 
   if (nranks == 1) {
@@ -699,9 +703,7 @@ void gasnete_subteam_Exchange(
 
   // Bruck's concatenation algorithm:
   for (unsigned int step = 0, distance = 1; distance < nranks; ++step, distance *= 2) {
-    gex_Rank_t rank = (distance <= myrank) ? myrank - distance
-                                           : myrank + (nranks - distance);
-    gex_Rank_t jobrank = rel2act_map[rank];
+    gex_Rank_t jobrank = child->peers.bwd[step];
     size_t nbytes = elemsz * MIN(distance, nranks - distance);
     size_t offset = 0;
     uint32_t seq = 0;
@@ -739,12 +741,17 @@ out:
   parent->child.phase ^= 1;
 }
 
-uint32_t gasnete_subteam_ID(
+void gasnete_subteam_ID(
                         gasnete_coll_team_t parent,
-                        gex_Rank_t myrank, gex_Rank_t nranks, gex_Rank_t *rel2act_map
+                        gasnete_coll_team_t child
                         GASNETI_THREAD_FARG)
 {
+  gex_Rank_t nranks = child->total_ranks;
+  gex_Rank_t myrank = child->myrank;
   uint32_t new_team_id;
+
+  // Reset sub-team collectives phase prior to use
+  parent->child.phase = 0;
 
   if (!myrank) {
     // the team leader (rank 0) allocates the new team_id
@@ -763,13 +770,9 @@ uint32_t gasnete_subteam_ID(
   // Send to children in a binomial tree
   gex_Rank_t subtree = myrank ? (myrank & -myrank) : nranks;
   if (subtree > 1) {
-    // n = next_power_of_two(subtree - 1)
-    gex_Rank_t n = subtree - 1;
-    n |= n >> 1; n |= n >> 2; n |= n >> 4; n |= n >> 8; n |= n >> 16; n += 1;
-    for (gex_Rank_t step = n/2; step; step /= 2) {
-      gex_Rank_t rank = myrank+step;
-      if (rank >= nranks) continue;
-      gex_Rank_t jobrank = rel2act_map[rank];
+    for (int step = gasnete_coll_log2_rank(subtree - 1); step >= 0; --step) {
+      if (myrank + (1 << step) >= nranks) continue;
+      gex_Rank_t jobrank = child->peers.fwd[step];
       const gex_AM_Arg_t arg0 = GASNETE_SUBTEAM_OP_ARG0(team_id, 0, 0, 0);
       gex_AM_RequestMedium(gasneti_THUNK_TM, jobrank, _hidx_gasnete_subteam_op_reqh,
                            NULL, 0, GEX_EVENT_NOW, 0,
@@ -777,7 +780,7 @@ uint32_t gasnete_subteam_ID(
     }
   }
 
-  return new_team_id;
+  child->team_id = new_team_id;
 }
 
 /* ------------------------------------------------------------------------------------ */
