@@ -75,8 +75,6 @@ static void initialize_team_fields(
   team->dissem_cache_tail = NULL;
   gasneti_mutex_init(&team->dissem_cache_lock);
   team->team_id = team_id;
-  team->myrank = myrank;
-  team->total_ranks = num_members;
   team->autotune_info = gasnete_coll_autotune_init(team GASNETI_THREAD_PASS);
   team->consensus_id = team->consensus_issued_id = 0xfffffff8;  // Intentionally near to wrap-around
   gasnete_coll_alloc_new_scratch_status(team);
@@ -93,7 +91,7 @@ static void initialize_team_fields(
 #endif
 }
 
-/* Helper for gasnete_coll_team_init() */
+/* Helper for gasnete_coll_team_alloc() */
 static int gasnete_node_pair_sort_fn(const void *a_p, const void *b_p) {
   const int a0 = ((const gex_Rank_t *)a_p)[0];
   const int b0 = ((const gex_Rank_t *)b_p)[0];
@@ -129,94 +127,8 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   }
 #endif
   
-  uint32_t i;
   initialize_team_fields(team, team_id, myrank, total_ranks,
                          scratch_size, scratch_addrs, flags GASNETI_THREAD_PASS); 
-
-  // Build rel2act_map (except for TEAM_ALL)
-  if (team_id) {
-    gasneti_assert(team->rel2act_map == NULL);
-
-    size_t alloc_size = total_ranks * sizeof(gex_Rank_t);
-    team->rel2act_map = (gex_Rank_t *)gasneti_malloc(alloc_size);
-    memcpy(team->rel2act_map, rel2act_map, alloc_size);
-  }
-
-  // Build peer lists (except for TEAM_ALL)
-  if (total_ranks > 1 && team_id) {
-    unsigned int count = 0;
-    for (i=1; i<total_ranks; i*=2) ++count;
-    team->peers.num = count;
-    team->peers.fwd = gasneti_malloc(sizeof(gex_Rank_t) * count);
-    for (i=0; i<count; i++) {
-      unsigned int dist = 1 << i;
-      team->peers.fwd[i] = rel2act_map[(myrank + dist) % total_ranks];
-    }
-  }
-
-#if GASNET_PSHM
-  // Build supernode stats (except for TEAM_ALL)
-  if (team_id) {
-    gex_Rank_t *node_vector, *supernodes;
-    int count, rank;
-
-    // A list with a representative for each supernode (for hierarchical comms)
-    supernodes = gasneti_malloc(gasneti_nodemap_global_count * sizeof(gex_Rank_t));
-
-    /* Created a sorted vector of (supernode,node) for members of this team
-     * while finding size of and rank in local supernode in the same pass
-     */
-    count = 0; rank = -1;
-    node_vector = gasneti_malloc(2 * total_ranks * sizeof(gex_Rank_t));
-    for (i = 0; i < total_ranks; ++i) {
-      gex_Rank_t n = rel2act_map[i];
-      if (gasneti_pshm_jobrank_in_supernode(n)) {
-        if (n == gasneti_mynode) rank = count;
-        ++count;
-      }
-      node_vector[2*i+0] = gasneti_node2supernode(n);
-      node_vector[2*i+1] = n;
-    }
-    qsort(node_vector, total_ranks, 2*sizeof(gex_Rank_t), &gasnete_node_pair_sort_fn);
-
-    gasneti_assert((count >  0) && (count <= gasneti_nodemap_local_count));
-    gasneti_assert((rank  >= 0) && (rank  <  gasneti_nodemap_local_count));
-    team->supernode.node_count = count;
-    team->supernode.node_rank  = rank;
-
-    /* Count and enumerate unique supernodes and find my supernode's rank */
-    count = 1; rank = 0;
-    supernodes[0] = node_vector[1];
-    for (i = 1; i < total_ranks; ++i) {
-      if (node_vector[2*i] != node_vector[2*(i-1)]) {
-        if (node_vector[2*i] == gasneti_nodemap_global_rank) rank = count;
-        supernodes[count] = node_vector[2*i+1];
-        ++count;
-      }
-    }
-    gasneti_free(node_vector);
-
-    gasneti_assert((count >  0) && (count <= gasneti_nodemap_global_count));
-    gasneti_assert((rank  >= 0) && (rank  <  gasneti_nodemap_global_count));
-    team->supernode.grp_count = count;
-    team->supernode.grp_rank  = rank;
-
-    /* Construct a list of log(P) representatives at distance +2^i */
-    /* NOTE: 'count' and 'rank' are in the supernode space */
-    {
-      unsigned int len = 0;
-      for (i=1; i<count; i*=2) ++len;
-      team->supernode_peers.num = len;
-      team->supernode_peers.fwd = gasneti_malloc(sizeof(gex_Rank_t) * len);
-      for (i=0; i<len; i++) {
-        unsigned int dist = 1 << i;
-        team->supernode_peers.fwd[i] = supernodes[(rank + dist) % count];
-      }
-    }
-
-    gasneti_free(supernodes);
-  }
-#endif
 
   /* lock the team directory (team_dir) */
   /* add the new team to the directory */
@@ -272,6 +184,101 @@ void gasnete_coll_team_fini(gasnet_team_handle_t team)
 #endif
 }
 
+// Non-collective call to allocate local data and initialize some key fields
+gasnet_team_handle_t gasnete_coll_team_alloc(
+                        gex_Rank_t total_ranks,
+                        gex_Rank_t myrank,
+                        gex_Rank_t *rel2act_map)
+{
+  gasnet_team_handle_t team = gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
+
+  team->myrank = myrank;
+  team->total_ranks = total_ranks;
+
+  // Build rel2act_map
+  size_t alloc_size = total_ranks * sizeof(gex_Rank_t);
+  team->rel2act_map = (gex_Rank_t *)gasneti_malloc(alloc_size);
+  memcpy(team->rel2act_map, rel2act_map, alloc_size);
+
+  // Build peer lists
+  if (total_ranks > 1) {
+    unsigned int count = 0;
+    for (gex_Rank_t i=1; i<total_ranks; i*=2) ++count;
+    team->peers.num = count;
+    team->peers.fwd = gasneti_malloc(sizeof(gex_Rank_t) * count);
+    for (gex_Rank_t i=0; i<count; i++) {
+      unsigned int dist = 1 << i;
+      team->peers.fwd[i] = rel2act_map[(myrank + dist) % total_ranks];
+    }
+  }
+
+#if GASNET_PSHM
+  // Build supernode stats
+  {
+    gex_Rank_t *node_vector, *supernodes;
+    int count, rank;
+
+    // A list with a representative for each supernode (for hierarchical comms)
+    supernodes = gasneti_malloc(gasneti_nodemap_global_count * sizeof(gex_Rank_t));
+
+    /* Created a sorted vector of (supernode,node) for members of this team
+     * while finding size of and rank in local supernode in the same pass
+     */
+    count = 0; rank = -1;
+    node_vector = gasneti_malloc(2 * total_ranks * sizeof(gex_Rank_t));
+    for (gex_Rank_t i = 0; i < total_ranks; ++i) {
+      gex_Rank_t n = rel2act_map[i];
+      if (gasneti_pshm_jobrank_in_supernode(n)) {
+        if (n == gasneti_mynode) rank = count;
+        ++count;
+      }
+      node_vector[2*i+0] = gasneti_node2supernode(n);
+      node_vector[2*i+1] = n;
+    }
+    qsort(node_vector, total_ranks, 2*sizeof(gex_Rank_t), &gasnete_node_pair_sort_fn);
+
+    gasneti_assert((count >  0) && (count <= gasneti_nodemap_local_count));
+    gasneti_assert((rank  >= 0) && (rank  <  gasneti_nodemap_local_count));
+    team->supernode.node_count = count;
+    team->supernode.node_rank  = rank;
+
+    /* Count and enumerate unique supernodes and find my supernode's rank */
+    count = 1; rank = 0;
+    supernodes[0] = node_vector[1];
+    for (gex_Rank_t i = 1; i < total_ranks; ++i) {
+      if (node_vector[2*i] != node_vector[2*(i-1)]) {
+        if (node_vector[2*i] == gasneti_nodemap_global_rank) rank = count;
+        supernodes[count] = node_vector[2*i+1];
+        ++count;
+      }
+    }
+    gasneti_free(node_vector);
+
+    gasneti_assert((count >  0) && (count <= gasneti_nodemap_global_count));
+    gasneti_assert((rank  >= 0) && (rank  <  gasneti_nodemap_global_count));
+    team->supernode.grp_count = count;
+    team->supernode.grp_rank  = rank;
+
+    /* Construct a list of log(P) representatives at distance +2^i */
+    /* NOTE: 'count' and 'rank' are in the supernode space */
+    {
+      unsigned int len = 0;
+      for (gex_Rank_t i=1; i<count; i*=2) ++len;
+      team->supernode_peers.num = len;
+      team->supernode_peers.fwd = gasneti_malloc(sizeof(gex_Rank_t) * len);
+      for (gex_Rank_t i=0; i<len; i++) {
+        unsigned int dist = 1 << i;
+        team->supernode_peers.fwd[i] = supernodes[(rank + dist) % count];
+      }
+    }
+
+    gasneti_free(supernodes);
+  }
+#endif
+
+  return team;
+}
+
 /* collective function that should be called by all participating nodes */
 gasnet_team_handle_t gasnete_coll_team_create(
                         gasnet_team_handle_t parent,
@@ -283,8 +290,6 @@ gasnet_team_handle_t gasnete_coll_team_create(
                         gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  gasnet_team_handle_t team;
-  uint32_t i;
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_create: team_lead %u, total_ranks %u, myrank %u\n", rel2act_map[0], total_ranks, myrank);
   fflush(stderr);
@@ -293,6 +298,8 @@ gasnet_team_handle_t gasnete_coll_team_create(
     fflush(stderr);
   }
 #endif
+
+  gasnet_team_handle_t team = gasnete_coll_team_alloc(total_ranks, myrank, rel2act_map);
 
 #if GASNET_DEBUG
   // Verify single-valued scratch_size
@@ -311,8 +318,6 @@ gasnet_team_handle_t gasnete_coll_team_create(
     fflush(stderr);
 #endif
 
-  // create the team locally and then barrier for global construction
-  team = (gasnet_team_handle_t)gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
   gasnete_coll_team_init(team, new_team_id, total_ranks, myrank, rel2act_map,
                          scratch_size, scratch_addrs, flags GASNETI_THREAD_PASS);
 #ifdef DEBUG_TEAM
