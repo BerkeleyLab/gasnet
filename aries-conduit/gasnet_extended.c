@@ -700,7 +700,7 @@ static void gasnete_gdbarrier_init(gasnete_coll_team_t team);
     gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_GNIDISSEM;  \
 } while (0)
 
-#define GASNETE_BARRIER_INIT(TEAM, TYPE, NODES, SUPERNODES) do { \
+#define GASNETE_BARRIER_INIT(TEAM, TYPE) do { \
     if ((TYPE) == GASNETE_COLL_BARRIER_GNIDISSEM &&              \
         (TEAM) == GASNET_TEAM_ALL) {                             \
       gasnete_gdbarrier_init(TEAM);                              \

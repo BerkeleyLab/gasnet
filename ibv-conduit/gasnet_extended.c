@@ -297,7 +297,7 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team);
     gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_IBDISSEM;  \
 } while (0)
 
-#define GASNETE_BARRIER_INIT(TEAM, TYPE, NODES, SUPERNODES) do { \
+#define GASNETE_BARRIER_INIT(TEAM, TYPE) do { \
     if ((TYPE) == GASNETE_COLL_BARRIER_IBDISSEM &&               \
         (TEAM) == GASNET_TEAM_ALL) {                             \
       gasnete_ibdbarrier_init(TEAM);                             \
