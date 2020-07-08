@@ -547,8 +547,7 @@ extern void gasnete_coll_init_subsystem(void)
 #endif
 
     /* setup information for TM0 */
-    gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode,
-                           NULL, 0, NULL, 0 GASNETI_THREAD_PASS);
+    gasnete_coll_team_init(GASNET_TEAM_ALL, 0, NULL, 0 GASNETI_THREAD_PASS);
     gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
     GASNET_TEAM_ALL->e_tm = gasneti_THUNK_TM;
 
