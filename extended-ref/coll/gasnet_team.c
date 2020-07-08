@@ -43,9 +43,6 @@ static void initialize_team_fields(
   team->sequence = 0xfffffff8;  // Intentionally near to wrap-around
 
   if (team_id) {
-    // TODO-EX: modes other than GEX_FLAG_TM_GLOBAL_SCRATCH
-    // support either here, or in the caller(s) - still TBD.
-    gasneti_assert(flags & GEX_FLAG_TM_GLOBAL_SCRATCH);
     team->scratch_size = scratch_size;
     team->scratch_addrs = scratch_addrs;
     gasneti_assert(! team->scratch_segs);
@@ -301,6 +298,56 @@ gasnet_team_handle_t gasnete_coll_team_create(
 
   gasnet_team_handle_t team = gasnete_coll_team_alloc(total_ranks, myrank, rel2act_map);
 
+  // Reset sub-team collectives phase prior to use
+  parent->child.phase = 0;
+
+  // Allocatate/communicate the new team's ID
+  uint32_t new_team_id = gasnete_subteam_ID(parent, myrank, total_ranks, rel2act_map GASNETI_THREAD_PASS);
+
+#ifdef DEBUG_TEAM
+    fprintf(stderr, "myrank %u, get new_team_id %x\n", myrank, new_team_id);
+    fflush(stderr);
+#endif
+  // Construct global scratch_addrs[] array
+  gex_Addr_t *global_scratch_addrs = NULL;
+  gex_Flags_t scratch_mask = GEX_FLAG_TM_GLOBAL_SCRATCH    |
+                             GEX_FLAG_TM_LOCAL_SCRATCH     |
+                             GEX_FLAG_TM_SYMMETRIC_SCRATCH |
+                             GEX_FLAG_TM_NO_SCRATCH;
+  switch (flags & scratch_mask) {
+    case GEX_FLAG_TM_GLOBAL_SCRATCH:
+      global_scratch_addrs = gasneti_malloc(total_ranks * sizeof(gex_Addr_t));
+      memcpy(global_scratch_addrs, scratch_addrs, total_ranks * sizeof(gex_Addr_t));
+      break;
+
+    case GEX_FLAG_TM_LOCAL_SCRATCH:
+      global_scratch_addrs = gasneti_malloc(total_ranks * sizeof(gex_Addr_t));
+      gasnete_subteam_Exchange(parent, myrank, total_ranks, rel2act_map,
+                               scratch_addrs, sizeof(gex_Addr_t), global_scratch_addrs
+                               GASNETI_THREAD_PASS);
+      break;
+
+    case GEX_FLAG_TM_SYMMETRIC_SCRATCH:
+      // TODO-EX: when implementing GEX_FLAG_SCRATCH_SEG_OFFSET, do not instatate an array
+      global_scratch_addrs = gasneti_malloc(total_ranks * sizeof(gex_Addr_t));
+      for (gex_Rank_t r = 0; r < total_ranks; ++r) {
+        global_scratch_addrs[r] = scratch_addrs[0];
+      }
+      break;
+
+    case GEX_FLAG_TM_NO_SCRATCH:
+      scratch_size = 0;
+      break;
+
+    case 0:
+      gasneti_fatalerror("No GEX_FLAG_TM_*_SCRATCH flags provided");
+      break;
+
+    default:
+      gasneti_fatalerror("Multiple GEX_FLAG_TM_*_SCRATCH flags provided");
+      break;
+  }
+
 #if GASNET_DEBUG
   // Verify single-valued scratch_size
   size_t leader_scratch_size = myrank ? 0xcafef00d : scratch_size;
@@ -310,16 +357,8 @@ gasnet_team_handle_t gasnete_coll_team_create(
   gasneti_assert_uint(scratch_size ,==, leader_scratch_size);
 #endif
 
-  // Allocatate/communicate the new team's ID
-  uint32_t new_team_id = gasnete_subteam_ID(parent, myrank, total_ranks, rel2act_map GASNETI_THREAD_PASS);
-
-#ifdef DEBUG_TEAM
-    fprintf(stderr, "myrank %u, get new_team_id %x\n", myrank, new_team_id);
-    fflush(stderr);
-#endif
-
   gasnete_coll_team_init(team, new_team_id, total_ranks, myrank, rel2act_map,
-                         scratch_size, scratch_addrs, flags GASNETI_THREAD_PASS);
+                         scratch_size, global_scratch_addrs, flags GASNETI_THREAD_PASS);
 #ifdef DEBUG_TEAM
   gasnete_print_team(team, stderr);
 #endif
@@ -384,9 +423,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent,
     return NULL;
   }
 
-  // Reset sub-team collectives phase prior to use
-  parent->child.phase = 0;
-
   /* pass 1: just count */
   new_total_ranks = 0;
   for (i=0; i<parent->total_ranks; i++) {
@@ -416,13 +452,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent,
   gasneti_free(members);
   gasneti_free(all_args);
 
-  // pass 4: Exchange scratch_addr of sorted members
-  // TODO-EX: move to become "GEX_FLAG_TM_LOCAL_SCRATCH" case lower in call stack
-  gex_Addr_t *scratch_addrs = (gex_Addr_t *)gasneti_malloc(new_total_ranks*sizeof(gex_Addr_t));
-  gasnete_subteam_Exchange(parent, new_myrank, new_total_ranks, rel2act_map,
-                           &scratch_addr, sizeof(scratch_addr), scratch_addrs
-                           GASNETI_THREAD_PASS);
-
   /* It would be better to add some sanity check for team correctness here. */
   
   /* create a team */
@@ -434,13 +463,13 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent,
   fflush(stderr);
 #endif
 
-  // scratch address info is "global" by construction
+  // scratch address info is "local" by construction
   gasneti_assert(! (flags & (GEX_FLAG_TM_GLOBAL_SCRATCH    | GEX_FLAG_TM_LOCAL_SCRATCH |
                              GEX_FLAG_TM_SYMMETRIC_SCRATCH | GEX_FLAG_TM_NO_SCRATCH)));
-  flags |= GEX_FLAG_TM_GLOBAL_SCRATCH;
+  flags |= GEX_FLAG_TM_LOCAL_SCRATCH;
 
   newteam = gasnete_coll_team_create(parent, new_total_ranks, new_myrank, rel2act_map,
-                                     scratch_size, scratch_addrs, flags GASNETI_THREAD_PASS);
+                                     scratch_size, &scratch_addr, flags GASNETI_THREAD_PASS);
   
   gasneti_free(rel2act_map);
   return newteam;

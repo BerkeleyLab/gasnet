@@ -152,7 +152,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
 //     - (num_new_tms > 1)
 //     - non-zero gex_ep_index
 //     - caller's EP not in members[]
-//   + GEX_FLAG_TM_LOCAL_SCRATCH
+//   + GEX_FLAG_TM_NO_SCRATCH (fails "down stream" due to bug 4090)
 //   + GEX_FLAG_SCRATCH_SEG_OFFSET
 size_t gasneti_TM_Create(
             gex_TM_t *new_tms,
@@ -224,48 +224,10 @@ size_t gasneti_TM_Create(
     rel2act_map[r] = is_jobrank ? tmp : gasneti_i_tm_rank_to_jobrank(i_parent, tmp);
   }
 
-  // Generate "global" scratch_addrs[], which new team will "own"
-  // TODO-EX: this logic should probably be pushed down a level
-  gex_Addr_t *global_scratch_addrs = NULL;
-  gex_Flags_t scratch_mask = GEX_FLAG_TM_GLOBAL_SCRATCH    |
-                             GEX_FLAG_TM_LOCAL_SCRATCH     |
-                             GEX_FLAG_TM_SYMMETRIC_SCRATCH |
-                             GEX_FLAG_TM_NO_SCRATCH;
-  switch (flags & scratch_mask) {
-    case GEX_FLAG_TM_GLOBAL_SCRATCH:
-      global_scratch_addrs = gasneti_malloc(nmembers * sizeof(gex_Addr_t));
-      memcpy(global_scratch_addrs, scratch_addrs, nmembers * sizeof(gex_Addr_t));
-      break;
-
-    case GEX_FLAG_TM_LOCAL_SCRATCH:
-      gasneti_fatalerror("GEX_FLAG_TM_LOCAL_SCRATCH unimplemented");
-      break;
-
-    case GEX_FLAG_TM_SYMMETRIC_SCRATCH:
-     global_scratch_addrs = gasneti_malloc(nmembers * sizeof(gex_Addr_t));
-      for (gex_Rank_t r = 0; r < nmembers; ++r) {
-        global_scratch_addrs = scratch_addrs[0];
-      }
-      break;
-
-    case GEX_FLAG_TM_NO_SCRATCH:
-      scratch_size = 0;
-      break;
-
-    case 0:
-      gasneti_fatalerror("No GEX_FLAG_TM_*_SCRATCH flags provided");
-      break;
-
-    default:
-      gasneti_fatalerror("Multiple GEX_FLAG_TM_*_SCRATCH flags provided");
-      break;
-  }
-
   gasnete_coll_team_t team = gasnete_coll_team_create(
                         i_parent->_coll_team, nmembers,
                         my_new_rank, rel2act_map,
-                        scratch_size, scratch_addrs,
-                        (flags & ~scratch_mask) | GEX_FLAG_TM_GLOBAL_SCRATCH
+                        scratch_size, scratch_addrs, flags
                         GASNETI_THREAD_PASS);
 
   gasneti_free(rel2act_map);
