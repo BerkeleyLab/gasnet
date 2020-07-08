@@ -216,21 +216,19 @@ size_t gasneti_TM_Create(
                        nmembers);
   }
 
-  // Generate rel2act_map[], which the new team will copy
-  gex_Rank_t *rel2act_map = gasneti_malloc(nmembers * sizeof(gex_Rank_t));
+  // Generate rank_map[], which the new team will own
+  gex_Rank_t *rank_map = gasneti_malloc(nmembers * sizeof(gex_Rank_t));
   for (gex_Rank_t r = 0; r < nmembers; ++r) {
     gasneti_assert_always_uint(members[r].gex_ep_index ,==, 0);
     gex_Rank_t tmp = members[r].gex_rank;
-    rel2act_map[r] = is_jobrank ? tmp : gasneti_i_tm_rank_to_jobrank(i_parent, tmp);
+    rank_map[r] = is_jobrank ? tmp : gasneti_i_tm_rank_to_jobrank(i_parent, tmp);
   }
 
   gasnete_coll_team_t team = gasnete_coll_team_create(
                         i_parent->_coll_team, nmembers,
-                        my_new_rank, rel2act_map,
+                        my_new_rank, rank_map,
                         scratch_size, scratch_addrs, flags
                         GASNETI_THREAD_PASS);
-
-  gasneti_free(rel2act_map);
 
   // TODO-EX: use of a conduit-specific hook is needed here
   gasneti_TM_t i_tm = gasneti_alloc_tm(ep, my_new_rank, nmembers, flags, 0);

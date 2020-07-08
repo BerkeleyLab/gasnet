@@ -176,17 +176,13 @@ void gasnete_coll_team_fini(gasnet_team_handle_t team)
 gasnet_team_handle_t gasnete_coll_team_alloc(
                         gex_Rank_t total_ranks,
                         gex_Rank_t myrank,
-                        gex_Rank_t *rel2act_map)
+                        gex_Rank_t *rank_map)
 {
   gasnet_team_handle_t team = gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
 
   team->myrank = myrank;
   team->total_ranks = total_ranks;
-
-  // Build rel2act_map
-  size_t alloc_size = total_ranks * sizeof(gex_Rank_t);
-  team->rel2act_map = (gex_Rank_t *)gasneti_malloc(alloc_size);
-  memcpy(team->rel2act_map, rel2act_map, alloc_size);
+  team->rel2act_map = rank_map;
 
   // Build peer lists
   if (total_ranks > 1) {
@@ -197,8 +193,8 @@ gasnet_team_handle_t gasnete_coll_team_alloc(
     team->peers.bwd = team->peers.fwd + count;
     for (gex_Rank_t i=0; i<count; i++) {
       unsigned int dist = 1 << i;
-      team->peers.fwd[i] = rel2act_map[(myrank + dist) % total_ranks];
-      team->peers.bwd[i] = rel2act_map[(myrank + total_ranks - dist) % total_ranks];
+      team->peers.fwd[i] = rank_map[(myrank + dist) % total_ranks];
+      team->peers.bwd[i] = rank_map[(myrank + total_ranks - dist) % total_ranks];
     }
   }
 
@@ -217,7 +213,7 @@ gasnet_team_handle_t gasnete_coll_team_alloc(
     count = 0; rank = -1;
     node_vector = gasneti_malloc(2 * total_ranks * sizeof(gex_Rank_t));
     for (gex_Rank_t i = 0; i < total_ranks; ++i) {
-      gex_Rank_t n = rel2act_map[i];
+      gex_Rank_t n = rank_map[i];
       if (gasneti_pshm_jobrank_in_supernode(n)) {
         if (n == gasneti_mynode) rank = count;
         ++count;
@@ -269,27 +265,30 @@ gasnet_team_handle_t gasnete_coll_team_alloc(
   return team;
 }
 
-/* collective function that should be called by all participating nodes */
+// collective function that should be called by all ranks in the output team
+// Consumes the rank_map
+// Provides synchronization sufficient for use of output team
+// Requires a parent-scoped entry barrier due to use of "subteam" collectives
 gasnet_team_handle_t gasnete_coll_team_create(
                         gasnet_team_handle_t parent,
                         gex_Rank_t total_ranks,
                         gex_Rank_t myrank,
-                        gex_Rank_t *rel2act_map,
+                        gex_Rank_t *rank_map,
                         size_t scratch_size,
                         gex_Addr_t *scratch_addrs,
                         gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
 #ifdef DEBUG_TEAM
-  fprintf(stderr, "gasnete_coll_team_create: team_lead %u, total_ranks %u, myrank %u\n", rel2act_map[0], total_ranks, myrank);
+  fprintf(stderr, "gasnete_coll_team_create: team_lead %u, total_ranks %u, myrank %u\n", rank_map[0], total_ranks, myrank);
   fflush(stderr);
   if (myrank == 0) {
-    PRINT_ARRAY(stderr, rel2act_map, total_ranks, "%u");
+    PRINT_ARRAY(stderr, rank_map, total_ranks, "%u");
     fflush(stderr);
   }
 #endif
 
-  gasnet_team_handle_t team = gasnete_coll_team_alloc(total_ranks, myrank, rel2act_map);
+  gasnet_team_handle_t team = gasnete_coll_team_alloc(total_ranks, myrank, rank_map);
 
   // Allocatate/communicate the new team's ID
   // Must follow team_alloc and precede gasnete_subteam_*
@@ -433,11 +432,11 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent,
   qsort(members, new_total_ranks, sizeof(gasnete_coll_split_sort_t), &gasnete_coll_split_sort_fn);
 
   // pass 3: collect jobranks of sorted members
-  gex_Rank_t *rel2act_map = (gex_Rank_t *)gasneti_malloc(new_total_ranks*sizeof(gex_Rank_t));
+  gex_Rank_t *rank_map = (gex_Rank_t *)gasneti_malloc(new_total_ranks*sizeof(gex_Rank_t));
   for (i=0; i < new_total_ranks; i++) {
     j = members[i].parent_rank;
     if (j == parent->myrank) new_myrank = i;
-    rel2act_map[i] = parent->team_id ? parent->rel2act_map[j] : j;
+    rank_map[i] = parent->team_id ? parent->rel2act_map[j] : j;
   }
   gasneti_assert(new_myrank != GEX_RANK_INVALID);
   gasneti_free(members);
@@ -450,7 +449,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent,
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_split: new_total_ranks %u, new_myrank %u.\n",
           new_total_ranks, new_myrank);
-  PRINT_ARRAY(stderr, rel2act_map, new_total_ranks, "%u");
+  PRINT_ARRAY(stderr, rank_map, new_total_ranks, "%u");
   fflush(stderr);
 #endif
 
@@ -459,10 +458,9 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent,
                              GEX_FLAG_TM_SYMMETRIC_SCRATCH | GEX_FLAG_TM_NO_SCRATCH)));
   flags |= GEX_FLAG_TM_LOCAL_SCRATCH;
 
-  newteam = gasnete_coll_team_create(parent, new_total_ranks, new_myrank, rel2act_map,
+  newteam = gasnete_coll_team_create(parent, new_total_ranks, new_myrank, rank_map,
                                      scratch_size, &scratch_addr, flags GASNETI_THREAD_PASS);
   
-  gasneti_free(rel2act_map);
   return newteam;
 }
 

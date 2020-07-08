@@ -25,11 +25,12 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
 
 void gasnete_coll_team_fini(gasnet_team_handle_t team);
 
+// "consumes" rank_map
 gasnet_team_handle_t gasnete_coll_team_create(
                         gasnet_team_handle_t parent,
                         uint32_t total_ranks,
                         gex_Rank_t myrank,
-                        gex_Rank_t *rel2act_map,
+                        gex_Rank_t *rank_map,
                         size_t scratch_size,
                         gex_Addr_t *scratch_addrs,
                         gex_Flags_t flags
