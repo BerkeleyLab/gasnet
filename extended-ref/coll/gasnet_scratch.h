@@ -123,8 +123,13 @@ void gasnete_coll_scratch_free_inlines(gasnete_coll_scratch_req_t *req)
 
 GASNETI_INLINE(gasnete_coll_scratch_base)
 uintptr_t gasnete_coll_scratch_base(gasnete_coll_team_t team, gex_Rank_t rank) {
-  void *addr = team->scratch_segs ? team->scratch_segs[rank].addr
-                                  : team->scratch_addrs[rank];
+  void *addr;
+  if (team->scratch_addrs) {
+    addr = team->scratch_addrs[rank];
+  } else {
+    gex_Rank_t jobrank = team->rel2act_map ? team->rel2act_map[rank] : rank;
+    addr = team->scratch_segs[jobrank].addr;
+  }
   return (uintptr_t)addr + team->symmetric_scratch_offset;
 }
 

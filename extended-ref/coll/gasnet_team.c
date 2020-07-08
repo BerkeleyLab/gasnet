@@ -40,10 +40,35 @@ static void initialize_team_fields(
   team->sequence = 0xfffffff8;  // Intentionally near to wrap-around
 
   if (team->team_id) {
+    // Detect and optimize for storage in symmetric offset case
+    uintptr_t symmetric_offset = 0;
+    int is_symmetric = 0;
+    if (team->total_ranks > 1) {
+      const gasnet_seginfo_t *si = gasneti_seginfo + team->rel2act_map[0];
+      symmetric_offset = (uintptr_t)scratch_addrs[0] - (uintptr_t)(si->addr);
+      if (symmetric_offset < si->size) {
+        is_symmetric = 1;
+        for (gex_Rank_t r = 1; r < team->total_ranks; ++r) {
+          si = gasneti_seginfo + team->rel2act_map[r];
+          if (symmetric_offset != (uintptr_t)scratch_addrs[r] - (uintptr_t)(si->addr)) {
+            is_symmetric = 0;
+            break;
+          }
+        }
+      }
+    }
+
     team->scratch_size = scratch_size;
-    team->scratch_addrs = scratch_addrs;
-    gasneti_assert(! team->scratch_segs);
-    gasneti_assert(! team->symmetric_scratch_offset);
+    if (is_symmetric) {
+      team->scratch_segs = gasneti_seginfo;
+      team->symmetric_scratch_offset = symmetric_offset;
+      gasneti_assert(! team->scratch_addrs);
+      gasneti_free(scratch_addrs);
+    } else {
+      team->scratch_addrs = scratch_addrs;
+      gasneti_assert(! team->scratch_segs);
+      gasneti_assert(! team->symmetric_scratch_offset);
+    }
   } else {
     gasneti_assert(team == GASNET_TEAM_ALL);
     gasneti_assert(gasnete_coll_auxseg_size);
@@ -51,6 +76,7 @@ static void initialize_team_fields(
     gasneti_assert(! team->scratch_addrs);
     team->scratch_segs = gasneti_seginfo_aux;
     team->symmetric_scratch_offset = gasnete_coll_auxseg_offset;
+    gasneti_assert(! team->rel2act_map);
   }
   team->myscratch = (void *)gasnete_coll_scratch_base(team, team->myrank);
 
