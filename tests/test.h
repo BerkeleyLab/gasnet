@@ -233,15 +233,8 @@ static void _test_makeErrMsg(const char *format, ...)) {
 //  + "RANDn" uses multiple calls to rand().
 #if defined(_TEST_USE_LCG64)
   // Keep setting
-#elif (RAND_MAX < 255) || \
-      PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG
-  // SHOULD NOT use "RANDn" in the following cases:
-  // + Any platform with RAND_MAX < 255 (though C99 requires 32K+)
-  // + Open64 to work-around bug 3738
-  // + Clang to work-around bug 3630
-  #define _TEST_USE_LCG64 1
 #else
-  // Current default is LCG64
+  // Current default is LCG64, which provides cross-platform reproducibility
   #define _TEST_USE_LCG64 1
 #endif
 
