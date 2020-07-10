@@ -1867,7 +1867,7 @@ static void gasnete_amcbarrier_init(gasnete_coll_team_t team) {
   int total_ranks = team->total_ranks;
 
 #if GASNET_NDEBUG
-  if ((team == GASNET_TEAM_ALL) & !gasneti_mynode)
+  if ((team == GASNET_TEAM_ALL) & !gasneti_mynode) {
     gasneti_console_message("WARNING",
                             "Using non-scalable AMCENTRAL barrier (intended only for debugging).");
   }
