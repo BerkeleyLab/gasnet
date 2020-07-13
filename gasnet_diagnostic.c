@@ -955,7 +955,7 @@ static void progressfns_test(int id) {
 
     /* do some work that should cause progress fns to run */
     for (i=0; i < 2; i++) {
-      int tmp;
+      int tmp = 42;
       gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
       gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
       gex_RMA_PutBlocking(myteam, peer, peersegmid, myseg, 1024, 0);
@@ -981,7 +981,7 @@ static void progressfns_test(int id) {
 
     /* do some work that might cause progress fns to run */
     for (i=0; i < 2; i++) {
-      int tmp;
+      int tmp = 42;
       gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
       gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
       gex_RMA_PutBlocking(myteam, peer, peersegmid, myseg, 1024, 0);

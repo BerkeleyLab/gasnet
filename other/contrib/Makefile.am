@@ -23,9 +23,6 @@ EXTRA_DIST = $(dotpl_DATA) $(vg_DATA) \
 dotpldir = $(bindir)
 dotpl_DATA = gasnet_trace.pl
 
-vgdir = $(libdir)/valgrind
-vg_DATA = gasnet.supp
-
 bin_SCRIPTS = gasnet_trace
 
 all-local: $(bin_SCRIPTS) $(dotpl_DATA)

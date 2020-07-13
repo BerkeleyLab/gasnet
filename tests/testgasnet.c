@@ -719,6 +719,7 @@ void doit(int partner, int *partnerseg) {
       if (d == numranks) r = GEX_RANK_INVALID; // min of maxes
       else r = (myrank + d) % numranks;
       amsz_t max;
+      memset(&max,0,sizeof(max)); // avoid a valgrind warning for uninit bytes
       for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
         for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
           #define GET_MAX(cat) do {                                                              \
@@ -1271,8 +1272,9 @@ void doit5(int partner, int *partnerseg) {
           gex_RMA_GetBlocking(myteam, localpos, partner, rsegpos+chunk*elems, sz, 0);
 
           for (int j=0; j < elems; j++) {
-            int ok = (localpos[j] == val[chunk]);
+            int ok;
             if (sz < 8) ok = !memcmp(&(localpos[j]), &val[chunk], sz);
+            else        ok = (localpos[j] == val[chunk]);
             if (!ok) {
               MSG("*** ERROR - FAILED %s-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
                   (chunk < INSEGCHUNKS ? "IN" : "OUT-OF"), sz, j, localpos[j], val[chunk]);
@@ -1336,8 +1338,9 @@ void doit5(int partner, int *partnerseg) {
           gex_RMA_GetBlocking(myteam, localpos, partner, rsegpos+chunk*elems, sz, 0);
 
           for (int j=0; j < elems; j++) {
-            int ok = (localpos[j] == val[chunk]);
+            int ok;
             if (sz < 8) ok = !memcmp(&(localpos[j]), &val[chunk], sz);
+            else        ok = (localpos[j] == val[chunk]);
             if (!ok) {
               MSG("*** ERROR - FAILED %s-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
                   (chunk < INSEGCHUNKS ? "IN" : "OUT-OF"), sz, j, localpos[j], val[chunk]);

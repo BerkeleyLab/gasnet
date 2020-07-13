@@ -84,6 +84,10 @@ GASNETI_IDENT(gasneti_IdentString_SegConfig, "$GASNetSegment: GASNET_SEGMENT_" G
   GASNETI_IDENT(gasneti_IdentString_ThreadInfoOpt, "$GASNetThreadInfoOpt: " _STRINGIFY(GASNETI_THREADINFO_OPT) " $");
 #endif
 
+#if GASNETI_SWIZZLE
+  GASNETI_IDENT(gasneti_IdentString_Swizzle, "$GASNetSwizzle: 1 $");
+#endif
+
 /* embed a string with complete configuration info to support versioning checks */
 GASNETI_IDENT(gasneti_IdentString_libraryConfig, "$GASNetConfig: (libgasnet.a) " GASNET_CONFIG_STRING " $");
 /* the canonical conduit name */
@@ -126,6 +130,7 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(HIDDEN_AM_CONCUR_,GASNET_HIDDEN_AM_CONCURRENCY_LEVEL)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CACHE_LINE_BYTES_,GASNETI_CACHE_LINE_BYTES)) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(GASNETI_TM0_ALIGN_,GASNETI_TM0_ALIGN)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME)) = 1;
 
@@ -593,12 +598,17 @@ extern gasneti_TM_t gasneti_alloc_tm(
   gasneti_assert(ep->_client);
   const int is_tm0 = (ep->_client->_tm0 == NULL);
 
-  // TM0 is aligned to GASNETI_TM0_ALIGN, and all others to half that
   gasneti_TM_t tm;
   if (requested_sz) gasneti_assert_uint(requested_sz ,>=, sizeof(*tm));
+  size_t actual_sz = (requested_sz ? requested_sz : sizeof(*tm));
+
+#if GASNETI_TM0_ALIGN
+  // TM0 is aligned to GASNETI_TM0_ALIGN, and all others to half that
   size_t disalign = (is_tm0 ? 0 : GASNETI_TM0_ALIGN/2);
-  size_t actual_sz = (requested_sz ? requested_sz : sizeof(*tm)) + disalign;
-  tm = (gasneti_TM_t)(disalign + (uintptr_t)gasneti_malloc_aligned(GASNETI_TM0_ALIGN, actual_sz));
+  tm = (gasneti_TM_t)(disalign + (uintptr_t)gasneti_malloc_aligned(GASNETI_TM0_ALIGN, actual_sz + disalign));
+#else
+  tm = gasneti_malloc(actual_sz);
+#endif
 
   GASNETI_INIT_MAGIC(tm, GASNETI_TM_MAGIC);
   tm->_ep = ep;
@@ -610,7 +620,7 @@ extern gasneti_TM_t gasneti_alloc_tm(
 #ifdef GASNETI_TM_ALLOC_EXTRA
   GASNETI_TM_ALLOC_EXTRA(tm);
 #else
-  if (requested_sz) memset(tm + 1, 0, (actual_sz - disalign) - sizeof(*tm));
+  if (requested_sz) memset(tm + 1, 0, actual_sz - sizeof(*tm));
 #endif
   
   if (is_tm0) {
@@ -833,7 +843,7 @@ extern void gasneti_setupGlobalEnvironment(gex_Rank_t numnodes, gex_Rank_t mynod
   uint8_t *myenv; 
   int sz; 
   uint64_t checksum;
-  gasneti_envdesc_t myenvdesc;
+  gasneti_envdesc_t myenvdesc = {0};
   gasneti_envdesc_t *allenvdesc;
 
   gasneti_assert(exchangefn);
