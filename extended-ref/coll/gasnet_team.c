@@ -207,20 +207,23 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
 
 void gasnete_coll_team_fini(gasnet_team_handle_t team)
 {
-  int i;
   gasneti_assert(team != NULL);
+
+  team_id_free(team->team_id);
+
   /* free data members of the team, such as scratch space and etc. */
   gasneti_free(team->rel2act_map);
   gasneti_free(team->peers.fwd);
 #if GASNET_PSHM
   gasneti_free(team->supernode_peers.fwd);
 #endif
+  gasneti_free(team->scratch_addrs);
 
   gasneti_assert(team_dir != NULL);
   gasnete_hashtable_remove(team_dir, team->team_id, NULL);
 
 #if !defined(GASNETE_COLL_P2P_OVERRIDE) && GASNET_DEBUG
-  for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
+  for (int i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
     /* Check that table is actually empty */
     gasneti_assert(team->p2p_table[i] == NULL);
   }
