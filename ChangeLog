@@ -36,6 +36,12 @@ GASNet-EX ChangeLog
     low-level libraries that are more resilient to minor system upgrades. 
   - PMI-based spawner cleanups to reduce memory use and improve robustness
 
+* SSH-based job-launch (ssh-spawner)
+  - The default scheme for process layout has changed to ignore duplicates
+    in a host list (such as GASNET_SSH_SERVERS).  Setting the environment
+    variable GASNET_SSH_KEEPDUP=1 restores the previous behavior.
+    See other/ssh-spawner/README for details.
+
 * Notable bugs fixed in this release:
   - bug4060: tools atomics using constructs deprecated in C++20
   - bug4061: aries-conduit startup time regression
