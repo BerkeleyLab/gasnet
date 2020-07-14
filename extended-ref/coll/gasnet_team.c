@@ -20,9 +20,57 @@ GASNETE_COLL_TEAM_CONDUIT_DECLS
 static 
 gasnete_hashtable_t *team_dir = NULL;
 
-static
-gasneti_weakatomic32_t my_team_seq = gasneti_weakatomic32_init(0);
+#define GASNETE_COLL_TEAM_ID_BITS   12
+#define GASNETE_COLL_TEAM_ID_COUNT  (1<<GASNETE_COLL_TEAM_ID_BITS)
+#define GASNETE_COLL_TEAM_ID_MASK   (GASNETE_COLL_TEAM_ID_COUNT-1)
+static struct {
+  gasneti_weakatomic32_t map[GASNETE_COLL_TEAM_ID_COUNT/32];
+  unsigned int hint;
+} team_id = { { gasneti_weakatomic32_init(1), }, };
 
+// Allocate per-leader portion of team_id
+static uint32_t team_id_alloc(void) {
+  const unsigned int count = GASNETE_COLL_TEAM_ID_COUNT/32;
+  uint32_t readval, newval;
+  unsigned int word, bit;
+  do {
+    // Scan all words (with wrap) starting from the word numbered `hint`
+    // Performing mod here ensures valid value regardless of write races
+    word = team_id.hint % count;
+    unsigned int i;
+    for (i = 0; i < count; ++i, word = (word+1) % count) {
+      readval = gasneti_weakatomic32_read(&team_id.map[word], 0);
+      bit = gasnete_coll_ctz_u32(~readval);
+      if (bit == 32) continue; // no free bits - advance to next word, if any
+      break;
+    }
+    if_pf (i == count) { // failure due to full map
+      gasneti_fatalerror("Exhausted %d concurrent teams with leader %d",
+                         GASNETE_COLL_TEAM_ID_COUNT, gasneti_mynode);
+    }
+    newval = readval ^ (1 << bit);
+  } while (!gasneti_weakatomic32_compare_and_swap(&team_id.map[word], readval, newval, 0));
+  team_id.hint = word + (bit == 31); // mod done when read
+  uint32_t result = bit + word * 32;
+  gasneti_assert(result < GASNETE_COLL_TEAM_ID_COUNT); // redundant. (i == count) should already catch
+  return result;
+}
+
+static void team_id_free(uint32_t id) {
+  if (gasneti_mynode != (id >> GASNETE_COLL_TEAM_ID_BITS)) return;
+  id &= GASNETE_COLL_TEAM_ID_MASK;
+  unsigned int word = id / 32;
+  unsigned int bit = id % 32;
+  gasneti_weakatomic32_t *p = &team_id.map[word];
+  uint32_t readval, newval;
+  do { // Atomic clear
+    readval = gasneti_weakatomic32_read(p, 0);
+    gasneti_assert(readval & (1 << bit));
+    newval = readval ^ (1 << bit);
+  } while (!gasneti_weakatomic32_compare_and_swap(p, readval, newval, 0));
+  // If allocation hint is word we've written, advance to increase distance to reuse
+  if (team_id.hint == word) team_id.hint = word + 1; // mod done when read
+}
 
 extern size_t gasnete_coll_auxseg_size;
 extern size_t gasnete_coll_auxseg_offset;
@@ -774,12 +822,8 @@ void gasnete_subteam_ID(
 
   if (!myrank) {
     // the team leader (rank 0) allocates the new team_id
-    uint32_t tmp = gasneti_weakatomic32_add(&my_team_seq, 1, GASNETI_ATOMIC_NONE);
-
-    // limitation: a leader can only allocate team id 4096 times
-    gasneti_assert(tmp <= 0xfff);
-
-    new_team_id = ((gasneti_mynode << 12) | (tmp & 0xfff));
+    uint32_t low_bits = team_id_alloc();
+    new_team_id = low_bits | (gasneti_mynode << GASNETE_COLL_TEAM_ID_BITS);
   } else {
     // Non-leader polls until we have received the datum
     gasneti_polluntil (0 != (new_team_id = gasneti_weakatomic32_read(&parent->child.team_id, 0)));
