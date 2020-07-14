@@ -677,6 +677,13 @@ gex_Event_t _gex_Coll_BarrierNB(gex_TM_t _tm, gex_Flags_t _flags GASNETI_THREAD_
   ======
 */
 
+extern int gasneti_TM_Destroy(
+            gex_TM_t      _tm,
+            gex_Memvec_t  *_scratch_p,
+            gex_Flags_t   _flags
+            GASNETI_THREAD_FARG);
+#define gex_TM_Destroy(tm,sp,fl) gasneti_TM_Destroy(tm,sp,fl GASNETI_THREAD_GET)
+
 extern size_t gasneti_TM_Split(gex_TM_t *_new_tm_p, gex_TM_t _parent_tm,
                                int _color, int _key,
                                void *_addr, size_t _len, gex_Flags_t _flags

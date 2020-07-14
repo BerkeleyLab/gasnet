@@ -264,6 +264,28 @@ done:
   return result;
 }
 
+int gasneti_TM_Destroy(
+            gex_TM_t      e_tm,
+            gex_Memvec_t  *scratch_p,
+            gex_Flags_t   flags
+            GASNETI_THREAD_FARG)
+{
+  gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
+  gasnete_coll_team_t team = i_tm->_coll_team;
+
+  GASNETI_TRACE_PRINTF(W,("TM_Destroy: team="GASNETI_TMSELFFMT" flags=%d",
+                          GASNETI_TMSELFSTR(e_tm), flags));
+
+  if (gasneti_is_tm0(i_tm)) {
+    gasneti_fatalerror("Invalid gasneti_TM_Destroy() of the primordial team");
+  }
+
+  if (! (flags & GEX_FLAG_GLOBALLY_QUIESCED)) {
+    gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);
+  }
+  gasneti_free_tm(i_tm);
+  return gasnete_coll_team_free(team, scratch_p);
+}
 
 /* ------------------------------------------------------------------------------------ */
 /* TM trace formatting - legal even without STATS/TRACE */

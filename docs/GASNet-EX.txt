@@ -464,6 +464,9 @@ typedef [some integer type] gex_Flags_t;
 // that the specified range(s) are contained entirely within that segment.
 #define GEX_FLAG_SCRATCH_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
 
+// MISC [PROPOSED]
+#define GEX_FLAG_GLOBALLY_QUIESCED   ((gex_Flags_t)???)
+
 // A "token" is an opaque scalar type
 // This type is interoperable with gasnet_token_t
 typedef ... gex_Token_t;
@@ -3141,6 +3144,13 @@ size_t gex_TM_Create(
       //   GEX_FLAG_TM_NO_SCRATCH        /
       //   GEX_FLAG_TM_SCRATCH_SIZE_MIN         \
       //   GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED / mutually-exclusive pair
+
+int gasneti_TM_Destroy(
+            gex_TM_t      tm,
+            gex_Memvec_t  *scratch_p,
+            gex_Flags_t   flags);
+      // Valid flags:
+      //   GEX_FLAG_GLOBALLY_QUIESCED
 
 //----------------------------------------------------------------------
 

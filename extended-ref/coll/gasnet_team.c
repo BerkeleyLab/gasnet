@@ -405,11 +405,18 @@ gasnet_team_handle_t gasnete_coll_team_create(
   return team;
 }
 
-void gasnete_coll_team_free(gasnet_team_handle_t team)
+int gasnete_coll_team_free(gasnet_team_handle_t team, gex_Memvec_t *scratch_p)
 {
+  int result = 0;
   gasneti_assert(team != NULL);
+  if (scratch_p && team->scratch_size) { // TODO: distinguish scratch allocated by GASNet
+    result = 1;
+    scratch_p->gex_addr = team->myscratch;
+    scratch_p->gex_len  = team->scratch_size;
+  }
   gasnete_coll_team_fini(team);
   gasneti_free(team);
+  return result;
 }
 
 typedef struct {
