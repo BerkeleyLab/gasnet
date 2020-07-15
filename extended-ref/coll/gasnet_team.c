@@ -221,6 +221,7 @@ void gasnete_coll_team_fini(gasnet_team_handle_t team)
 
   gasnete_coll_autotune_free(team);
   gasnete_coll_free_scratch_status(team);
+  gasnete_coll_scratch_req_purge(team);
 
   if (team->barrier_fini) team->barrier_fini(team);
 

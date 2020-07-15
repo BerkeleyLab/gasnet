@@ -524,3 +524,12 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
   gasnete_coll_scratch_free_inlines(scratch_req);
   gasnete_coll_scratch_free_req(scratch_req);
 }
+
+void gasnete_coll_scratch_req_purge(gasnete_coll_team_t team) {
+  gasnete_coll_scratch_req_t *req = team->scratch_free_list;
+  while (req) {
+    gasnete_coll_scratch_req_t *next = req->next;
+    gasneti_free(req);
+    req = next;
+  }
+}

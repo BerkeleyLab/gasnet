@@ -87,6 +87,8 @@ void gasnete_coll_scratch_free_req(gasnete_coll_scratch_req_t *scratch_req)
   team->scratch_free_list = scratch_req;
 }
 
+void gasnete_coll_scratch_req_purge(gasnete_coll_team_t team);
+
 // Allocate and free (consecutive) space used for out_sizes and scratchpos
 // For small sizes we use space within the scratch request itself
 // The allocation interfaces are such that one could split the two apart
