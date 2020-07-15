@@ -187,6 +187,7 @@ struct gasnete_coll_dissem_info_t_ {
 
 gasnete_coll_dissem_info_t *gasnete_coll_fetch_dissemination(int radix, gasnete_coll_team_t team);
 void gasnete_coll_release_dissemination(gasnete_coll_dissem_info_t* obj, gasnete_coll_team_t team);
+void gasnete_coll_purge_dissemination(gasnete_coll_team_t team);
 /*****************************************/
 
 #endif

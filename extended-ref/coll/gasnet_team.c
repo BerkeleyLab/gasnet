@@ -219,6 +219,9 @@ void gasnete_coll_team_fini(gasnet_team_handle_t team)
 #endif
   gasneti_free(team->scratch_addrs);
 
+  gasnete_coll_autotune_free(team);
+  gasnete_coll_free_scratch_status(team);
+
   gasneti_assert(team_dir != NULL);
   gasnete_hashtable_remove(team_dir, team->team_id, NULL);
 

@@ -147,6 +147,10 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
   return ret;
 }
 
+static void gasnete_coll_autotune_deregister_algorithm(gasnete_coll_algorithm_t *in) {
+  if (in->num_parameters) gasneti_free(in->parameter_list);
+}
+
 #define GASNETE_COLL_EVERY_IN_SYNC_FLAG GASNET_COLL_IN_NOSYNC | GASNET_COLL_IN_MYSYNC | GASNET_COLL_IN_ALLSYNC 
 #define GASNETE_COLL_EVERY_OUT_SYNC_FLAG GASNET_COLL_OUT_NOSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_OUT_ALLSYNC 
 #define GASNETE_COLL_EVERY_SYNC_FLAG GASNETE_COLL_EVERY_IN_SYNC_FLAG | GASNETE_COLL_EVERY_OUT_SYNC_FLAG
@@ -486,6 +490,32 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info, size_
   gasnete_coll_register_exchange_collectives(info, smallest_scratch);
 }
 
+static void gasnete_coll_deregister_collectives(gasnete_coll_autotune_info_t* info) {
+  for (int i = 0; i < GASNETE_COLL_BROADCAST_NUM_ALGS; ++i) {
+    gasnete_coll_autotune_deregister_algorithm(info->collective_algorithms[GASNET_COLL_BROADCAST_OP] + i);
+  }
+  gasneti_free(info->collective_algorithms[GASNET_COLL_BROADCAST_OP]);
+
+  for (int i = 0; i < GASNETE_COLL_SCATTER_NUM_ALGS; ++i) {
+    gasnete_coll_autotune_deregister_algorithm(info->collective_algorithms[GASNET_COLL_SCATTER_OP] + i);
+  }
+  gasneti_free(info->collective_algorithms[GASNET_COLL_SCATTER_OP]);
+
+  for (int i = 0; i < GASNETE_COLL_GATHER_NUM_ALGS; ++i) {
+    gasnete_coll_autotune_deregister_algorithm(info->collective_algorithms[GASNET_COLL_GATHER_OP] + i);
+  }
+  gasneti_free(info->collective_algorithms[GASNET_COLL_GATHER_OP]);
+
+  for (int i = 0; i < GASNETE_COLL_GATHER_ALL_NUM_ALGS; ++i) {
+    gasnete_coll_autotune_deregister_algorithm(info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP] + i);
+  }
+  gasneti_free(info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP]);
+
+  for (int i = 0; i < GASNETE_COLL_EXCHANGE_NUM_ALGS; ++i) {
+    gasnete_coll_autotune_deregister_algorithm(info->collective_algorithms[GASNET_COLL_EXCHANGE_OP] + i);
+  }
+  gasneti_free(info->collective_algorithms[GASNET_COLL_EXCHANGE_OP]);
+}
 
 
 #define GASNETE_COLL_AUTOTUNE_WARM_ITERS_DEFAULT 5
@@ -628,6 +658,16 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
 }
 
 
+void gasnete_coll_autotune_free(gasnete_coll_team_t team) {
+  gasnete_coll_autotune_info_t *info = team->autotune_info;
+  gasnete_coll_free_tree_type(info->bcast_tree_type);
+  gasnete_coll_free_tree_type(info->scatter_tree_type);
+  gasnete_coll_free_tree_type(info->gather_tree_type);
+  gasnete_coll_deregister_collectives(info);
+  gasneti_free(info);
+
+  gasnete_coll_purge_dissemination(team);
+}
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_bcast_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                                    gasnet_coll_optype_t op_type, 

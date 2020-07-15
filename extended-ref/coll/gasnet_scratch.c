@@ -86,8 +86,10 @@ void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team) {
 }
 
 
-void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETI_THREAD_FARG) {
- /* do nothing for now*/
+void gasnete_coll_free_scratch_status(gasnete_coll_team_t team) {
+  gasnete_coll_scratch_status_t *stat = team->scratch_status;
+  gasneti_free(stat->node_status);
+  gasneti_free(stat);
 }
 
 

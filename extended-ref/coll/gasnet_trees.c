@@ -1119,6 +1119,14 @@ gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll
   return ret;
 }
 
+void gasnete_coll_free_dissemination(gasnete_coll_dissem_info_t *in)
+{
+  gasneti_free(in->ptr_vec);
+  gasneti_free(in->exchange_out_order);
+  gasneti_free(in->exchange_in_order);
+  gasneti_free(in);
+}
+
 gasnete_coll_dissem_info_t *gasnete_coll_fetch_dissemination(int radix, gasnete_coll_team_t team) {
   /* look through the existing cache for our dissemination order*/
   gasnete_coll_dissem_info_t *temp;
@@ -1152,4 +1160,14 @@ gasnete_coll_dissem_info_t *gasnete_coll_fetch_dissemination(int radix, gasnete_
 
 void gasnete_coll_release_dissemination(gasnete_coll_dissem_info_t *obj, gasnete_coll_team_t team) {
   /* do nothing for now */
+}
+
+void gasnete_coll_purge_dissemination(gasnete_coll_team_t team) {
+  gasnete_coll_dissem_info_t *temp = team->dissem_cache_head;
+  while (temp) {
+    gasnete_coll_dissem_info_t *next = temp->next;
+    gasnete_coll_free_dissemination(temp);
+    temp = next;
+  }
+  team->dissem_cache_head = team->dissem_cache_tail = NULL;
 }
