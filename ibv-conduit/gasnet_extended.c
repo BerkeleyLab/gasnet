@@ -725,6 +725,15 @@ void gasnete_ibdbarrier_kick_team_all(void) {
   gasnete_ibdbarrier_kick(GASNET_TEAM_ALL);
 }
 
+static void gasnete_ibdbarrier_fini(gasnete_coll_team_t team) {
+  gasnete_coll_ibdbarrier_t *data = team->barrier_data;
+#if GASNETI_PSHM_BARRIER_HIER
+  if (data->barrier_pshm) gasnete_pshmbarrier_fini_inner(data->barrier_pshm);
+#endif
+  gasneti_free(data->barrier_peers);
+  gasneti_free_aligned(data);
+}
+
 static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
   gasnete_coll_ibdbarrier_t *barrier_data;
   int steps;
@@ -798,6 +807,7 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_wait =   &gasnete_ibdbarrier_wait;
   team->barrier_try =    &gasnete_ibdbarrier_try;
   team->barrier_result = &gasnete_ibdbarrier_result;
+  team->barrier_fini =   &gasnete_ibdbarrier_fini;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_ibdbarrier_kick_team_all : NULL;
 }
 

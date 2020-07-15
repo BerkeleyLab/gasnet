@@ -222,6 +222,7 @@ typedef int (*gasnete_all_barrier_wait)(gasnete_coll_team_t team, int id, int fl
 typedef int (*gasnete_all_barrier_try)(gasnete_coll_team_t team, int id, int flags);
 typedef int (*gasnete_all_barrier)(gasnete_coll_team_t team, int id, int flags);
 typedef int (*gasnete_all_barrier_result)(gasnete_coll_team_t team, int *id);
+typedef void (*gasnete_all_barrier_fini)(gasnete_coll_team_t team);
 
 typedef enum {
   GASNETE_COLL_BARRIER_ENVDEFAULT=0,
@@ -329,6 +330,7 @@ struct gasnete_coll_team_t_ {
   gasnete_all_barrier_wait barrier_wait;
   gasnete_all_barrier barrier;
   gasnete_all_barrier_result barrier_result;
+  gasnete_all_barrier_fini barrier_fini;
   gasneti_progressfn_t barrier_pf;
 
 #if GASNET_DEBUG

@@ -222,6 +222,8 @@ void gasnete_coll_team_fini(gasnet_team_handle_t team)
   gasnete_coll_autotune_free(team);
   gasnete_coll_free_scratch_status(team);
 
+  if (team->barrier_fini) team->barrier_fini(team);
+
   gasneti_assert(team_dir != NULL);
   gasnete_hashtable_remove(team_dir, team->team_id, NULL);
 
