@@ -62,7 +62,7 @@
 /*---------------------------------------------------------------------------------*/
 /* conduits may override this to relocate the ref-coll handlers */
 #ifndef GASNETE_COLL_HANDLER_BASE
-#define GASNETE_COLL_HANDLER_BASE 117
+#define GASNETE_COLL_HANDLER_BASE 118
 #endif
 
 #define _hidx_gasnete_coll_p2p_memcpy_reqh          (GASNETE_COLL_HANDLER_BASE+0)
@@ -73,9 +73,8 @@
 #define _hidx_gasnete_coll_p2p_advance_reqh         (GASNETE_COLL_HANDLER_BASE+5)
 #define _hidx_gasnete_coll_p2p_put_and_advance_reqh (GASNETE_COLL_HANDLER_BASE+6)
 #define _hidx_gasnete_coll_p2p_med_counting_reqh    (GASNETE_COLL_HANDLER_BASE+7)
-#define _hidx_gasnete_coll_p2p_seg_put_reqh         (GASNETE_COLL_HANDLER_BASE+8)
-#define _hidx_gasnete_coll_scratch_update_reqh      (GASNETE_COLL_HANDLER_BASE+9)
-#define _hidx_gasnete_subteam_op_reqh               (GASNETE_COLL_HANDLER_BASE+10)
+#define _hidx_gasnete_coll_scratch_update_reqh      (GASNETE_COLL_HANDLER_BASE+8)
+#define _hidx_gasnete_subteam_op_reqh               (GASNETE_COLL_HANDLER_BASE+9)
 
 /*---------------------------------------------------------------------------------*/
 /* Forward type decls and typedefs:                                                */
@@ -118,9 +117,6 @@ typedef struct gasnete_coll_scratch_status_t_ gasnete_coll_scratch_status_t;
 
 struct gasnete_coll_scratch_req_t_;
 typedef struct gasnete_coll_scratch_req_t_ gasnete_coll_scratch_req_t;
-
-struct gasnete_coll_seg_interval_t_;
-typedef struct gasnete_coll_seg_interval_t_ gasnete_coll_seg_interval_t;
 
 struct gasnete_coll_autotune_info_t_;
 typedef struct gasnete_coll_autotune_info_t_ gasnete_coll_autotune_info_t;
@@ -407,12 +403,6 @@ struct gasnete_coll_op_t_ {
 #endif
 };
 
-struct gasnete_coll_seg_interval_t_ {
-  uint32_t start;
-  uint32_t end;
-  gasnete_coll_seg_interval_t *next;
-};
-
 
 /* Type for point-to-point synchronization */
 
@@ -450,12 +440,6 @@ struct gasnete_coll_p2p_t_ {
     
   /* Handler-safe lock (if needed) */
   gex_HSL_t		lock;
-  
-  /* manage intervals for segmented algorithms*/
-  size_t seg_size;
-  uint32_t num_segs_processed;
-  gasnete_coll_seg_interval_t *seg_intervals;
-  gasnete_coll_seg_interval_t *seg_free_list;
   
 #ifdef GASNETE_COLL_P2P_EXTRA_FIELDS
   GASNETE_COLL_P2P_EXTRA_FIELDS
