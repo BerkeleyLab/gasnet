@@ -383,6 +383,7 @@ extern uint64_t gasnett_release_version(void);
 #define gasnett_close_streams   gasneti_close_streams
 #define gasnett_getPhysMemSz    gasneti_getPhysMemSz
 #define gasnett_fatalerror      gasneti_fatalerror
+#define gasnett_fatalerror_nopos gasneti_fatalerror_nopos
 #define gasnett_killmyprocess   gasneti_killmyprocess
 #define gasnett_current_loc     gasneti_current_loc
 #define gasnett_sighandlerfn_t  gasneti_sighandlerfn_t

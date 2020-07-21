@@ -42,6 +42,9 @@ GASNet-EX ChangeLog
     variable GASNET_SSH_KEEPDUP=1 restores the previous behavior.
     See other/ssh-spawner/README for details.
 
+* GASNet tools (spec v1.16)
+  - Add gasnett_fatalerror_nopos
+
 * Notable bugs fixed in this release:
   - bug4060: tools atomics using constructs deprecated in C++20
   - bug4061: aries-conduit startup time regression
