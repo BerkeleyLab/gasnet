@@ -2670,10 +2670,10 @@
   #if GASNETI_USE_TRUE_MUTEXES
     /* Case I: gasnett_mutex_t in a gasnet client or thread-safe tools client*/
     #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \
-		gasnett_mutex_t * const _genatomic_lock = gasneti_pthread_atomic_hash_lookup((uintptr_t)ptr)
+		gasnett_mutex_t * const _genatomic_lock = gasneti_mutex_atomic_hash_lookup((uintptr_t)ptr)
     #define GASNETI_GENATOMIC_LOCK()   gasnett_mutex_lock(_genatomic_lock)
     #define GASNETI_GENATOMIC_UNLOCK() gasnett_mutex_unlock(_genatomic_lock)
-    #define _gasneti_genatomic_cons(_id) gasneti_pthread_atomic##_id
+    #define _gasneti_genatomic_cons(_id) gasneti_mutex_atomic##_id
   #elif defined(_INCLUDED_GASNETEX_H)
     /* Case II: Empty mutexes in a GASNET_SEQ or GASNET_PARSYNC client w/o conduit-internal threads */
   #else

@@ -85,7 +85,7 @@
     #define _gasneti_atomic_lock_lock(x)        gasnett_mutex_lock(x)
     #define _gasneti_atomic_lock_unlock(x)      gasnett_mutex_unlock(x)
     #define _gasneti_atomic_lock_malloc		malloc
-    GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_pthread_atomic_, gasnett_mutex_)
+    GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_mutex_atomic_, gasnett_mutex_)
     #undef _gasneti_atomic_lock_initializer
     #undef _gasneti_atomic_lock_init
     #undef _gasneti_atomic_lock_lock

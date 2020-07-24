@@ -599,7 +599,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
 #endif
 
 #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
-  GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_pthread_atomic_, gasnett_mutex_)
+  GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_mutex_atomic_, gasnett_mutex_)
 #endif
 
 #endif /* !GASNETT_LITE_MODE */
