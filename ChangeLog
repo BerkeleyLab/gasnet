@@ -56,6 +56,7 @@ GASNet-EX ChangeLog
   - bug4086: AM performance bug for --enable-{debug,trace}
   - bug4089: gex_Coll_ReduceToOne failures under some conditions
   - bug4095: Incorrect algorithms for small scratch and/or large data
+  - bug4103: Configure failures with -ffat-lto-objects in CFLAGS
   - bug3630/3828/3842: Various failures on testvis, testratomic, testslice
 
 ----------------------------------------------------------------------
