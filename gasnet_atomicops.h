@@ -390,7 +390,7 @@
 
 #if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
   /* Fences for the generics */
-  #ifndef GASNETI_GENATOMIC_LOCK
+  #if !GASNETI_GENATOMIC_LOCKS
     /* Not locking, so use full fences */
     #define _gasneti_genatomic_prologue_set(p,f)        /*empty*/
     #define _gasneti_genatomic_prologue_read(p,f)       /*empty*/
@@ -433,6 +433,11 @@
                                           _gasneti_scalar_atomic_addfetch,            \
                                           gasneti_genatomic##_sz##_)
   #else /* Mutex-based versions */
+    #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \
+                gasnett_mutex_t * const _genatomic_lock = gasneti_mutex_atomic_hash_lookup((uintptr_t)ptr)
+    #define GASNETI_GENATOMIC_LOCK()   gasnett_mutex_lock(_genatomic_lock)
+    #define GASNETI_GENATOMIC_UNLOCK() gasnett_mutex_unlock(_genatomic_lock)
+
     /* The lock acquire includes RMB and release includes WMB */
     #define _gasneti_genatomic_prologue_set(p,f)        GASNETI_GENATOMIC_LOCK_PREP(p);
     #define _gasneti_genatomic_prologue_read(p,f)       /*empty*/
