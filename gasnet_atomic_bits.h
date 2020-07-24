@@ -122,8 +122,7 @@
 
    + Generic atomics:
      The term "generic atomics" is used here and in gasnet_atomicops.h to refer
-     to the implementation of atomic operations via mutexes.  These will be
-     pthread mutexes in GASNet-tools code, and HSLs in a GASNet client.
+     to the implementation of atomic operations via gasnett_mutex_t.
 
    + Hybrid 64-bit atomics:
      With an ABI for which the alignment of 64-bit types is NOT sufficient to
@@ -2668,24 +2667,17 @@
 /* Define configuration-dependent choice of locks for generic atomics (if any) */
 
 #if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
-  #if defined(_INCLUDED_GASNETEX_H) && GASNETI_USE_TRUE_MUTEXES
-    /* Case I: Real HSLs in a gasnet client */
-    #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \
-		gex_HSL_t * const _genatomic_lock = gasneti_hsl_atomic_hash_lookup((uintptr_t)ptr)
-    #define GASNETI_GENATOMIC_LOCK()   gex_HSL_Lock(_genatomic_lock)
-    #define GASNETI_GENATOMIC_UNLOCK() gex_HSL_Unlock(_genatomic_lock)
-    #define _gasneti_genatomic_cons(_id) gasneti_hsl_atomic##_id
-  #elif defined(_INCLUDED_GASNETEX_H)
-    /* Case II: Empty HSLs in a GASNET_SEQ or GASNET_PARSYNC client w/o conduit-internal threads */
-  #elif GASNETI_USE_TRUE_MUTEXES /* thread-safe tools-only client OR forced true mutexes */
-    /* Case III: a version for pthreads which is independent of GASNet HSL's */
+  #if GASNETI_USE_TRUE_MUTEXES
+    /* Case I: gasnett_mutex_t in a gasnet client or thread-safe tools client*/
     #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \
 		gasnett_mutex_t * const _genatomic_lock = gasneti_pthread_atomic_hash_lookup((uintptr_t)ptr)
     #define GASNETI_GENATOMIC_LOCK()   gasnett_mutex_lock(_genatomic_lock)
     #define GASNETI_GENATOMIC_UNLOCK() gasnett_mutex_unlock(_genatomic_lock)
     #define _gasneti_genatomic_cons(_id) gasneti_pthread_atomic##_id
+  #elif defined(_INCLUDED_GASNETEX_H)
+    /* Case II: Empty mutexes in a GASNET_SEQ or GASNET_PARSYNC client w/o conduit-internal threads */
   #else
-    /* Case IV: Serial gasnet tools client. */
+    /* Case III: Serial gasnet tools client. */
     /* attempt to generate a compile error if pthreads actually are in use */
     #define PTHREAD_MUTEX_INITIALIZER ERROR_include_pthread_h_before_gasnet_tools_h
     extern int pthread_mutex_lock; 

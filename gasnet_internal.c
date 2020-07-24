@@ -31,30 +31,6 @@
 int gasneti_VerboseErrors = 1;
 
 /* ------------------------------------------------------------------------------------ */
-/* generic atomics support */
-#if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
-  #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
-    #define _gasneti_atomic_lock_initializer	GEX_HSL_INITIALIZER
-    #define _gasneti_atomic_lock_init(x)	gex_HSL_Init(x)
-    #define _gasneti_atomic_lock_lock(x)	gex_HSL_Lock(x)
-    #define _gasneti_atomic_lock_unlock(x)	gex_HSL_Unlock(x)
-    #define _gasneti_atomic_lock_malloc		gasneti_malloc
-    GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_hsl_atomic_, gex_HSL_)
-    #undef _gasneti_atomic_lock_initializer
-    #undef _gasneti_atomic_lock_init
-    #undef _gasneti_atomic_lock_lock
-    #undef _gasneti_atomic_lock_unlock
-    #undef _gasneti_atomic_lock_malloc
-  #endif
-  #ifdef GASNETI_GENATOMIC32_DEFN
-    GASNETI_GENATOMIC32_DEFN
-  #endif
-  #ifdef GASNETI_GENATOMIC64_DEFN
-    GASNETI_GENATOMIC64_DEFN
-  #endif
-#endif
-
-/* ------------------------------------------------------------------------------------ */
 
 #if GASNETI_THROTTLE_POLLERS
   gasneti_atomic_t gasneti_throttle_haveusefulwork = gasneti_atomic_init(0);
