@@ -25,7 +25,6 @@
 
 size_t gasnete_coll_p2p_eager_min = 0;
 size_t gasnete_coll_p2p_eager_scale = 0;
-size_t gasnete_coll_p2p_eager_buffersz = 0;
 /*set a std segment size of 1024 bytes*/
 
 /*---------------------------------------------------------------------------------*/
@@ -539,8 +538,6 @@ extern void gasnete_coll_init_subsystem(void)
                                                                 GASNETE_COLL_P2P_EAGER_MIN_DEFAULT, 0);
     gasnete_coll_p2p_eager_scale = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE",
                                                                   GASNETE_COLL_P2P_EAGER_SCALE_DEFAULT, 0);
-    gasnete_coll_p2p_eager_buffersz = MAX(gasnete_coll_p2p_eager_min,
-                                          gasneti_nodes * gasnete_coll_p2p_eager_scale);
 
     gasnete_coll_active_init();
 
@@ -780,7 +777,7 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
     if_pf (p2p == NULL) {
       /* Round to 8-byte alignment of entry array */
       size_t alloc_size = GASNETI_ALIGNUP(sizeof(gasnete_coll_p2p_t) + statesz + countersz,8)
-        + gasnete_coll_p2p_eager_buffersz;
+        + team->p2p_eager_buffersz;
       void *alloc_ptr = gasneti_malloc(alloc_size);
       gasneti_leak(alloc_ptr);
       uintptr_t p = (uintptr_t)alloc_ptr;
@@ -802,7 +799,7 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
     }
         
     memset((void *)p2p->state, 0, statesz);
-    memset(p2p->data, 0, gasnete_coll_p2p_eager_buffersz);
+    memset(p2p->data, 0, team->p2p_eager_buffersz);
     for(i=0; i<2*team->total_ranks; i++) {
       gasneti_weakatomic_set(&p2p->counter[i], 0, 0);
     }
@@ -2498,11 +2495,12 @@ gasnete_tm_reduce_nb_default(
   }
 
   // TODO-EX: LUB can be relaxed (potentially significantly) for pshm-only teams
+  gasnete_coll_team_t team = i_tm->_coll_team;
   const size_t nbytes = dt_sz * dt_cnt;
   gasnete_coll_local_tree_geom_t *geom = NULL;
   gasnete_tm_reduce_fn_ptr_t alg;
   const int binomial_root_radix = 1 + gasnete_coll_log2_rank(i_tm->_size - 1);
-  if ((nbytes * binomial_root_radix <= gasnete_coll_p2p_eager_buffersz) &&
+  if ((nbytes * binomial_root_radix <= team->p2p_eager_buffersz) &&
       (nbytes <= gex_AM_LUBRequestMedium())) {
     alg = &gasnete_tm_reduce_BinomialEager;
   } else {
@@ -2514,7 +2512,7 @@ gasnete_tm_reduce_nb_default(
       alg = &gasnete_tm_reduce_TreePut;
     } else if ((dt_sz * (max_radix + 1) <= smallest_scratch) && (dt_sz <= gex_AM_LUBRequestLong())) {
       alg = &gasnete_tm_reduce_TreePutSeg;
-    } else if ((dt_sz * binomial_root_radix <= gasnete_coll_p2p_eager_buffersz) &&
+    } else if ((dt_sz * binomial_root_radix <= team->p2p_eager_buffersz) &&
                (dt_sz <= gex_AM_LUBRequestMedium())) {
       alg = &gasnete_tm_reduce_BinomialEagerSeg;
     } else {

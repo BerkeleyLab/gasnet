@@ -209,7 +209,8 @@ GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager)
 #if GASNET_DEBUG // make sure this is a valid choice of algorithm
   gex_Rank_t rel_rank = gasnete_tm_binom_rel_root(tm, root);
   gex_Rank_t child_cnt = gasnete_tm_binom_children(tm, rel_rank);
-  gasneti_assert(gasnete_coll_p2p_eager_buffersz >= dt_sz * dt_cnt * child_cnt);
+  gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
+  gasneti_assert(team->p2p_eager_buffersz >= dt_sz * dt_cnt * child_cnt);
   gasneti_assert(gex_AM_LUBRequestMedium() >= dt_sz * dt_cnt );
 #endif
 
@@ -265,7 +266,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEagerSeg(gasnete_coll_op_t *op GASN
 
     pdata->width      = 1 + gasnete_coll_log2_rank(gasneti_import_tm(tm)->_size - 1);
 
-    pdata->chunk_cnt = MIN(gasnete_coll_p2p_eager_buffersz / pdata->width,
+    pdata->chunk_cnt = MIN(op->team->p2p_eager_buffersz / pdata->width,
                            gex_AM_LUBRequestMedium()) / args->dt_sz;
     pdata->chunk_len = pdata->chunk_cnt * args->dt_sz;
     pdata->curr_cnt  = pdata->chunk_cnt;
@@ -421,7 +422,8 @@ GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEagerSeg)
 #if GASNET_DEBUG // make sure this is a valid choice of algorithm
   gex_Rank_t rel_rank = gasnete_tm_binom_rel_root(tm, root);
   gex_Rank_t child_cnt = gasnete_tm_binom_children(tm, rel_rank);
-  gasneti_assert(gasnete_coll_p2p_eager_buffersz >= dt_sz * child_cnt);
+  gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
+  gasneti_assert(team->p2p_eager_buffersz >= dt_sz * child_cnt);
   gasneti_assert(gex_AM_LUBRequestMedium() >= dt_sz);
 #endif
 
@@ -626,7 +628,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
     pdata = data->private_data;
   } else {
     // Allocate and initialize pdata
-    if (sizeof(struct pdata) <= gasnete_coll_p2p_eager_buffersz) {
+    if (sizeof(struct pdata) <= op->team->p2p_eager_buffersz) {
       // Store in p2p space, unused by this algorithm
       // TODO-EX: need a more general way to avoid small dynamic allocations
       pdata = (struct pdata *) p2p->data;
