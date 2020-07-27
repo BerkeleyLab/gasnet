@@ -2686,7 +2686,7 @@
         extern gasneti_mutex_atomic_tbl_t *gasneti_mutex_atomic_tbl;      \
         extern uintptr_t gasneti_mutex_atomic_tbl_mask;                   \
         extern void gasneti_mutex_atomic_tbl_init(void);                  \
-        GASNETI_INLINE(gasneti_mutex_atomic_hash_lookup) GASNETI_CONST    \
+        GASNETI_INLINE(gasneti_mutex_atomic_hash_lookup)                  \
         gasnett_mutex_t * gasneti_mutex_atomic_hash_lookup(uintptr_t _val) { \
           /* Step 0. Initialization check */                              \
           if_pf (!gasneti_mutex_atomic_tbl_mask) gasneti_mutex_atomic_tbl_init(); \
@@ -2699,8 +2699,7 @@
           _val ^= (_val >> 8);                                            \
           /* Step 3. Return the index */                                  \
           return &((gasneti_mutex_atomic_tbl[_val & gasneti_mutex_atomic_tbl_mask])._lock); \
-        }                                                                 \
-        GASNETI_CONSTP(gasneti_mutex_atomic_hash_lookup)
+        }
     #define GASNETI_ATOMIC_LOCK_TBL_DEFNS \
         uintptr_t gasneti_mutex_atomic_tbl_mask = 0;                      \
         gasneti_mutex_atomic_tbl_t *gasneti_mutex_atomic_tbl = NULL;      \
