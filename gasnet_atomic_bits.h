@@ -2703,7 +2703,7 @@
     #define GASNETI_ATOMIC_LOCK_TBL_DEFNS \
         uintptr_t gasneti_mutex_atomic_tbl_mask = 0;                      \
         gasneti_mutex_atomic_tbl_t *gasneti_mutex_atomic_tbl = NULL;      \
-        GASNETI_NEVER_INLINE(gasneti_mutex_atomic_tbl_init,               \
+        GASNETI_COLD GASNETI_NEVER_INLINE(gasneti_mutex_atomic_tbl_init,  \
                              extern void gasneti_mutex_atomic_tbl_init(void)) { \
           static gasnett_mutex_t gasneti_mutex_atomic_tbl_lock = GASNETT_MUTEX_INITIALIZER; \
           gasnett_mutex_lock(&gasneti_mutex_atomic_tbl_lock);             \
