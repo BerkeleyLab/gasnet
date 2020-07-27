@@ -390,7 +390,7 @@
 
 #if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
   /* Fences for the generics */
-  #ifndef GASNETI_GENATOMIC_LOCK
+  #if !GASNETI_GENATOMIC_LOCKS
     /* Not locking, so use full fences */
     #define _gasneti_genatomic_prologue_set(p,f)        /*empty*/
     #define _gasneti_genatomic_prologue_read(p,f)       /*empty*/
@@ -432,7 +432,12 @@
                                           gasneti_genatomic##_sz##_addfetch,          \
                                           _gasneti_scalar_atomic_addfetch,            \
                                           gasneti_genatomic##_sz##_)
-  #else /* Mutex-based (HSL or pthread mutex) versions */
+  #else /* Mutex-based versions */
+    #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \
+                gasnett_mutex_t * const _genatomic_lock = gasneti_mutex_atomic_hash_lookup((uintptr_t)ptr)
+    #define GASNETI_GENATOMIC_LOCK()   gasnett_mutex_lock(_genatomic_lock)
+    #define GASNETI_GENATOMIC_UNLOCK() gasnett_mutex_unlock(_genatomic_lock)
+
     /* The lock acquire includes RMB and release includes WMB */
     #define _gasneti_genatomic_prologue_set(p,f)        GASNETI_GENATOMIC_LOCK_PREP(p);
     #define _gasneti_genatomic_prologue_read(p,f)       /*empty*/
@@ -445,9 +450,9 @@
 							_gasneti_atomic_fence_after((f&~GASNETI_ATOMIC_WMB_POST))\
 							_gasneti_atomic_fence_bool(f,v)
 
-    /* Because HSL's are not yet available (bug 693: avoid header dependency cycle),
+    /* Because mutexes are not yet available (bug 693: avoid header dependency cycle),
      * we don't define the lock-acquiring operations as inlines.
-     * Therefore, we declared them here but define them in gasnet_{internal,tools}.c
+     * Therefore, we declared them here but define them in gasnet_tools.c
      */
     #define _GASNETI_GENATOMIC_DECL_AND_DEFN(_sz)                                            \
       typedef volatile uint##_sz##_t gasneti_genatomic##_sz##_t;                             \

@@ -80,18 +80,8 @@
 /* generic atomics support */
 #if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
   #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
-    #define _gasneti_atomic_lock_initializer	GASNETT_MUTEX_INITIALIZER
-    #define _gasneti_atomic_lock_init(x)	gasnett_mutex_init(x)
-    #define _gasneti_atomic_lock_lock(x)        gasnett_mutex_lock(x)
-    #define _gasneti_atomic_lock_unlock(x)      gasnett_mutex_unlock(x)
-    #define _gasneti_atomic_lock_malloc		malloc
-    GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_pthread_atomic_, gasnett_mutex_)
-    #undef _gasneti_atomic_lock_initializer
-    #undef _gasneti_atomic_lock_init
-    #undef _gasneti_atomic_lock_lock
-    #undef _gasneti_atomic_lock_unlock
-    #undef _gasneti_atomic_lock_malloc
-   #endif
+    GASNETI_ATOMIC_LOCK_TBL_DEFNS
+  #endif
   #ifdef GASNETI_GENATOMIC32_DEFN
     GASNETI_GENATOMIC32_DEFN
   #endif
