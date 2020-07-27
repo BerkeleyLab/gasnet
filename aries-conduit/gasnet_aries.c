@@ -10,7 +10,7 @@
 #include <signal.h>
 #include <string.h>
 
-#define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (12*1024)
+#define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (16*1024)
 #define GASNETC_NETWORKDEPTH_TOTAL_DEFAULT 64
 #define GASNETC_NETWORKDEPTH_DEFAULT 64
 
@@ -1036,6 +1036,19 @@ uintptr_t gasnetc_init_messaging(void)
   reply_count = MAX(1, reply_count); /* Min is 1 */
   reply_count = MIN(GASNETC_AM_INITIATOR_SLOTS, reply_count); /* Max determined by count of 'initiator_slot' */
 
+  // Determine number of AM Credits (subject to later adjustments)
+  am_maxcredit = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH",
+                                                GASNETC_NETWORKDEPTH_DEFAULT, 0);
+  am_maxcredit = MAX(1, am_maxcredit); // Min is 1
+  if (am_maxcredit > reply_count) {
+    if (! gasneti_mynode) {
+      gasneti_console_message("WARNING",
+                              "Requested GASNET_NETWORKDEPTH %d reduced to GASNET_NETWORKDEPTH_TOTAL of %d\n",
+                              am_maxcredit, reply_count);
+    }
+    am_maxcredit = reply_count;
+  }
+
   /* Select Eager or Rendezvous protocol for AM Requests */
   int am_rvous_val = gasneti_getenv_int_withdefault("GASNET_GNI_AM_RVOUS_CUTOVER",
                                                     GASNETC_GNI_AM_RVOUS_CUTOVER_DEFAULT, 0);
@@ -1045,48 +1058,42 @@ uintptr_t gasnetc_init_messaging(void)
   if (am_rvous_enabled) {
     /* Rendezvous: GASNET_NETWORKDEPTH */
     GASNETI_TRACE_PRINTF(I, ("Using Rendezvous protocol for AM Requests"));
-    am_maxcredit = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH",
-                                                  GASNETC_NETWORKDEPTH_DEFAULT, 0);
-    am_maxcredit = MAX(1, am_maxcredit); /* Min is 1 */
-    if (am_maxcredit > reply_count) {
-      if (gasneti_mynode) {
-        fprintf(stderr,
-                "WARNING: Requested GASNET_NETWORKDEPTH %d reduced to GASNET_NETWORKDEPTH_TOTAL of %d\n",
-                am_maxcredit, reply_count);
-      }
-      am_maxcredit = reply_count;
-    }
     rvous_count = gasneti_getenv_int_withdefault("GASNET_GNI_AM_RVOUS_BUFFERS",
                                                  GASNETC_GNI_AM_RVOUS_BUFFERS_DEFAULT, 0);
     rvous_count = MAX(1, rvous_count); /* Min is 1 */
 
-    request_bits = am_maxcredit;
-
     am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, GASNETC_CACHELINE_SIZE); // No-op??
   } else {
-    /* Eager: GASNET_NETWORKDEPTH_SPACE */
+    /* Eager: GASNET_NETWORKDEPTH_SPACE limits credits */
     GASNETI_TRACE_PRINTF(I, ("Using Eager protocol for AM Requests"));
+    am_maxcredit = MIN(am_maxcredit, 64); // max of 64 bits to track
     request_region_length = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH_SPACE",
                                                            GASNETC_NETWORKDEPTH_SPACE_DEFAULT, 1);
-    request_region_length = GASNETI_ALIGNUP(request_region_length, 64);
-    request_region_length = MAX(request_region_length,  2*GASNETC_MSG_MAXSIZE);
-    request_region_length = MIN(request_region_length, 64*GASNETC_MSG_MAXSIZE);
-    am_slotsz = gasnetc_next_power_of_2(request_region_length / 64);
+    // Ensure intermediate computations don't yield a zero from which there is no recovery
+    request_region_length = MAX(request_region_length, am_maxcredit);
+    // Divide the region into equal per-credit slices, rounding down to a power-of-two.
+    // The resulting request_region_length = (am_maxcredit * 2^i) for some i,
+    // and subsequent work to bound between two and am_maxcredit max-sized
+    // messages only changes the 'i'.
+    request_region_length = am_maxcredit * gasnetc_prev_power_of_2(request_region_length / am_maxcredit);
+    // Must be large enough for 2 max-sized messages
+    while (request_region_length < 2*GASNETC_MSG_MAXSIZE) {
+      request_region_length *= 2;
+    }
+    // Space beyond next_power_of_2(credits * max message) is unusable
+    while (request_region_length / 2 >= gasnetc_next_power_of_2(am_maxcredit*GASNETC_MSG_MAXSIZE)) {
+      request_region_length /= 2;
+    }
+    am_slotsz = request_region_length / am_maxcredit;
+    gasneti_assert(GASNETI_POWEROFTWO(am_slotsz));
     am_slot_bits = ffs(am_slotsz) - 1;
-    am_maxcredit = request_region_length / am_slotsz;
-    request_region_length = am_maxcredit * am_slotsz;
-    /* NOTE: 1<<64 is undefined and indeed icc yields 1.  So, we special case 64 credits */
-    gasneti_assert(am_maxcredit >= 32);
-    gasneti_assert(am_maxcredit <= 64);
-    request_bits = am_maxcredit;
 
-    // Clip credits to NETWORKDEPTH_TOTAL for use in computing size of Cq and notify ring
-    am_maxcredit = MIN(am_maxcredit, reply_count);
     /* reply destination is also request source.  So, must fit largest *outgoing* message */
     am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
   }
 
   // NOTE: 1<<64 is undefined and indeed icc yields 1.  So, we special case 64.
+  request_bits = am_maxcredit;
   request_map = (request_bits == 64) ? ~(uint64_t)0 : (((uint64_t)1 << request_bits) - 1);
 
   // Maximum number of Long requests outstanding per peer
