@@ -530,7 +530,7 @@
   #ifdef GASNETI_BUILD_GENERIC_ATOMIC64
     _GASNETI_GENATOMIC_DECL_AND_DEFN(64)
     #define gasneti_genatomic64_init          _gasneti_scalar_atomic_init
-    #ifdef gasneti_genatomic64_read	/* ILP32 or HYBRID for under-aligned ABIs */
+    #if _gasneti_need_genatomic64_read	/* ILP32 or HYBRID for under-aligned ABIs */
       /* Mutex is needed in read to avoid word tearing.
        * Can't use the normal template w/o also forcing a mutex into the 32-bit generics.
        * Note that we use the "rmw" fencing macros here, since the "read" fencing macros

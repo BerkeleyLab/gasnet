@@ -2670,6 +2670,10 @@
   #if GASNETI_USE_TRUE_MUTEXES
     /* Case I: gasnett_mutex_t in a gasnet client or thread-safe tools client*/
     #define GASNETI_GENATOMIC_LOCKS 1
+    #if PLATFORM_ARCH_32 || defined(GASNETI_HYBRID_ATOMIC64) || defined(GASNETI_UNALIGNED_ATOMIC64)
+      // Inform gasnet_atomicops.h we need mutex on 64-bit read() to avoid word tearing
+      #define _gasneti_need_genatomic64_read 1
+    #endif
     // To avoid a header dependence cycle (bug 693), we must declare and define all
     // bits involving the mutexes (among other things) later.
     // So, here we just define macros to be expanded in gasnet_tools.{c,h}.
