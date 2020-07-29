@@ -8,7 +8,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 SUBDIRS = .
 
-EXTRA_DIST = $(dotpl_DATA) $(vg_DATA) \
+EXTRA_DIST = $(dotpl_DATA) \
 	gasnet_handler.h \
 	gasnetrun_mic \
 	gasnet_ibrun \
