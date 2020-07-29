@@ -1203,7 +1203,7 @@ dnl
 dnl This is only probing CC, this is only applicable to GASNet
 dnl library builds, not clients.
 dnl
-CHECK_TENTATIVE_BASE=conftest_tent
+CHECK_TENTATIVE_BASE=gasnet_conftest_tent
 CHECK_TENTATIVE_SRC=$CHECK_TENTATIVE_BASE.c
 CHECK_TENTATIVE_OBJ=$CHECK_TENTATIVE_BASE.o
 dnl helper:  GASNET_CHECK_TENTATIVE_TRY_RUN(msg,cv_var,extra,on_success)
@@ -1251,6 +1251,7 @@ if test "${GASNETI_COMMON+set}" = set; then
 else
   AC_MSG_ERROR(could not determine how to use tentative definitions)
 fi
+rm -f $CHECK_TENTATIVE_SRC $CHECK_TENTATIVE_OBJ
 
 ########################################################################
 # hunt for 16-, 32-, and 64-bit integer types
@@ -2860,7 +2861,7 @@ dnl GASNET_LINKHELPER-*:
 dnl   GASNET_LINKHELPER_SETUP(lang-decr)
 dnl   GASNET_LINKHELPER_TRY_{RUN,LINK}(msg,cv_var,includes,body,on_success,on_failure)
 dnl   GASNET_LINKHELPER_CLEANUP()
-LINKHELPER_BASE=conftest_cfunc
+LINKHELPER_BASE=gasnet_conftest_cfunc
 LINKHELPER_SRC=$LINKHELPER_BASE.c
 LINKHELPER_OBJ=$LINKHELPER_BASE.o
 LINKHELPER_LIBS="$LINKHELPER_OBJ $LIBM"
@@ -2899,7 +2900,7 @@ _GASNET_EOF
     GASNET_MSG_ERROR(failed while building $1 helper object)
   fi
 ])
-AC_DEFUN([GASNET_LINKHELPER_CLEANUP],[ rm -f $LINKHELPER_OBJ ])
+AC_DEFUN([GASNET_LINKHELPER_CLEANUP],[ rm -f $LINKHELPER_SRC $LINKHELPER_OBJ ])
 AC_DEFUN([GASNET_LINKHELPER_TRY_INNER],[
   GASNET_PUSHVAR(LIBS,"$LINKHELPER_LIBS $LIBS")
   ]GASNET_TRY_CACHE_[$1][($2,$3,[

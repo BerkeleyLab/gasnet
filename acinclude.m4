@@ -1415,7 +1415,7 @@ AC_DEFUN([GASNET_TRY_RUNCMD],[
   cat conftest-runcmdout >&5
   cat conftest-runcmderr >&5
   echo gasnet_cmd_result=$gasnet_cmd_result >&5
-  rm -rf conftest*
+  rm -rf conftest-runcmdout conftest-runcmderr
   if test "$gasnet_cmd_result" = "0" ; then 
     if test -z "$gasnet_cmd_stdout$gasnet_cmd_stderr" ; then
       :
