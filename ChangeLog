@@ -55,6 +55,12 @@ GASNet-EX ChangeLog
     variable GASNET_SSH_KEEPDUP=1 restores the previous behavior.
     See other/ssh-spawner/README for details.
 
+* GASNet-EX Spec v0.9:
+  - Restrict scratch sizes (query outputs and split inputs) for gex_TM_Split()
+    to be single-valued over members of each output team.
+  - Add gex_TM_Create() and an associated family of flags
+    GEX_FLAG_TM_{GLOBAL,LOCAL,SYMMETRIC}_SCRATCH.
+
 * GASNet tools (spec v1.16)
   - Add gasnett_fatalerror_nopos
   - In some cases, code including gasnet_tools.h (but not gasnetex.h or
