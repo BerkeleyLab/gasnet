@@ -217,24 +217,19 @@ int main(int argc, char **argv)
   assert_always(gex_TM_TranslateRankToJobrank(onetm, 0) == myrank);
   assert_always(gex_TM_TranslateJobrankToRank(onetm, myrank) == 0);
 
-  // Allocate scratch for Odds and Evens teams to avoid races
+  // Odds team tests
   odd_scratch = (void*)scratch_addr;
   odd_scratch_sz = gex_TM_Split((myrank & 1) ? &oddtm : NULL, rowtm, 0, 0, 0, 0, SCRATCH_QUERY_FLAG);
   assert_always((scratch_addr + odd_scratch_sz) <= scratch_end);
   scratch_addr += odd_scratch_sz;
+  do_odds();
+
+  // Evens team test
   even_scratch = (void*)scratch_addr;
   even_scratch_sz = gex_TM_Create(NULL, 1, myteam, NULL, myrank & 1 ? 0 : (nranks+1)/2, NULL, 0, SCRATCH_QUERY_FLAG);
   assert_always((scratch_addr + even_scratch_sz) <= scratch_end);
   scratch_addr += even_scratch_sz;
-
-#if GASNET_PAR
-  // Evens and Odds team tests concurrently
-  test_createandjoin_pthreads(2, threadmain, NULL, 0);
-#else
-  // Even and Odds team tests sequentially
   do_evens();
-  do_odds();
-#endif
 
   // "Rev" team reversing order of TM0
   gex_TM_t revtm = myteam; // init just to check whether overwritten
