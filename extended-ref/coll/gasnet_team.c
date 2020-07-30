@@ -17,8 +17,6 @@
 GASNETE_COLL_TEAM_CONDUIT_DECLS
 #endif
 
-/* #define DEBUG_TEAM */
-
 static 
 gasnete_hashtable_t *team_dir = NULL;
 
@@ -132,16 +130,6 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG)
 {
-#ifdef DEBUG_TEAM
-  fprintf(stderr, "gasnete_coll_team_init: team %p, team_id %x, total_ranks %u, myrank %u\n", 
-          team, team_id, total_ranks, myrank);
-  fflush(stderr);
-  if (myrank == 0 && team_id) {
-    PRINT_ARRAY(stderr, team->rel2act_map, total_ranks, "%u");
-    fflush(stderr);
-  }
-#endif
-  
   initialize_team_fields(team, scratch_size, scratch_addrs, flags GASNETI_THREAD_PASS); 
 
   /* lock the team directory (team_dir) */
@@ -154,10 +142,6 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
 
 #ifdef gasnete_coll_team_init_conduit
   /* conduit specific initialization for gasnet teams */
-#ifdef DEBUG_TEAM
-  fprintf(stderr, "gasnete_coll_team_init: calling gasnete_coll_team_init_conduit.\n");
-  fflush(stderr);
-#endif
   gasnete_coll_team_init_conduit(team);
 #endif
   /* unlock */
@@ -190,10 +174,6 @@ void gasnete_coll_team_fini(gasnet_team_handle_t team)
 
 #ifdef gasnete_coll_team_fini_conduit
   /* conduit specific initialization for gasnet teams */
-#ifdef DEBUG_TEAM
-  fprintf(stderr, "gasnete_coll_team_fini: calling gasnete_coll_team_fini_conduit.\n");
-  fflush(stderr);
-#endif
   gasnete_coll_team_fini_conduit(team);
 #endif
 }
@@ -305,25 +285,11 @@ gasnet_team_handle_t gasnete_coll_team_create(
                         gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
-#ifdef DEBUG_TEAM
-  fprintf(stderr, "gasnete_coll_team_create: team_lead %u, total_ranks %u, myrank %u\n", rank_map[0], total_ranks, myrank);
-  fflush(stderr);
-  if (myrank == 0) {
-    PRINT_ARRAY(stderr, rank_map, total_ranks, "%u");
-    fflush(stderr);
-  }
-#endif
-
   gasnet_team_handle_t team = gasnete_coll_team_alloc(total_ranks, myrank, rank_map);
 
   // Allocatate/communicate the new team's ID
   // Must follow team_alloc and precede gasnete_subteam_*
   gasnete_subteam_ID(parent, team GASNETI_THREAD_PASS);
-
-#ifdef DEBUG_TEAM
-    fprintf(stderr, "myrank %u, get new_team_id %x\n", myrank, team->team_id);
-    fflush(stderr);
-#endif
 
   // Construct global scratch_addrs[] array
   gex_Addr_t *global_scratch_addrs = NULL;
@@ -375,9 +341,6 @@ gasnet_team_handle_t gasnete_coll_team_create(
 #endif
 
   gasnete_coll_team_init(team, scratch_size, global_scratch_addrs, flags GASNETI_THREAD_PASS);
-#ifdef DEBUG_TEAM
-  gasnete_print_team(team, stderr);
-#endif
   gasnete_subteam_Barrier(parent, team GASNETI_THREAD_PASS);
 
   return team;
@@ -415,12 +378,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent,
   gex_Rank_t new_total_ranks;
   gex_Rank_t new_myrank = GEX_RANK_INVALID;
   gex_Rank_t i, j;
-#ifdef DEBUG_TEAM
-  fprintf(stderr, "gasnete_coll_team_split: parent rank %u, parent team handle %p, mycolor %u, myrelrank %u\n",
-          parent->myrank, parent, mycolor, myrelrank);
-  fflush(stderr);
-#endif
-
   
   /* collect the arguments */
   struct {
@@ -472,13 +429,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent,
   
   /* create a team */
 
-#ifdef DEBUG_TEAM
-  fprintf(stderr, "gasnete_coll_team_split: new_total_ranks %u, new_myrank %u.\n",
-          new_total_ranks, new_myrank);
-  PRINT_ARRAY(stderr, rank_map, new_total_ranks, "%u");
-  fflush(stderr);
-#endif
-
   // scratch address info is "local" by construction
   gasneti_assert(! (flags & (GEX_FLAG_TM_GLOBAL_SCRATCH    | GEX_FLAG_TM_LOCAL_SCRATCH |
                              GEX_FLAG_TM_SYMMETRIC_SCRATCH | GEX_FLAG_TM_NO_SCRATCH)));
@@ -494,11 +444,6 @@ gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id)
 {
   gasnet_team_handle_t team;
   
-#ifdef DEBUG_TEAM
-  fprintf(stderr, "gasnete_coll_team_lookup: team_id %x\n", team_id);
-  fflush(stderr);
-#endif
-
   if (team_id == 0) {
     team = GASNET_TEAM_ALL;
   } else {
