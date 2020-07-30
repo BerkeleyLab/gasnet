@@ -91,6 +91,9 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   gasneti_TM_t i_parent = gasneti_import_tm(e_parent);
   gasneti_EP_t ep = i_parent->_ep;
 
+  GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" color=%d key=%d flags=%d",
+                          GASNETI_TMSELFSTR(e_parent), color, key, flags));
+
 #if GASNET_DEBUG
   if ((flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) &&
       (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
@@ -103,7 +106,9 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
     // The MINIMUM scratch requirement scales as size of new team, not the parent.
     // However, performing a collective to size the teams seems unnecessary.
     // So, we are passing the size of the parent.
-    return new_tm_p ? get_scratch_size(i_parent, i_parent->_size, flags) : 0;
+    size_t result =  new_tm_p ? get_scratch_size(i_parent, i_parent->_size, flags) : 0;
+    GASNETI_TRACE_PRINTF(W,("TM_Split: scratch size query result=%"PRIuSZ, result));
+    return result;
   }
 
   if (!new_tm_p) {
@@ -125,7 +130,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
 
   if (team == NULL) {
     gasneti_assert(!new_tm_p);
-    GASNETI_TRACE_PRINTF(W,("Split: parent="GASNETI_TMSELFFMT" [No team created]",
+    GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" [No team created]",
                             GASNETI_TMSELFSTR(e_parent)));
     return 0;
   }
@@ -140,8 +145,8 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   i_tm->_rank_map = team->rel2act_map;
   i_tm->_index_map = NULL; // TODO-EX: provide this for teams w/ non-primordial EPs
 
-  GASNETI_TRACE_PRINTF(W,("Split: parent="GASNETI_TMSELFFMT" color=%d key=%d result="GASNETI_TMSELFFMT,
-                          GASNETI_TMSELFSTR(e_parent), color, key, GASNETI_TMSELFSTR(e_tm)));
+  GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" result="GASNETI_TMSELFFMT,
+                          GASNETI_TMSELFSTR(e_parent), GASNETI_TMSELFSTR(e_tm)));
 
   return 1; // return is documented as undefined
 }
@@ -174,6 +179,9 @@ size_t gasneti_TM_Create(
   gasneti_EP_t ep = i_parent->_ep;
   int is_jobrank = (flags & GEX_FLAG_RANK_IS_JOBRANK);
 
+  GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" num_new_tms=%"PRIuSZ" nmembers=%"PRIuSZ" flags=%d",
+                          GASNETI_TMSELFSTR(e_parent), num_new_tms, nmembers, flags));
+
   // For now 0 or 1 are the only valid numbers of outputs.
   gasneti_assert(!nmembers || num_new_tms == 1);
 
@@ -186,14 +194,16 @@ size_t gasneti_TM_Create(
   }
 #endif
   if (flags & (GEX_FLAG_TM_SCRATCH_SIZE_MIN | GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
-    return nmembers ? get_scratch_size(i_parent, nmembers, flags) : 0;
+    size_t result = nmembers ? get_scratch_size(i_parent, nmembers, flags) : 0;
+    GASNETI_TRACE_PRINTF(W,("TM_Create: scratch size query result=%"PRIuSZ, result));
+    return result;
   }
 
   // TODO-EX: remove when subteam collectives no longer require a parent-scope entry barrier
   gasnete_coll_consensus_barrier(i_parent->_coll_team GASNETI_THREAD_PASS);
 
   if (! nmembers) {
-    GASNETI_TRACE_PRINTF(W,("Create: parent="GASNETI_TMSELFFMT" [No team created]",
+    GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" [No team created]",
                             GASNETI_TMSELFSTR(e_parent)));
     goto done;
   }
@@ -240,7 +250,8 @@ size_t gasneti_TM_Create(
   i_tm->_rank_map = team->rel2act_map;
   i_tm->_index_map = NULL; // TODO-EX: provide this for teams w/ non-primordial EPs
 
-  GASNETI_TRACE_PRINTF(W,("Create: parent="GASNETI_TMSELFFMT" rank=%d size=%d result="GASNETI_TMSELFFMT,
+  // TODO-EX: outut only correct for num_new_tms==1
+  GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" rank=%d size=%d result="GASNETI_TMSELFFMT,
                           GASNETI_TMSELFSTR(e_parent), my_new_rank, (int)nmembers, GASNETI_TMSELFSTR(e_tm)));
 
   result = 1; // return is documented as undefined
