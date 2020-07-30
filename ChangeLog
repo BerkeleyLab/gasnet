@@ -26,6 +26,11 @@ GASNet-EX ChangeLog
     suppression file now lives in other/valgrind/gasnet.supp.
   - GASNet trace/stats now categorize AMPoll calls in tracemask category 'X'
   - BLCR integration, deprecated since 1.32.0 (July 2018), has been removed.
+  - Improved memory and communication requirements in gex_TM_Split().
+  - Improved memory scaling in management of collectives scratch spaces.
+  - Initial implementation of gex_TM_Create() sufficient for implementation
+    of (at least) efficient Split-like operations with computable membership,
+    using less communication than gex_TM_Split.
 
 * Cray XC uGNI (aries-conduit)
   - The parameter GASNET_NETWORKDEPTH is now honored for both the Eager and
