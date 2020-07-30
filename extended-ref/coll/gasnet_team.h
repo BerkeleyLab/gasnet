@@ -53,22 +53,26 @@ void gasnete_print_team(gasnet_team_handle_t team, FILE *fp);
 
 // Collectives over a subset of a parent team.
 // Used in team construction, such as Split
-void gasnete_subteam_Barrier(
+void gasnete_subteam_Init(
                         gasnete_coll_team_t parent,
                         gasnete_coll_team_t child
                         GASNETI_THREAD_FARG);
+void gasnete_subteam_Fini(
+                        gasnete_coll_team_t child,
+                        int do_sync
+                        GASNETI_THREAD_FARG);
+void gasnete_subteam_Barrier(
+                        gasnete_coll_team_t child
+                        GASNETI_THREAD_FARG);
 void gasnete_subteam_Exchange( // a.k.a "AllGather"
-                        gasnete_coll_team_t parent,
                         gasnete_coll_team_t child,
                         void *src, size_t elemsz, void *dst
                         GASNETI_THREAD_FARG);
 void gasnete_subteam_Broadcast( // root fixed at 0 and "in-place" root (thus single ptr)
-                        gasnete_coll_team_t parent,
                         gasnete_coll_team_t child,
                         void *ptr, size_t elemsz
                         GASNETI_THREAD_FARG);
 void gasnete_subteam_ID(
-                        gasnete_coll_team_t parent,
                         gasnete_coll_team_t child
                         GASNETI_THREAD_FARG);
 

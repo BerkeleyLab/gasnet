@@ -312,6 +312,7 @@ struct gasnete_coll_team_t_ {
 #endif
   
   /*Stuff for sub-team creation*/
+  gasnete_coll_team_t early_parent; // non-NULL only during init steps
   struct {
     gasneti_weakatomic32_t team_id;
     volatile int phase;

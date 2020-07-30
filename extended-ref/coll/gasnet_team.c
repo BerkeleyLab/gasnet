@@ -287,9 +287,10 @@ gasnet_team_handle_t gasnete_coll_team_create(
 {
   gasnet_team_handle_t team = gasnete_coll_team_alloc(total_ranks, myrank, rank_map);
 
+  gasnete_subteam_Init(parent, team GASNETI_THREAD_PASS);
+
   // Allocatate/communicate the new team's ID
-  // Must follow team_alloc and precede gasnete_subteam_*
-  gasnete_subteam_ID(parent, team GASNETI_THREAD_PASS);
+  gasnete_subteam_ID(team GASNETI_THREAD_PASS);
 
   // Construct global scratch_addrs[] array
   gex_Addr_t *global_scratch_addrs = NULL;
@@ -305,7 +306,7 @@ gasnet_team_handle_t gasnete_coll_team_create(
 
     case GEX_FLAG_TM_LOCAL_SCRATCH:
       global_scratch_addrs = gasneti_malloc(total_ranks * sizeof(gex_Addr_t));
-      gasnete_subteam_Exchange(parent, team,
+      gasnete_subteam_Exchange(team,
                                scratch_addrs, sizeof(gex_Addr_t), global_scratch_addrs
                                GASNETI_THREAD_PASS);
       break;
@@ -334,14 +335,15 @@ gasnet_team_handle_t gasnete_coll_team_create(
 #if GASNET_DEBUG
   // Verify single-valued scratch_size
   size_t leader_scratch_size = myrank ? 0xcafef00d : scratch_size;
-  gasnete_subteam_Broadcast(parent, team,
+  gasnete_subteam_Broadcast(team,
                             &leader_scratch_size, sizeof(leader_scratch_size)
                             GASNETI_THREAD_PASS);
   gasneti_assert_uint(scratch_size ,==, leader_scratch_size);
 #endif
 
   gasnete_coll_team_init(team, scratch_size, global_scratch_addrs, flags GASNETI_THREAD_PASS);
-  gasnete_subteam_Barrier(parent, team GASNETI_THREAD_PASS);
+
+  gasnete_subteam_Fini(team, 1 GASNETI_THREAD_PASS);
 
   return team;
 }
@@ -470,11 +472,52 @@ void gasnete_print_team(gasnet_team_handle_t team, FILE *fp)
 // AM-based Collective Operations over a SUBSET of an existing "parent" team
 // Used in team construction
 //
+// Use must follow the pattern:
+//  1. Call gasnete_subteam_Init(parent, child)
+//     Preconditions (satisfied in any order):
+//     A. There must be a barrier synchronization over the parent team since the
+//        previous use of gasnete_subteam_Fini().  In the case of gex_TM_Spilt(),
+//        the GatherAll of (color,rel_rank) is sufficient.
+//  2. Call zero or more gasnete_subteam_*(child, ...) functions
+//     Use the collectives as needed to construct the team.
+//  3. Call gasnete_subteam_Fini(child, do_sync)
+//     A non-zero value of 'do_sync' argument requests a barrier synchronization
+//     to prevent use of the constructed child team prior to global completion
+//     of its construction.  This may be omitted if such synchronization is
+//     provided by other means.
+//
+//  All steps above are collective over the members of the child team.
+//  However no such restriction exists over the parent team.
+//
 // TODO-EX: multi-EP, especially Create using EPs not in parent
 // TODO-EX: remove THUNK_TM via gex_TM_Pair()
 // TODO-EX: revisit use of phase[2] vs sequence numbers (or similar)
 // TODO-EX: seek to remove requirement for an entry barrier over parent_tm
 // TODO-EX: determine if one can remove memory fences from start/end of initiators
+
+// BEGIN use of subteam collectives over a given parent
+void gasnete_subteam_Init(
+                        gasnete_coll_team_t parent,
+                        gasnete_coll_team_t child
+                        GASNETI_THREAD_FARG)
+{
+  gasneti_assert(child->early_parent == NULL);
+  gasneti_assert(parent->child.phase == 0);
+  child->early_parent = parent;
+}
+
+// END use of subteam collectives
+// May include optional "exit barrier" over the child team
+void gasnete_subteam_Fini(
+                        gasnete_coll_team_t child,
+                        int do_sync
+                        GASNETI_THREAD_FARG)
+{
+  gasneti_assert(child->early_parent);
+  if (do_sync) gasnete_subteam_Barrier(child GASNETI_THREAD_PASS);
+  child->early_parent->child.phase = 0;
+  child->early_parent = NULL;
+}
 
 static uint8_t*
 gasnete_subteam_op_data(gasnete_coll_team_t parent, int phase, size_t size) {
@@ -558,10 +601,11 @@ void gasnete_subteam_op_reqh(
 }
 
 void gasnete_subteam_Barrier(
-                        gasnete_coll_team_t parent,
                         gasnete_coll_team_t child
                         GASNETI_THREAD_FARG)
 {
+  gasnete_coll_team_t parent = child->early_parent;
+  gasneti_assert(parent != NULL);
   const int phase = parent->child.phase;
   gex_Rank_t nranks = child->total_ranks;
   gex_Rank_t myrank = child->myrank;
@@ -596,13 +640,14 @@ out:
 // use of phase[], but this does NOT ensure all ranks have received the
 // broadcast prior to return on any given ranks.
 void gasnete_subteam_Broadcast(
-                        gasnete_coll_team_t parent,
                         gasnete_coll_team_t child,
                         void *ptr, size_t elemsz
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert_uint(elemsz ,<=, gex_AM_LUBRequestMedium());
 
+  gasnete_coll_team_t parent = child->early_parent;
+  gasneti_assert(parent != NULL);
   const int phase = parent->child.phase;
   gex_Rank_t nranks = child->total_ranks;
   gex_Rank_t myrank = child->myrank;
@@ -648,13 +693,14 @@ out:
 }
 
 void gasnete_subteam_Exchange(
-                        gasnete_coll_team_t parent,
                         gasnete_coll_team_t child,
                         void *src, size_t elemsz, void *dst
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert(elemsz);
 
+  gasnete_coll_team_t parent = child->early_parent;
+  gasneti_assert(parent != NULL);
   const int phase = parent->child.phase;
   gex_Rank_t nranks = child->total_ranks;
   gex_Rank_t myrank = child->myrank;
@@ -711,16 +757,14 @@ out:
 }
 
 void gasnete_subteam_ID(
-                        gasnete_coll_team_t parent,
                         gasnete_coll_team_t child
                         GASNETI_THREAD_FARG)
 {
+  gasnete_coll_team_t parent = child->early_parent;
+  gasneti_assert(parent != NULL);
   gex_Rank_t nranks = child->total_ranks;
   gex_Rank_t myrank = child->myrank;
   uint32_t new_team_id;
-
-  // Reset sub-team collectives phase prior to use
-  parent->child.phase = 0;
 
   if (!myrank) {
     // the team leader (rank 0) allocates the new team_id
