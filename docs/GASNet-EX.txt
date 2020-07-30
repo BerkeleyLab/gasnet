@@ -730,8 +730,9 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //
 // This is a collective call over the team named by the 'parent_tm' argument
 // that creates zero or more new teams.  While this call is collective, the
-// arguments are NOT required to be single-valued except as noted for certain
-// bits in 'flags'.
+// arguments are NOT required to be single-valued over the parent team, except
+// as noted for certain bits in 'flags'.  However, the value of 'scratch_size'
+// must be collective over callers passing the same 'color'.
 //
 // + When passing any of the GEX_FLAG_TM_SCRATCH_SIZE_* family of flags, this
 //   call is a collective query to determine the minimum or recommended value
@@ -772,18 +773,21 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //            If scratch_addr is non-NULL, then the memory
 //               [scratch_addr, scratch_addr+scratch_size)
 //            is granted to the implementation for internal use.
+//            The value of 'scratch_size' must be single-valued over the members
+//            of each new team to be created (non-NULL 'new_tm_p' and same 'color').
 // flags:
 //   Single valued:
 //       GEX_FLAG_TM_SCRATCH_SIZE_*
 //         These mutually exclusive flags convert this call into a collective query.
 //         No team is created in the presence of any flag in this family.
-//         Note that the return value is not guaranteed to be single-valued.
 //         - GEX_FLAG_TM_SCRATCH_SIZE_{MIN,RECOMMENDED} queries and returns the           
 //           {minimum permissible, recommended optimal} value to be passed in 
 //           'scratch_size' for a subsequent call to gex_TM_Split() with the same 
 //           value for the other arguments.  In particular, a NULL value of the
 //           'new_tm_p' indicates the caller will not be a member of any team
 //           created by the subsequent split (and thus the return will be zero).
+//           Return values are guaranteed to be single-valued over the members
+//           of each new team to be created (non-NULL 'new_tm_p' and same 'color').
 //   Non-single valued:
 //        None currently defined 
 //
