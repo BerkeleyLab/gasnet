@@ -510,6 +510,30 @@ size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
     return output;
   }
 
+  #define MAX_FORMAT_EP_LOC 128
+  /* format an array of EP_Location_t
+     caller should not deallocate string, they are recycled automatically
+   */
+  extern char *gasneti_format_eploc(const gex_EP_Location_t *members, size_t nmembers) {
+    // (rank is 10 chars max) + "." + (ep_idx is 4 char max at 12 bits) + ", " =  17 char each
+    gasneti_static_assert(17 * MAX_FORMAT_EP_LOC + 5 < BUFSZ);
+
+    int count = MIN(MAX_FORMAT_EP_LOC, nmembers);
+    char *buf = gasneti_getbuf();
+    char *p = buf;
+    for (int i = 0; i < count; ++i) {
+      sprintf(p, "%d.%d", members[i].gex_rank, members[i].gex_ep_index);
+      if (i != count-1) {
+        strcat(p, ", ");  // non-final element
+      } else if (count != nmembers) {
+        strcat(p, ", ..."); // final element of a truncated list
+      }
+      p += strlen(p);
+      gasneti_assert_uint(p-buf ,<, BUFSZ);
+    }
+    return buf;
+  }
+
   static int gasneti_autoflush = 0;
   #define GASNETI_TRACEFILE_FLUSH(fp) do {  \
     if (gasneti_autoflush) fflush(fp);      \

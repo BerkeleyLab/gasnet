@@ -179,8 +179,8 @@ size_t gasneti_TM_Create(
   gasneti_EP_t ep = i_parent->_ep;
   int is_jobrank = (flags & GEX_FLAG_RANK_IS_JOBRANK);
 
-  GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" num_new_tms=%"PRIuSZ" nmembers=%"PRIuSZ" flags=%d",
-                          GASNETI_TMSELFSTR(e_parent), num_new_tms, nmembers, flags));
+  GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" num_new_tms=%"PRIuSZ" nmembers=%"PRIuSZ" scratch_size=%"PRIuSZ" flags=%d",
+                          GASNETI_TMSELFSTR(e_parent), num_new_tms, nmembers, scratch_size, flags));
 
   // For now 0 or 1 are the only valid numbers of outputs.
   gasneti_assert(!nmembers || num_new_tms == 1);
@@ -197,6 +197,10 @@ size_t gasneti_TM_Create(
     size_t result = nmembers ? get_scratch_size(i_parent, nmembers, flags) : 0;
     GASNETI_TRACE_PRINTF(W,("TM_Create: scratch size query result=%"PRIuSZ, result));
     return result;
+  }
+
+  if (num_new_tms && nmembers) {
+    GASNETI_TRACE_PRINTF(D,("TM_Create: members[ %s ]", gasneti_format_eploc(members, nmembers)));
   }
 
   // TODO-EX: remove when subteam collectives no longer require a parent-scope entry barrier
