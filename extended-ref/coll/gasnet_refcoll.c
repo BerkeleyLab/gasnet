@@ -862,6 +862,21 @@ void gasnete_coll_p2p_free(gasnete_coll_team_t team, gasnete_coll_p2p_t *p2p) {
   gex_HSL_Unlock(&team->p2p_lock);
 }
 
+void gasnete_coll_p2p_purge(gasnete_coll_team_t team) {
+  gex_HSL_Lock(&team->p2p_lock);
+
+  gasnete_coll_p2p_t *p2p = team->p2p_freelist;
+  team->p2p_freelist = NULL;
+
+  while (p2p) {
+    gasnete_coll_p2p_t *next = p2p->p2p_next;
+    gasneti_free(p2p);
+    p2p = next;
+  }
+
+  gex_HSL_Unlock(&team->p2p_lock);
+}
+
     
 /* Delivers a long payload and updates 1 or more states
    count: number of states to update

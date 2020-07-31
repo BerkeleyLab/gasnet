@@ -450,7 +450,7 @@ struct gasnete_coll_p2p_t_ {
 #endif
 
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
-extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
+extern void gasnete_coll_p2p_purge(gasnete_coll_team_t team);
 extern void gasnete_tm_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
                                         void *src, size_t nbytes, uint32_t idx GASNETI_THREAD_FARG);
 extern void gasnete_tm_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstrank,
