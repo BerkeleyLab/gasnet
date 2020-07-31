@@ -19,9 +19,9 @@
 
 /* Recognized (mutually-exclusive) definitions for threading behavior:
    GASNETT_THREAD_SAFE - may be defined by client to enable thread-safety. 
-     For gasnet.h clients, this is also enabled by GASNET_PAR(SYNC)
+     For gasnet.h clients, this is also enabled by GASNET_PAR
    GASNETT_THREAD_SINGLE - may be defined by client to explcitly disable thread-safety.
-     For gasnet.h clients, this is also enabled by GASNET_SEQ
+     For gasnet.h clients, this is also enabled by GASNET_SEQ and GASNET_PARSYNC
    GASNETT_LITE_MODE - tools-lite mode, for tools-only clients that want threading neutrality
       only provides the timer and membar interfaces
    If none of the above definitions are present, then thread-safety defaults to
@@ -31,10 +31,10 @@
 #if defined(GASNETT_LITE_MODE) + defined(GASNETT_THREAD_SAFE) + defined(GASNETT_THREAD_SINGLE) > 1
   #error You must define at most one of: GASNETT_THREAD_SAFE, GASNETT_THREAD_SINGLE, GASNETT_LITE_MODE
 #endif
-#if defined(GASNETT_THREAD_SAFE) && defined(GASNET_SEQ)
+#if defined(GASNETT_THREAD_SAFE) && (defined(GASNET_SEQ) || defined(GASNET_PARSYNC))
   #error Conflicting threading definitions
 #endif
-#if defined(GASNETT_THREAD_SINGLE) && (defined(GASNET_PAR) || defined(GASNET_PARSYNC))
+#if defined(GASNETT_THREAD_SINGLE) && defined(GASNET_PAR)
   #error Conflicting threading definitions
 #endif
 #ifdef GASNETT_LITE_MODE
@@ -45,8 +45,8 @@
     #error GASNETT_LITE_MODE not supported for libgasnet clients
   #endif
 #elif defined(GASNETT_THREAD_SAFE) ||                             \
-      defined(GASNET_PARSYNC) || defined(GASNET_PAR) ||           \
-      (!defined(GASNET_SEQ) && !defined(GASNETT_THREAD_SINGLE) && \
+      defined(GASNET_PAR) ||                                      \
+      (!defined(GASNET_SEQ) && !defined(GASNET_PARSYNC) && !defined(GASNETT_THREAD_SINGLE) && \
        (defined(_REENTRANT) || defined(_THREAD_SAFE) ||           \
         defined(PTHREAD_MUTEX_INITIALIZER)))
   #undef GASNETT_THREAD_SAFE

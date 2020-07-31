@@ -6,9 +6,9 @@
 
 #if defined(GASNETT_THREAD_SAFE) || defined(GASNETT_THREAD_SINGLE)
   /* nothing */
-#elif defined(GASNET_PARSYNC) || defined(GASNET_PAR)
+#elif defined(GASNET_PAR)
   #define GASNETT_THREAD_SAFE 1
-#elif defined(GASNET_SEQ)
+#elif defined(GASNET_SEQ) || defined(GASNET_PARSYNC)
   #define GASNETT_THREAD_SINGLE 1
 #else
   #error Missing threading definition
