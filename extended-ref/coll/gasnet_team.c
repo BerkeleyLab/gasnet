@@ -62,10 +62,14 @@ static void initialize_team_fields(
       team->symmetric_scratch_offset = symmetric_offset;
       gasneti_assert(! team->scratch_addrs);
       gasneti_free(scratch_addrs);
+      GASNETI_TRACE_PRINTF(W,("Team TM%x:%i scratch: size=%"PRIuSZ" symmetric_offset=%"PRIuPTR,
+                              team->team_id, team->myrank, scratch_size, symmetric_offset));
     } else {
       team->scratch_addrs = scratch_addrs;
       gasneti_assert(! team->scratch_segs);
       gasneti_assert(! team->symmetric_scratch_offset);
+      GASNETI_TRACE_PRINTF(W,("Team TM%x:%i scratch: size=%"PRIuSZ" non-symmetric",
+                              team->team_id, team->myrank, scratch_size));
     }
   } else {
     gasneti_assert(team == GASNET_TEAM_ALL);
@@ -75,6 +79,8 @@ static void initialize_team_fields(
     team->scratch_segs = gasneti_seginfo_aux;
     team->symmetric_scratch_offset = gasnete_coll_auxseg_offset;
     gasneti_assert(! team->rel2act_map);
+    GASNETI_TRACE_PRINTF(W,("Team TM0:%i scratch: size=%"PRIuSZ" symmetric_offset=%"PRIuPTR" (auxseg)",
+                            gasneti_mynode, scratch_size, gasnete_coll_auxseg_offset));
   }
   team->myscratch = (void *)gasnete_coll_scratch_base(team, team->myrank);
 
