@@ -93,7 +93,8 @@ void * _gasneti_malloc_aligned(size_t alignment, size_t size GASNETI_CURLOCFARG)
 #if GASNETI_USE_POSIX_MEMALIGN
   if_pf(alignment < sizeof(void*)) alignment = sizeof(void*);
   void *result = NULL; // init to avoid -Wmaybe-uninitialized warnings
-  gasneti_assert_zeroret(posix_memalign(&result, alignment, size));
+  int _return_code = posix_memalign(&result, alignment, size);
+  gasneti_assert_zeroret(_return_code);
 #else
   size_t alloc_size = size + sizeof(void *) + alignment;
   void *base = _gasneti_extern_malloc(alloc_size GASNETI_CURLOCPARG);
