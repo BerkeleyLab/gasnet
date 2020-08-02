@@ -6,9 +6,9 @@
 
 #if defined(GASNETT_THREAD_SAFE) || defined(GASNETT_THREAD_SINGLE)
   /* nothing */
-#elif defined(GASNET_PARSYNC) || defined(GASNET_PAR)
+#elif defined(GASNET_PAR)
   #define GASNETT_THREAD_SAFE 1
-#elif defined(GASNET_SEQ)
+#elif defined(GASNET_SEQ) || defined(GASNET_PARSYNC)
   #define GASNETT_THREAD_SINGLE 1
 #else
   #error Missing threading definition
@@ -78,9 +78,10 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* generic atomics support */
-#if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
+#if GASNETI_BUILDING_TOOLS && \
+    (defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64))
   #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
-    GASNETI_ATOMIC_LOCK_TBL_DEFNS
+    GASNETI_ATOMIC_LOCK_TBL_DEFNS(malloc)
   #endif
   #ifdef GASNETI_GENATOMIC32_DEFN
     GASNETI_GENATOMIC32_DEFN

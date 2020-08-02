@@ -2704,7 +2704,7 @@
           /* Step 3. Return the index */                                  \
           return &((gasneti_mutex_atomic_tbl[_val & gasneti_mutex_atomic_tbl_mask])._lock); \
         }
-    #define GASNETI_ATOMIC_LOCK_TBL_DEFNS \
+    #define GASNETI_ATOMIC_LOCK_TBL_DEFNS(mallocator) \
         uintptr_t gasneti_mutex_atomic_tbl_mask = 0;                      \
         gasneti_mutex_atomic_tbl_t *gasneti_mutex_atomic_tbl = NULL;      \
         GASNETI_COLD GASNETI_NEVER_INLINE(gasneti_mutex_atomic_tbl_init,  \
@@ -2716,8 +2716,8 @@
               gasnett_getenv_int_withdefault("GASNET_ATOMIC_TABLESZ",256,0); \
             gasneti_assert_always(GASNETI_POWEROFTWO(gasneti_mutex_atomic_tbl_size)); \
             /* Over allocate to leave at least a cache line before and after */ \
-            gasneti_mutex_atomic_tbl = malloc((2 + gasneti_mutex_atomic_tbl_size)  \
-                                              * sizeof(gasneti_mutex_atomic_tbl_t)); \
+            gasneti_mutex_atomic_tbl = mallocator((2 + gasneti_mutex_atomic_tbl_size)  \
+                                                  * sizeof(gasneti_mutex_atomic_tbl_t)); \
             ++gasneti_mutex_atomic_tbl;                                   \
             for (int i = 0; i < gasneti_mutex_atomic_tbl_size; ++i) {     \
               gasnett_mutex_init(&(gasneti_mutex_atomic_tbl[i]._lock));   \
