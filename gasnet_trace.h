@@ -858,6 +858,7 @@ extern char *gasneti_dynsprintf(const char *_format,...));
   extern FILE *gasneti_tracefile;
   extern FILE *gasneti_statsfile;
   extern char *gasneti_formatdata(void *_p, size_t _nbytes);
+  extern char *gasneti_format_eploc(const gex_EP_Location_t *_members, size_t _nmembers);
   extern void gasneti_trace_output(const char *_type, const char *_msg, int _traceheader);
   extern void gasneti_stats_output(const char *_type, const char *_msg, int _traceheader);
 

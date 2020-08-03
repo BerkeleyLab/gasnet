@@ -514,8 +514,9 @@ void gasnete_coll_free_autotune_tree_node(gasnete_coll_autotune_tree_node_t *in)
 static int allow_conduit_collectives=1;
 #endif
 static char* gasnete_coll_team_all_tuning_file;
-gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, 
-                                                         size_t min_scratch_size GASNETI_THREAD_FARG) {
+gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team
+                                                         GASNETI_THREAD_FARG) {
+  const size_t min_scratch_size = team->scratch_size;
   const gex_Rank_t mynode = team->myrank;
   const gasnet_image_t total_images = team->total_ranks;
   const gasnet_image_t my_images = 1;

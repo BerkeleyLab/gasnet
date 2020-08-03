@@ -863,6 +863,11 @@ void doit0(int partner, int *partnerseg) {
 
     GEX_FLAG_TM_SCRATCH_SIZE_MIN,
     GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED,
+    GEX_FLAG_TM_GLOBAL_SCRATCH,
+    GEX_FLAG_TM_LOCAL_SCRATCH,
+    GEX_FLAG_TM_SYMMETRIC_SCRATCH,
+    GEX_FLAG_TM_NO_SCRATCH,
+    GEX_FLAG_SCRATCH_SEG_OFFSET,
 
     GEX_FLAG_RANK_IS_JOBRANK,
   };
@@ -912,9 +917,14 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_ENABLE_LEAF_LC,
   };
   assert_arr_unaliased(gex_Flags_t, flags_vis);
-  static gex_Flags_t const flags_tm[] = { // gex_TM_Split
+  static gex_Flags_t const flags_tm[] = { // gex_TM_Split, Create, etc.
     GEX_FLAG_TM_SCRATCH_SIZE_MIN,
     GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED,
+    GEX_FLAG_TM_GLOBAL_SCRATCH,
+    GEX_FLAG_TM_LOCAL_SCRATCH,
+    GEX_FLAG_TM_SYMMETRIC_SCRATCH,
+    GEX_FLAG_TM_NO_SCRATCH,
+    GEX_FLAG_SCRATCH_SEG_OFFSET,
   };
   assert_arr_unaliased(gex_Flags_t, flags_tm);
 

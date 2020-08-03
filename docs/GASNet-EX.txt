@@ -39,7 +39,7 @@
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 8
+#define GEX_SPEC_VERSION_MINOR 9
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -438,6 +438,32 @@ typedef [some integer type] gex_Flags_t;
 #define GEX_FLAG_SELF_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
 #define GEX_FLAG_PEER_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
 
+// COLLECTIVE SCRATCH ALLOCATION [PROPOSED]
+//
+// The following family of flags control the interpretation of address ranges
+// provided to team construction APIs to describe collective scratch spaces.
+//
+// TM_{GLOBAL,LOCAL,SYMMETRIC,NO}_SCRATCH
+//   This mutually-exclusive group indicates the number and meaning of
+//   a gex_Addr_t specified to certain team construction APIs.
+//      GLOBAL: gex_Addr_t per member of the output team
+//       LOCAL: gex_Addr_t per local member of the output team
+//   SYMMETRIC: single gex_Addr_t used for all members of the output team
+//          NO: no gex_Addr_t (and no scratch space is allocated).
+//
+#define GEX_FLAG_TM_GLOBAL_SCRATCH     ((gex_Flags_t)???) // gex_TM_Create only
+#define GEX_FLAG_TM_LOCAL_SCRATCH      ((gex_Flags_t)???) // gex_TM_Create only
+#define GEX_FLAG_TM_SYMMETRIC_SCRATCH  ((gex_Flags_t)???) // gex_TM_Create only
+#define GEX_FLAG_TM_NO_SCRATCH         ((gex_Flags_t)???) [UNIMPLEMENTED]
+//
+// SCRATCH_SEG_OFFSET
+//
+// This flag bit indicates that the corresponding gex_Addr_t argument(s)
+// are byte *offsets* relative to the bound segment base address.
+// Implies that the respective endpoint has a bound segment, and
+// that the specified range(s) are contained entirely within that segment.
+#define GEX_FLAG_SCRATCH_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
+
 // A "token" is an opaque scalar type
 // This type is interoperable with gasnet_token_t
 typedef ... gex_Token_t;
@@ -460,6 +486,14 @@ typedef [some unsigned integer type] gex_RMA_Value_t;
 // Preprocess-time constant size of gex_RMA_Value_t
 // Synonymous with SIZEOF_GASNET_REGISTER_VALUE_T
 #define SIZEOF_GEX_RMA_VALUE_T ...
+
+// gex_Addr_t [PROPOSED]
+// Type which is suitable to hold both addresses and offsets.
+//
+// This is always an alias for `void*`, but is given a distinct type to make
+// prototypes self-documenting with respect to arguments which may (with the
+// proper flags) be interepreted alternatively as addresses or offsets.
+typedef void* gex_Addr_t;
 
 // Memvec
 // A "memvec" describes a tuple of memory address and length
@@ -696,8 +730,9 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //
 // This is a collective call over the team named by the 'parent_tm' argument
 // that creates zero or more new teams.  While this call is collective, the
-// arguments are NOT required to be single-valued except as noted for certain
-// bits in 'flags'.
+// arguments are NOT required to be single-valued over the parent team, except
+// as noted for certain bits in 'flags'.  However, the value of 'scratch_size'
+// must be collective over callers passing the same 'color'.
 //
 // + When passing any of the GEX_FLAG_TM_SCRATCH_SIZE_* family of flags, this
 //   call is a collective query to determine the minimum or recommended value
@@ -738,18 +773,21 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //            If scratch_addr is non-NULL, then the memory
 //               [scratch_addr, scratch_addr+scratch_size)
 //            is granted to the implementation for internal use.
+//            The value of 'scratch_size' must be single-valued over the members
+//            of each new team to be created (non-NULL 'new_tm_p' and same 'color').
 // flags:
 //   Single valued:
 //       GEX_FLAG_TM_SCRATCH_SIZE_*
 //         These mutually exclusive flags convert this call into a collective query.
 //         No team is created in the presence of any flag in this family.
-//         Note that the return value is not guaranteed to be single-valued.
 //         - GEX_FLAG_TM_SCRATCH_SIZE_{MIN,RECOMMENDED} queries and returns the           
 //           {minimum permissible, recommended optimal} value to be passed in 
 //           'scratch_size' for a subsequent call to gex_TM_Split() with the same 
 //           value for the other arguments.  In particular, a NULL value of the
 //           'new_tm_p' indicates the caller will not be a member of any team
 //           created by the subsequent split (and thus the return will be zero).
+//           Return values are guaranteed to be single-valued over the members
+//           of each new team to be created (non-NULL 'new_tm_p' and same 'color').
 //   Non-single valued:
 //        None currently defined 
 //
@@ -3078,6 +3116,32 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 
 
 // End of section describing APIs provided by gasnet_coll.h
+//----------------------------------------------------------------------
+
+// [PROPOSED]
+// The remainder of this document is for APIs descibed in more detail in
+//   GASNet-EX API Proposal: Multi-EP, Revision 2020.6.1
+// Only prototypes and supported flags are provided here.
+
+size_t gex_TM_Create(
+            gex_TM_t *new_tms,         // OUT
+            size_t num_new_tms,        // Length of new_tms
+            gex_TM_t parent_tm,
+            gex_EP_Location_t *args,   // IN
+            size_t numargs,            // single-valued over output team
+            gex_Addr_t *scratch_addrs, // IN
+            size_t scratch_size        // single-valued over output team
+            gex_Flags_t flags);        // Flags (partially single-valued)
+      // Valid flags:
+      //   GEX_FLAG_RANK_IS_JOBRANK
+      //   GEX_FLAG_SCRATCH_SEG_OFFSET
+      //   GEX_FLAG_TM_SYMMETRIC_SCRATCH \
+      //   GEX_FLAG_TM_LOCAL_SCRATCH     | mutually-exclusive group
+      //   GEX_FLAG_TM_GLOBAL_SCRATCH    |
+      //   GEX_FLAG_TM_NO_SCRATCH        /
+      //   GEX_FLAG_TM_SCRATCH_SIZE_MIN         \
+      //   GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED / mutually-exclusive pair
+
 //----------------------------------------------------------------------
 
 // vim: syntax=c

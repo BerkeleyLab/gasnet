@@ -683,6 +683,18 @@ extern size_t gasneti_TM_Split(gex_TM_t *_new_tm_p, gex_TM_t _parent_tm,
                                GASNETI_THREAD_FARG);
 #define gex_TM_Split(n,p,c,k,a,l,f) gasneti_TM_Split(n,p,c,k,a,l,f GASNETI_THREAD_GET)
 
+extern size_t gasneti_TM_Create(
+            gex_TM_t *_new_tms,
+            size_t _num_new_tms,
+            gex_TM_t _parent_tm,
+            gex_EP_Location_t *_args,
+            size_t _numargs,
+            gex_Addr_t *_scratch_addrs,
+            size_t _scratch_size,
+            gex_Flags_t _flags
+            GASNETI_THREAD_FARG);
+#define gex_TM_Create(nt,nnt,p,a,n,sa,ss,f) gasneti_TM_Create(nt,nnt,p,a,n,sa,ss,f GASNETI_THREAD_GET)
+
 // extern gex_Rank_t gex_TM_TranslateRankToJobrank(gex_TM_t tm, gex_Rank_t rank);
 #define gex_TM_TranslateRankToJobrank(tm,rank) \
         gasneti_e_tm_rank_to_jobrank(tm,rank)

@@ -7,7 +7,7 @@
 #define SCRATCH_SIZE (2*1024*1024)
 
 #ifndef TEST_SEGSZ
-#define TEST_SEGSZ (PAGESZ + 5*SCRATCH_SIZE) // 5 teams's scratch + page for comms
+#define TEST_SEGSZ (PAGESZ + 6*SCRATCH_SIZE) // 6 teams's scratch + page for comms
 #endif
 
 #include <math.h> /* for sqrt() */
@@ -23,6 +23,8 @@ static gex_EP_t      myep;
 static gex_TM_t      myteam, rowtm, coltm;
 static gex_Segment_t mysegment;
 static gex_Rank_t    myrank;
+
+static uintptr_t scratch_addr, scratch_end;
 
 // handler indices
 #define hidx_pong_shorthandler       200
@@ -60,21 +62,7 @@ gex_AM_Entry_t htable[] = {
  };
 #define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gex_AM_Entry_t))
 
-// Singleton team (also tests a 2nd-level split, of coltm):
-static gex_TM_t onetm;
-static void *one_scratch;
-static size_t one_scratch_sz;
-static void do_singleton(void) {
-  onetm = coltm; // init just to check whether overwritten
-  gex_TM_Split(&onetm, coltm, myrank, 0, one_scratch, one_scratch_sz, 0);
-  assert_always(onetm != coltm);
-  assert_always(gex_TM_QueryRank(onetm) == 0);
-  assert_always(gex_TM_QuerySize(onetm) == 1);
-  assert_always(gex_TM_TranslateRankToJobrank(onetm, 0) == myrank);
-  assert_always(gex_TM_TranslateJobrankToRank(onetm, myrank) == 0);
-}
-
-// Odds only team (exercise new_tmp_p = NULL case):
+// Odds-in-row team (exercise new_tmp_p = NULL case):
 static gex_TM_t oddtm;
 static void *odd_scratch;
 static size_t odd_scratch_sz;
@@ -101,9 +89,33 @@ static void do_odds(void) {
   }
 }
 
+// Evens only team (exercise Create)
+static gex_TM_t eventm;
+static void *even_scratch;
+static size_t even_scratch_sz;
+static void do_evens(void) {
+  eventm = coltm; // init just to check whether overwritten
+  int even = !(myrank & 1);
+  gex_Rank_t nmembers = even ? (gex_TM_QuerySize(myteam) + 1)/2 : 0;
+  gex_EP_Location_t *members = test_calloc(sizeof(gex_EP_Location_t), nmembers);
+  for (gex_Rank_t i = 0; i < nmembers; ++ i) members[i].gex_rank = i * 2;
+  gex_TM_Create(&eventm, 1, myteam, members, nmembers, &even_scratch, even_scratch_sz, GEX_FLAG_TM_LOCAL_SCRATCH);
+  if (even) {
+    assert_always(eventm != coltm);
+    assert_always(gex_TM_QuerySize(eventm) == nmembers);
+    for (gex_Rank_t rank = 0; rank < nmembers; ++rank) {
+      gex_Rank_t jobrank = gex_TM_TranslateRankToJobrank(eventm, rank);
+      assert_always(jobrank == 2*rank);
+    }
+  } else {
+    assert_always(eventm == coltm); // Should be unchanged
+  }
+  test_free(members);
+}
+
 static void *threadmain(void *id) {
   if (id) {
-    do_singleton();
+    do_evens();
   } else {
     do_odds();
   }
@@ -147,8 +159,8 @@ int main(int argc, char **argv)
   BARRIER();
 
   // Will reserve all but first page of segment for scratch space
-  uintptr_t scratch_addr = PAGESZ + (uintptr_t)TEST_MYSEG();
-  uintptr_t scratch_end = TEST_SEGSZ + (uintptr_t)TEST_MYSEG();
+  scratch_addr = PAGESZ + (uintptr_t)TEST_MYSEG();
+  scratch_end = TEST_SEGSZ + (uintptr_t)TEST_MYSEG();
   size_t scratch_sz;
 
   // Spec says NULL new_tm_p returns zero.
@@ -193,24 +205,31 @@ int main(int argc, char **argv)
     assert_always(ep_loc.gex_ep_index == 0);
   }
 
-  // Allocate scratch for Singleton and Odds teams
-  one_scratch = (void*)scratch_addr;
-  one_scratch_sz = gex_TM_Split(&onetm, coltm, myrank, 0, 0, 0, SCRATCH_QUERY_FLAG);
-  assert_always((scratch_addr + one_scratch_sz) <= scratch_end);
-  scratch_addr += one_scratch_sz;
+  // Singleton team (also tests a 2nd-level split, of coltm):
+  gex_TM_t onetm = coltm; // init just to check whether overwritten
+  scratch_sz = gex_TM_Split(&onetm, coltm, myrank, 0, 0, 0, SCRATCH_QUERY_FLAG);
+  assert_always((scratch_addr + scratch_sz) <= scratch_end);
+  gex_TM_Split(&onetm, coltm, myrank, 0, (void*)scratch_addr, scratch_sz, 0);
+  scratch_addr += scratch_sz;
+  assert_always(onetm != coltm);
+  assert_always(gex_TM_QueryRank(onetm) == 0);
+  assert_always(gex_TM_QuerySize(onetm) == 1);
+  assert_always(gex_TM_TranslateRankToJobrank(onetm, 0) == myrank);
+  assert_always(gex_TM_TranslateJobrankToRank(onetm, myrank) == 0);
+
+  // Odds team tests
   odd_scratch = (void*)scratch_addr;
   odd_scratch_sz = gex_TM_Split((myrank & 1) ? &oddtm : NULL, rowtm, 0, 0, 0, 0, SCRATCH_QUERY_FLAG);
   assert_always((scratch_addr + odd_scratch_sz) <= scratch_end);
   scratch_addr += odd_scratch_sz;
-
-#if GASNET_PAR
-  // Singleton and Odds team tests concurrently
-  test_createandjoin_pthreads(2, threadmain, NULL, 0);
-#else
-  // Singleton and Odds team tests sequentially
-  do_singleton();
   do_odds();
-#endif
+
+  // Evens team test
+  even_scratch = (void*)scratch_addr;
+  even_scratch_sz = gex_TM_Create(NULL, 1, myteam, NULL, myrank & 1 ? 0 : (nranks+1)/2, NULL, 0, SCRATCH_QUERY_FLAG);
+  assert_always((scratch_addr + even_scratch_sz) <= scratch_end);
+  scratch_addr += even_scratch_sz;
+  do_evens();
 
   // "Rev" team reversing order of TM0
   gex_TM_t revtm = myteam; // init just to check whether overwritten
@@ -223,7 +242,7 @@ int main(int argc, char **argv)
   assert_always(revtm != myteam);
   assert_always(gex_TM_QuerySize(revtm) == nranks);
   assert_always(gex_TM_QueryRank(revtm) == (nranks - (myrank + 1)));
-
+ 
   //
   // Some basic validation by communicating w/i the new teams
   //
@@ -291,6 +310,11 @@ int main(int argc, char **argv)
                       (gex_AM_Arg_t)myrank, (gex_AM_Arg_t)myrank);
   GASNET_BLOCKUNTIL(gasnett_atomic_read(&am_cntr,0) == 3);
   BARRIER();
+
+  // Barrier over evens
+  if (! (myrank & 1)) {
+    gex_Event_Wait(gex_Coll_BarrierNB(eventm, 0));
+  }
 
   MSG("done.");
 

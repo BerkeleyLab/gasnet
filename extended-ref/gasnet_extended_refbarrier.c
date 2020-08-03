@@ -2155,11 +2155,13 @@ void gasnete_barrier_init(void) {
     unsigned int count = 0;
     for (i=1; i<gasneti_nodes; i*=2) ++count;
     team->peers.num = count;
-    team->peers.fwd = gasneti_malloc(sizeof(gex_Rank_t) * count);
+    team->peers.fwd = gasneti_malloc(sizeof(gex_Rank_t) * count * 2);
     gasneti_leak(team->peers.fwd);
+    team->peers.bwd = team->peers.fwd + count;
     for (i=0; i<count; i++) {
       unsigned int dist = 1 << i;
       team->peers.fwd[i] = (gasneti_mynode + dist) % gasneti_nodes;
+      team->peers.bwd[i] = (gasneti_mynode + gasneti_nodes - dist) % gasneti_nodes;
     }
   }
 

@@ -26,6 +26,11 @@ GASNet-EX ChangeLog
     suppression file now lives in other/valgrind/gasnet.supp.
   - GASNet trace/stats now categorize AMPoll calls in tracemask category 'X'
   - BLCR integration, deprecated since 1.32.0 (July 2018), has been removed.
+  - Improved memory and communication requirements in gex_TM_Split().
+  - Improved memory scaling in management of collectives scratch spaces.
+  - Initial implementation of gex_TM_Create() sufficient for implementation
+    of (at least) efficient Split-like operations with computable membership,
+    using less communication than gex_TM_Split.
 
 * Cray XC uGNI (aries-conduit)
   - The parameter GASNET_NETWORKDEPTH is now honored for both the Eager and
@@ -49,6 +54,12 @@ GASNet-EX ChangeLog
     in a host list (such as GASNET_SSH_SERVERS).  Setting the environment
     variable GASNET_SSH_KEEPDUP=1 restores the previous behavior.
     See other/ssh-spawner/README for details.
+
+* GASNet-EX Spec v0.9:
+  - Restrict scratch sizes (query outputs and split inputs) for gex_TM_Split()
+    to be single-valued over members of each output team.
+  - Add gex_TM_Create() and an associated family of flags
+    GEX_FLAG_TM_{GLOBAL,LOCAL,SYMMETRIC}_SCRATCH.
 
 * GASNet tools (spec v1.16)
   - Add gasnett_fatalerror_nopos
