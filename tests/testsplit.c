@@ -15,7 +15,6 @@
 
 #ifndef SCRATCH_QUERY_FLAG
 #define SCRATCH_QUERY_FLAG GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED
-//#define SCRATCH_QUERY_FLAG GEX_FLAG_TM_SCRATCH_SIZE_MIN
 #endif
 
 static gex_Client_t  myclient;
@@ -164,8 +163,6 @@ int main(int argc, char **argv)
   size_t scratch_sz;
 
   // Spec says NULL new_tm_p returns zero.
-  scratch_sz = gex_TM_Split(NULL, myteam, 0, 1, 0, 0, GEX_FLAG_TM_SCRATCH_SIZE_MIN);
-  assert_always(scratch_sz == 0);
   scratch_sz = gex_TM_Split(NULL, myteam, 0, 1, 0, 0, GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED);
   assert_always(scratch_sz == 0);
 
