@@ -778,6 +778,7 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //            is granted to the implementation for internal use.
 //            The value of 'scratch_size' must be single-valued over the members
 //            of each new team to be created (non-NULL 'new_tm_p' and same 'color').
+//            The value of 'scratch_size' must non-zero.
 // flags:
 //   Single valued:
 //       GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED

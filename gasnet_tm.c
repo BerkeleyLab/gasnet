@@ -96,6 +96,9 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
     gasneti_assert_ptr(addr     ,>=, ep->_segment->_addr);
     gasneti_assert_ptr((uint8_t*)addr+len ,<=, ep->_segment->_ub);
 #endif
+    if (!len) {
+      gasneti_fatalerror("Invalid call to gex_TM_Split with scratch_size = 0");
+    }
   }
 
   gasnete_coll_team_t team =
@@ -167,6 +170,9 @@ size_t gasneti_TM_Create(
   }
 
   if (num_new_tms && nmembers) {
+    if (!scratch_size) {
+      gasneti_fatalerror("Invalid call to gex_TM_Create with scratch_size = 0");
+    }
     GASNETI_TRACE_PRINTF(D,("TM_Create: members[ %s ]", gasneti_format_eploc(members, nmembers)));
   }
 
