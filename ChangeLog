@@ -61,6 +61,9 @@ GASNet-EX ChangeLog
   - Add gex_TM_Create() and an associated family of flags
     GEX_FLAG_TM_{GLOBAL,LOCAL,SYMMETRIC}_SCRATCH.
 
+* GASNet-EX Spec v0.10:
+  - Add gex_TM_Destroy() and associated GEX_FLAG_GLOBALLY_QUIESCED flag.
+
 * GASNet tools (spec v1.16)
   - Add gasnett_fatalerror_nopos
   - In some cases, code including gasnet_tools.h (but not gasnetex.h or
