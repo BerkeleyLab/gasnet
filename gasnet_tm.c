@@ -48,9 +48,11 @@ gex_Rank_t gasneti_tm_rev_rank(gasneti_TM_t tm, gex_Rank_t jobrank) {
 }
 
 static size_t
-get_scratch_size(gasneti_TM_t i_parent, gex_Rank_t new_tm_size, gex_Flags_t flags)
+get_scratch_size(gex_Rank_t new_tm_size, gex_Flags_t flags)
 {
-  if (!new_tm_size) return 0;
+  // Specially defined cases
+  if (0 == new_tm_size) return 0;
+  if (1 == new_tm_size) return GASNETE_COLL_SCRATCH_SIZE_MIN;
 
   static size_t recommended;
   static int is_init = 0;
@@ -84,7 +86,8 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
                           GASNETI_TMSELFSTR(e_parent), color, key, flags));
 
   if (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED) {
-    size_t result =  new_tm_p ? get_scratch_size(i_parent, i_parent->_size, flags) : 0;
+    // Don't know true size w/o comms, but singleton parent can only produce singleton children
+    size_t result =  new_tm_p ? get_scratch_size(i_parent->_size, flags) : 0;
     GASNETI_TRACE_PRINTF(W,("TM_Split: scratch size query result=%"PRIuSZ, result));
     return result;
   }
@@ -166,7 +169,7 @@ size_t gasneti_TM_Create(
   gasneti_assert(!nmembers || num_new_tms == 1);
 
   if (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED) {
-    size_t result = nmembers ? get_scratch_size(i_parent, nmembers, flags) : 0;
+    size_t result = nmembers ? get_scratch_size(nmembers, flags) : 0;
     GASNETI_TRACE_PRINTF(W,("TM_Create: scratch size query result=%"PRIuSZ, result));
     return result;
   }
