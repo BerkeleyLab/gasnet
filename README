@@ -768,13 +768,6 @@ application-specific support.
  This parameter must be single-valued (same value on all processes).
  Defaults to 2MB per rank.
 
-* GASNET_COLL_MIN_SCRATCH_SIZE - Specifies the minimum size of the scratch
- space allocated on each rank for internal use in collective communications.
- This is the minimum size permitted for the initial team (or job startup will
- fail), and is the value returned from a query using GEX_FLAG_TM_SCRATCH_SIZE_MIN.
- This parameter must be single-valued (same value on all processes).
- Defaults to 1KB per rank.
-
 * GASNET_COLL_ENABLE_SEARCH - enable autotuning of collectives
 * GASNET_COLL_TUNING_FILE - file to read and/or write collective autotuning data
  For usage information, see the file autotuner.txt in the docs directory.

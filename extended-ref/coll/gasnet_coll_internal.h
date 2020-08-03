@@ -168,7 +168,6 @@ extern void gasnete_coll_active_fini(void);
 
 
 /*---------------------------------------------------------------------------------*/
-#define GASNETE_COLL_MIN_SCRATCH_SIZE_DEFAULT 1024
 #define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
 
 #ifndef GASNETE_COLL_SCRATCH_SIZE

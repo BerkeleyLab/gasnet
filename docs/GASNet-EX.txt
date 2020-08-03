@@ -738,7 +738,7 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 // must be collective over callers passing the same 'color'.
 //
 // + When passing any of the GEX_FLAG_TM_SCRATCH_SIZE_* family of flags, this
-//   call is a collective query to determine the minimum or recommended value
+//   call is a collective query to determine the recommended value
 //   for the 'scratch_size' argument, based on the other parameters (excluding
 //   scratch_addr and scratch_len).  No teams are created and nothing is
 //   written into `new_tm_p`.  Otherwise, this call creates zero or more teams
@@ -780,17 +780,16 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //            of each new team to be created (non-NULL 'new_tm_p' and same 'color').
 // flags:
 //   Single valued:
-//       GEX_FLAG_TM_SCRATCH_SIZE_*
-//         These mutually exclusive flags convert this call into a collective query.
-//         No team is created in the presence of any flag in this family.
-//         - GEX_FLAG_TM_SCRATCH_SIZE_{MIN,RECOMMENDED} queries and returns the           
-//           {minimum permissible, recommended optimal} value to be passed in 
+//       GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED
+//         This flag converts this call into a collective query:
+//           This query returns the recommended optimal value to be passed in 
 //           'scratch_size' for a subsequent call to gex_TM_Split() with the same 
 //           value for the other arguments.  In particular, a NULL value of the
 //           'new_tm_p' indicates the caller will not be a member of any team
 //           created by the subsequent split (and thus the return will be zero).
 //           Return values are guaranteed to be single-valued over the members
 //           of each new team to be created (non-NULL 'new_tm_p' and same 'color').
+//         No team is created in the presence of this flag.
 //   Non-single valued:
 //        None currently defined 
 //
@@ -3142,8 +3141,7 @@ size_t gex_TM_Create(
       //   GEX_FLAG_TM_LOCAL_SCRATCH     | mutually-exclusive group
       //   GEX_FLAG_TM_GLOBAL_SCRATCH    |
       //   GEX_FLAG_TM_NO_SCRATCH        /
-      //   GEX_FLAG_TM_SCRATCH_SIZE_MIN         \
-      //   GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED / mutually-exclusive pair
+      //   GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED
 
 int gasneti_TM_Destroy(
             gex_TM_t      tm,

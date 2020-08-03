@@ -52,14 +52,12 @@ get_scratch_size(gasneti_TM_t i_parent, gex_Rank_t new_tm_size, gex_Flags_t flag
 {
   if (!new_tm_size) return 0;
 
-  static size_t minimum, recommended;
+  static size_t recommended;
   static int is_init = 0;
   if_pf (!is_init) {
      static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
      gasneti_mutex_lock(&lock);
      if (!is_init) {
-       minimum = gasneti_getenv_int_withdefault("GASNET_COLL_MIN_SCRATCH_SIZE",
-                                                GASNETE_COLL_MIN_SCRATCH_SIZE_DEFAULT,1);
        recommended = gasneti_getenv_int_withdefault("GASNET_COLL_SCRATCH_SIZE",
                                                     GASNETE_COLL_SCRATCH_SIZE_DEFAULT,1);
        gasneti_sync_writes();
@@ -70,18 +68,7 @@ get_scratch_size(gasneti_TM_t i_parent, gex_Rank_t new_tm_size, gex_Flags_t flag
      gasneti_sync_reads();
   }
 
-  // The current true minimum is one byte for every member in the new team.
-  // TODO-EX: is this really the value we want to advertise?
-  if (flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) {
-    return MAX(minimum, GASNETI_ALIGNUP(new_tm_size, GASNETI_CACHE_LINE_BYTES));
-  }
-
-  if (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED) {
-    return MAX(minimum, recommended);
-  }
-
-  gasneti_fatalerror("Invalid team scratch size query");
-  return 0;
+  return recommended;
 }
 
 size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int key,
@@ -94,18 +81,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" color=%d key=%d flags=%d",
                           GASNETI_TMSELFSTR(e_parent), color, key, flags));
 
-#if GASNET_DEBUG
-  if ((flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) &&
-      (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
-    gasneti_fatalerror("Call to gex_TM_Split() with mutually-exclusive "
-                       "GEX_FLAG_TM_SCRATCH_SIZE_MIN and "
-                       "GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED both set in flags argument");
-  }
-#endif
-  if (flags & (GEX_FLAG_TM_SCRATCH_SIZE_MIN | GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
-    // The MINIMUM scratch requirement scales as size of new team, not the parent.
-    // However, performing a collective to size the teams seems unnecessary.
-    // So, we are passing the size of the parent.
+  if (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED) {
     size_t result =  new_tm_p ? get_scratch_size(i_parent, i_parent->_size, flags) : 0;
     GASNETI_TRACE_PRINTF(W,("TM_Split: scratch size query result=%"PRIuSZ, result));
     return result;
@@ -120,8 +96,6 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
     gasneti_assert_ptr(addr     ,>=, ep->_segment->_addr);
     gasneti_assert_ptr((uint8_t*)addr+len ,<=, ep->_segment->_ub);
 #endif
-    gasneti_assert_uint(len ,>=, get_scratch_size(i_parent, i_parent->_size,
-                                                  flags | GEX_FLAG_TM_SCRATCH_SIZE_MIN));
   }
 
   gasnete_coll_team_t team =
@@ -186,15 +160,7 @@ size_t gasneti_TM_Create(
   // For now 0 or 1 are the only valid numbers of outputs.
   gasneti_assert(!nmembers || num_new_tms == 1);
 
-#if GASNET_DEBUG
-  if ((flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) &&
-      (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
-    gasneti_fatalerror("Call to gex_TM_Split() with mutually-exclusive "
-                       "GEX_FLAG_TM_SCRATCH_SIZE_MIN and "
-                       "GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED both set in flags argument");
-  }
-#endif
-  if (flags & (GEX_FLAG_TM_SCRATCH_SIZE_MIN | GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
+  if (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED) {
     size_t result = nmembers ? get_scratch_size(i_parent, nmembers, flags) : 0;
     GASNETI_TRACE_PRINTF(W,("TM_Create: scratch size query result=%"PRIuSZ, result));
     return result;
