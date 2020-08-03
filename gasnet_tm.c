@@ -60,6 +60,8 @@ get_scratch_size(gasneti_TM_t i_parent, gex_Rank_t new_tm_size, gex_Flags_t flag
      if (!is_init) {
        recommended = gasneti_getenv_int_withdefault("GASNET_COLL_SCRATCH_SIZE",
                                                     GASNETE_COLL_SCRATCH_SIZE_DEFAULT,1);
+       // Silently raise to implementation-defined minimum
+       recommended = MAX(recommended, GASNETE_COLL_SCRATCH_SIZE_MIN);
        gasneti_sync_writes();
        is_init = 1;
      }

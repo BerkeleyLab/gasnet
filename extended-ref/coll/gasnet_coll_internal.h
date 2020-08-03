@@ -175,6 +175,11 @@ extern void gasnete_coll_active_fini(void);
 #define GASNETE_COLL_SCRATCH_SIZE_DEFAULT (2*(1024*1024))
 #endif
 
+#ifndef GASNETE_COLL_SCRATCH_SIZE_MIN
+// Default minimum recommendation
+#define GASNETE_COLL_SCRATCH_SIZE_MIN MIN(GASNETI_CACHE_LINE_BYTES, 64)
+#endif
+
 #if 0
 #define GASNETE_COLL_MIN_LOC_SCRATCH_SIZE 256
 #define GASNETE_COLL_MAX_LOC_SCRATCH_SIZE 0xffffffff

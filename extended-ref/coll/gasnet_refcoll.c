@@ -511,9 +511,11 @@ size_t gasnete_coll_auxseg_offset = 0;
 gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
   gasneti_auxseg_request_t retval;
   
-  retval.minsz = 
-  retval.optimalsz = gasneti_getenv_int_withdefault("GASNET_COLL_SCRATCH_SIZE",
+  uintptr_t envval = gasneti_getenv_int_withdefault("GASNET_COLL_SCRATCH_SIZE",
                                                     GASNETE_COLL_SCRATCH_SIZE_DEFAULT,1);
+  // Silently raise to implementation-defined minimum
+  retval.minsz = retval.optimalsz = MAX(envval, GASNETE_COLL_SCRATCH_SIZE_MIN);
+
   if (auxseg_info == NULL){
     return retval; /* initial query */
   }	

@@ -766,6 +766,8 @@ application-specific support.
  a query using GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED.
  If the size is set too low, then the performance of collectives may suffer.
  This parameter must be single-valued (same value on all processes).
+ A value of zero is permitted, but any value below some implementation-specific
+ minimum value will be silently increased to that minimum.
  Defaults to 2MB per rank.
 
 * GASNET_COLL_ENABLE_SEARCH - enable autotuning of collectives
