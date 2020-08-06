@@ -20,6 +20,9 @@
 /* stats needed by the COLL reference implementation */
 #ifndef GASNETI_COLL_STATS
   #define GASNETI_COLL_STATS(CNT,VAL,TIME)    \
+        CNT(W, TEAM_NEW_SPLIT, cnt)           \
+        CNT(W, TEAM_NEW_CREATE, cnt)          \
+        CNT(W, TEAM_DESTROY, cnt)             \
         VAL(W, COLL_BROADCAST, sz)            \
         VAL(W, COLL_BROADCAST_NB, sz)         \
         VAL(W, COLL_SCATTER, sz)              \
