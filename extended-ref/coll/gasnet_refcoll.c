@@ -529,6 +529,25 @@ gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info
   return retval;
 }
   
+// Diagnostic for non-trivial use of collectives in a NO_SCRATCH team
+static int no_scratch_warn_threshold = 0;
+extern void gasnete_count_no_scratch(gasnet_team_handle_t team)
+{
+  if (! no_scratch_warn_threshold) return; // disabled
+  int count = (team->no_scratch_count += 1);
+  if (count == no_scratch_warn_threshold) {
+    gasneti_console_message("WARNING",
+        "TM%x has reached the threshold of %d non-trivial collectives on teams "
+        "created with GEX_FLAG_TM_NO_SCRATCH.  This flag is intended for use with "
+        "teams which do not perform any significant collectives, and its use in this"
+        "instance is most likely degrading performance.  One should consider "
+        "allocating scratch space for this team.  Alternatively, one may set the "
+        "environment variable GASNET_NO_SCRATCH_WARN_THRESHOLD to a higher threshold,"
+        "or to zero to disable this warning entirely.",
+        team->team_id, count);
+  }
+}
+
 // Initialize legacy coll_team subsystem for use by gex_TM/gex_Coll
 // TODO-EX: remove any portions displaced by gex-ification
 extern void gasnete_coll_init_subsystem(void)
@@ -560,6 +579,9 @@ extern void gasnete_coll_init_subsystem(void)
     gasnetc_tm_reduce_tree_type = gasnete_coll_make_tree_type_str(reduce_tree_type);
 
     gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Force allocation
+
+
+    no_scratch_warn_threshold = gasneti_getenv_int_withdefault("GASNET_NO_SCRATCH_WARN_THRESHOLD", 8, 0);
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -2381,6 +2403,9 @@ gasnete_tm_reduce_nb_default(
       gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz == %"PRIuSZ") is TOO LARGE for this implementation",
                          dt_sz);
     }
+    if ( !(flags & GASNETI_FLAG_COLL_SUBORDINATE)) {
+      GASNETE_COLL_CHECK_NO_SCRATCH(team);
+    }
   }
   
   // TODO-EX: stop abusing implementation_t argument to pass the geom
@@ -2508,6 +2533,8 @@ gasnete_tm_reduce_all_nb_default(
          gasnete_tm_reduce_all_Bcast(e_tm, dst, src, dt, dt_sz, dt_cnt,
                                      opcode, user_fnptr, user_cdata,
                                      0, NULL, 0 GASNETI_THREAD_PASS);
+
+  GASNETE_COLL_CHECK_NO_SCRATCH((gasnet_team_handle_t)i_tm->_coll_team); // All reduce-to-all calls "count"
 
   gasneti_AMPoll(); // No progress made until now
   return result;

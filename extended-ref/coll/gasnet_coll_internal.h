@@ -308,6 +308,9 @@ struct gasnete_coll_team_t_ {
   
   uint32_t sequence;	/* arbitrary non-zero starting value */
 
+  // Count of collectives on NO_SCRATCH teams
+  int no_scratch_count;
+
 #if GASNET_PAR && GASNET_DEBUG
   gasneti_mutex_t threads_mutex;
 #endif
@@ -774,6 +777,16 @@ GASNETE_COLL_VALIDATE(T,GEX_RANK_INVALID,D,(N)*gasneti_nodes,GEX_RANK_INVALID,S,
 /* XXX: following arg validation unimplemented */
 #define GASNETE_COLL_VALIDATE_REDUCE(T,DI,D,S,SB,SO,ES,EC,FN,FA,F)
 
+// Diagnostic for non-trivial use of collectives in a NO_SCRATCH team
+GASNETI_COLD extern void gasnete_count_no_scratch(gasnet_team_handle_t team);
+#define GASNETE_COLL_CHECK_NO_SCRATCH(team) \
+  do {                                   \
+    if_pf (!(team)->scratch_size &&      \
+           !(team)->myrank &&            \
+           ((team)->total_ranks > 1)) {  \
+      gasnete_count_no_scratch(team);    \
+    }                                    \
+  } while(0)
 
 /*---------------------------------------------------------------------------------*/
 /* Forward decls and macros */

@@ -1808,6 +1808,10 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     gasnete_coll_implementation_print(ret, stderr);
   }
 
+  if ((nbytes > eager_limit) && !(flags & GASNETE_COLL_SUBORDINATE)) {
+    GASNETE_COLL_CHECK_NO_SCRATCH(team);
+  }
+
   return ret;
 }
 
@@ -1881,6 +1885,10 @@ gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
     fprintf(stderr, "The algorithm for scatter is selected by the default logic.\n");
     gasnete_coll_implementation_print(ret, stderr);
+  }
+
+  if ((nbytes > eager_limit) && !(flags & GASNETE_COLL_SUBORDINATE)) {
+    GASNETE_COLL_CHECK_NO_SCRATCH(team);
   }
 
   return ret;
@@ -1962,6 +1970,10 @@ gasnete_coll_autotune_get_gather_algorithm(gasnet_team_handle_t team,gasnet_imag
     gasnete_coll_implementation_print(ret, stderr);
   }
 
+  if ((nbytes > eager_limit) && !(flags & GASNETE_COLL_SUBORDINATE)) {
+    GASNETE_COLL_CHECK_NO_SCRATCH(team);
+  }
+
   return ret;
   
   
@@ -2004,6 +2016,8 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
     fprintf(stderr, "The algorithm for gather_all is selected by the default logic.\n");
     gasnete_coll_implementation_print(ret, stderr);
   }
+
+  GASNETE_COLL_CHECK_NO_SCRATCH(team); // All Gather_all calls "count"
 
   return ret;
 }
@@ -2049,6 +2063,8 @@ gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *ds
     fprintf(stderr, "The algorithm for exchange is selected by the default logic.\n");
     gasnete_coll_implementation_print(ret, stderr);
   }
+
+  GASNETE_COLL_CHECK_NO_SCRATCH(team); // All Exchange calls "count"
 
   return ret;
   
