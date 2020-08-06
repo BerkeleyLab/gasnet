@@ -560,6 +560,7 @@ void gasneti_free_ep(gasneti_EP_t endpoint)
 #ifndef _GEX_TM_T
 #ifndef gasneti_import_tm
 gasneti_TM_t gasneti_import_tm(gex_TM_t _tm) {
+  gasneti_assert(_tm != GEX_TM_INVALID);
   const gasneti_TM_t _real_tm = GASNETI_IMPORT_POINTER(gasneti_TM_t,_tm);
   GASNETI_IMPORT_MAGIC(_real_tm, TM);
   return _real_tm;
@@ -632,7 +633,7 @@ void gasneti_free_tm(gasneti_TM_t tm)
   GASNETI_TM_FREE_EXTRA(tm);
 #endif
   GASNETI_INIT_MAGIC(tm, GASNETI_TM_BAD_MAGIC);
-  gasneti_free_aligned((void*)((uintptr_t)tm & (GASNETI_TM0_ALIGN-1)));
+  gasneti_free_aligned((void*)((uintptr_t)tm - (GASNETI_TM0_ALIGN/2)));
 }
 #endif // _GEX_TM_T
 

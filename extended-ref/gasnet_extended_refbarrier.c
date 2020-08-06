@@ -1065,6 +1065,14 @@ void gasnete_amdbarrier_kick_team_all(void) {
   gasnete_amdbarrier_kick(GASNET_TEAM_ALL);
 }
 
+static void gasnete_amdbarrier_fini(gasnete_coll_team_t team) {
+  gasnete_coll_amdbarrier_t *data = team->barrier_data;;
+#if GASNETI_PSHM_BARRIER_HIER
+  if (data->amdbarrier_pshm) gasnete_pshmbarrier_fini_inner(data->amdbarrier_pshm);
+#endif
+  gasneti_free(data);
+}
+
 static void gasnete_amdbarrier_init(gasnete_coll_team_t team) {
   gasnete_coll_amdbarrier_t *barrier_data = gasneti_calloc(1,sizeof(gasnete_coll_amdbarrier_t));
   int steps;
@@ -1107,6 +1115,7 @@ static void gasnete_amdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_wait =   &gasnete_amdbarrier_wait;
   team->barrier_try =    &gasnete_amdbarrier_try;
   team->barrier_result = &gasnete_amdbarrier_result;
+  team->barrier_fini =   &gasnete_amdbarrier_fini;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_amdbarrier_kick_team_all : NULL;
 }
 
@@ -1573,6 +1582,18 @@ void gasnete_rmdbarrier_kick_team_all(void) {
   gasnete_rmdbarrier_kick(GASNET_TEAM_ALL);
 }
 
+static void gasnete_rmdbarrier_fini(gasnete_coll_team_t team) {
+  gasnete_coll_rmdbarrier_t *data = team->barrier_data;;
+#if GASNETI_PSHM_BARRIER_HIER
+  if (data->barrier_pshm) gasnete_pshmbarrier_fini_inner(data->barrier_pshm);
+#endif
+#if !GASNETI_THREADS
+  gasneti_free(data->barrier_events);
+#endif
+  gasneti_free(data->barrier_peers);
+  gasneti_free_aligned(data);
+}
+
 static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
   gasnete_coll_rmdbarrier_t *barrier_data;
   int steps;
@@ -1585,7 +1606,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
 #endif
 
   barrier_data = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, sizeof(gasnete_coll_rmdbarrier_t));
-  gasneti_leak_aligned(barrier_data);
+  gasneti_leak(barrier_data);
   memset(barrier_data, 0, sizeof(gasnete_coll_rmdbarrier_t));
   team->barrier_data = barrier_data;
 
@@ -1648,6 +1669,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_wait =   &gasnete_rmdbarrier_wait;
   team->barrier_try =    &gasnete_rmdbarrier_try;
   team->barrier_result = &gasnete_rmdbarrier_result;
+  team->barrier_fini =   &gasnete_rmdbarrier_fini;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_rmdbarrier_kick_team_all : NULL;
 }
 
@@ -1862,6 +1884,10 @@ void gasnete_amcbarrier_kick_team_all(void) {
   gasnete_amcbarrier_kick(GASNET_TEAM_ALL);
 }
 
+static void gasnete_amcbarrier_fini(gasnete_coll_team_t team) {
+  gasneti_free(team->barrier_data);
+}
+
 static void gasnete_amcbarrier_init(gasnete_coll_team_t team) {
   gasnete_coll_amcbarrier_t *barrier_data = gasneti_calloc(1,sizeof(gasnete_coll_amcbarrier_t));
   int total_ranks = team->total_ranks;
@@ -1889,6 +1915,7 @@ static void gasnete_amcbarrier_init(gasnete_coll_team_t team) {
   team->barrier_wait =   &gasnete_amcbarrier_wait;
   team->barrier_try =    &gasnete_amcbarrier_try;
   team->barrier_result = &gasnete_amcbarrier_result;
+  team->barrier_fini =   &gasnete_amcbarrier_fini;
   team->barrier_pf =     ((team == GASNET_TEAM_ALL) && (total_ranks > 1))
                              ? &gasnete_amcbarrier_kick_team_all : NULL;
 }

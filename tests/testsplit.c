@@ -311,10 +311,29 @@ int main(int argc, char **argv)
   GASNET_BLOCKUNTIL(gasnett_atomic_read(&am_cntr,0) == 3);
   BARRIER();
 
-  // Barrier over evens
-  if (! (myrank & 1)) {
-    gex_Event_Wait(gex_Coll_BarrierNB(eventm, 0));
+  // Barrier over evens or odds (to exercise them) and then destroy
+  {
+    gex_TM_t tm = (myrank & 1) ? oddtm : eventm;
+    gex_Event_Wait(gex_Coll_BarrierNB(tm, 0));
+    gex_Memvec_t scratch_out;
+    int rc = gex_TM_Destroy(tm, &scratch_out, GEX_FLAG_GLOBALLY_QUIESCED);
+    assert_always(rc);
+    assert_always(scratch_out.gex_addr == (void*)((myrank & 1) ? odd_scratch : even_scratch));
+    assert_always(scratch_out.gex_len == ((myrank & 1) ? odd_scratch_sz : even_scratch_sz));
   }
+
+  // REcreate and REdestroy repeatedly in an attempt to exhaust 12-bit space
+  for (int i=0; i<4096; ++i) {
+    do_evens();
+    do_odds();
+    assert_always(! gex_TM_Destroy((myrank & 1) ? oddtm : eventm, NULL, 0));
+  }
+
+  // More destruction
+  assert_always(! gex_TM_Destroy(onetm, NULL, 0));
+  assert_always(! gex_TM_Destroy(rowtm, NULL, 0));
+  assert_always(! gex_TM_Destroy(coltm, NULL, 0));
+  assert_always(! gex_TM_Destroy(revtm, NULL, 0));
 
   MSG("done.");
 

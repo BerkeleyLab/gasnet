@@ -62,7 +62,7 @@
 /*---------------------------------------------------------------------------------*/
 /* conduits may override this to relocate the ref-coll handlers */
 #ifndef GASNETE_COLL_HANDLER_BASE
-#define GASNETE_COLL_HANDLER_BASE 117
+#define GASNETE_COLL_HANDLER_BASE 118
 #endif
 
 #define _hidx_gasnete_coll_p2p_memcpy_reqh          (GASNETE_COLL_HANDLER_BASE+0)
@@ -73,9 +73,8 @@
 #define _hidx_gasnete_coll_p2p_advance_reqh         (GASNETE_COLL_HANDLER_BASE+5)
 #define _hidx_gasnete_coll_p2p_put_and_advance_reqh (GASNETE_COLL_HANDLER_BASE+6)
 #define _hidx_gasnete_coll_p2p_med_counting_reqh    (GASNETE_COLL_HANDLER_BASE+7)
-#define _hidx_gasnete_coll_p2p_seg_put_reqh         (GASNETE_COLL_HANDLER_BASE+8)
-#define _hidx_gasnete_coll_scratch_update_reqh      (GASNETE_COLL_HANDLER_BASE+9)
-#define _hidx_gasnete_subteam_op_reqh               (GASNETE_COLL_HANDLER_BASE+10)
+#define _hidx_gasnete_coll_scratch_update_reqh      (GASNETE_COLL_HANDLER_BASE+8)
+#define _hidx_gasnete_subteam_op_reqh               (GASNETE_COLL_HANDLER_BASE+9)
 
 /*---------------------------------------------------------------------------------*/
 /* Forward type decls and typedefs:                                                */
@@ -118,9 +117,6 @@ typedef struct gasnete_coll_scratch_status_t_ gasnete_coll_scratch_status_t;
 
 struct gasnete_coll_scratch_req_t_;
 typedef struct gasnete_coll_scratch_req_t_ gasnete_coll_scratch_req_t;
-
-struct gasnete_coll_seg_interval_t_;
-typedef struct gasnete_coll_seg_interval_t_ gasnete_coll_seg_interval_t;
 
 struct gasnete_coll_autotune_info_t_;
 typedef struct gasnete_coll_autotune_info_t_ gasnete_coll_autotune_info_t;
@@ -226,6 +222,7 @@ typedef int (*gasnete_all_barrier_wait)(gasnete_coll_team_t team, int id, int fl
 typedef int (*gasnete_all_barrier_try)(gasnete_coll_team_t team, int id, int flags);
 typedef int (*gasnete_all_barrier)(gasnete_coll_team_t team, int id, int flags);
 typedef int (*gasnete_all_barrier_result)(gasnete_coll_team_t team, int *id);
+typedef void (*gasnete_all_barrier_fini)(gasnete_coll_team_t team);
 
 typedef enum {
   GASNETE_COLL_BARRIER_ENVDEFAULT=0,
@@ -333,6 +330,7 @@ struct gasnete_coll_team_t_ {
   gasnete_all_barrier_wait barrier_wait;
   gasnete_all_barrier barrier;
   gasnete_all_barrier_result barrier_result;
+  gasnete_all_barrier_fini barrier_fini;
   gasneti_progressfn_t barrier_pf;
 
 #if GASNET_DEBUG
@@ -407,12 +405,6 @@ struct gasnete_coll_op_t_ {
 #endif
 };
 
-struct gasnete_coll_seg_interval_t_ {
-  uint32_t start;
-  uint32_t end;
-  gasnete_coll_seg_interval_t *next;
-};
-
 
 /* Type for point-to-point synchronization */
 
@@ -451,12 +443,6 @@ struct gasnete_coll_p2p_t_ {
   /* Handler-safe lock (if needed) */
   gex_HSL_t		lock;
   
-  /* manage intervals for segmented algorithms*/
-  size_t seg_size;
-  uint32_t num_segs_processed;
-  gasnete_coll_seg_interval_t *seg_intervals;
-  gasnete_coll_seg_interval_t *seg_free_list;
-  
 #ifdef GASNETE_COLL_P2P_EXTRA_FIELDS
   GASNETE_COLL_P2P_EXTRA_FIELDS
 #endif
@@ -464,7 +450,7 @@ struct gasnete_coll_p2p_t_ {
 #endif
 
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
-extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
+extern void gasnete_coll_p2p_purge(gasnete_coll_team_t team);
 extern void gasnete_tm_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
                                         void *src, size_t nbytes, uint32_t idx GASNETI_THREAD_FARG);
 extern void gasnete_tm_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstrank,

@@ -37,7 +37,7 @@ gasnet_team_handle_t gasnete_coll_team_create(
                         GASNETI_THREAD_FARG);
 
 
-void gasnete_coll_team_free(gasnet_team_handle_t team);
+int gasnete_coll_team_free(gasnet_team_handle_t team, gex_Memvec_t *scratch_p);
 
 gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id);
 

@@ -26,7 +26,6 @@ MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_counting_reqh,5);
   MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_tree_reqh,2);
   SHORT_HANDLER_NOBITS_DECL(gasnete_coll_p2p_advance_reqh,3);
   LONG_HANDLER_NOBITS_DECL(gasnete_coll_p2p_put_and_advance_reqh,3);
-  LONG_HANDLER_NOBITS_DECL(gasnete_coll_p2p_seg_put_reqh,3);
   MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_tree_reqh,2);
 
   #define GASNETE_COLL_P2P_HANDLERS() \
@@ -37,8 +36,7 @@ MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_counting_reqh,5);
       gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_tree_reqh,2,REQUEST,MEDIUM,0), \
       gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_advance_reqh,3,REQUEST,SHORT,0), \
       gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_put_and_advance_reqh,3,REQUEST,LONG,0), \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_counting_reqh,5,REQUEST,MEDIUM,0), \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_seg_put_reqh,3,REQUEST,LONG,0),
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_counting_reqh,5,REQUEST,MEDIUM,0),
 
 #elif !defined(GASNETE_COLL_P2P_HANDLERS)
   #define GASNETE_COLL_P2P_HANDLERS()

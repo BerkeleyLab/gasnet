@@ -147,6 +147,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
 
   GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" result="GASNETI_TMSELFFMT,
                           GASNETI_TMSELFSTR(e_parent), GASNETI_TMSELFSTR(e_tm)));
+  GASNETI_STAT_EVENT(W, TEAM_NEW_SPLIT);
 
   return 1; // return is documented as undefined
 }
@@ -257,6 +258,7 @@ size_t gasneti_TM_Create(
   // TODO-EX: outut only correct for num_new_tms==1
   GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" rank=%d size=%d result="GASNETI_TMSELFFMT,
                           GASNETI_TMSELFSTR(e_parent), my_new_rank, (int)nmembers, GASNETI_TMSELFSTR(e_tm)));
+  GASNETI_STAT_EVENT(W, TEAM_NEW_CREATE);
 
   result = 1; // return is documented as undefined
 
@@ -264,6 +266,31 @@ done:
   return result;
 }
 
+int gasneti_TM_Destroy(
+            gex_TM_t      e_tm,
+            gex_Memvec_t  *scratch_p,
+            gex_Flags_t   flags
+            GASNETI_THREAD_FARG)
+{
+  gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
+  gasnete_coll_team_t team = i_tm->_coll_team;
+
+  GASNETI_TRACE_PRINTF(W,("TM_Destroy: team="GASNETI_TMSELFFMT" flags=%d",
+                          GASNETI_TMSELFSTR(e_tm), flags));
+  if (1) { // TODO: w/ multi-EP exactly one tm per proc should log this event
+    GASNETI_STAT_EVENT(W, TEAM_DESTROY);
+  }
+
+  if (gasneti_is_tm0(i_tm)) {
+    gasneti_fatalerror("Invalid gasneti_TM_Destroy() of the primordial team");
+  }
+
+  if (! (flags & GEX_FLAG_GLOBALLY_QUIESCED)) {
+    gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);
+  }
+  gasneti_free_tm(i_tm);
+  return gasnete_coll_team_free(team, scratch_p);
+}
 
 /* ------------------------------------------------------------------------------------ */
 /* TM trace formatting - legal even without STATS/TRACE */

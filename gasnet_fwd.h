@@ -190,6 +190,8 @@ typedef uint32_t gex_Flags_t;
 #define GEX_FLAG_TM_NO_SCRATCH                (1U <<  5)
 #define GEX_FLAG_SCRATCH_SEG_OFFSET           (1U <<  6)
 
+#define GEX_FLAG_GLOBALLY_QUIESCED      (1U << 13)
+
 #define GEX_FLAG_RANK_IS_JOBRANK        (1U << 13)
 
 //--------------------------------------------------------

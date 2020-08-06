@@ -300,6 +300,7 @@ struct gasnete_coll_autotune_info_t_ {
 
 gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team
                                                          GASNETI_THREAD_FARG);
+void gasnete_coll_autotune_free(gasnet_team_handle_t team);
 /*testing functions*/
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 

@@ -803,8 +803,6 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
       gasneti_weakatomic_set(&p2p->counter[i], 0, 0);
     }
     gasneti_sync_writes();
-    /*allocate an empty interval for the free list */
-    p2p->seg_intervals = NULL;
         
 #if GASNET_DEBUG
     p2p->team_id = team_id;
@@ -864,119 +862,22 @@ void gasnete_coll_p2p_free(gasnete_coll_team_t team, gasnete_coll_p2p_t *p2p) {
   gex_HSL_Unlock(&team->p2p_lock);
 }
 
-/*Management of the Intervals for Segments*/
-/* We use 32 bit ints to represent the segment ID*/
-/* If we need more than 2^32 segments (which should be rare)
-   The collective will need to get broken up into multiple collectives
-*/
-static gex_HSL_t gasnete_coll_p2p_seg_free_list_lock = GEX_HSL_INITIALIZER;
-static gasnete_coll_seg_interval_t *gasnet_coll_p2p_seg_interval_free_list = NULL;
+void gasnete_coll_p2p_purge(gasnete_coll_team_t team) {
+  gex_HSL_Lock(&team->p2p_lock);
 
+  gasnete_coll_p2p_t *p2p = team->p2p_freelist;
+  team->p2p_freelist = NULL;
 
-gasnete_coll_seg_interval_t *gasnet_coll_p2p_alloc_seg_interval(void) {
-  gasnete_coll_seg_interval_t *curr_interval;
-
-           
-  gex_HSL_Lock(&gasnete_coll_p2p_seg_free_list_lock);
-  if(gasnet_coll_p2p_seg_interval_free_list == NULL) {
-    /*if the free list is empty allocate a new one*/
-    curr_interval = gasneti_malloc(sizeof(gasnete_coll_seg_interval_t));
-  } else {
-    /* if there are extra on the free list grab it off the head of the free list*/
-    curr_interval = gasnet_coll_p2p_seg_interval_free_list;
-    gasnet_coll_p2p_seg_interval_free_list = gasnet_coll_p2p_seg_interval_free_list->next;
+  while (p2p) {
+    gasnete_coll_p2p_t *next = p2p->p2p_next;
+    gasneti_free(p2p);
+    p2p = next;
   }
-  gex_HSL_Unlock(&gasnete_coll_p2p_seg_free_list_lock);
-  return curr_interval;
+
+  gex_HSL_Unlock(&team->p2p_lock);
 }
+
     
-void gasnete_coll_p2p_free_seg_interval(gasnete_coll_seg_interval_t* interval) {
-  gex_HSL_Lock(&gasnete_coll_p2p_seg_free_list_lock);
-  interval->next = gasnet_coll_p2p_seg_interval_free_list;
-  gasnet_coll_p2p_seg_interval_free_list = interval;
-  gex_HSL_Unlock(&gasnete_coll_p2p_seg_free_list_lock);
-}
-
-extern void gasnete_coll_p2p_add_seg_interval(gasnete_coll_p2p_t *p2p, uint32_t seg_id) {
-      
-  gasnete_coll_seg_interval_t *curr_interval,*new_interval,*prev;
-  gasneti_assert(p2p !=NULL);
-  gex_HSL_Lock(&p2p->lock);
-  if(p2p->seg_intervals==NULL) {
-    /*head of the current interval list is empty*/
-    curr_interval = gasnet_coll_p2p_alloc_seg_interval();
-    curr_interval->start = seg_id;
-    curr_interval->end = seg_id;
-    curr_interval->next = NULL;
-    /*make this new interval the head of the interval list*/
-    p2p->seg_intervals = curr_interval;
-  } else {
-    curr_interval = p2p->seg_intervals;
-    prev = NULL;
-    /*march through the intervals looking where to insert this value*/
-    /*we are guaranteed to have at least onoe since we made the check above*/
-    while(curr_interval!=NULL) {
-      if(curr_interval->start - 1 == seg_id) {
-        curr_interval->start = seg_id;
-        break;
-      } else if(curr_interval->end + 1 == seg_id) {
-        /*attach it to the end of the current interval and */
-        curr_interval->end = seg_id;
-        break;
-      } else if(seg_id < curr_interval->start) {
-        /*add the new element in to the middle of the list*/
-        new_interval = gasnet_coll_p2p_alloc_seg_interval();
-        new_interval->start = seg_id;
-        new_interval->end = seg_id;
-        if(prev == NULL) {
-          /* add to the head*/
-          p2p->seg_intervals = new_interval;
-        } else {
-          /*add to the middle*/
-          prev->next = new_interval;
-        }
-        new_interval->next = curr_interval;
-        break;
-      } else if(seg_id > curr_interval->end && curr_interval->next == NULL){
-        new_interval = gasnet_coll_p2p_alloc_seg_interval();
-        new_interval->start = seg_id;
-        new_interval->end = seg_id;
-        new_interval->next = NULL;
-        curr_interval->next = new_interval;
-        break;
-      }  else {
-        prev = curr_interval;
-        curr_interval = curr_interval->next;
-      }
-    }
-  }
-  gex_HSL_Unlock(&p2p->lock);
-}
-/*return the next segment interval in the list*/
-/*results are undefined if the seg_intervals list null*/
-extern uint32_t gasnete_coll_p2p_next_seg_interval(gasnete_coll_p2p_t *p2p) {
-  gasnete_coll_seg_interval_t *curr_interval;
-  size_t ret;
-  gasneti_assert(p2p!=NULL);
-  gasneti_assert(p2p->seg_intervals !=NULL);
-  /*march through the intervals to find the next interval*/
-  gex_HSL_Lock(&p2p->lock);
-  if(p2p->seg_intervals->start != p2p->seg_intervals->end) {
-    /* the interval contains information for more than one segment*/
-    /*read a segment and return it*/
-    ret = p2p->seg_intervals->start;
-    p2p->seg_intervals->start +=1; 
-  } else {
-    /*the interval contains exactly one segment*/
-    /*read the value in it and return it*/
-    ret = p2p->seg_intervals->start;
-    curr_interval = p2p->seg_intervals;
-    p2p->seg_intervals = p2p->seg_intervals->next;
-    gasnete_coll_p2p_free_seg_interval(curr_interval);
-  }
-  gex_HSL_Unlock(&p2p->lock);
-  return ret;
-}
 /* Delivers a long payload and updates 1 or more states
    count: number of states to update
    offset: index of first state to update
@@ -1102,28 +1003,6 @@ extern void gasnete_coll_p2p_put_and_advance_reqh(gex_Token_t token, void *buf, 
   gasneti_weakatomic_increment(&p2p->counter[idx], 0);
 }
 
-extern void gasnete_coll_p2p_seg_put_reqh(gex_Token_t token, void *buf, size_t nbytes,
-                                          gex_AM_Arg_t team_id,
-                                          gex_AM_Arg_t sequence,
-                                          gex_AM_Arg_t seg_id) {
-  
-  
-  gasnete_coll_p2p_t *p2p;
-        
-  if (nbytes) {
-    gasneti_sync_writes();
-  }
-      
-  p2p = gasnete_coll_p2p_get(team_id, sequence);
-
-  /*add this new segment to the ops list of segments*/
-  /*This function takes care of any locking that is needed*/
-  gasnete_coll_p2p_add_seg_interval(p2p, seg_id);
-      
-  /*increment P2P counter*/
-  gasneti_weakatomic_increment(&p2p->counter[0], 0);
-      
-}
 /* Memcopy payload and then decrement atomic counter if requested */
 GASNETI_INLINE(gasnete_coll_p2p_memcpy_reqh_inner)
      void gasnete_coll_p2p_memcpy_reqh_inner(gex_Token_t token, void *buf, size_t nbytes,
@@ -1172,24 +1051,6 @@ void gasnete_tm_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstrank,
                          src, nbytes, dst, GEX_EVENT_NOW, 0, team_id, seq_num, idx);
 }
     
-/*
-  Signalling Segmented Put 
-  Takes a Segment ID as an argument and sends the message such that it will be put in the right location
-  and update the list of active intervals indicating which chunk of the message has arrived
-*/
-void gasnete_tm_p2p_sig_seg_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
-                                void *src, size_t nbytes, size_t seg_id GASNETI_THREAD_FARG)
- {
-  uint32_t seq_num = op->sequence;
-  const uint32_t team_id = op->team->team_id;
-
-  gasneti_assert(nbytes <= gex_AM_LUBRequestLong());
-      
-  gex_AM_RequestLong(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_seg_put_reqh),
-                         src, nbytes, dst, GEX_EVENT_NOW, 0, team_id, seq_num, seg_id);
-}
-
-
 /* Send data to be buffered by the recipient */
 int gasnete_tm_p2p_eager_putM(
                         gasnete_coll_op_t *op,
