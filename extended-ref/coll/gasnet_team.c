@@ -521,8 +521,10 @@ gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id)
   if (team_id == 0) {
     team = GASNET_TEAM_ALL;
   } else {
-    if (gasnete_hashtable_search(team_dir, team_id, (void **)&team))
-      team = NULL; /* cannot find team_id the hash table */
+    if (gasnete_hashtable_search(team_dir, team_id, (void **)&team)) {
+      // did not find team_id in the hash table
+      gasneti_fatalerror("Collective operation on invalid (destroyed?) TM%x", (unsigned int)team_id);
+    }
   }
   
   return team;
