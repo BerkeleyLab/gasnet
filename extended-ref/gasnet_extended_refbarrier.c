@@ -1606,7 +1606,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
 #endif
 
   barrier_data = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, sizeof(gasnete_coll_rmdbarrier_t));
-  gasneti_leak(barrier_data);
+  gasneti_leak_aligned(barrier_data);
   memset(barrier_data, 0, sizeof(gasnete_coll_rmdbarrier_t));
   team->barrier_data = barrier_data;
 
