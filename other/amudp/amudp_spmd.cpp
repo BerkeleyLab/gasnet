@@ -17,6 +17,7 @@
 #else
   #include <fcntl.h>
 #endif
+#include <sys/wait.h> // wait()
 
 extern char **environ; 
 
@@ -864,6 +865,15 @@ pollentry:
                   }
                   AMX_sched_yield();
                 }
+                if (!AMX_SilentMode) AMX_Info("Waiting for child processes...");
+                int result;
+                do {
+                  int status = 0;
+                  result = waitpid(-1, &status, 0);
+                  if (result == -1 && errno == ECHILD) break;
+                  if (!AMX_SilentMode) AMX_Info("result=%i status=%i errno=%s",result,status,strerror(errno));
+                } while(result != -1);
+
                 if (!socklibend()) AMX_Err("master failed to socklibend()");
                 if (!AMX_SilentMode) AMX_Info("Exiting after AMUDP_SPMDExit(%i)...", exitCode);
                 exit(exitCode);

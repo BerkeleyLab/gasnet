@@ -185,7 +185,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETI
       gex_Rank_t offset = gasnete_tm_binom_age(tm, rel_rank);
       payload = data->private_data;
       // TODO-EX: use lc_opt for async injection
-      if (gasnete_tm_p2p_eager_put(op, tm, parent, payload, nbytes,
+      if (gasnete_tm_p2p_eager_put(op, parent, payload, nbytes,
                                    GEX_EVENT_NOW, flags, offset, 1
                                    GASNETI_THREAD_PASS)) {
         break; // back pressure
@@ -209,7 +209,8 @@ GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager)
 #if GASNET_DEBUG // make sure this is a valid choice of algorithm
   gex_Rank_t rel_rank = gasnete_tm_binom_rel_root(tm, root);
   gex_Rank_t child_cnt = gasnete_tm_binom_children(tm, rel_rank);
-  gasneti_assert(gasnete_coll_p2p_eager_buffersz >= dt_sz * dt_cnt * child_cnt);
+  gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
+  gasneti_assert(team->p2p_eager_buffersz >= dt_sz * dt_cnt * child_cnt);
   gasneti_assert(gex_AM_LUBRequestMedium() >= dt_sz * dt_cnt );
 #endif
 
@@ -265,7 +266,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEagerSeg(gasnete_coll_op_t *op GASN
 
     pdata->width      = 1 + gasnete_coll_log2_rank(gasneti_import_tm(tm)->_size - 1);
 
-    pdata->chunk_cnt = MIN(gasnete_coll_p2p_eager_buffersz / pdata->width,
+    pdata->chunk_cnt = MIN(op->team->p2p_eager_buffersz / pdata->width,
                            gex_AM_LUBRequestMedium()) / args->dt_sz;
     pdata->chunk_len = pdata->chunk_cnt * args->dt_sz;
     pdata->curr_cnt  = pdata->chunk_cnt;
@@ -334,7 +335,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEagerSeg(gasnete_coll_op_t *op GASN
     case 4: {
       // Send partial result to parent (if any)
       if (pdata->rel_rank) { // NOT root
-        if (gasnete_tm_p2p_eager_put(op, tm, pdata->parent, pdata->payload, pdata->curr_len,
+        if (gasnete_tm_p2p_eager_put(op, pdata->parent, pdata->payload, pdata->curr_len,
                                      GEX_EVENT_NOW, flags, pdata->age, pdata->phase
                                      GASNETI_THREAD_PASS)) {
           break; // back pressure
@@ -351,7 +352,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEagerSeg(gasnete_coll_op_t *op GASN
         for (int idx = pdata->child_cnt - 1; idx >= 0; --idx) { // Reverse order for deepest subtree first
           gex_Rank_t distance = 1 << idx;
           gex_Rank_t peer = (distance >= size - self) ? self - (size - distance) : self + distance;
-          if (gasnete_tm_p2p_change_state(op, tm, peer, flags, pdata->width,
+          if (gasnete_tm_p2p_change_state(op, peer, flags, pdata->width,
                                           next_phase GASNETI_THREAD_PASS)) {
             state[idx] = 2;  // mark for retry
             comms_done = 0;
@@ -379,7 +380,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEagerSeg(gasnete_coll_op_t *op GASN
           gex_Rank_t distance = 1 << idx;
           gex_Rank_t peer = (distance >= size - self) ? self - (size - distance) : self + distance;
           if (state[idx] == 2) {
-            gasnete_tm_p2p_change_state(op, tm, peer, flags, pdata->width,
+            gasnete_tm_p2p_change_state(op, peer, flags, pdata->width,
                                         next_phase GASNETI_THREAD_PASS);
           }
         }
@@ -421,7 +422,8 @@ GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEagerSeg)
 #if GASNET_DEBUG // make sure this is a valid choice of algorithm
   gex_Rank_t rel_rank = gasnete_tm_binom_rel_root(tm, root);
   gex_Rank_t child_cnt = gasnete_tm_binom_children(tm, rel_rank);
-  gasneti_assert(gasnete_coll_p2p_eager_buffersz >= dt_sz * child_cnt);
+  gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
+  gasneti_assert(team->p2p_eager_buffersz >= dt_sz * child_cnt);
   gasneti_assert(gex_AM_LUBRequestMedium() >= dt_sz);
 #endif
 
@@ -475,7 +477,7 @@ static int gasnete_coll_pf_tm_reduce_TreePut(gasnete_coll_op_t *op GASNETI_THREA
 
       // Compute reduction (if any)
       if (child_cnt) {
-        void *myscratch = (void*)(op->myscratchpos + (uintptr_t)team->scratch_segs[myrank].addr);
+        void *myscratch = gasnete_coll_scratch_myaddr(op, 0);
         payload = local_reduce_helper(args, args->dt_cnt, nbytes, child_cnt, args->src, myscratch);
       } else {
         payload = (/*non-const*/ void*) args->src;
@@ -495,11 +497,11 @@ static int gasnete_coll_pf_tm_reduce_TreePut(gasnete_coll_op_t *op GASNETI_THREA
       const size_t nbytes = args->dt_sz * args->dt_cnt; // TODO: compute *once*
       const gex_Rank_t parent = GASNETE_COLL_TREE_GEOM_PARENT(geom);
       const gex_Rank_t offset = GASNETE_COLL_TREE_GEOM_SIBLING_ID(geom);
-      void* parent_scratch = (void*)(op->scratchpos[0] + (uintptr_t)team->scratch_segs[parent].addr);
+      void* parent_scratch = gasnete_coll_scratch_addr(op, parent, 0, 0);
       void* destaddr = gasnete_coll_scale_ptr(parent_scratch, offset, nbytes);
       payload = data->private_data;
       // TODO-EX: use lc_opt for async injection
-      if (gasnete_tm_p2p_signalling_put(op, tm, parent,
+      if (gasnete_tm_p2p_signalling_put(op, parent,
                                         destaddr, payload, nbytes,
                                         GEX_EVENT_NOW, flags, offset, 1
                                         GASNETI_THREAD_PASS)) {
@@ -529,7 +531,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePut)
   gasnete_coll_local_tree_geom_t *geom = (gasnete_coll_local_tree_geom_t *)coll_params;
 
   // make sure this is a valid choice of algorithm
-  gasneti_assert(team->smallest_scratch_seg >= nbytes * geom->max_radix);
+  gasneti_assert(team->scratch_size >= nbytes * geom->max_radix);
   gasneti_assert(gex_AM_LUBRequestLong() >= nbytes);
 
   // Scratch space
@@ -592,7 +594,6 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePut)
 //
 // All comms are attempted once with GEX_FLAG_IMMEDIATE.
 static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
-  gex_TM_t const tm = op->e_tm;
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_tm_reduce_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, tm_reduce);
   gasnete_coll_p2p_t *p2p = data->p2p;
@@ -627,7 +628,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
     pdata = data->private_data;
   } else {
     // Allocate and initialize pdata
-    if (sizeof(struct pdata) <= gasnete_coll_p2p_eager_buffersz) {
+    if (sizeof(struct pdata) <= op->team->p2p_eager_buffersz) {
       // Store in p2p space, unused by this algorithm
       // TODO-EX: need a more general way to avoid small dynamic allocations
       pdata = (struct pdata *) p2p->data;
@@ -655,10 +656,9 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
       if (!gasnete_coll_scratch_alloc_nb(op GASNETI_THREAD_PASS)) {
         break;
       }
-      const gex_Rank_t myrank = gex_TM_QueryRank(tm);
-      pdata->myscratch = (void*)(op->myscratchpos + (uintptr_t)op->team->scratch_segs[myrank].addr);
+      pdata->myscratch = gasnete_coll_scratch_myaddr(op, 0);
       if (parent != GEX_RANK_INVALID) {
-        pdata->upscratch = (void*)(op->scratchpos[0] + (uintptr_t)op->team->scratch_segs[parent].addr);
+        pdata->upscratch = gasnete_coll_scratch_addr(op, parent, 0, 0);
       }
       data->state = 2; GASNETI_FALLTHROUGH
     }
@@ -729,7 +729,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
       // Send partial result to parent (if any)
       if (parent != GEX_RANK_INVALID) {
         gex_Rank_t index = 1 + GASNETE_COLL_TREE_GEOM_SIBLING_ID(geom);
-        if (gasnete_tm_p2p_signalling_put(op, tm, parent,
+        if (gasnete_tm_p2p_signalling_put(op, parent,
                                           pdata->put_dst, pdata->put_src, pdata->curr_len,
                                           &pdata->ev, flags, index, next_phase
                                           GASNETI_THREAD_PASS)) {
@@ -747,7 +747,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
         volatile uint32_t *state_plus1 = p2p->state + 1;
         gex_Rank_t r;
         for (r = 0; r < (child_cnt - 1); ++r) {
-          if (gasnete_tm_p2p_change_state(op, tm, children[r], flags,
+          if (gasnete_tm_p2p_change_state(op, children[r], flags,
                                           0, r GASNETI_THREAD_PASS)) {
             state_plus1[r] = 2;  // mark for retry
             comms_done = 0;
@@ -755,7 +755,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
         }
         // Need to alternate location of last child's contribution with phase
         gasneti_assert(r == child_cnt - 1);
-        if (gasnete_tm_p2p_change_state(op, tm, children[r], flags,
+        if (gasnete_tm_p2p_change_state(op, children[r], flags,
                                         0, (r + next_phase) GASNETI_THREAD_PASS)) {
           state_plus1[r] = 2;  // mark for retry
           comms_done = 0;
@@ -778,7 +778,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
       if (pdata->ev == GEX_EVENT_NO_OP) {
         gasneti_assert(parent != GEX_RANK_INVALID);
         gex_Rank_t index = 1 + GASNETE_COLL_TREE_GEOM_SIBLING_ID(geom);
-        gasnete_tm_p2p_signalling_put(op, tm, parent,
+        gasnete_tm_p2p_signalling_put(op, parent,
                                       pdata->put_dst, pdata->put_src, pdata->curr_len,
                                       &pdata->ev, flags, index, next_phase
                                       GASNETI_THREAD_PASS);
@@ -794,14 +794,14 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
         gex_Rank_t r;
         for (r = 0; r < (child_cnt - 1); ++r) {
           if (state_plus1[r] == 2) {
-            gasnete_tm_p2p_change_state(op, tm, children[r], flags,
+            gasnete_tm_p2p_change_state(op, children[r], flags,
                                         0, r GASNETI_THREAD_PASS);
           }
         }
         // Need to alternate location of last child's contribution with phase
         gasneti_assert(r == child_cnt - 1);
         if (state_plus1[r] == 2) {
-          gasnete_tm_p2p_change_state(op, tm, children[r], flags,
+          gasnete_tm_p2p_change_state(op, children[r], flags,
                                       0, (r + next_phase) GASNETI_THREAD_PASS);
         }
       }
@@ -861,7 +861,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePutSeg)
   gasnete_coll_local_tree_geom_t *geom = (gasnete_coll_local_tree_geom_t *)coll_params;
 
   // Determine what can fit in scratch space or Long
-  const size_t slot_sz = team->smallest_scratch_seg / (1 + geom->max_radix);
+  const size_t slot_sz = team->scratch_size / (1 + geom->max_radix);
   const size_t limit = MIN(slot_sz, gex_AM_LUBRequestLong());
   size_t chunk_cnt;
 #if 1 // Branches are cheaper than integer division

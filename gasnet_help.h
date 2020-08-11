@@ -93,7 +93,8 @@ void * _gasneti_malloc_aligned(size_t alignment, size_t size GASNETI_CURLOCFARG)
 #if GASNETI_USE_POSIX_MEMALIGN
   if_pf(alignment < sizeof(void*)) alignment = sizeof(void*);
   void *result = NULL; // init to avoid -Wmaybe-uninitialized warnings
-  gasneti_assert_zeroret(posix_memalign(&result, alignment, size));
+  int _return_code = posix_memalign(&result, alignment, size);
+  gasneti_assert_zeroret(_return_code);
 #else
   size_t alloc_size = size + sizeof(void *) + alignment;
   void *base = _gasneti_extern_malloc(alloc_size GASNETI_CURLOCPARG);
@@ -153,24 +154,28 @@ extern gex_Rank_t gasneti_nodes;
 #define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
 
 
+#if GASNETI_TM0_ALIGN
 // We can detect TM0 by its better alignment than other tm's
-#ifdef GASNETI_TM0_ALIGN
-  // Keep existing value
-#elif (GASNETI_CACHE_LINE_BYTES < 8)
-  #define GASNETI_TM0_ALIGN 16
-#else
-  #define GASNETI_TM0_ALIGN (2*GASNETI_CACHE_LINE_BYTES)
-#endif
 GASNETI_INLINE(gasneti_is_tm0)
 int gasneti_is_tm0(gasneti_TM_t _i_tm) {
+  gasneti_static_assert(GASNETI_POWEROFTWO(GASNETI_TM0_ALIGN));
+  gasneti_static_assert(GASNETI_TM0_ALIGN > 1);
   return (!((uintptr_t)(_i_tm) & (GASNETI_TM0_ALIGN-1)));
 }
+#else
+// Cannot use alignment to distinguish TM0
+extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
+#define gasneti_is_tm0(_i_tm) ((_i_tm) == gasneti_thing_that_goes_thunk_in_the_dark)
+#endif
 
-// Given (tm,rank) return the jobrank
-extern gex_Rank_t gasneti_tm_fwd_lookup(gasneti_TM_t tm, gex_Rank_t rank);
+// Given (tm,rank) return the jobrank or ep_location
+extern GASNETI_PURE gex_Rank_t        gasneti_tm_fwd_rank(gasneti_TM_t tm, gex_Rank_t rank);
+GASNETI_PUREP(gasneti_tm_fwd_rank)
+extern GASNETI_PURE gex_EP_Location_t gasneti_tm_fwd_location(gasneti_TM_t tm, gex_Rank_t rank, gex_Flags_t flags);
+GASNETI_PUREP(gasneti_tm_fwd_location)
 
 // Given (tm,jobrank) return the rank of jobrank in tm, or GEX_RANK_INVALID
-extern gex_Rank_t gasneti_tm_rev_lookup(gasneti_TM_t tm, gex_Rank_t jobrank);
+extern gex_Rank_t gasneti_tm_rev_rank(gasneti_TM_t tm, gex_Rank_t jobrank);
 
 #if GASNET_DEBUG
 GASNETI_INLINE(gasneti_check_tm_rank)
@@ -185,22 +190,50 @@ void gasneti_check_tm_rank(gex_TM_t _e_tm, gex_Rank_t _rank) {
   #define gasneti_check_jobrank(jobrank) ((void)0)
 #endif
 
+// TODO-EX: remove when a runtime branch on tm->_rank_map is necessary
+#define GASNETI_ALLOW_SPARSE_TEAMREP 0
+
 GASNETI_INLINE(gasneti_i_tm_rank_to_jobrank)
 gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
   gasneti_assert(_i_tm);
   gasneti_assert_uint(_rank ,<, _i_tm->_size);
   if (gasneti_is_tm0(_i_tm)) return _rank;
-  return gasneti_tm_fwd_lookup(_i_tm, _rank);
+  if (!GASNETI_ALLOW_SPARSE_TEAMREP || _i_tm->_rank_map) {
+    gasneti_assert(_i_tm->_rank_map);
+    return _i_tm->_rank_map[_rank];
+  }
+  return gasneti_tm_fwd_rank(_i_tm, _rank);
 }
 #define gasneti_e_tm_rank_to_jobrank(e_tm,rank) \
         gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
+
+GASNETI_INLINE(gasneti_i_tm_rank_to_location)
+gex_EP_Location_t gasneti_i_tm_rank_to_location(gasneti_TM_t _i_tm, gex_Rank_t _rank, gex_Flags_t _flags) {
+  gasneti_assert(_i_tm);
+  gasneti_assert_uint(_rank ,<, _i_tm->_size);
+  gex_EP_Location_t _result;
+  if (gasneti_is_tm0(_i_tm)) {
+    _result.gex_rank = _rank;
+    _result.gex_ep_index = 0;
+  } else if (!GASNETI_ALLOW_SPARSE_TEAMREP || _i_tm->_rank_map) {
+    gasneti_assert(_i_tm->_rank_map);
+    _result.gex_rank = _i_tm->_rank_map[_rank];
+    // NULL _index_map indicates all members of TM are primordial EPs (idx==0)
+    _result.gex_ep_index = _i_tm->_index_map ? _i_tm->_index_map[_rank] : 0;
+  } else {
+    _result = gasneti_tm_fwd_location(_i_tm, _rank, _flags);
+  }
+  return _result;
+}
+#define gasneti_e_tm_rank_to_location(e_tm,rank,flags) \
+        gasneti_i_tm_rank_to_location(gasneti_import_tm(e_tm),rank,flags)
 
 GASNETI_INLINE(gasneti_i_tm_jobrank_to_rank)
 gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank) {
   gasneti_assert(_i_tm);
   gasneti_assert_uint(_jobrank ,<, gex_System_QueryJobSize());
   if (gasneti_is_tm0(_i_tm)) return _jobrank;
-  return gasneti_tm_rev_lookup(_i_tm, _jobrank);
+  return gasneti_tm_rev_rank(_i_tm, _jobrank);
 }
 #define gasneti_e_tm_jobrank_to_rank(e_tm,jobrank) \
         gasneti_i_tm_jobrank_to_rank(gasneti_import_tm(e_tm),jobrank)
@@ -311,9 +344,8 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
     size_t _gex_bc_nbytes = (size_t)(nbytes);                                  \
     gasneti_assert(_gex_bc_nbytes); /* avoids "fence post" error */            \
     if_pf (_gex_bc_rank >= _gex_bc_size)                                       \
-      gasneti_fatalerror("Rank out of range (%lu >= %lu) at %s",               \
-              (unsigned long)_gex_bc_rank, (unsigned long)(_gex_bc_size),      \
-              gasneti_current_loc);                                            \
+      gasneti_fatalerror("Rank out of range (%lu >= %lu)",                     \
+              (unsigned long)_gex_bc_rank, (unsigned long)(_gex_bc_size));     \
     if_pf (_gex_bc_ptr == NULL ||                                              \
            !segtest(_gex_bc_tm,_gex_bc_rank,_gex_bc_ptr,_gex_bc_nbytes)) {     \
       const gasnet_seginfo_t *_gex_bc_client_seg =                             \
@@ -322,13 +354,12 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
       const gasnet_seginfo_t *_gex_bc_aux_seg =                                \
                                          gasneti_aux_seginfo(_gex_bc_jobrank); \
       gasneti_fatalerror("Remote address out of range (" GASNETI_TMRANKFMT     \
-         " ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"                 \
+         " ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ")"                       \
          "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
          "\n     auxsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")",      \
          GASNETI_TMRANKSTR(_gex_bc_tm,_gex_bc_rank),                           \
          GASNETI_LADDRSTR(_gex_bc_ptr),                                        \
          (uintptr_t)_gex_bc_nbytes,                                            \
-         gasneti_current_loc,                                                  \
          GASNETI_LADDRSTR(_gex_bc_client_seg->addr),                           \
          GASNETI_LADDRSTR((uintptr_t)_gex_bc_client_seg->addr +                \
                                      _gex_bc_client_seg->size),                \
@@ -357,9 +388,8 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
    int _retcode = (fncall);                                                  \
    if_pf (_retcode != (int)GASNET_OK) {                                      \
      gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"            \
-        "  while calling: %s\n"                                              \
-        "  at %s",                                                           \
-        gasnet_ErrorName(_retcode), _retcode, #fncall, gasneti_current_loc); \
+        "  while calling: %s",                                               \
+        gasnet_ErrorName(_retcode), _retcode, #fncall);                      \
    }                                                                         \
  } while (0)
 #endif

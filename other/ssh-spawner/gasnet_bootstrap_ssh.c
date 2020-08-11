@@ -1116,6 +1116,27 @@ static void build_nodelist(void)
   } else {
     die(1, "No " ENV_PREFIX "SSH_NODEFILE, " ENV_PREFIX "SSH_SERVERS, or " ENV_PREFIX "NODEFILE in environment");
   }
+
+  if (! gasneti_getenv_yesno_withdefault(ENV_PREFIX "SSH_KEEPDUP", 0) && (nnodes > 1)) {
+    int count = 1;
+    for (int i = 1; i < nnodes; ++i) {
+      char *p = nodelist[i];
+      int j;
+      for (j = 0; j < count; ++j) {
+        if (! strcmp(p, nodelist[j])) break;
+      }
+      if (j == count) { // NOT a dup
+        nodelist[count++] = p;
+      } else {
+        gasneti_free(p);
+      }
+    }
+    if (count != nnodes) {
+      BOOTSTRAP_VERBOSE(("Deduplication reduced node count from %d to %d\n", nnodes, count));
+      nnodes = count;
+      nodelist = gasneti_realloc(nodelist, nnodes * sizeof(char *));
+    }
+  }
 }
 
 static void send_nodelist(int s, int count, char ** list) {

@@ -691,7 +691,6 @@ application-specific support.
 
 * GASNET_BARRIER - select the communication algorithm for use in GASNet barriers.
  The following values are available on all conduits:
-  AMCENTRAL - uses Active Messages to manipulate a single centralized counter.
   AMDISSEM - uses Active Messages to implement the Dissemination barrier
    algorithm as described in section 3.3 of
     John M. Mellor-Crummey and Michael L. Scott. "Algorithms for scalable
@@ -701,6 +700,10 @@ application-specific support.
    The AMDISSEM or RDMADISSEM algorithm is selected automatically based on
    conduit-specific criteria.  In general RDMADISSEM is favored when the GASNet
    Extended API is implemented natively.
+  AMCENTRAL - uses Active Messages to manipulate a single centralized counter.
+   This is an inherently non-scalable barrier which does not honor the setting
+   of GASNET_PSHM_BARRIER_HIER to enable shared-memory optimizations.
+   Therefore, this choice is available only for debugging purposes.
  In addition to those choices, many conduits have additional network-specific
  barrier algorithms documented in the corresponding conduit READMEs.
  The default is DISSEM, unless the conduit README documents another default.
@@ -762,12 +765,14 @@ application-specific support.
  preferred size allocated for the initial team, and is the value returned from
  a query using GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED.
  If the size is set too low, then the performance of collectives may suffer.
+ This parameter must be single-valued (same value on all processes).
  Defaults to 2MB per rank.
 
 * GASNET_COLL_MIN_SCRATCH_SIZE - Specifies the minimum size of the scratch
  space allocated on each rank for internal use in collective communications.
  This is the minimum size permitted for the initial team (or job startup will
  fail), and is the value returned from a query using GEX_FLAG_TM_SCRATCH_SIZE_MIN.
+ This parameter must be single-valued (same value on all processes).
  Defaults to 1KB per rank.
 
 * GASNET_COLL_ENABLE_SEARCH - enable autotuning of collectives

@@ -19,9 +19,9 @@
 
 /* Recognized (mutually-exclusive) definitions for threading behavior:
    GASNETT_THREAD_SAFE - may be defined by client to enable thread-safety. 
-     For gasnet.h clients, this is also enabled by GASNET_PAR(SYNC)
+     For gasnet.h clients, this is also enabled by GASNET_PAR
    GASNETT_THREAD_SINGLE - may be defined by client to explcitly disable thread-safety.
-     For gasnet.h clients, this is also enabled by GASNET_SEQ
+     For gasnet.h clients, this is also enabled by GASNET_SEQ and GASNET_PARSYNC
    GASNETT_LITE_MODE - tools-lite mode, for tools-only clients that want threading neutrality
       only provides the timer and membar interfaces
    If none of the above definitions are present, then thread-safety defaults to
@@ -31,10 +31,10 @@
 #if defined(GASNETT_LITE_MODE) + defined(GASNETT_THREAD_SAFE) + defined(GASNETT_THREAD_SINGLE) > 1
   #error You must define at most one of: GASNETT_THREAD_SAFE, GASNETT_THREAD_SINGLE, GASNETT_LITE_MODE
 #endif
-#if defined(GASNETT_THREAD_SAFE) && defined(GASNET_SEQ)
+#if defined(GASNETT_THREAD_SAFE) && (defined(GASNET_SEQ) || defined(GASNET_PARSYNC))
   #error Conflicting threading definitions
 #endif
-#if defined(GASNETT_THREAD_SINGLE) && (defined(GASNET_PAR) || defined(GASNET_PARSYNC))
+#if defined(GASNETT_THREAD_SINGLE) && defined(GASNET_PAR)
   #error Conflicting threading definitions
 #endif
 #ifdef GASNETT_LITE_MODE
@@ -45,8 +45,8 @@
     #error GASNETT_LITE_MODE not supported for libgasnet clients
   #endif
 #elif defined(GASNETT_THREAD_SAFE) ||                             \
-      defined(GASNET_PARSYNC) || defined(GASNET_PAR) ||           \
-      (!defined(GASNET_SEQ) && !defined(GASNETT_THREAD_SINGLE) && \
+      defined(GASNET_PAR) ||                                      \
+      (!defined(GASNET_SEQ) && !defined(GASNET_PARSYNC) && !defined(GASNETT_THREAD_SINGLE) && \
        (defined(_REENTRANT) || defined(_THREAD_SAFE) ||           \
         defined(PTHREAD_MUTEX_INITIALIZER)))
   #undef GASNETT_THREAD_SAFE
@@ -383,6 +383,7 @@ extern uint64_t gasnett_release_version(void);
 #define gasnett_close_streams   gasneti_close_streams
 #define gasnett_getPhysMemSz    gasneti_getPhysMemSz
 #define gasnett_fatalerror      gasneti_fatalerror
+#define gasnett_fatalerror_nopos gasneti_fatalerror_nopos
 #define gasnett_killmyprocess   gasneti_killmyprocess
 #define gasnett_current_loc     gasneti_current_loc
 #define gasnett_sighandlerfn_t  gasneti_sighandlerfn_t
@@ -593,16 +594,12 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #define gasnett_format_dt               gasneti_format_dt
   #define gasnett_format_op               gasneti_format_op
   #define gasnett_format_ti               gasneti_format_ti
-
-  #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
-    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_hsl_atomic_, gex_HSL_)
-  #endif
 #else
   #define gasnett_mmap(sz)        gasnett_fatalerror("gasnett_mmap not available")
+#endif
 
-  #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
-    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_pthread_atomic_, gasnett_mutex_)
-  #endif
+#if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
+  GASNETI_ATOMIC_LOCK_TBL_DECLS
 #endif
 
 #endif /* !GASNETT_LITE_MODE */

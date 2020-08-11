@@ -331,6 +331,16 @@ jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d upcxx-install force
 	             clean jac3d
 	mv $</jac3d $@
 
+# upcxx-examples cannon
+canno%-seq canno%-par :: $(UPCXX_BLDDIR)/extras/examples/cannon upcxx-install force
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
+	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
+	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
+	             clean canno$*
+	mv $</canno$* $@
+
 # upcxx-examples extend-add
 extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \

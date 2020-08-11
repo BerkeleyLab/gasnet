@@ -399,6 +399,9 @@
 #undef GASNETI_CACHE_LINE_BYTES
 #undef GASNETI_CACHE_LINE_SHIFT
 
+/* minimum alignment of "tm0" */
+#undef GASNETI_TM0_ALIGN
+
 /* udp-conduit default custom spawn command */
 #undef GASNET_CSPAWN_CMD
 
@@ -434,6 +437,7 @@
 #undef GASNET_DEBUGMALLOC
 #undef GASNET_SRCLINES
 #undef GASNET_DEBUG_VERBOSE
+#undef GASNETI_VALGRIND
 
 /* GASNet segment definition */
 #undef GASNET_SEGMENT_FAST

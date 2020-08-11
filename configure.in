@@ -14,7 +14,7 @@ define([GASNET_RELEASE_VERSION_MINOR_D],[3])
 define([GASNET_RELEASE_VERSION_PATCH_D],[1])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
-define([GASNETEX_SPEC_VERSION_MINOR_D],[8])
+define([GASNETEX_SPEC_VERSION_MINOR_D],[10])
 dnl GASNet-1 spec version:
 define([GASNET_SPEC_VERSION_MAJOR_D],[1])
 define([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -908,6 +908,30 @@ GASNET_MSG_WARN([
     enabled_debug=no])
 AM_CONDITIONAL(BUILDCONFIG_DEBUG, test "$enabled_debug" = yes)
 
+GASNET_IF_ENABLED(valgrind, [Build a valgrind-friendly library, disabling some optimizations. Implies --disable-debug-malloc], [
+    if test -z "$GASNET_SUPPRESS_DEBUG_WARNING" ; then
+       GASNET_MSG_WARN([Enabling valgrind-friendly codegen, disabling some optimizations.])
+    fi
+    AC_DEFINE(GASNETI_VALGRIND)
+    enable_debug_malloc=no # debug mallocator obfuscates heap activity and confuses valgrind
+    if test x"$enable_pshm_xpmem" = xyes && test x"$enable_pshm" != xno; then 
+      # valgrind fundamentally incompatible with XPMEM, issuing errors on every access
+      case "$target" in
+        *-cnl-*) 
+           GASNET_MSG_WARN([Valgrind (--enable-valgrind) does not interoperate with XPMEM (--enable-pshm-xpmem).
+               This appears to be a Cray, so converting to --enable-pshm-hugetlbfs instead])
+           enable_pshm_xpmem=no
+           enable_pshm_hugetlbfs=yes
+        ;;
+        *) GASNET_MSG_ERROR([Valgrind (--enable-valgrind) does not interoperate with XPMEM (--enable-pshm-xpmem).
+               Please select a different PSHM protocol (e.g. --disable-pshm-xpmem --enable-pshm-posix) or disable PSHM (--disable-pshm) ])
+        ;;
+      esac
+    fi
+    enabled_valgrind=yes
+], [ enabled_valgrind=no ])
+AM_CONDITIONAL(VALGRIND, test "$enabled_valgrind" = yes)
+
 GASNET_IF_ENABLED_WITH_AUTO(dev-warnings, Build GASNet with developer compiler warnings for the library and tests (default: yes), 
   enabled_dev_warnings=yes, enabled_dev_warnings=no, enabled_dev_warnings=yes)
 
@@ -1179,7 +1203,7 @@ dnl
 dnl This is only probing CC, this is only applicable to GASNet
 dnl library builds, not clients.
 dnl
-CHECK_TENTATIVE_BASE=conftest_tent
+CHECK_TENTATIVE_BASE=gasnet_conftest_tent
 CHECK_TENTATIVE_SRC=$CHECK_TENTATIVE_BASE.c
 CHECK_TENTATIVE_OBJ=$CHECK_TENTATIVE_BASE.o
 dnl helper:  GASNET_CHECK_TENTATIVE_TRY_RUN(msg,cv_var,extra,on_success)
@@ -1227,6 +1251,7 @@ if test "${GASNETI_COMMON+set}" = set; then
 else
   AC_MSG_ERROR(could not determine how to use tentative definitions)
 fi
+rm -f $CHECK_TENTATIVE_SRC $CHECK_TENTATIVE_OBJ
 
 ########################################################################
 # hunt for 16-, 32-, and 64-bit integer types
@@ -1735,6 +1760,15 @@ case "$CACHE_LINE_BYTES" in
 esac
 AC_DEFINE_UNQUOTED(GASNETI_CACHE_LINE_SHIFT,$GASNETI_CACHE_LINE_SHIFT)
           
+if test x"$enabled_valgrind" = x"yes" ; then
+  GASNETI_TM0_ALIGN=0 # team disalignment optimization leads to "possible leak" reports for every non-primordial gex_TM_t
+elif test $CACHE_LINE_BYTES -lt 8; then
+  GASNETI_TM0_ALIGN=16
+else
+  GASNETI_TM0_ALIGN=`expr 2 \* $CACHE_LINE_BYTES`
+fi
+AC_DEFINE_UNQUOTED(GASNETI_TM0_ALIGN,$GASNETI_TM0_ALIGN)
+
 AM_CONDITIONAL(HAVE_PTHREAD, test "$have_pthread" = yes)
 PTHREADS="$have_pthread"
 AC_SUBST(PTHREADS)
@@ -2369,8 +2403,11 @@ GASNET_TRY_CACHE_CHECK(for clock_gettime(), cc_has_clock_gettime, [
                  ], AC_MSG_RESULT(entry point not found - disabled)))
 
 # Timer configuration
-# No current exceptions
 use_timers=native
+if test x"$enabled_valgrind" = x"yes" ; then
+  # valgrind emulation degrades timer calibration and reliability, default to posixrt
+  use_timers=posixrt
+fi
 
 AC_DEFUN([GASNET_CHECK_TIMER_OPTION],[
   if test -n "$force_timers" ; then
@@ -2824,7 +2861,7 @@ dnl GASNET_LINKHELPER-*:
 dnl   GASNET_LINKHELPER_SETUP(lang-decr)
 dnl   GASNET_LINKHELPER_TRY_{RUN,LINK}(msg,cv_var,includes,body,on_success,on_failure)
 dnl   GASNET_LINKHELPER_CLEANUP()
-LINKHELPER_BASE=conftest_cfunc
+LINKHELPER_BASE=gasnet_conftest_cfunc
 LINKHELPER_SRC=$LINKHELPER_BASE.c
 LINKHELPER_OBJ=$LINKHELPER_BASE.o
 LINKHELPER_LIBS="$LINKHELPER_OBJ $LIBM"
@@ -2863,7 +2900,7 @@ _GASNET_EOF
     GASNET_MSG_ERROR(failed while building $1 helper object)
   fi
 ])
-AC_DEFUN([GASNET_LINKHELPER_CLEANUP],[ rm -f $LINKHELPER_OBJ ])
+AC_DEFUN([GASNET_LINKHELPER_CLEANUP],[ rm -f $LINKHELPER_SRC $LINKHELPER_OBJ ])
 AC_DEFUN([GASNET_LINKHELPER_TRY_INNER],[
   GASNET_PUSHVAR(LIBS,"$LINKHELPER_LIBS $LIBS")
   ]GASNET_TRY_CACHE_[$1][($2,$3,[
@@ -5177,6 +5214,7 @@ other/contrib/Makefile
 other/contrib/gasnet_trace
 other/firehose/Makefile
 other/firehose/firehose.mak
+other/valgrind/Makefile
 
  dnl Conduit Makefiles and scripts
 
