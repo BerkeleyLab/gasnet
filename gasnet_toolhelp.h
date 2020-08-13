@@ -1037,7 +1037,7 @@ typedef enum {
 #if !defined(GASNETI_BUG3430_WORKAROUND) && PLATFORM_OS_CYGWIN
   #define GASNETI_BUG3430_WORKAROUND       1
 #endif
-#if GASNETI_THREADS && GASNETI_BUG3430_WORKAROUND
+#if GASNETI_USE_TRUE_MUTEXES && GASNETI_BUG3430_WORKAROUND
   // a workaround for the Cygwin pthread_create vs. sched_yield performance bug
   extern gasneti_mutex_t gasneti_bug3430_lock;
   extern gasneti_cond_t gasneti_bug3430_cond;
