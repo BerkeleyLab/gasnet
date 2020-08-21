@@ -18,7 +18,7 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX.YY.ZZ: PENDING
+2020.08.21: GASNet-EX 2020.3.8 Snapshot
 
 * General and Misc.
   - NEW: Improved compatability with heap analysis tools like Valgrind
