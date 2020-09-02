@@ -3754,11 +3754,11 @@ if test "$enabled_ibv" = yes; then
           [enabled_ibv_odp="no"; AC_DEFINE(GASNETC_IBV_ODP_DISABLED)],
           [enabled_ibv_odp="yes"])
       if test "$enabled_ibv_odp" = yes; then
+        have_ibv_odp=no
         GASNET_PUSHVAR(CFLAGS,"$CFLAGS $IBV_CFLAGS $GASNET_THREAD_DEFINES")
         GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $IBV_LDFLAGS")
         GASNET_PUSHVAR(LIBS,"$LIBS $IBV_LIBS $GASNET_THREAD_LIBS")
-        GASNET_TRY_CACHE_LINK(for ibv ODP support, ibv_odp_support, [
-          #include <infiniband/verbs.h>
+        GASNET_TRY_CACHE_LINK([for ibv ODP support (Mellanox)], ibv_odp_support_mlnx, [
           #include <infiniband/verbs_exp.h>
         ], [
           struct ibv_exp_device_attr attr;
@@ -3772,7 +3772,25 @@ if test "$enabled_ibv" = yes; then
           x.exp_access = IBV_EXP_ACCESS_ON_DEMAND | IBV_EXP_ACCESS_LOCAL_WRITE;
           x.length = IBV_EXP_IMPLICIT_MR_SIZE;
           struct ibv_mr *mr = ibv_exp_reg_mr(&x);
-        ], [have_ibv_odp=yes], [have_ibv_odp=no])
+        ], [
+          have_ibv_odp=yes
+          AC_DEFINE(GASNETC_IBV_ODP_MLNX)
+        ])
+        GASNET_TRY_CACHE_LINK(for ibv ODP support (RDMA Core), ibv_odp_support_core, [
+          #include <infiniband/verbs.h>
+        ], [
+          struct ibv_device_attr_ex attr;
+          attr.comp_mask = 0;
+          int ret = ibv_query_device_ex(NULL, NULL, &attr);
+          int ok = (attr.odp_caps.general_caps & IBV_ODP_SUPPORT) &&
+                   (attr.odp_caps.general_caps & IBV_ODP_SUPPORT_IMPLICIT) &&
+                   (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_ODP_SUPPORT_READ) &&
+                   (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_ODP_SUPPORT_WRITE);
+          struct ibv_mr *mr = ibv_reg_mr(NULL, NULL, SIZE_MAX, IBV_ACCESS_ON_DEMAND | IBV_ACCESS_LOCAL_WRITE);
+        ], [
+          have_ibv_odp=yes
+          AC_DEFINE(GASNETC_IBV_ODP_CORE)
+        ])
         GASNET_POPVAR(CFLAGS)
         GASNET_POPVAR(LDFLAGS)
         GASNET_POPVAR(LIBS)
