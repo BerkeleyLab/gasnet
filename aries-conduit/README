@@ -337,6 +337,28 @@ GASNET_GNI_BTE_MULTI_CHANNEL
   bandwidth for large transfers.
   The default is "1" (enabled).
 
+GASNET_GNI_ROUTING_MODE
+  The "delivery mode" used to control packet routing in the Aries network.
+  The following string values (case insensitive) may be specified for this
+  variable.  The respective meanings are exactly as documented for the
+  MPICH_GNI_ROUTING_MODE variable in Cray's intro_mpi(3) manpage.
+    + "IN_ORDER"
+        Packet order is preserved between any source/destination pair.
+        This does not provide ordering of GASNet-level operations.
+    + "NMIN_HASH"
+        Deterministic routing using non-minimal paths
+    + "MIN_HASH"
+        Deterministic routing using minimal (shortest) paths
+    + "ADAPTIVE_0"
+        Adaptive routing with no bias toward minimal routes
+    + "ADAPTIVE_1"
+        Adaptive routing with bias toward minimal routes increasing at each hop
+    + "ADAPTIVE_2"
+        Adaptive routing with small fixed bias toward minimal routes
+    + "ADAPTIVE_3"
+        Adaptive routing with large fixed bias toward minimal routes
+  The default is "ADAPTIVE_0".
+
 GASNET_PHYSMEM_MAX
   If set, this parameter is used to determine the maximum amount of memory
   the conduit may pin per compute node (each process on a given compute node is

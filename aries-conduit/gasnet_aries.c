@@ -17,6 +17,8 @@
 #define GASNETC_GNI_AM_RVOUS_CUTOVER_DEFAULT 16384 // TODO-EX: this is a W.A.G.
 #define GASNETC_GNI_AM_RVOUS_BUFFERS_DEFAULT 64
 
+#define GASNETC_GNI_ROUTING_MODE_DEFAULT "ADAPTIVE_0"
+
 // How many times to retry a Post which fails with GNI_RC_ERROR_RESOURCE
 // TODO: Should this be an env var?
 #ifndef GASNETC_RESOURCE_RETRIES
@@ -49,6 +51,8 @@ static int gasnetc_ampoll_burst; // Units of events
   #define GASNETC_CDM_MODE GNI_CDM_MODE_FORK_FULLCOPY
 #endif
 static uint32_t gasnetc_cdm_mode = GASNETC_CDM_MODE | GNI_CDM_MODE_DUAL_EVENTS;
+
+static uint16_t gasnetc_dlvr_mode = GNI_DLVMODE_PERFORMANCE; // AKA ADAPTIVE_0
 
 int      gasnetc_dev_id;
 uint32_t gasnetc_cookie;
@@ -1002,6 +1006,26 @@ uintptr_t gasnetc_init_messaging(void)
   }
   #endif
 
+  // Process GASNET_GNI_ROUTING_MODE
+  { char *env_val = gasneti_getenv_withdefault("GASNET_GNI_ROUTING_MODE", GASNETC_GNI_ROUTING_MODE_DEFAULT);
+    char dlvr_mode[64];
+    int i;
+    for (i = 0; env_val[i] && i < sizeof(dlvr_mode)-1; i++) {
+      dlvr_mode[i] = toupper(env_val[i]); // normalize to uppercase
+    }
+    dlvr_mode[i] = '\0';
+    if      (!strcmp(dlvr_mode, "IN_ORDER"  )) gasnetc_dlvr_mode = GNI_DLVMODE_IN_ORDER;
+    else if (!strcmp(dlvr_mode, "NMIN_HASH" )) gasnetc_dlvr_mode = GNI_DLVMODE_NMIN_HASH;
+    else if (!strcmp(dlvr_mode, "MIN_HASH"  )) gasnetc_dlvr_mode = GNI_DLVMODE_MIN_HASH;
+    else if (!strcmp(dlvr_mode, "ADAPTIVE_0")) gasnetc_dlvr_mode = GNI_DLVMODE_ADAPTIVE0;
+    else if (!strcmp(dlvr_mode, "ADAPTIVE_1")) gasnetc_dlvr_mode = GNI_DLVMODE_ADAPTIVE1;
+    else if (!strcmp(dlvr_mode, "ADAPTIVE_2")) gasnetc_dlvr_mode = GNI_DLVMODE_ADAPTIVE2;
+    else if (!strcmp(dlvr_mode, "ADAPTIVE_3")) gasnetc_dlvr_mode = GNI_DLVMODE_ADAPTIVE3;
+    else if (! gasneti_mynode) {
+      gasneti_console_message("WARNING", "Ignoring unknown GASNET_GNI_ROUTING_MODE='%s'", env_val);
+    }
+  }
+
   // Process GASNET_GNI_PACKEDLONG_CUTOVER
   // Default is arch-dependent
   gasnetc_packedlong_cutover = gasneti_getenv_int_withdefault("GASNET_GNI_PACKEDLONG_CUTOVER",
@@ -1266,7 +1290,7 @@ am_memory_report:
       gpd->domain_idx = GASNETC_DEFAULT_DOMAIN;
     #endif
       gpd->pd.cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-      gpd->pd.dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+      gpd->pd.dlvr_mode = gasnetc_dlvr_mode;
       gpd->pd.local_addr = (uint64_t) packet_addr;
       gpd->pd.local_mem_hndl = am_handle;
       packet_addr += am_replysz;
@@ -1641,7 +1665,7 @@ int send_ctrl(peer_struct_t * const peer, uint32_t value, gasneti_weakatomic_t *
     gpd->gpd_flags = GC_POST_COMPLETION_CNTR;
   }
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->remote_mem_hndl = peer->am_handle;
 
   pd->type = GNI_POST_CQWRITE;
@@ -1712,7 +1736,7 @@ void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd,
   pd->local_addr = (uint64_t)p;
   pd->remote_mem_hndl = peer->am_handle;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->type = GNI_POST_FMA_PUT_W_SYNCFLAG;
 }
 
@@ -2904,7 +2928,7 @@ size_t gasnetc_rdma_put_bulk(gex_TM_t tm, gex_Rank_t rank,
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->remote_addr = (uint64_t) dest_addr;
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
   pd->length = nbytes;
@@ -2977,7 +3001,7 @@ gasnetc_rdma_put_lc(gex_TM_t tm, gex_Rank_t rank,
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->remote_addr = (uint64_t) dest_addr;
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
   pd->length = nbytes;
@@ -3070,7 +3094,7 @@ void gasnetc_rdma_put_buff(gex_TM_t tm, gex_Rank_t rank,
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->remote_addr = (uint64_t) dest_addr;
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
   pd->length = nbytes;
@@ -3129,7 +3153,7 @@ size_t gasnetc_rdma_get(gex_TM_t tm, gex_Rank_t rank,
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->remote_addr = (uint64_t) source_addr;
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, source_addr);
   pd->length = nbytes;
@@ -3201,7 +3225,7 @@ void gasnetc_rdma_get_unaligned(gex_TM_t tm, gex_Rank_t rank,
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->remote_addr = (uint64_t) source_addr - pre;
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, source_addr);
   pd->length = length;
@@ -3256,7 +3280,7 @@ int gasnetc_rdma_get_buff(gex_TM_t tm, gex_Rank_t rank,
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->remote_addr = (uint64_t) source_addr - pre;
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, source_addr);
   pd->length = length;
@@ -3388,7 +3412,7 @@ void gasnetc_rdma_put_long(
 
   gni_post_descriptor_t * pd = &gpd->pd;
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->remote_addr = (uint64_t) dest_addr;
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
   pd->length = nbytes;
@@ -3467,7 +3491,7 @@ void gasnetc_rdma_put_long(
           gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
           pd = &gpd->pd;
           /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
-          pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+          pd->dlvr_mode = gasnetc_dlvr_mode;
           pd->remote_addr = (uint64_t) dest_addr;
           pd->remote_mem_hndl = remote_mem_hndl;
           buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
@@ -3547,7 +3571,7 @@ void gasnetc_post_amo(
 
   pd->type = GNI_POST_AMO;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->local_addr = (uint64_t) gpd->u.immediate;
   pd->local_mem_hndl = my_aux_handle;
   pd->remote_addr = (uint64_t) tgt_addr;
@@ -3854,7 +3878,7 @@ gasnete_ce_result_t *gasnetc_post_ce(gasnetc_post_descriptor_t *gpd)
   gni_post_descriptor_t * const pd = &gpd->pd;
   pd->type = GNI_POST_CE;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->dlvr_mode = gasnetc_dlvr_mode;
   pd->local_addr = (uint64_t) &result->output;
   pd->local_mem_hndl = my_aux_handle;
 
