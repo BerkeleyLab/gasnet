@@ -33,8 +33,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   AIX, Windows and FreeBSD.  However, at this time only Linux and Solaris
   have been confirmed to run GASNet's ibv-conduit.
 
-  While Open Fabrics Verbs also covers iWARP, ibv-conduit does not
-  currently support it.
+  While Open Fabrics Verbs also covers iWARP and RoCE, ibv-conduit does not
+  currently support these networks.  Users interested in contributing the
+  necessary support (primarily use of "rdmacm" for connection setup) are
+  encouraged to contact gasnet-devel@lbl.gov.
 
   While ibv-conduit may work on Intel Omni-Path (OPA) HCAs, we instead
   recommend use of ofi-conduit on such systems.
