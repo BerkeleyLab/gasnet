@@ -87,6 +87,7 @@ GASNet-EX ChangeLog
   - bug4093: partial fix to scale "p2p" data with team size, not job size
   - bug4095: Incorrect algorithms for small scratch and/or large data
   - bug4103: Configure failures with -ffat-lto-objects in CFLAGS
+  - bug4127: Overflow for >2G pre-pinned memory (ibv-conduit)
   - bug3630/3828/3842: Various failures on testvis, testratomic, testslice
 
 ----------------------------------------------------------------------
