@@ -433,6 +433,15 @@ uintptr_t gasneti_max_segsize();
   #endif
 #endif
 
+// Map memory intended for use as segment
+// Called non-collectively, as by gex_Segment_Create()
+// Boolean 'pshm_compat' requests allocation of memory which
+// is compatible with cross-mapping [UNIMPLMENTED]
+int gasneti_segment_map(gasnet_seginfo_t *segment_p,
+                        uintptr_t segsize,
+                        int pshm_compat,
+                        gex_Flags_t flags);
+
 #ifndef GASNETI_USE_HIGHSEGMENT
 #define GASNETI_USE_HIGHSEGMENT 1  /* use the high end of mmap segments */
 #endif
@@ -452,7 +461,6 @@ gasnet_seginfo_t gasneti_segmentAttach(
                 size_t                        allocsz,
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
-                gasneti_bootstrapExchangefn_t exchangefn,
                 gex_Flags_t                   flags);
 
 extern void gasneti_legacy_segment_attach_hook(gasneti_EP_t ep);
@@ -721,14 +729,17 @@ extern void gasneti_nodemapFini(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-// An AM-based gasneti_bootstrapExchangefn_t
-// TODO-EX: any/all uses should hopefully use real collectives eventually
+// Collective comms helpers
 
-void gasneti_defaultExchange(void *src, size_t len, void *dest);
-extern void gasnetc_exchg_reqh(gex_Token_t token, void *buf, size_t nbytes,
-                               gex_AM_Arg_t arg0, gex_AM_Arg_t len);
+// Convience wrapper for a blocking gather-to-all of elements of size 'len' bytes.
+// In-place (src == (uint8_t*)dst + len*myrank) is permitted.
+// Currently wraps legacy gasnet_coll_* but should use gex_Coll_* eventually.
+void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *dst);
+
+// An AM-based host-scoped barrier
+extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
 #define GASNETC_COMMON_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,REQUEST,MEDIUM,0)
+    gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0)
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -804,6 +815,35 @@ typedef struct _gasneti_threaddata_t {
   GASNETE_CONDUIT_THREADDATA_FIELDS
   #endif
 } gasneti_threaddata_t;
+
+/* ------------------------------------------------------------------------------------ */
+/* Simple container of segments
+ */
+
+// Hidden state
+extern gasneti_mutex_t _gasneti_segtbl_lock;
+extern gasneti_Segment_t *_gasneti_segtbl;
+extern int _gasneti_segtbl_count;
+
+// Public access to the lock
+#define GASNETI_SEGTBL_LOCK()   gasneti_mutex_lock(&_gasneti_segtbl_lock)
+#define GASNETI_SEGTBL_UNLOCK() gasneti_mutex_unlock(&_gasneti_segtbl_lock)
+
+// Simple iterator.
+// Caller must hold lock and must not call add or del (which acquire the lock).
+// This macro provides a loop header and the caller provides the iteration
+// variable and the loop body:
+//   gasneti_Segment_t p;
+//   GASNETI_SEGTBL_FOR_EACH(p) { visit(p); }
+#define GASNETI_SEGTBL_FOR_EACH(segvar) \
+  for (int _gasneti_segtbl_iter = (segvar = _gasneti_segtbl[0], 0); \
+       (gasneti_mutex_assertlocked(&_gasneti_segtbl_lock), \
+        _gasneti_segtbl_iter < _gasneti_segtbl_count);     \
+       segvar = _gasneti_segtbl[++_gasneti_segtbl_iter])
+
+// Add and Del
+extern void gasneti_segtbl_add(gasneti_Segment_t seg);
+extern void gasneti_segtbl_del(gasneti_Segment_t seg);
 
 /* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN

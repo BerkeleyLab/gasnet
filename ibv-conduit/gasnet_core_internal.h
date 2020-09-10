@@ -83,7 +83,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
  * These are registered early and are available even before _attach()
  */
 #define _hidx_gasnetc_ack                     0 /* Special case */
-#define _hidx_gasnetc_exchg_reqh              (GASNETC_HANDLER_BASE+0)
+#define _hidx_gasnetc_hbarr_reqh              (GASNETC_HANDLER_BASE+0)
 #define _hidx_gasnetc_exit_reduce_reqh        (GASNETC_HANDLER_BASE+1)
 #define _hidx_gasnetc_exit_role_reqh          (GASNETC_HANDLER_BASE+2)
 #define _hidx_gasnetc_exit_role_reph          (GASNETC_HANDLER_BASE+3)
@@ -551,14 +551,10 @@ extern gasnetc_EP_t gasnetc_ep0;
 typedef struct gasnetc_Segment_t_ {
   GASNETI_SEGMENT_COMMON // conduit-indep part as prefix
 
-  int idx; // location in segment table
-
 #if GASNETC_PIN_SEGMENT
   // memory registation info (per-HCA)
   uint32_t            seg_lkey[GASNETC_IB_MAX_HCAS];
-  #if GASNETC_IBV_SHUTDOWN
-    gasnetc_memreg_t  seg_reg[GASNETC_IB_MAX_HCAS];
-  #endif
+  gasnetc_memreg_t    seg_reg[GASNETC_IB_MAX_HCAS];
 #endif
 } *gasnetc_Segment_t;
 
@@ -945,10 +941,6 @@ extern gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 extern uintptr_t	gasnetc_max_msg_sz;
 extern size_t   	gasnetc_put_stripe_sz, gasnetc_put_stripe_split;
 extern size_t   	gasnetc_get_stripe_sz, gasnetc_get_stripe_split;
-#if GASNETC_PIN_SEGMENT
-  extern uintptr_t		gasnetc_seg_start;
-  extern uintptr_t		gasnetc_seg_len;
-#endif
 extern size_t			gasnetc_fh_align;
 extern size_t			gasnetc_fh_align_mask;
 extern firehose_info_t		gasnetc_firehose_info;

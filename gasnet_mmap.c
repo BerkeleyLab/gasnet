@@ -960,6 +960,14 @@ static void *gasneti_mmap_fixed_with_retry(void *segbase, uintptr_t segsize, int
 }
 #undef gasneti_do_mmap_fixed
 #define gasneti_do_mmap_fixed gasneti_mmap_fixed_with_retry
+
+// Host-scoped barrier used between unmap and re-map.
+// This is needed even in the presence of PHSM support because
+// gasneti_pshmnet_bootstrapBarrier() may have a narrower scope
+// when GASNET_SUPERNODE_MAXSIZE is set.
+#define gasneti_bug3480_fence() gasneti_host_barrier()
+#else
+#define gasneti_bug3480_fence() ((void)0)
 #endif // GASNETI_BUG3480_WORKAROUND
 
 /* binary search for segment - returns location, not mmaped */
@@ -1212,20 +1220,6 @@ uintptr_t gasneti_max_segsize() {
   }
   return result;
 }
-
-#if GASNETI_BUG3480_WORKAROUND
-  // Barrier used between unmap and re-map, via 1-byte exchange (a.k.a. GatherAll).
-  // This is a bit of a hack, but is the most expedient way to get a barrier
-  // with compute-node scope, since gasneti_pshmnet_bootstrapBarrier() may
-  // have a narrower scope when env var GASNET_SUPERNODE_MAXSIZE is set.
-  static void gasneti_bug3480_fence(gasneti_bootstrapExchangefn_t exchangefn) {
-    char a = 0; char *b = gasneti_malloc(gasneti_nodes);
-    (*exchangefn)(&a, sizeof(char), b);
-    gasneti_free(b);
-  }
-#else
-  #define gasneti_bug3480_fence(_e) ((void)0)
-#endif
 
 // gasneti_sharedLimit()
 //
@@ -1678,17 +1672,37 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 
 /* ------------------------------------------------------------------------------------ */
 
-static // TODO-EX: static for now, at least
-void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
-                                gasneti_bootstrapExchangefn_t exchangefn)
+// Allocate/map memory for a GASNet segment
+static
+int gasneti_segment_map_inner(
+                        gasnet_seginfo_t *segment_p,
+                        uintptr_t segsize,
+                        int use_shared)
 {
   void *segbase = NULL;
 
   #ifdef GASNETI_MMAP_OR_PSHM
   {
+    // Different (un)map ops to support shared (cross-mappable via PSHM) and private mappings
+    void* (*mmap_fn)(uintptr_t);
+    void* (*mmap_fixed_fn)(void *, uintptr_t, int);
+    void  (*munmap_fn)(void *, uintptr_t);
+    #if GASNET_PSHM
+    if (use_shared) {
+      mmap_fn       = gasneti_mmap_shared;
+      mmap_fixed_fn = gasneti_mmap_shared_fixed;
+      munmap_fn     = gasneti_pshm_munmap;
+    } else
+    #endif
+    {
+      mmap_fn       = gasneti_mmap;
+      mmap_fixed_fn = gasneti_mmap_fixed;
+      munmap_fn     = gasneti_munmap;
+    }
+
     if (segsize == 0) { /* no segment */
       if (segment_p->addr && segment_p->size) {
-        gasneti_do_munmap(segment_p->addr, segment_p->size);
+        munmap_fn(segment_p->addr, segment_p->size);
       }
       segbase = NULL; 
     } else if (segment_p->addr) { /* a pre-segment exists */
@@ -1699,17 +1713,17 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
     #endif
       gasneti_assert_uint(segsize ,<=, segment_p->size);
       if (GASNET_PSHM || (segment_p->size != segsize) || (segment_p->addr != segbase)) {
-        gasneti_do_munmap(segment_p->addr, segment_p->size);
-        gasneti_bug3480_fence(exchangefn);
+        munmap_fn(segment_p->addr, segment_p->size);
+        gasneti_bug3480_fence();
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
         segbase =
 #endif
-        gasneti_do_mmap_fixed(segbase, segsize, 0);
+        mmap_fixed_fn(segbase, segsize, 0);
       } else {
-        gasneti_bug3480_fence(exchangefn);
+        gasneti_bug3480_fence();
       }
     } else { /* need segment from scratch */
-      segbase = gasneti_do_mmap(segsize);
+      segbase = mmap_fn(segsize);
       if (MAP_FAILED == segbase) {
         // TODO-EX: improve error handling here (e.g. ENOMEM might be returned to caller)
         int mmap_errno = errno;
@@ -1744,13 +1758,54 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
 
   segment_p->addr = segbase;
   segment_p->size = segsize;
+
+  return GASNET_OK;
+}
+
+//  Map a "promodial" segment
+//  + Aux segment via gex_Client_Init() or gasnet_init()
+//  + Client segment via gex_Segment_Attach() or gasnet_attach()
+static // TODO-EX: static for now, at least
+int gasneti_segment_map_primordial(
+                        gasnet_seginfo_t *segment_p,
+                        uintptr_t segsize,
+                        gex_Flags_t flags)
+{
+#ifdef GASNETI_MMAP_OR_PSHM
+  if (flags & GASNETI_FLAG_INIT_LEGACY) {
+    /* in "legacy_mode" we consume the presegment */
+    *segment_p = gasneti_presegment;
+  } else
+#endif
+  {
+    /* otherwise, we are working from scratch */
+    segment_p->size = 0;
+    segment_p->addr = NULL;
+  }
+
+  return gasneti_segment_map_inner(segment_p, segsize, 1);
+}
+
+//  Map a "non-promodial" segment
+int gasneti_segment_map(
+                        gasnet_seginfo_t *segment_p,
+                        uintptr_t segsize,
+                        int pshm_compat,
+                        gex_Flags_t flags)
+{
+  // TODO-EX: support for PSHM cross-mapping of segments not created initially
+  gasneti_assert(! pshm_compat);
+
+  segment_p->size = 0;
+  segment_p->addr = NULL;
+  return gasneti_segment_map_inner(segment_p, segsize, pshm_compat);
 }
 
 #if GASNET_PSHM
-/* Map the remote shared segments */
-// TODO-EX: need scalable data structure in place of gasneti_nodeinfo
+// Cross-map the remote shared segments
+// TODO-EX: need scalable data structures in place of seginfo and gasneti_nodeinfo
 static // TODO-EX: static for now, at least
-void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
+void gasneti_segment_cross_map(gasnet_seginfo_t *seginfo)
 {
     gasneti_nodeinfo[gasneti_mynode].offset = 0;
     gasneti_pshm_rank_t local_rank = 0;
@@ -1791,31 +1846,39 @@ static gasnet_seginfo_t
 gasneti_do_attach_segment(
                            uintptr_t segsize,
                            gasnet_seginfo_t *all_segments,
+                           gex_TM_t tm,
                            gasneti_bootstrapExchangefn_t exchangefn,
                            gex_Flags_t flags)
 {
-  gasneti_assert(all_segments);
-  gasneti_assert(exchangefn);
-
 #if GASNET_PSHM
   /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
   gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
   gasneti_pshmnet_bootstrapBarrier();
 #endif
 
-  gasnet_seginfo_t local_segment = {0,0};
-#ifdef GASNETI_MMAP_OR_PSHM
-  /* in "legacy_mode" we consume the presegment, otherwise working from scratch */
-  if (flags & GASNETI_FLAG_INIT_LEGACY) local_segment = gasneti_presegment;
-#endif
-  
-  gasneti_segmentAttachLocal(&local_segment, segsize, exchangefn);
+  gasnet_seginfo_t local_segment;
 
-  /*  gather segment information */   // TODO-EX: need scalable replacement
-  (*exchangefn)(&local_segment, sizeof(gasnet_seginfo_t), all_segments);
+  int rc = gasneti_segment_map_primordial(&local_segment, segsize, flags);
+  if (rc != GASNET_OK) {
+    gasneti_fatalerror("Unexpected failure return from gasneti_segment_map()");
+  }
+
+  //  Exchange segment information
+  // TODO-EX: need scalable replacement for full seginfo arrays
+  if (tm) { // Use collectives if available
+    gasneti_blockingExchange(tm, &local_segment, sizeof(gasnet_seginfo_t), all_segments);
+#if GASNET_PSHM
+    // Needed if a pshm bootstrap operation may follow use of AMs
+    gasneti_pshmnet_bootstrapBarrierPoll();
+#endif
+  } else {
+    // gasneti_assert(all_segments == gasneti_seginfo_aux); // Eventually only auxseg should use exchangefn
+    gasneti_assert(exchangefn);
+    (*exchangefn)(&local_segment, sizeof(gasnet_seginfo_t), all_segments);
+  }
 
 #if GASNET_PSHM
-  gasneti_segmentAttachRemote(all_segments);
+  gasneti_segment_cross_map(all_segments);
   gasneti_pshm_cs_leave();
 #endif
 
@@ -1828,7 +1891,6 @@ gasnet_seginfo_t gasneti_segmentAttach(
                 size_t                        allocsz,
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
-                gasneti_bootstrapExchangefn_t exchangefn,
                 gex_Flags_t                   flags)
 {
 #if GASNET_DEBUG
@@ -1841,7 +1903,7 @@ gasnet_seginfo_t gasneti_segmentAttach(
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
-  gasnet_seginfo_t myseg = gasneti_do_attach_segment(segsize, gasneti_seginfo, exchangefn, flags);
+  gasnet_seginfo_t myseg = gasneti_do_attach_segment(segsize, gasneti_seginfo, tm, NULL, flags);
 
   void *segbase = myseg.addr;
   segsize = myseg.size;
@@ -1853,6 +1915,7 @@ gasnet_seginfo_t gasneti_segmentAttach(
   ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, allocsz);
   gasneti_legacy_segment_attach_hook(ep);
   *segment_p = gasneti_export_segment(ep->_segment);
+  gasneti_segtbl_add(ep->_segment);
   
   // After local segment is attached, call optional client-provided hook
   if (gasnet_client_attach_hook) {
@@ -2244,80 +2307,43 @@ gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchangefn)
                        auxsize, maxsize);
   }
   gasneti_leak(gasneti_seginfo_aux    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
-  gasnet_seginfo_t local_segment = gasneti_do_attach_segment(auxsize, gasneti_seginfo_aux, exchangefn, 0);
+  gasnet_seginfo_t local_segment = gasneti_do_attach_segment(auxsize, gasneti_seginfo_aux, NULL, exchangefn, 0);
   gasneti_auxseg_attach(gasneti_seginfo_aux);
   gasneti_assert_uint(gasneti_seginfo_aux[gasneti_mynode].size ,==, auxsize);
   return local_segment;
 }
 
 /* ------------------------------------------------------------------------------------ */
-// AM-based gasneti_bootstrapExchangefn_t
+// Host-scoped (potentially superset of supernode) barrier
 
-static gasneti_weakatomic32_t gasneti_exchg_rcvd[2][32]; // Implicitly zero-initialized
+static gasneti_weakatomic32_t gasneti_hbarr_rcvd[2][32]; // Implicitly zero-initialized
 
-static uint8_t *_gasneti_exchg_data[2] = {NULL,NULL};
-static uint8_t *gasneti_exchg_data(int phase, size_t elemsz) {
-  uint8_t *data = _gasneti_exchg_data[phase];
-  if_pf (! data) {
-    static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-    gasneti_mutex_lock(&lock);
-    data = _gasneti_exchg_data[phase];
-    if (! data) {
-      data = gasneti_malloc(elemsz * gasneti_nodes);
-      _gasneti_exchg_data[phase] = data;
-    }
-    gasneti_mutex_unlock(&lock);
-  }
-  return data;
+extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0)
+{
+  const int phase = arg0 & 1;
+  const int step = (arg0 >> 1) & 0x1f; // Max 2^5 steps => 2^32 proc/host!
+  const int distance = (1 << step);
+  gasneti_assert_uint(distance ,<, gasneti_myhost.node_count);
+  gasneti_weakatomic32_increment(&gasneti_hbarr_rcvd[phase][step], GASNETI_ATOMIC_REL);
 }
 
-extern void gasnetc_exchg_reqh(gex_Token_t token, void *buf, size_t nbytes,
-                               gex_AM_Arg_t arg0, gex_AM_Arg_t elemsz) {
-    const int phase = arg0 & 1;
-    const int step = (arg0 >> 1) & 0x1f; // Max 2^5 steps            => 2^32 nodes
-    const int seq  = (arg0 >> 6);        // Max 2^26 fragments * 512 => 32GB (and max sent is elemsz*nodes/2)
-    const int distance = (1 << step);
-    gasneti_assert_uint(distance ,<, gasneti_nodes);
-    uint8_t *data = gasneti_exchg_data(phase, elemsz);
-    uint8_t *dest = data + (elemsz * distance) + (seq * gex_AM_LUBRequestMedium());
-    gasneti_assert_ptr(dest + nbytes ,<=, data + elemsz * gasneti_nodes);
-    memcpy(dest, buf, nbytes);
-    gasneti_weakatomic32_increment(&gasneti_exchg_rcvd[phase][step], GASNETI_ATOMIC_REL);
-}
-
-extern void gasneti_defaultExchange(void *src, size_t elemsz, void *dst) {
+void gasneti_host_barrier(void)
+{
+  // Simple dissemination barrier with two phase
   static int phase = 0;
-  gasneti_sync_reads();
+  const gex_Rank_t rank = gasneti_myhost.node_rank;
+  const gex_Rank_t size = gasneti_myhost.node_count;
+  for (unsigned int step = 0, distance = 1; distance < size; ++step, distance *= 2) {
+    gex_Rank_t peer = (distance <= rank) ? rank - distance : rank + (size - distance);
+    gex_AM_Arg_t arg0 = phase | (step << 1);
 
-  uint8_t *data = gasneti_exchg_data(phase, elemsz);
+    gex_AM_RequestShort(gasneti_THUNK_TM, gasneti_myhost.nodes[peer],
+                        gasneti_handleridx(gasnetc_hbarr_reqh), 0, arg0);
 
-  /* copy in local contribution */
-  memcpy(data, src, elemsz);
-
-  /* Bruck's concatenation algorithm: */
-  unsigned int step, distance;
-  for (step = 0, distance = 1; distance < gasneti_nodes; ++step, distance *= 2) {
-    gex_Rank_t peer = (distance <= gasneti_mynode) ? gasneti_mynode - distance
-                                                        : gasneti_mynode + (gasneti_nodes - distance);
-    size_t nbytes = elemsz * MIN(distance, gasneti_nodes - distance);
-    size_t offset = 0;
-    uint32_t seq = 0;
-
-    /* Send payload using AMMedium(s) */
-    do {
-      const size_t to_xfer = MIN(nbytes, gex_AM_LUBRequestMedium());
-      gex_AM_RequestMedium(gasneti_THUNK_TM, peer, _hidx_gasnetc_exchg_reqh,
-                               data + offset, to_xfer, GEX_EVENT_NOW, 0,
-                               phase | (step << 1) | (seq << 6), (uint32_t)elemsz);
-      ++seq;
-      offset += to_xfer;
-      nbytes -= to_xfer;
-    } while (nbytes);
-
-    /* Poll until we have received the same number of messages as we sent */
-    GASNET_BLOCKUNTIL((int)gasneti_weakatomic32_read(&gasneti_exchg_rcvd[phase][step], 0) >= (int)seq);
-    gasneti_assert_int((int)gasneti_weakatomic32_read(&gasneti_exchg_rcvd[phase][step], 0) ,==, (int)seq);
-    gasneti_weakatomic32_set(&gasneti_exchg_rcvd[phase][step], 0, 0);
+    // Poll until we have received the same phase we've just sent
+    GASNET_BLOCKUNTIL((int)gasneti_weakatomic32_read(&gasneti_hbarr_rcvd[phase][step], 0));
+    gasneti_assert_int((int)gasneti_weakatomic32_read(&gasneti_hbarr_rcvd[phase][step], 0) ,==, 1);
+    gasneti_weakatomic32_set(&gasneti_hbarr_rcvd[phase][step], 0, 0);
   }
 
 #if GASNET_PSHM
@@ -2325,17 +2351,6 @@ extern void gasneti_defaultExchange(void *src, size_t elemsz, void *dst) {
   gasneti_pshmnet_bootstrapBarrierPoll();
 #endif
 
-  /* Copy to final destination while performing the rotation */
-  const size_t a = elemsz * (gasneti_nodes - gasneti_mynode);
-  const size_t b = elemsz * gasneti_mynode;
-  memcpy(dst, data + a, b);
-  memcpy((uint8_t*)dst + b, data, a);
-  gasneti_assert(! memcmp((uint8_t*)dst + gasneti_mynode*elemsz, src, elemsz));
-
-  gasneti_free(data);
-  _gasneti_exchg_data[phase] = NULL;
-
-  gasneti_sync_writes();
   phase ^= 1;
 }
 

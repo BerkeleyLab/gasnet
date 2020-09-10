@@ -136,10 +136,6 @@ gasnetc_port_info_t      *gasnetc_port_tbl = NULL;
 int                      gasnetc_num_ports = 0;
 
 static uint64_t  gasnetc_pin_maxsz;
-#if GASNETC_PIN_SEGMENT
-  uintptr_t		gasnetc_seg_start;
-  uintptr_t		gasnetc_seg_len;
-#endif
 firehose_info_t	gasnetc_firehose_info;
 static uintptr_t gasnetc_firehose_mem;
 static int       gasnetc_firehose_reg;
@@ -1070,30 +1066,6 @@ static void gasneti_segreg_failed(size_t size, const char *which, int why) {
                      strerror(why), why,
                      gasnett_format_number(size, sizestr, sizeof(sizestr), 1),
                      which, hint1, hint2);
-}
-
-//
-// simple container of segments
-//
-static gasnetc_Segment_t *gasnetc_segment_table = NULL;
-static int gasnetc_segment_count = 0;
-static gasneti_mutex_t gasnetc_segment_lock = GASNETI_MUTEX_INITIALIZER;
-
-static void gasnetc_add_segment(gasnetc_Segment_t seg) {
-  gasneti_mutex_lock(&gasnetc_segment_lock);
-  seg->idx = gasnetc_segment_count++;
-  size_t space = gasnetc_segment_count * sizeof(gasnetc_Segment_t);
-  gasnetc_segment_table = gasneti_realloc(gasnetc_segment_table, space);
-  gasnetc_segment_table[seg->idx] = seg;
-  gasneti_mutex_unlock(&gasnetc_segment_lock);
-}
-static void gasnetc_del_segment(gasnetc_Segment_t seg) {
-  gasneti_mutex_lock(&gasnetc_segment_lock);
-  gasnetc_Segment_t last = gasnetc_segment_table[gasnetc_segment_count--];
-  last->idx = seg->idx;
-  gasnetc_segment_table[last->idx] = last;
-  // lack of realloc to shrink is harmless
-  gasneti_mutex_unlock(&gasnetc_segment_lock);
 }
 
 #if GASNET_TRACE
@@ -2670,51 +2642,68 @@ static int gasnetc_attach_primary(void) {
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+
+// Purely local memory registration and conduit-specific segment tracking
+// Applicable to both primordial and non-primordial segments
+static int gasnetc_segment_register(gasnetc_Segment_t segment)
+{
+#if GASNETC_PIN_SEGMENT
+    gasnetc_hca_t *hca;
+    GASNETC_FOR_ALL_HCA(hca) {
+      // Register page-aligned bounding-box (since client-provided need not be aligned).
+      gasnetc_memreg_t memreg;
+      uintptr_t lb = GASNETI_PAGE_ALIGNDOWN(segment->_addr);
+      uintptr_t ub = GASNETI_PAGE_ALIGNUP(segment->_ub);
+      uintptr_t bb_size = ub - lb;
+      int rc = gasnetc_pin(hca, (void*)lb, ub - lb, gasneti_seg_access_flags, &memreg);
+
+      if (rc) {
+        gasneti_segreg_failed(segment->_size, "", errno);
+      }
+      GASNETI_TRACE_PRINTF(I, ("Registered %"PRIuPTR" byte segment on HCA %d", segment->_size, hca->hca_index));
+
+      segment->seg_lkey[hca->hca_index] = memreg.handle->lkey;
+      segment->seg_reg[hca->hca_index] = memreg;
+    }
+#endif
+
+  return GASNET_OK;
+}
+
 static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   gex_TM_t                      tm,
                                   uintptr_t                     segsize,
-                                  gasneti_bootstrapExchangefn_t exchangefn,
                                   gex_Flags_t                   flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
   gasnetc_Segment_t segment;
-  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, sizeof(*segment), tm, segsize, exchangefn, flags);
-  segment = (gasnetc_Segment_t) gasneti_import_tm(tm)->_ep->_segment;
+  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, sizeof(*segment), tm, segsize, flags);
 
   // Register client segment with NIC
 
   #if GASNETC_PIN_SEGMENT
-  {
-    gasnetc_add_segment(segment);
+    // pin the segment 
+    segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+    int rc = gasnetc_segment_register(segment);
+    if (rc) {
+      gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
+    }
 
-    gasnetc_seg_start = (uintptr_t)myseg.addr;
-    gasnetc_seg_len   = myseg.size;
-
-    /* pin the segment and exchange the RKeys, once per HCA */
+    // exchange the RKeys
     gasnetc_hca_t *hca;
     GASNETC_FOR_ALL_HCA(hca) {
       hca->rkeys = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
       gasneti_leak(hca->rkeys);
 
-      gasnetc_memreg_t memreg;
-      if (0 != gasnetc_pin(hca, myseg.addr, myseg.size, gasneti_seg_access_flags, &memreg)) {
-        gasneti_segreg_failed(segsize, "", errno);
-      }
-      segment->seg_lkey[hca->hca_index] = memreg.handle->lkey;
-    #if GASNETC_IBV_SHUTDOWN
-      segment->seg_reg[hca->hca_index] = memreg;
-    #endif
-
-      GASNETI_TRACE_PRINTF(I, ("Attach registered %"PRIuPTR" bytes on HCA %d", segsize, hca->hca_index));
-
       /* XXX: hca->rkeys is one of the O(N) storage requirements we might reduce/eliminate.
        * + When using PSHM we could store rkeys just once per supernode
        * + When not fully connected, we could utilize sparse storage
        */
-      (*exchangefn)(&memreg.handle->rkey, sizeof(uint32_t), hca->rkeys);
+      gasneti_assert(tm == gasneti_THUNK_TM); // Unless/until this is generalized
+      gasneti_blockingExchange(tm, &segment->seg_reg[hca->hca_index].handle->rkey,
+                               sizeof(uint32_t), hca->rkeys);
     }
-  }
   #endif
 
   /* Per-endpoint work */
@@ -2761,7 +2750,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
     gex_Segment_t seg; // g2ex segment is automatically saved by a hook
-    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
+    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 
@@ -2851,9 +2840,8 @@ extern int gasnetc_Segment_Attach(
 
   /* create a segment collectively */
   // TODO-EX: this implementation only works *once*
-  // TODO-EX: should be using the team's exchange function if possible
   // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
-  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, gasneti_defaultExchange, 0))
+  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   return GASNET_OK;
@@ -2927,7 +2915,7 @@ extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
 void
 gasnetc_shutdown(void) {
   gasnetc_hca_t *hca;
-  int rc, i;
+  int rc;
 
   gasnetc_connect_shutdown(gasnetc_ep0);
 
@@ -2938,12 +2926,12 @@ gasnetc_shutdown(void) {
 
   GASNETC_FOR_ALL_HCA(hca) {
   #if GASNETC_PIN_SEGMENT
-    gasneti_mutex_lock(&gasnetc_segment_lock);
-      for (int i = 0; i < gasnetc_segment_count; ++i) {
-        gasnetc_Segment_t seg = gasnetc_segment_table[i];
-        gasnetc_unpin(hca, &seg->seg_reg[hca->hca_index]);
+    GASNETI_SEGTBL_LOCK();
+      gasneti_Segment_t seg;
+      GASNETI_SEGTBL_FOR_EACH(seg) {
+        gasnetc_unpin(hca, &((gasnetc_Segment_t)seg)->seg_reg[hca->hca_index]);
       }
-    gasneti_mutex_unlock(&gasnetc_segment_lock);
+    GASNETI_SEGTBL_UNLOCK();
   #endif
   #if GASNETC_IBV_ODP
     if (gasnetc_use_odp) {
@@ -5391,9 +5379,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
   (for internal conduit use in bootstrapping, job management, etc.)
 */
 static gex_AM_Entry_t const gasnetc_handlers[] = {
-  #ifdef GASNETC_COMMON_HANDLERS
-    GASNETC_COMMON_HANDLERS(),
-  #endif
+  GASNETC_COMMON_HANDLERS(),
 
   /* ptr-width independent handlers */
   gasneti_handler_tableentry_no_bits(gasnetc_exit_reduce_reqh,2,REQUEST,SHORT,0),

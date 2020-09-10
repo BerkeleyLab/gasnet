@@ -171,12 +171,11 @@ static int gasnetc_attach_primary(void) {
 static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   gex_TM_t                      tm,
                                   uintptr_t                     segsize,
-                                  gasneti_bootstrapExchangefn_t exchangefn,
                                   gex_Flags_t                   flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  (void) gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
+  (void) gasneti_segmentAttach(segment_p, 0, tm, segsize, flags);
 
   /* (###) do any client-specific pinning/registration of the client segment */
 
@@ -216,9 +215,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
     gex_Segment_t seg; // g2ex segment is automatically saved by a hook
-    /*  (###) may replace gasneti_defaultExchange with a conduit-specific exchange if available */
-    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
-
+    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 
@@ -299,7 +296,7 @@ extern int gasnetc_Segment_Attach(
   #endif
 
   /* (###) add code to create a segment collectively */
-  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, gasneti_defaultExchange, 0))
+  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   return GASNET_OK;
@@ -1169,9 +1166,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
   (for internal conduit use in bootstrapping, job management, etc.)
 */
 static gex_AM_Entry_t const gasnetc_handlers[] = {
-  #ifdef GASNETC_COMMON_HANDLERS
-    GASNETC_COMMON_HANDLERS(),
-  #endif
+  GASNETC_COMMON_HANDLERS(),
 
   /* ptr-width independent handlers */
 

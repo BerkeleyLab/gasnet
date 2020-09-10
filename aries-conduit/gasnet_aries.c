@@ -126,7 +126,6 @@ static unsigned int am_maxcredit;
 static unsigned int request_bits;
 
 static int have_auxseg = 0;
-static int have_segment = 0;
 
 static gni_cq_handle_t am_cq_handle;
 static int gasnetc_poll_burst = 10;
@@ -137,8 +136,6 @@ static size_t gasnetc_put_bounce_register_cutover;
 size_t gasnetc_max_get_unaligned;
 
 /* read-only: */
-// TODO-EX: this needs to be more general for multi-segment support
-static gni_mem_handle_t my_mem_handle;
 static gni_mem_handle_t my_aux_handle;
 
 #if GASNETC_BUILD_GNICE
@@ -795,9 +792,8 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
 }
 
 /*-------------------------------------------------*/
-/* called after client segment init. */
-/* allgather the memory handles for the segments */
-void gasnetc_init_segment(gasnet_seginfo_t seginfo)
+// register (create memory handle for) a client segment
+void gasnetc_segment_register(gasnetc_Segment_t segment)
 {
   gni_return_t status;
 #if GASNETC_USE_MULTI_DOMAIN
@@ -806,17 +802,20 @@ void gasnetc_init_segment(gasnet_seginfo_t seginfo)
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
 #endif
 
+  void *segbase = segment->_addr;
+  uintptr_t segsize = segment->_size;
+
   {
     int count = 0;
     for (;;) {
-      status = GNI_MemRegister(nic_handle, (uint64_t) seginfo.addr,
-			       (uint64_t) seginfo.size, am_cq_handle,
+      status = GNI_MemRegister(nic_handle, (uint64_t) segbase,
+			       segsize, am_cq_handle,
 			       gasnetc_memreg_flags|GNI_MEM_READWRITE, -1,
-			       &my_mem_handle);
+			       &segment->mem_handle);
       if (status == GNI_RC_SUCCESS) break;
       if (status == GNI_RC_ERROR_RESOURCE) {
 	gasnetc_GNIT_Log("MemRegister segment fault %d at  %p %lx, code %s",
-		count, seginfo.addr, seginfo.size, gasnetc_gni_rc_string(status));
+		count, segbase, (unsigned long)segsize, gasnetc_gni_rc_string(status));
 	count += 1;
 	if (count >= 10) break;
       } else {
@@ -824,18 +823,19 @@ void gasnetc_init_segment(gasnet_seginfo_t seginfo)
       }
     }
   }
-  have_segment = 1;
 
   gasneti_assert_always (status == GNI_RC_SUCCESS);
+}
+
+/*-------------------------------------------------*/
+// set the local memory handle the client segment and exchange with other procs
+void gasnetc_segment_exchange(gasnetc_Segment_t segment, gex_TM_t tm)
+{
+  gasneti_assert(tm == gasneti_THUNK_TM); // Unless/until this is generalized
 
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
-  #if 0// Cannot use gni-specific bootstrap collectives this late
-    gasnetc_bootstrapExchange_gni(&my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
-  #else
-    // TODO-EX: but we want real collectives here eventually anyway
-    gasneti_defaultExchange(&my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
-  #endif
+    gasneti_blockingExchange(tm, &segment->mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
     for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
       peer_data[i].mem_handle = all_mem_handle[i];
     }
@@ -1493,12 +1493,15 @@ void gasnetc_shutdown(void)
         gasnetc_GNIT_Log("CqDestroy(am_cq) failed with %s", gasnetc_gni_rc_string(status));
       }
 
-      if_pt (have_segment) {
-        status = GNI_MemDeregister(nic_handle, &my_mem_handle);
-        if_pf (status != GNI_RC_SUCCESS) {
-          gasnetc_GNIT_Log("MemDeregister(segment) failed with %s", gasnetc_gni_rc_string(status));
+      GASNETI_SEGTBL_LOCK();
+        gasneti_Segment_t seg;
+        GASNETI_SEGTBL_FOR_EACH(seg) {
+          status = GNI_MemDeregister(nic_handle, &((gasnetc_Segment_t)seg)->mem_handle);
+          if_pf (status != GNI_RC_SUCCESS) {
+            gasnetc_GNIT_Log("MemDeregister(segment) failed with %s", gasnetc_gni_rc_string(status));
+          }
         }
-      }
+      GASNETI_SEGTBL_UNLOCK();
 
       if_pt (have_auxseg) {
         status = GNI_MemDeregister(nic_handle, &my_aux_handle);
@@ -2894,14 +2897,15 @@ gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd, int l
   return status;
 }
 
-// TODO-EX: this is our auxseg support until real multi-segment support arrives
-//
 // Note len=1 is sufficient since the full (addr,len) will have already passed
 // gasneti_in_{,local_}fullsegment().  While len=0 might seem cheaper, it is not
 // permitted by gasneti_in_*segment().
 GASNETI_INLINE(gasnetc_local_mh)
 gni_mem_handle_t gasnetc_local_mh(gasneti_EP_t i_ep, void *addr) {
-  return  gasneti_in_local_auxsegment(i_ep,addr,1) ? my_aux_handle : my_mem_handle;
+  if (gasneti_in_local_clientsegment(i_ep, addr, 1)) {
+    return ((gasnetc_Segment_t) i_ep->_segment)->mem_handle;
+  }
+  return my_aux_handle;
 }
 GASNETI_INLINE(gasnetc_remote_mh)
 gni_mem_handle_t gasnetc_remote_mh(peer_struct_t * const peer, void *addr) {

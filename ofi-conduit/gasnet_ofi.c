@@ -29,7 +29,6 @@ struct fid_domain*    gasnetc_ofi_domainfd;
 struct fid_av*        gasnetc_ofi_avfd;
 struct fid_cq*        gasnetc_ofi_tx_cqfd; /* CQ for both AM and RDMA tx ops */
 struct fid_ep*        gasnetc_ofi_rdma_epfd;
-struct fid_mr*        gasnetc_ofi_rdma_mrfd;
 struct fid_ep*        gasnetc_ofi_request_epfd;
 struct fid_ep*        gasnetc_ofi_reply_epfd;
 struct fid_cq*        gasnetc_ofi_request_cqfd;
@@ -768,9 +767,14 @@ void gasnetc_ofi_exit(void)
     gasneti_fatalerror("close rdma epfd failed\n");
   }
 
-  if(fi_close(&gasnetc_ofi_rdma_mrfd->fid)!=FI_SUCCESS) {
-    gasneti_fatalerror("close mrfd failed\n");
-  }
+  GASNETI_SEGTBL_LOCK();
+    gasneti_Segment_t seg;
+    GASNETI_SEGTBL_FOR_EACH(seg) {
+      if(fi_close(&((gasnetc_Segment_t)seg)->mrfd->fid)!=FI_SUCCESS) {
+        gasneti_fatalerror("close mrfd failed\n");
+      }
+    }
+  GASNETI_SEGTBL_UNLOCK();
 
   if(fi_close(&gasnetc_ofi_tx_cqfd->fid)!=FI_SUCCESS) {
     gasneti_fatalerror("close am scqfd failed\n");
@@ -974,33 +978,44 @@ void gasnetc_ofi_handle_bounce_rdma(void *buf)
 /*------------------------------------------------
  * Pre-post or pin-down memory
  * ----------------------------------------------*/
-void gasnetc_ofi_attach(void *segbase, uintptr_t segsize)
-{
-	int ret = FI_SUCCESS;
-    uint64_t local_mr_key;
 
-	/* Pin-down Memory Region */
+// Local registration of segment memory
+int gasnetc_segment_register(gasnetc_Segment_t segment)
+{
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-	ret = fi_mr_reg(gasnetc_ofi_domainfd, segbase, segsize, FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL, &gasnetc_ofi_rdma_mrfd, NULL);
+    void *segbase = segment->_addr;
+    uintptr_t segsize = segment->_size;
 #else
-	ret = fi_mr_reg(gasnetc_ofi_domainfd, (void *)0, UINT64_MAX, FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL, &gasnetc_ofi_rdma_mrfd, NULL);
+    void *segbase = (void *)0;
+    uintptr_t segsize = UINT64_MAX;
     if (!GASNETC_OFI_HAS_MR_SCALABLE) {
         gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING is not supported when using FI_MR_BASIC.\n"
                            "Pick an OFI provider that supports FI_MR_SCALABLE if EVERYTHING\n"
                            "is needed.\n");
     }
 #endif
-	if (FI_SUCCESS != ret) gasneti_fatalerror("fi_mr_reg for rdma failed: %d\n", ret);
+    int ret = fi_mr_reg(gasnetc_ofi_domainfd, segbase, segsize,
+                        FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL,
+                        &segment->mrfd, NULL);
+    if (FI_SUCCESS != ret) gasneti_fatalerror("fi_mr_reg for rdma failed: %d\n", ret);
 
-    /* Exchange memory keys with other nodes.*/
-    if (!GASNETC_OFI_HAS_MR_SCALABLE) {
-        local_mr_key = fi_mr_key(gasnetc_ofi_rdma_mrfd);
-        gasneti_bootstrapExchange(&local_mr_key, sizeof(uint64_t),
-                gasnetc_ofi_target_keys);
-    }
-
+    return GASNET_OK;
 }
 
+// Exchange memory keys with other nodes.
+void gasnetc_segment_exchange(gasnetc_Segment_t segment, gex_TM_t tm)
+{
+  gasneti_assert(!tm || tm == gasneti_THUNK_TM); // Unless/until this is generalized
+
+  if (!GASNETC_OFI_HAS_MR_SCALABLE) {
+      uint64_t local_mr_key = fi_mr_key(segment->mrfd);
+      if (tm) { // Use collectives if available
+        gasneti_blockingExchange(tm, &local_mr_key, sizeof(uint64_t), gasnetc_ofi_target_keys);
+      } else {
+        gasneti_bootstrapExchange(&local_mr_key, sizeof(uint64_t), gasnetc_ofi_target_keys);
+      }
+    }
+}
 
 /*------------------------------------------------
  * OFI conduit network poll function

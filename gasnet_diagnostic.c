@@ -101,6 +101,7 @@ static void progressfns_test(int id);
 static void op_test(int id);
 
 static void spawner_test(void);
+static void hbarrier_test(void);
 
 static gex_TM_t myteam;
 
@@ -197,6 +198,8 @@ extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *test
     spawner_test();
     BARRIER();
   #endif
+
+  TEST_HEADER("host-scoped barrier test") hbarrier_test();
 
   #if GASNET_PAR
     num_threads = threadcnt;
@@ -1452,6 +1455,18 @@ static void spawner_test(void) {
   gasneti_free(all_data);
 }
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+
+static void hbarrier_test(void) {
+  // Currently, this is just to ensure this little-used interface gets tested
+  // TODO:
+  //   + Maybe verify that barrier property holds?
+  //   + Maybe verify AM progress made within this barrier?
+  for (int i = 0; i < iters0; ++i) {
+    gasneti_host_barrier();
+  }
+}
 
 /* ------------------------------------------------------------------------------------ */
 static gex_AM_Entry_t gasneti_diag_handlers[] = {

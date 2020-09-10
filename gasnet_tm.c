@@ -293,6 +293,15 @@ int gasneti_TM_Destroy(
 }
 
 /* ------------------------------------------------------------------------------------ */
+// Simple blocking Exchange utility function
+extern void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *dst)
+{
+  // TODO-EX: use gex_Coll_Exchange() once available
+  const int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
+  gasnet_coll_gather_all(gasneti_import_tm(tm)->_coll_team, dst, src, len, coll_flags);
+}
+
+/* ------------------------------------------------------------------------------------ */
 /* TM trace formatting - legal even without STATS/TRACE */
 
 // Format a gex_TM_t as a GUID
