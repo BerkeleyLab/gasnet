@@ -737,6 +737,7 @@ extern void gasneti_nodemapFini(void);
 void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *dst);
 
 // An AM-based host-scoped barrier
+extern void gasneti_host_barrier(void);
 extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
 #define GASNETC_COMMON_HANDLERS() \
     gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0)
