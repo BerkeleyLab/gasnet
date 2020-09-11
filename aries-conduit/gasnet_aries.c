@@ -143,6 +143,10 @@ static gni_mem_handle_t my_aux_handle;
 static gni_ep_handle_t my_ce_ep_handle;
 static gni_ce_handle_t ce_handle;
 int gasnete_ce_available = 0;
+#if GASNETC_USE_MULTI_DOMAIN
+  // cross-domain polling logic needs this help
+  static gasneti_weakatomic_t gasnete_ce_active = gasneti_weakatomic_init(0);
+#endif
 #endif
 
 #if GASNETC_USE_MULTI_DOMAIN
@@ -2764,6 +2768,11 @@ release:
         gasneti_lifo_push(&medxl_descriptor_pool, (void *) gpd->pd.local_addr);
       }
     #endif
+    #if GASNETC_USE_MULTI_DOMAIN
+      else if (gpd_flags & GC_POST_CE_RELEASE) {
+        gasneti_weakatomic_decrement(&gasnete_ce_active,0);
+      }
+    #endif
 
       if (!(gpd_flags & GC_POST_KEEP_GPD)) {
         gasnetc_free_post_descriptor(gpd);
@@ -2805,7 +2814,7 @@ void gasnetc_poll_single_domain(GASNETI_THREAD_FARG_ALONE)
        gasnetc_poll_am_queue(GASNETI_THREAD_PASS_ALONE);
     } else if_pf ((DOMAIN_SPECIFIC_VAL(poll_idx)++ & gasnetc_poll_am_domain_mask) == 0) {
       /* Every now and then poll for AMs even from non-default domains: */
-      if (am_rvous_head) {
+      if (am_rvous_head || gasneti_weakatomic_read(&gasnete_ce_active,0)) {
         gasnetc_poll_local_queue(GASNETC_DEFAULT_DOMAIN);
       }
       gasnetc_poll_am_queue(GASNETI_THREAD_PASS_ALONE);
@@ -3878,7 +3887,7 @@ gasnete_ce_result_t *gasnetc_post_ce(gasnetc_post_descriptor_t *gpd)
   // Completion via flag
   result->done = 0;
   gpd->gpd_completion = (uintptr_t) &result->done;
-  gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
+  gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_CE_RELEASE;
 
   gni_post_descriptor_t * const pd = &gpd->pd;
   pd->type = GNI_POST_CE;
@@ -3894,6 +3903,9 @@ gasnete_ce_result_t *gasnetc_post_ce(gasnetc_post_descriptor_t *gpd)
   if_pf (status != GNI_RC_SUCCESS) {
     gasnetc_GNIT_Abort("GNI_POST_CE failed with %s", gasnetc_gni_rc_string(status));
   }
+#if GASNETC_USE_MULTI_DOMAIN
+  gasneti_weakatomic_increment(&gasnete_ce_active, 0);
+#endif
 
   return result;
 }
