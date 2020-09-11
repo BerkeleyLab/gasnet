@@ -834,10 +834,11 @@ void gasnetc_segment_exchange(gasnetc_Segment_t segment, gex_TM_t tm)
   gasneti_assert(tm == gasneti_THUNK_TM); // Unless/until this is generalized
 
   {
+    GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
     gasneti_blockingExchange(tm, &segment->mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
     for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
-      peer_data[i].mem_handle = all_mem_handle[i];
+      DOMAIN_SPECIFIC_VAL(peer_data[i]).mem_handle = all_mem_handle[i];
     }
     gasneti_free(all_mem_handle);
   }
