@@ -2808,12 +2808,15 @@ void gasnetc_poll_single_domain(GASNETI_THREAD_FARG_ALONE)
   {
     if (GASNETC_DIDX == GASNETC_DEFAULT_DOMAIN) {
        gasnetc_poll_am_queue(GASNETI_THREAD_PASS_ALONE);
-    } else if_pf ((DOMAIN_SPECIFIC_VAL(poll_idx)++ & gasnetc_poll_am_domain_mask) == 0) {
-      /* Every now and then poll for AMs even from non-default domains: */
+    } else {
+      // Poll bound_cq of default domain when AM rendevous or CE are active
       if (am_rvous_head || gasneti_weakatomic_read(&gasnete_ce_active,0)) {
         gasnetc_poll_local_queue(GASNETC_DEFAULT_DOMAIN);
       }
-      gasnetc_poll_am_queue(GASNETI_THREAD_PASS_ALONE);
+      // Every now and then poll for AMs even from non-default domains:
+      if_pf ((DOMAIN_SPECIFIC_VAL(poll_idx)++ & gasnetc_poll_am_domain_mask) == 0) {
+        gasnetc_poll_am_queue(GASNETI_THREAD_PASS_ALONE);
+      }
     }
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   }
