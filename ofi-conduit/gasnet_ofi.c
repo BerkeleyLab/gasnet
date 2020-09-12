@@ -770,7 +770,8 @@ void gasnetc_ofi_exit(void)
   GASNETI_SEGTBL_LOCK();
     gasneti_Segment_t seg;
     GASNETI_SEGTBL_FOR_EACH(seg) {
-      if(fi_close(&((gasnetc_Segment_t)seg)->mrfd->fid)!=FI_SUCCESS) {
+      struct fid_mr* mrfd = ((gasnetc_Segment_t)seg)->mrfd;
+      if(mrfd && (fi_close(&mrfd->fid)!=FI_SUCCESS)) {
         gasneti_fatalerror("close mrfd failed\n");
       }
     }

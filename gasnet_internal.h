@@ -465,6 +465,14 @@ gasnet_seginfo_t gasneti_segmentAttach(
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
                 gex_Flags_t                   flags);
+int gasneti_segmentCreate(
+                gex_Segment_t           *segment_t,
+                gasneti_Client_t        client,
+                size_t                  allocsz,
+                gex_Addr_t              address,
+                uintptr_t               length,
+                gex_MemKind_t           kind,
+                gex_Flags_t             flags);
 
 extern void gasneti_legacy_segment_attach_hook(gasneti_EP_t ep);
 extern void gasneti_legacy_alloc_tm_hook(gasneti_TM_t _tm);

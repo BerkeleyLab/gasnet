@@ -1941,6 +1941,60 @@ gasnet_seginfo_t gasneti_segmentAttach(
 
   return myseg;
 }
+
+/* ------------------------------------------------------------------------------------ */
+uint8_t gasneti_segment_read_dummy; // global so compiler cannot realize this is write-only
+int gasneti_segmentCreate(
+                gex_Segment_t           *segment_p,
+                gasneti_Client_t        client,
+                size_t                  allocsz,
+                gex_Addr_t              address,
+                uintptr_t               length,
+                gex_MemKind_t           kind,
+                gex_Flags_t             flags)
+{
+  gasneti_assert(segment_p);
+
+  GASNETI_TRACE_PRINTF(C,("gex_Segment_Create: addr="GASNETI_LADDRFMT" len=%"PRIuPTR" flags=%d",
+                          GASNETI_LADDRSTR(address), length, flags));
+
+  if (flags) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with non-zero flags");
+  }
+  if (! length) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with zero length");
+  }
+
+  if (kind == GEX_MEMKIND_HOST) {
+    if (address) {
+      // Client-allocated segment
+      // TODO: stronger checks such as for read-only memory?
+
+      // Check that at least the first and last bytes can be read, with some
+      // trickery to hopefully prevent the compiler from discarding the access.
+      volatile uint8_t *bytes = address;
+      gasneti_segment_read_dummy += bytes[0] + bytes[length - 1];
+    } else {
+      // GASNet-allocated segment
+      gasnet_seginfo_t seginfo;
+      int rc = gasneti_segment_map(&seginfo, GASNETI_PAGE_ALIGNUP(length), 0, flags);
+      if (rc != GASNET_OK) {
+        gasneti_fatalerror("Unexpected failure return from gasneti_segment_map()");
+      }
+      address = seginfo.addr;
+      length  = seginfo.size;
+    }
+  } else {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with unknown kind");
+  }
+
+  // Create the Segment object
+  gasneti_Segment_t segment = gasneti_alloc_segment(client, address, length, kind, flags, allocsz);
+  gasneti_segtbl_add(segment);
+
+  *segment_p = gasneti_export_segment(segment);
+  return GASNET_OK;
+}
 /* ------------------------------------------------------------------------------------ */
 
 /* Used to pass the nodemap information to the client

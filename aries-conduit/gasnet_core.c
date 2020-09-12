@@ -921,6 +921,30 @@ extern int gasnetc_Segment_Attach(
   return GASNET_OK;
 }
 
+extern int gasnetc_Segment_Create(
+                gex_Segment_t           *segment_p,
+                gex_Client_t            client,
+                gex_Addr_t              address,
+                uintptr_t               length,
+                gex_MemKind_t           kind,
+                gex_Flags_t             flags)
+{
+  gasneti_assert(segment_p);
+
+  // Create the Segment object, allocating memory if appropriate
+  gasneti_Client_t i_client = gasneti_import_client(client);
+  gasnetc_Segment_t segment;
+  int rc = gasneti_segmentCreate(segment_p, i_client, sizeof(*segment), address, length, kind, flags);
+
+  if (rc == GASNET_OK) {
+    // Register segment with NIC
+    segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+    gasnetc_segment_register(segment);
+  }
+
+  return rc;
+}
+
 extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
                              gex_Client_t       client,
                              gex_Flags_t        flags) {

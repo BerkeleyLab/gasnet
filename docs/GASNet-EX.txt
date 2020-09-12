@@ -3166,6 +3166,18 @@ int gasneti_TM_Destroy(
       // Valid flags:
       //   GEX_FLAG_GLOBALLY_QUIESCED
 
+// NOTE: gex_Segment_Create() takes a `client` argument which was
+// *not* included in the 2020.6.1 API proposal
+int gex_Segment_Create(
+            gex_Segment_t   *segment_p,  // OUT
+            gex_Client_t    client,
+            gex_Addr_t      address,
+            uintptr_t       length,
+            gex_MemKind_t   kind,
+            gex_Flags_t     flags);
+      // Valid flags:
+      //   NONE - zero is currently required
+
 //----------------------------------------------------------------------
 
 // vim: syntax=c
