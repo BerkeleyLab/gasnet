@@ -837,10 +837,11 @@ extern int _gasneti_segtbl_count;
 //   gasneti_Segment_t p;
 //   GASNETI_SEGTBL_FOR_EACH(p) { visit(p); }
 #define GASNETI_SEGTBL_FOR_EACH(segvar) \
-  for (int _gasneti_segtbl_iter = (segvar = _gasneti_segtbl[0], 0); \
+  for (int _gasneti_segtbl_iter = 0;                       \
        (gasneti_mutex_assertlocked(&_gasneti_segtbl_lock), \
-        _gasneti_segtbl_iter < _gasneti_segtbl_count);     \
-       segvar = _gasneti_segtbl[++_gasneti_segtbl_iter])
+        (_gasneti_segtbl_iter < _gasneti_segtbl_count) &&  \
+        (segvar = _gasneti_segtbl[_gasneti_segtbl_iter])); \
+       ++_gasneti_segtbl_iter)
 
 // Add and Del
 extern void gasneti_segtbl_add(gasneti_Segment_t seg);
