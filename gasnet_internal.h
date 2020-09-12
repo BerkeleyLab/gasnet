@@ -433,10 +433,12 @@ uintptr_t gasneti_max_segsize();
   #endif
 #endif
 
-// Map memory intended for use as segment
-// Called non-collectively, as by gex_Segment_Create()
-// Boolean 'pshm_compat' requests allocation of memory which
-// is compatible with cross-mapping [UNIMPLMENTED]
+// Allocate/map memory intended for use as segment.
+// May be called non-collectively, as from gex_Segment_Create().
+// Also called collectively, as from gex_Segment_Attach() and aux seg creation.
+// Boolean 'pshm_compat' requests allocation of memory which is compatible with
+// cross-mapping by PSHM (only fully implemented for the collective cases of
+// gex_Segment_Attach() and aux seg creation).
 int gasneti_segment_map(gasnet_seginfo_t *segment_p,
                         uintptr_t segsize,
                         int pshm_compat,

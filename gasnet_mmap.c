@@ -1707,12 +1707,30 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 /* ------------------------------------------------------------------------------------ */
 
 // Allocate/map memory for a GASNet segment
-static
-int gasneti_segment_map_inner(
+//  + Auxiliary segment via gex_Client_Init() or gasnet_init()
+//  + Client segment via gex_Segment_Attach() or gasnet_attach()
+//  + Client segment via gex_Segment_Create()
+//
+//  If (flags & GASNETI_FLAG_INIT_LEGACY) this is a GASNet-1 segment
+//  If pshm_compat non-zero then allocate PSHM cross-mappable memory
+int gasneti_segment_map(
                         gasnet_seginfo_t *segment_p,
                         uintptr_t segsize,
-                        int use_shared)
+                        int pshm_compat,
+                        gex_Flags_t flags)
 {
+#ifdef GASNETI_MMAP_OR_PSHM
+  if (flags & GASNETI_FLAG_INIT_LEGACY) {
+    /* in "legacy_mode" we consume the presegment */
+    *segment_p = gasneti_presegment;
+  } else
+#endif
+  {
+    /* otherwise, we are working from scratch */
+    segment_p->size = 0;
+    segment_p->addr = NULL;
+  }
+
   void *segbase = NULL;
 
   #ifdef GASNETI_MMAP_OR_PSHM
@@ -1722,7 +1740,7 @@ int gasneti_segment_map_inner(
     void* (*mmap_fixed_fn)(void *, uintptr_t, int);
     void  (*munmap_fn)(void *, uintptr_t);
     #if GASNET_PSHM
-    if (use_shared) {
+    if (pshm_compat) {
       mmap_fn       = gasneti_mmap_shared;
       mmap_fixed_fn = gasneti_mmap_shared_fixed;
       munmap_fn     = gasneti_pshm_munmap;
@@ -1796,45 +1814,6 @@ int gasneti_segment_map_inner(
   return GASNET_OK;
 }
 
-//  Map a "promodial" segment
-//  + Aux segment via gex_Client_Init() or gasnet_init()
-//  + Client segment via gex_Segment_Attach() or gasnet_attach()
-static // TODO-EX: static for now, at least
-int gasneti_segment_map_primordial(
-                        gasnet_seginfo_t *segment_p,
-                        uintptr_t segsize,
-                        gex_Flags_t flags)
-{
-#ifdef GASNETI_MMAP_OR_PSHM
-  if (flags & GASNETI_FLAG_INIT_LEGACY) {
-    /* in "legacy_mode" we consume the presegment */
-    *segment_p = gasneti_presegment;
-  } else
-#endif
-  {
-    /* otherwise, we are working from scratch */
-    segment_p->size = 0;
-    segment_p->addr = NULL;
-  }
-
-  return gasneti_segment_map_inner(segment_p, segsize, 1);
-}
-
-//  Map a "non-promodial" segment
-int gasneti_segment_map(
-                        gasnet_seginfo_t *segment_p,
-                        uintptr_t segsize,
-                        int pshm_compat,
-                        gex_Flags_t flags)
-{
-  // TODO-EX: support for PSHM cross-mapping of segments not created initially
-  gasneti_assert(! pshm_compat);
-
-  segment_p->size = 0;
-  segment_p->addr = NULL;
-  return gasneti_segment_map_inner(segment_p, segsize, pshm_compat);
-}
-
 #if GASNET_PSHM
 // Cross-map the remote shared segments
 // TODO-EX: need scalable data structures in place of seginfo and gasneti_nodeinfo
@@ -1892,7 +1871,7 @@ gasneti_do_attach_segment(
 
   gasnet_seginfo_t local_segment;
 
-  int rc = gasneti_segment_map_primordial(&local_segment, segsize, flags);
+  int rc = gasneti_segment_map(&local_segment, segsize, 1, flags);
   if (rc != GASNET_OK) {
     gasneti_fatalerror("Unexpected failure return from gasneti_segment_map()");
   }
