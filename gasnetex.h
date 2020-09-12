@@ -327,6 +327,10 @@ struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
 #define GEX_SEGMENT_INVALID ((gex_Segment_t)(uintptr_t)0)
 
+struct gasneti_memkind_s;
+typedef struct gasneti_memkind_s *gex_MemKind_t;
+#define GEX_MEMKIND_HOST ((gex_MemKind_t)(uintptr_t)0)
+
 typedef void (*gex_AM_Fn_t)();
 
 /*  struct type used to perform handler registration */
@@ -382,6 +386,7 @@ struct gasneti_team_member_internal_s;
     void *             _addr;          \
     void *             _ub;            \
     uintptr_t          _size;          \
+    gex_MemKind_t      _kind;          \
     unsigned int       _opaque_container_use;
   typedef struct { GASNETI_SEGMENT_COMMON } *gasneti_Segment_t;
   #if GASNET_DEBUG

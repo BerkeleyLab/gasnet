@@ -1925,7 +1925,7 @@ gasnet_seginfo_t gasneti_segmentAttach(
   gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
 
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, allocsz);
+  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, GEX_MEMKIND_HOST, flags, allocsz);
   gasneti_legacy_segment_attach_hook(ep);
   *segment_p = gasneti_export_segment(ep->_segment);
   gasneti_segtbl_add(ep->_segment);
