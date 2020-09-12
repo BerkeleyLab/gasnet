@@ -85,7 +85,26 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" color=%d key=%d flags=%d",
                           GASNETI_TMSELFSTR(e_parent), color, key, flags));
 
-  if (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED) {
+  static int did_warn = 0;
+  if ((flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) && !did_warn) {
+    if (! i_parent->_rank) {
+      gasneti_console_message("WARNING",
+                              "gex_TM_Split() called using GEX_FLAG_TM_SCRATCH_SIZE_MIN, "
+                              "deprecated since specification 0.11.");
+    }
+    did_warn = 1; // Some process did, even if it was not us.
+  }
+
+#if GASNET_DEBUG
+  if ((flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) &&
+      (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
+    gasneti_fatalerror("Call to gex_TM_Split() with mutually-exclusive "
+                       "GEX_FLAG_TM_SCRATCH_SIZE_MIN and "
+                       "GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED both set in flags argument");
+  }
+#endif
+
+  if (flags & (GEX_FLAG_TM_SCRATCH_SIZE_MIN | GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
     // Don't know true size w/o comms, but singleton parent can only produce singleton children
     size_t result =  new_tm_p ? get_scratch_size(i_parent->_size, flags) : 0;
     GASNETI_TRACE_PRINTF(W,("TM_Split: scratch size query result=%"PRIuSZ, result));
@@ -177,10 +196,29 @@ size_t gasneti_TM_Create(
   GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" num_new_tms=%"PRIuSZ" nmembers=%"PRIuSZ" scratch_size=%"PRIuSZ" flags=%d",
                           GASNETI_TMSELFSTR(e_parent), num_new_tms, nmembers, scratch_size, flags));
 
+  static int did_warn = 0;
+  if ((flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) && !did_warn) {
+    if (! i_parent->_rank) {
+      gasneti_console_message("WARNING",
+                              "gex_TM_Create() called using GEX_FLAG_TM_SCRATCH_SIZE_MIN, "
+                              "deprecated since specification 0.11.");
+    }
+    did_warn = 1; // Some process did, even if it was not us.
+  }
+
+#if GASNET_DEBUG
+  if ((flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) &&
+      (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
+    gasneti_fatalerror("Call to gex_TM_Create() with mutually-exclusive "
+                       "GEX_FLAG_TM_SCRATCH_SIZE_MIN and "
+                       "GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED both set in flags argument");
+  }
+#endif
+
   // For now 0 or 1 are the only valid numbers of outputs.
   gasneti_assert(!nmembers || num_new_tms == 1);
 
-  if (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED) {
+  if (flags & (GEX_FLAG_TM_SCRATCH_SIZE_MIN | GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
     size_t result = nmembers ? get_scratch_size(nmembers, flags) : 0;
     GASNETI_TRACE_PRINTF(W,("TM_Create: scratch size query result=%"PRIuSZ, result));
     return result;

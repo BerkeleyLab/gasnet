@@ -182,7 +182,7 @@ typedef uint32_t gex_Flags_t;
 
 #define GEX_FLAG_USES_GASNET1           (1U <<  0)
 
-#define GEX_FLAG_TM_SCRATCH_SIZE_MIN          %%%ERROR-GEX_FLAG_TM_SCRATCH_SIZE_MIN-HAS-BEEN-REMOVED%%%
+#define GEX_FLAG_TM_SCRATCH_SIZE_MIN          (1U <<  0)
 #define GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED  (1U <<  1)
 #define GEX_FLAG_TM_GLOBAL_SCRATCH            (1U <<  2)
 #define GEX_FLAG_TM_LOCAL_SCRATCH             (1U <<  3)
