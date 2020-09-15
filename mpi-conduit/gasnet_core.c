@@ -275,6 +275,21 @@ static int gasnetc_attach_primary(void) {
     retval = AM_SetSeg(gasnetc_endpoint, NULL, (uintptr_t)-1);
     if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
 
+    #if GASNETC_HSL_ERRCHECK || GASNET_TRACE || GASNET_DEBUG
+      #if !(GASNETC_HSL_ERRCHECK || GASNET_DEBUG)
+        if (GASNETI_TRACE_ENABLED(A))
+      #endif
+          GASNETI_AM_SAFE(AMMPI_SetHandlerCallbacks(gasnetc_endpoint,
+            gasnetc_enteringHandler_hook, gasnetc_leavingHandler_hook));
+    #endif
+
+    #if GASNETC_HSL_ERRCHECK
+      // Historically needed to precede attach_done to avoid inf recursion on
+      // malloc/hold_interrupts.  That is *probably* no longer the case, but this
+      // is still a reasonable place to initialize.
+      gasnetc_hsl_attach();
+    #endif
+
     /* ------------------------------------------------------------------------------------ */
     /*  primary attach complete */
     gasneti_attach_done = 1;
@@ -311,19 +326,6 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
     gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, flags);
 
     // Have called AM_SetSeg() previously w/ an "everything" segment
-
-    #if GASNETC_HSL_ERRCHECK || GASNET_TRACE || GASNET_DEBUG
-      #if !(GASNETC_HSL_ERRCHECK || GASNET_DEBUG)
-        if (GASNETI_TRACE_ENABLED(A))
-      #endif
-          GASNETI_AM_SAFE(AMMPI_SetHandlerCallbacks(gasnetc_endpoint,
-            gasnetc_enteringHandler_hook, gasnetc_leavingHandler_hook));
-    #endif
-
-    #if GASNETC_HSL_ERRCHECK
-      gasnetc_hsl_attach(); /* must precede attach_done to avoid inf recursion on malloc/hold_interrupts */
-      // TODO-EX: Is this recursion still an issue w/ removal of NIS?
-    #endif
 
     return GASNET_OK;
 }
@@ -992,9 +994,13 @@ extern int gasnetc_AMReplyLongM(
       if_pt (info) return info;
 
       /*  first time we've seen this thread - need to set it up */
-      { /* it's unsafe to call malloc or gasneti_malloc here after attach,
-           because we may be within a hold_interrupts call, so table is single-level
-           and initialized during gasnet_attach */ // TODO-EX: Still true w/ removal of NIS?
+      { /* It is (was?) unsafe to call malloc or gasneti_malloc here after attach,
+           because we may have been within a hold_interrupts call, so table is single-level
+           and initialized during gasnetc_attach_primary().
+           While that problem has probably been eliminated with the removal of NIS, this
+           pre-initialization remains.
+           TODO: cleanup/simplify based on removal of NIS?
+            */
         static gasnetc_hsl_errcheckinfo_t *hsl_errcheck_table = NULL;
         static gasneti_mutex_t hsl_errcheck_tablelock = GASNETI_MUTEX_INITIALIZER;
         int maxthreads = gasneti_max_threads();
