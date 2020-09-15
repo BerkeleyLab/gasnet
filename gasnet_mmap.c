@@ -1899,6 +1899,42 @@ gasneti_do_attach_segment(
 }
 
 /* ------------------------------------------------------------------------------------ */
+
+extern void gex_Segment_EP_Bind(
+                gex_Segment_t       segment,
+                gex_EP_t            ep,
+                gex_Flags_t         flags)
+{
+  gasneti_Segment_t i_segment = gasneti_import_segment(segment);
+  gasneti_EP_t      i_ep      = gasneti_import_ep(ep);
+
+  // TODO: macros for formatting when naming segments in tracing?
+  // TODO: macros for formatting when naming endpoints in tracing?
+  GASNETI_TRACE_PRINTF(C,("gex_Segment_EP_Bind: segment=%p, EP index=%d, flags=%d",
+                          segment, i_ep->_index, flags));
+
+  if (segment == GEX_SEGMENT_INVALID) {
+    gasneti_fatalerror("Invalid call to gex_Segment_EP_Bind() with GEX_SEGMENT_INVALID");
+  }
+  if (flags) {
+    gasneti_fatalerror("Invalid call to gex_Segment_EP_Bind() with non-zero flags");
+  }
+  if (i_ep->_segment) {
+    gasneti_fatalerror("Invalid call to gex_Segment_EP_Bind() on EP with a bound segment");
+  }
+
+  i_ep->_segment = i_segment;
+  if (! i_ep->_index) {
+    gasneti_seginfo[gasneti_mynode].addr = i_segment->_addr;
+    gasneti_seginfo[gasneti_mynode].size = i_segment->_size;
+  } else {
+    gasneti_unreachable_error(("gex_Segment_EP_Bind() does not yet handle non-primordial EPs"));
+  }
+
+  gasneti_legacy_segment_attach_hook(i_ep);
+}
+
+/* ------------------------------------------------------------------------------------ */
 gasnet_seginfo_t gasneti_segmentAttach(
                 gex_Segment_t                 *segment_p,
                 size_t                        allocsz,
@@ -1913,22 +1949,28 @@ gasnet_seginfo_t gasneti_segmentAttach(
   called = 1;
 #endif
 
+  gasneti_EP_t i_ep = gasneti_import_tm(tm)->_ep;
+  gasneti_Client_t i_client = i_ep->_client;
+
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
+  // First portion of Segment_Create, plus cross-mapping and seginfo propagation:
   gasnet_seginfo_t myseg = gasneti_do_attach_segment(segsize, gasneti_seginfo, tm, NULL, flags);
 
+  // Sanity checks:
   void *segbase = myseg.addr;
   segsize = myseg.size;
-
   gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
   gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
 
-  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, GEX_MEMKIND_HOST, flags, allocsz);
-  gasneti_legacy_segment_attach_hook(ep);
-  *segment_p = gasneti_export_segment(ep->_segment);
-  gasneti_segtbl_add(ep->_segment);
+  // Final portion of Segment_Create:
+  gasneti_Segment_t i_segment = gasneti_alloc_segment(i_client, segbase, segsize, GEX_MEMKIND_HOST, flags, allocsz);
+  gasneti_segtbl_add(i_segment);
+
+  // Segment_Bind:
+  i_ep->_segment = i_segment;
+  gasneti_legacy_segment_attach_hook(i_ep);
   
   // After local segment is attached, call optional client-provided hook
   if (gasnet_client_attach_hook) {
@@ -1939,6 +1981,8 @@ gasnet_seginfo_t gasneti_segmentAttach(
   gasneti_assert_ptr(gasneti_seginfo[gasneti_mynode].addr ,==, segbase);
   gasneti_assert_uint(gasneti_seginfo[gasneti_mynode].size ,==, segsize);
 
+  // Two "outputs":
+  *segment_p = gasneti_export_segment(i_segment);
   return myseg;
 }
 

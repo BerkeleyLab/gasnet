@@ -556,6 +556,11 @@ extern void gex_System_QueryMyPosition(
             gex_Rank_t *_host_set_size_p,
             gex_Rank_t *_host_set_rank_p);
 
+extern void gex_Segment_EP_Bind(
+            gex_Segment_t  _segment,
+            gex_EP_t       _ep,
+            gex_Flags_t    _flags);
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 
