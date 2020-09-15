@@ -133,6 +133,7 @@ UPCXX_URL      ?= https://bitbucket.org/berkeleylab/upcxx/get/$(UPCXX_GIT_COMMIT
 #UPCXX_EXTRAS_URL  ?= https://upc-bugs.lbl.gov/nightly/unlisted/berkeleylab-upcxx-extras-$(UPCXX_EXTRAS_GIT_COMMIT).tar.gz
 UPCXX_EXTRAS_URL  ?= https://bitbucket.org/berkeleylab/upcxx-extras/get/$(UPCXX_EXTRAS_GIT_COMMIT)$(upcxx_dl_suffix)
 
+VERSION_FILE=$(HARNESS_LOGDIR)/git_$(PRODUCT)
 upcxx-download: force
 	rm -Rf $(DESTDIR) $(UPCXX_TMPDIR) && mkdir $(UPCXX_TMPDIR)
 	@if test -n "$(GIT_REPO)" ; then \
@@ -156,18 +157,28 @@ upcxx-download: force
 	 rm -f $(UPCXX_TMPDIR)/$$UPCXX_ARCHIVE
 	mv $(UPCXX_TMPDIR)/* $(DESTDIR) # archive's root dir will vary
 	rmdir $(UPCXX_TMPDIR)
+	@echo "$(PRODUCT) version: `cat $(VERSION_FILE) 2>/dev/null`"
+	@if grep -q '^#define' $(DESTDIR)/src/git_version.h 2>/dev/null ; then \
+	  ver=`grep '^#define' $(DESTDIR)/src/git_version.h | cut -f3 -d' '` ; \
+	  if test -n "$$ver" ; then \
+	    echo "$$ver" > $(VERSION_FILE) ; \
+	    echo "$(PRODUCT) describe: $$ver" ; \
+	  fi; \
+	fi
 # Three ways to unpack the archive:
 #  Option 1: "unzip" - .zip w/ unzip
 #   This is the favored approach because it gives us the hash and uses a widely available utility.
-upcxx-unpack-unzip: force; $(UNZIP) -z $(UPCXX_ARCHIVE) && $(UNZIP) -q $(UPCXX_ARCHIVE)
+upcxx-unpack-unzip: force; $(UNZIP) -qz $(UPCXX_ARCHIVE) > $(VERSION_FILE) && $(UNZIP) -q $(UPCXX_ARCHIVE)
 #  Option 2: "p7zip" - .zip w/ 7za (from p7zip package)
 #   This also gives us the hash, but uses a less widely available utility.
 #   However, it is sometimes necessary because many unzip installations contain a bug w.r.t. symlinks
-upcxx-unpack-p7zip: force; $(P7ZIP) x -bd $(UPCXX_ARCHIVE)
+upcxx-unpack-p7zip: force
+	$(P7ZIP) x -bd $(UPCXX_ARCHIVE) 2>&1 | tee -a $(VERSION_FILE).p7z $(PIPEEXIT)
+	@-grep 'Comment = ' $(VERSION_FILE).p7z | cut -f3 -d' ' > $(VERSION_FILE)
 #  Option 3: "tgz" - tar + gzip
 #   This is the most portable, but cannot extract the hash unless git is available
 upcxx-unpack-tgz:   force
-	-$(GZCAT) $(UPCXX_ARCHIVE) | $(GIT) get-tar-commit-id ; exit 0
+	@-$(GZCAT) $(UPCXX_ARCHIVE) | $(GIT) get-tar-commit-id > $(VERSION_FILE) ; exit 0
 	$(GZCAT) $(UPCXX_ARCHIVE) | $(TAR) xf -
 ####
 .PHONY: upcxx-download upcxx-unpack-unzip upcxx-unpack-p7zip upcxx-unpack-tgz
@@ -218,9 +229,9 @@ launcher-mpi:
 _upcxx: force
 	-rm -Rf upcxx-built upcxx-install launcher launcher-mpi $(LOGFILE)
 	echo ======== UPCXX download ======== | tee $(LOGFILE) $(PIPEEXIT)
-	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_URL) GIT_REPO=$(UPCXX_GIT_REPO) GIT_COMMIT=$(UPCXX_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	( set -x ; $(MAKE) upcxx-download PRODUCT=upcxx URL=$(UPCXX_URL) GIT_REPO=$(UPCXX_GIT_REPO) GIT_COMMIT=$(UPCXX_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	echo ======== UPCXX EXTRAS download ======== | tee -a $(LOGFILE) $(PIPEEXIT)
-	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_EXTRAS_URL) GIT_REPO=$(UPCXX_EXTRAS_GIT_REPO) GIT_COMMIT=$(UPCXX_EXTRAS_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR)/extras ) 2>&1 | tee -a $(LOGFILE) ; exit 0 # deliberately ignore failures
+	( set -x ; $(MAKE) upcxx-download PRODUCT=upcxx_extras URL=$(UPCXX_EXTRAS_URL) GIT_REPO=$(UPCXX_EXTRAS_GIT_REPO) GIT_COMMIT=$(UPCXX_EXTRAS_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR)/extras ) 2>&1 | tee -a $(LOGFILE) ; exit 0 # deliberately ignore failures
 	@echo UPCXX_GASNET=$(UPCXX_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) $(TO_LOG)
 	@echo CONFIGURE_GASNET=$(CONFIGURE_GASNET) CONFIGURE_FRAGMENTS=$(CONFIGURE_FRAGMENTS) $(TO_LOG)
 	@if test -n "$(UPCXX_EXTERNAL_GASNET)" ; then \
@@ -410,8 +421,8 @@ SYMPACK_INPUT_URL=https://bitbucket.org/berkeleylab/upcxx-extras/downloads/nasa2
 SYMPACK_DIR=$(HARNESS_WORKDIR)/sympack
 _sympack:
 	-rm -Rf $(SYMPACK_DIR)
-	( set -x ; $(MAKE) upcxx-download URL=$(SYMPACK_URL) GIT_REPO=$(SYMPACK_GIT_REPO) GIT_COMMIT=$(SYMPACK_GIT_COMMIT) DESTDIR=$(SYMPACK_DIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
-	( set -x ; $(MAKE) upcxx-download URL=$(SYMPACK_INPUT_URL) GIT_REPO= GIT_COMMIT= DESTDIR=$(SYMPACK_DIR)/input ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	( set -x ; $(MAKE) upcxx-download PRODUCT=sympack URL=$(SYMPACK_URL) GIT_REPO=$(SYMPACK_GIT_REPO) GIT_COMMIT=$(SYMPACK_GIT_COMMIT) DESTDIR=$(SYMPACK_DIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	( set -x ; $(MAKE) upcxx-download PRODUCT=sympack_input URL=$(SYMPACK_INPUT_URL) GIT_REPO= GIT_COMMIT= DESTDIR=$(SYMPACK_DIR)/input ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	cp $(SYMPACK_DIR)/input/nasa2146.rb .
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
