@@ -89,7 +89,7 @@ static void initialize_team_fields(
     // Detect and optimize for storage in symmetric offset case
     uintptr_t symmetric_offset = 0;
     int is_symmetric = 0;
-    if (team->total_ranks > 1) {
+    if (scratch_size && (team->total_ranks > 1)) {
       const gasnet_seginfo_t *si = gasneti_seginfo + team->rel2act_map[0];
       symmetric_offset = (uintptr_t)scratch_addrs[0] - (uintptr_t)(si->addr);
       if (symmetric_offset < si->size) {
@@ -130,7 +130,7 @@ static void initialize_team_fields(
     GASNETI_TRACE_PRINTF(W,("Team TM0:%i scratch: size=%"PRIuSZ" symmetric_offset=%"PRIuPTR" (auxseg)",
                             gasneti_mynode, scratch_size, gasnete_coll_auxseg_offset));
   }
-  team->myscratch = (void *)gasnete_coll_scratch_base(team, team->myrank);
+  team->myscratch = team->scratch_size ? (void *)gasnete_coll_scratch_base(team, team->myrank) : NULL;
 
 #if GASNET_PAR && GASNET_DEBUG
   gasneti_mutex_init(&team->threads_mutex);
@@ -502,12 +502,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent,
   /* It would be better to add some sanity check for team correctness here. */
   
   /* create a team */
-
-  // scratch address info is "local" by construction
-  gasneti_assert(! (flags & (GEX_FLAG_TM_GLOBAL_SCRATCH    | GEX_FLAG_TM_LOCAL_SCRATCH |
-                             GEX_FLAG_TM_SYMMETRIC_SCRATCH | GEX_FLAG_TM_NO_SCRATCH)));
-  flags |= GEX_FLAG_TM_LOCAL_SCRATCH;
-
   newteam = gasnete_coll_team_create(parent, new_total_ranks, new_myrank, rank_map,
                                      scratch_size, &scratch_addr, flags GASNETI_THREAD_PASS);
   
