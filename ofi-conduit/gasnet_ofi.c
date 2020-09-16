@@ -1010,13 +1010,14 @@ void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
 
   // Exchange a 64-bit mr key
   struct exchg_data {
-    gex_EP_Location_t loc;     // TODO: leverage comms done by conduit-indep code?
+    gex_EP_Location_t loc;
     uint64_t mr_key;
   } *local, *global, *p;
 
   size_t elem_sz = sizeof(struct exchg_data);
   local = gasneti_malloc(num_eps * elem_sz);
 
+  // Pack
   p = local;
   for (gex_Rank_t i = 0; i < num_eps; ++i) {
     gex_EP_t ep = eps[i];
@@ -1028,7 +1029,6 @@ void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
     ++p;
   }
 
-  // TODO: Merge w/ conduit-indep comms
   size_t local_bytes = elem_sz * (p - local);
   size_t total_bytes = gasneti_blockingRotatedExchangeV(tm, local, local_bytes, (void**)&global, NULL);
   size_t total_eps = total_bytes / elem_sz;

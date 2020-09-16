@@ -88,6 +88,10 @@
    */
 #define GASNETC_REQUESTV_POLLS 1
 
+  // uncomment if conduit provides a gasnetc-prefixed override
+  // TODO: this should be a hook rather than an override
+//#define GASNETC_HAVE_SEGMENT_PUBLISH 1
+
 /* mpi-conduit supports top-level poll throttling */
 #define GASNETC_USING_SUSPEND_RESUME 1
 

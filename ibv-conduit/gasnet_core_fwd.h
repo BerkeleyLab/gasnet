@@ -110,6 +110,18 @@
    */
 /* #define GASNETC_REQUESTV_POLLS 1 */
 
+#if defined(GASNET_SEGMENT_FAST)
+  #define GASNETC_PIN_SEGMENT 1
+#else
+  #define GASNETC_PIN_SEGMENT 0
+#endif
+
+  // uncomment if conduit provides a gasnetc-prefixed override
+  // TODO: this should be a hook rather than an override
+#if GASNETC_PIN_SEGMENT
+  #define GASNETC_HAVE_SEGMENT_PUBLISH 1
+#endif
+
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)       \

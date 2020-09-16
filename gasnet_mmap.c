@@ -1946,6 +1946,97 @@ extern void gex_Segment_EP_Bind(
 }
 
 /* ------------------------------------------------------------------------------------ */
+extern int gasneti_Segment_Publish(
+                gex_TM_t               tm,
+                gex_EP_t               *eps,
+                size_t                 num_eps,
+                gex_Flags_t            flags)
+{
+  GASNETI_TRACE_PRINTF(C,("gex_Segment_Publish: tm="GASNETI_TMSELFFMT", num_ep=%"PRIuSZ", flags=%d",
+                          GASNETI_TMSELFSTR(tm), num_eps, flags));
+
+  if (flags) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Publish() with non-zero flags");
+  }
+
+  // Conduit-indep segment fields
+  struct exchg_data {
+    gex_EP_Location_t loc; 
+    void              *addr;
+    uintptr_t         size;
+    // TODO: probably need the "class" from _kind
+  } *local, *global, *p;
+
+  size_t elem_sz = sizeof(struct exchg_data);
+  local = gasneti_malloc(num_eps * elem_sz);
+
+  // Pack
+  p = local;
+  for (gex_Rank_t i = 0; i < num_eps; ++i) {
+    gex_EP_t ep = eps[i];
+    gasneti_Segment_t segment = gasneti_import_ep(ep)->_segment;
+    if (! segment) continue;
+    p->loc.gex_rank = gasneti_mynode;
+    p->loc.gex_ep_index = gex_EP_QueryIndex(ep);
+    p->addr = segment->_addr;
+    p->size = segment->_size;
+    // TODO: kind class
+    ++p;
+  }
+
+  // ExchangeV (variable-contribution GatherAll)
+  // Since data is self-describing ('loc' field) we do NOT require that the
+  // payload is in rank order, and so can use gasneti_blockingRotatedExchangeV().
+  //
+  // TODO: Build/use "VisitAllV" since no need to construct entire array in memory
+  // TODO: Use the lengths array (final argument) to omit the jobranks from the comms?
+  //       The downside is the need for forward rank->jobrank lookups instead.
+  //       If *those* might communicate, then the current scheme makes more sense.
+  size_t local_bytes = elem_sz * (p - local);
+  size_t total_bytes = gasneti_blockingRotatedExchangeV(tm, local, local_bytes, (void**)&global, NULL);
+  size_t total_eps = total_bytes / elem_sz;
+  gasneti_free(local);
+
+  // Unpack
+  p = global;
+  for (size_t i = 0; i < total_eps; ++i, ++p) {
+    gex_Rank_t jobrank = p->loc.gex_rank;
+    if (jobrank == gasneti_mynode) {
+      // Local:
+      continue;
+    } else if (! p->loc.gex_ep_index) {
+      // Remote + primordial:
+      gasnet_seginfo_t *si = gasneti_seginfo + jobrank;
+      gasneti_assert(!si->addr || si->addr == p->addr);
+    #if GASNET_SEGMENT_EVERYTHING
+      gasneti_assert(!(~si->size) || si->size == p->size);
+    #else
+      gasneti_assert(!si->size || si->size == p->size);
+    #endif
+      si->addr = p->addr;
+      si->size = p->size;
+    } else {
+      // Remote + non-primordial:
+      gasneti_unreachable_error(("gex_Segment_Publish does not yet handle non-primordial EPs"));
+    }
+  }
+  gasneti_free(global);
+
+#if GASNET_PSHM
+  // BIG-TODO: PSHM cross-mapping ??
+  //   * Currently even cross-mapping of the primordial EP's segment is not
+  //     possible
+  //   * Main issue is that, in general, the current logic is collective over
+  //     supernode (in gasneti_publish_segment()).  Only XPMEM currently
+  //     communicates anything, but that case uses a supernode-scope exchange to
+  //     populate a global variable (not workable for this case for two
+  //     reasons).
+#endif
+
+  return GASNET_OK;
+}
+
+/* ------------------------------------------------------------------------------------ */
 gasnet_seginfo_t gasneti_segmentAttach(
                 gex_Segment_t                 *segment_p,
                 size_t                        allocsz,

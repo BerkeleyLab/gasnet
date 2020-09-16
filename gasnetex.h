@@ -561,6 +561,17 @@ extern void gex_Segment_EP_Bind(
             gex_EP_t       _ep,
             gex_Flags_t    _flags);
 
+#if GASNETC_HAVE_SEGMENT_PUBLISH
+  #define gex_Segment_Publish gasnetc_Segment_Publish
+#else
+  #define gex_Segment_Publish gasneti_Segment_Publish
+#endif
+extern int gex_Segment_Publish(
+            gex_TM_t       _tm,
+            gex_EP_t       *_eps,
+            size_t         _num_eps,
+            gex_Flags_t    _flags);
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 
