@@ -24,7 +24,7 @@ typedef struct {
 } gasneti_heapstats_t;
 
 #if GASNET_DEBUGMALLOC
-  /* curloc is passed to debug mallocator as "file:line",
+  /* _curloc is passed to debug mallocator as "file:line",
      or the special constant "SRCPOS" to retrieve the info from gasnet_srclines 
      To enable use of srcpos for a compilation unit, client should: 
        #undef GASNETT_MALLOC_USE_SRCPOS
@@ -33,20 +33,20 @@ typedef struct {
   #ifndef GASNETT_MALLOC_USE_SRCPOS
   #define GASNETT_MALLOC_USE_SRCPOS 0 /* off by default */
   #endif
-  #define GASNETI_CURLOCFARG , const char *curloc
+  #define GASNETI_CURLOCFARG , const char *_curloc
   #define GASNETI_CURLOCAARG , (GASNETT_MALLOC_USE_SRCPOS ? \
                                "SRCPOS" :                   \
                                 __FILE__ ":" _STRINGIFY(__LINE__))
-  #define GASNETI_CURLOCPARG , curloc
-  extern size_t _gasneti_memcheck(void *ptr, const char *curloc, int checktype);
-  extern void _gasneti_memcheck_one(const char *curloc);
-  extern void _gasneti_memcheck_all(const char *curloc);
+  #define GASNETI_CURLOCPARG , _curloc
+  extern size_t _gasneti_memcheck(void *_ptr, const char *_curloc, int _checktype);
+  extern void _gasneti_memcheck_one(const char *_curloc);
+  extern void _gasneti_memcheck_all(const char *_curloc);
   #define gasneti_memcheck(ptr)  (gasneti_assert(ptr != NULL), \
          (void)_gasneti_memcheck(ptr, __FILE__ ":" _STRINGIFY(__LINE__), 0)) 
   #define gasneti_memcheck_one() _gasneti_memcheck_one(__FILE__ ":" _STRINGIFY(__LINE__))
   #define gasneti_memcheck_all() _gasneti_memcheck_all(__FILE__ ":" _STRINGIFY(__LINE__))
-  extern int gasneti_getheapstats(gasneti_heapstats_t *pstat);
-  extern void gasneti_heapinfo_dump(const char *filename, int show_live_objects);
+  extern int gasneti_getheapstats(gasneti_heapstats_t *_pstat);
+  extern void gasneti_heapinfo_dump(const char *_filename, int _show_live_objects);
 #else
   #define GASNETI_CURLOCFARG 
   #define GASNETI_CURLOCAARG 
@@ -59,16 +59,16 @@ typedef struct {
 #endif
 
 /* extern versions of gasnet malloc fns for use in public headers */
-extern void *_gasneti_extern_malloc(size_t sz GASNETI_CURLOCFARG) GASNETI_MALLOC;
+extern void *_gasneti_extern_malloc(size_t _sz GASNETI_CURLOCFARG) GASNETI_MALLOC;
 GASNETI_MALLOCP(_gasneti_extern_malloc)
-extern void *_gasneti_extern_realloc(void *ptr, size_t sz GASNETI_CURLOCFARG);
-extern void *_gasneti_extern_calloc(size_t N, size_t S GASNETI_CURLOCFARG) GASNETI_MALLOC;
+extern void *_gasneti_extern_realloc(void *_ptr, size_t _sz GASNETI_CURLOCFARG);
+extern void *_gasneti_extern_calloc(size_t _n, size_t _s GASNETI_CURLOCFARG) GASNETI_MALLOC;
 GASNETI_MALLOCP(_gasneti_extern_calloc)
-extern void _gasneti_extern_free(void *ptr GASNETI_CURLOCFARG);
-extern void _gasneti_extern_leak(void *ptr GASNETI_CURLOCFARG);
-extern char *_gasneti_extern_strdup(const char *s GASNETI_CURLOCFARG) GASNETI_MALLOC;
+extern void _gasneti_extern_free(void *_ptr GASNETI_CURLOCFARG);
+extern void _gasneti_extern_leak(void *_ptr GASNETI_CURLOCFARG);
+extern char *_gasneti_extern_strdup(const char *_s GASNETI_CURLOCFARG) GASNETI_MALLOC;
 GASNETI_MALLOCP(_gasneti_extern_strdup)
-extern char *_gasneti_extern_strndup(const char *s, size_t n GASNETI_CURLOCFARG) GASNETI_MALLOC;
+extern char *_gasneti_extern_strndup(const char *_s, size_t _n GASNETI_CURLOCFARG) GASNETI_MALLOC;
 GASNETI_MALLOCP(_gasneti_extern_strndup)
 
 #define gasneti_extern_malloc(sz)      _gasneti_extern_malloc((sz) GASNETI_CURLOCAARG)
@@ -87,49 +87,49 @@ GASNETI_MALLOCP(_gasneti_extern_strndup)
   #define GASNETI_USE_POSIX_MEMALIGN 1
 #endif
 GASNETI_INLINE(_gasneti_malloc_aligned) GASNETI_MALLOC
-void * _gasneti_malloc_aligned(size_t alignment, size_t size GASNETI_CURLOCFARG) {
-  gasneti_assert(GASNETI_POWEROFTWO(alignment));
-  gasneti_assert(alignment <= GASNET_PAGESIZE);
+void * _gasneti_malloc_aligned(size_t _alignment, size_t _size GASNETI_CURLOCFARG) {
+  gasneti_assert(GASNETI_POWEROFTWO(_alignment));
+  gasneti_assert(_alignment <= GASNET_PAGESIZE);
 #if GASNETI_USE_POSIX_MEMALIGN
-  if_pf(alignment < sizeof(void*)) alignment = sizeof(void*);
-  void *result = NULL; // init to avoid -Wmaybe-uninitialized warnings
-  int _return_code = posix_memalign(&result, alignment, size);
+  if_pf(_alignment < sizeof(void*)) _alignment = sizeof(void*);
+  void *_result = NULL; // init to avoid -Wmaybe-uninitialized warnings
+  int _return_code = posix_memalign(&_result, _alignment, _size);
   gasneti_assert_zeroret(_return_code);
 #else
-  size_t alloc_size = size + sizeof(void *) + alignment;
-  void *base = _gasneti_extern_malloc(alloc_size GASNETI_CURLOCPARG);
-  void **result = (void **)GASNETI_ALIGNUP((uintptr_t)base + sizeof(void *), alignment);
-  *(result - 1) = base; /* hidden base ptr for free() */
-  gasneti_assert_ptr((void *)(result - 1) ,>=, base);
-  gasneti_assert_ptr(((uint8_t *)result + size) ,<=, ((uint8_t *)base + alloc_size));
+  size_t _alloc_size = _size + sizeof(void *) + _alignment;
+  void *_base = _gasneti_extern_malloc(_alloc_size GASNETI_CURLOCPARG);
+  void **_result = (void **)GASNETI_ALIGNUP((uintptr_t)_base + sizeof(void *), _alignment);
+  *(_result - 1) = _base; /* hidden base ptr for free() */
+  gasneti_assert_ptr((void *)(_result - 1) ,>=, _base);
+  gasneti_assert_ptr(((uint8_t *)_result + _size) ,<=, ((uint8_t *)_base + _alloc_size));
 #endif
-  gasneti_assume(result);
-  gasneti_assert_ptr(result ,==, (void **)GASNETI_ALIGNUP(result, alignment));
-  return (void *)result;
+  gasneti_assume(_result);
+  gasneti_assert_ptr(_result ,==, (void **)GASNETI_ALIGNUP(_result, _alignment));
+  return (void *)_result;
 }
 GASNETI_MALLOCP(_gasneti_malloc_aligned)
 #define gasneti_malloc_aligned(align,sz) _gasneti_malloc_aligned((align), (sz) GASNETI_CURLOCAARG)
 
 GASNETI_INLINE(_gasneti_free_aligned)
-void _gasneti_free_aligned(void *ptr GASNETI_CURLOCFARG) {
-  gasneti_assert(ptr);
+void _gasneti_free_aligned(void *_ptr GASNETI_CURLOCFARG) {
+  gasneti_assert(_ptr);
 #if GASNETI_USE_POSIX_MEMALIGN
-  free(ptr);
+  free(_ptr);
 #else
-  void *base = *((void **)ptr - 1);
-  gasneti_assert(base);
-  _gasneti_extern_free(base GASNETI_CURLOCPARG);
+  void *_base = *((void **)_ptr - 1);
+  gasneti_assert(_base);
+  _gasneti_extern_free(_base GASNETI_CURLOCPARG);
 #endif
 }
 #define gasneti_free_aligned(ptr) _gasneti_free_aligned((ptr) GASNETI_CURLOCAARG)
 
 GASNETI_INLINE(_gasneti_leak_aligned)
-void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
-  gasneti_assert(ptr);
+void _gasneti_leak_aligned(void *_ptr GASNETI_CURLOCFARG) {
+  gasneti_assert(_ptr);
 #if !GASNETI_USE_POSIX_MEMALIGN
-  void *base = *((void **)ptr - 1);
-  gasneti_assert(base);
-  _gasneti_extern_leak(base GASNETI_CURLOCPARG);
+  void *_base = *((void **)_ptr - 1);
+  gasneti_assert(_base);
+  _gasneti_extern_leak(_base GASNETI_CURLOCPARG);
 #endif
 }
 #define gasneti_leak_aligned(ptr) _gasneti_leak_aligned((ptr) GASNETI_CURLOCAARG)
@@ -399,15 +399,15 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
 // TODO-EX: move to gasnet_event_internal.h
 #ifndef _GEX_EVENT_T
 GASNETI_INLINE(gasneti_leaf_is_pointer) GASNETI_PURE
-int gasneti_leaf_is_pointer(const gex_Event_t *opt_val) {
-  gasneti_assert(opt_val != NULL);
-  return ((uintptr_t)(opt_val) >= (uintptr_t)4);
+int gasneti_leaf_is_pointer(const gex_Event_t *_opt_val) {
+  gasneti_assert(_opt_val != NULL);
+  return ((uintptr_t)(_opt_val) >= (uintptr_t)4);
 }
 GASNETI_PUREP(gasneti_leaf_is_pointer)
 
 GASNETI_INLINE(gasneti_leaf_finish)
-void gasneti_leaf_finish(gex_Event_t *opt_val) {
-  if (gasneti_leaf_is_pointer(opt_val)) *opt_val = GEX_EVENT_INVALID;
+void gasneti_leaf_finish(gex_Event_t *_opt_val) {
+  if (gasneti_leaf_is_pointer(_opt_val)) *_opt_val = GEX_EVENT_INVALID;
 }
 #endif
 
@@ -447,18 +447,18 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
     #define GASNETI_SPINLOCK_UNLOCKED	0xaa55
     #define GASNETI_SPINLOCK_DESTROYED	0xDEAD
     GASNETI_INLINE(gasneti_spinlock_is_valid)
-    int gasneti_spinlock_is_valid(gasneti_atomic_t *plock) {
-      uint32_t tmp = gasneti_atomic_read(plock, GASNETI_ATOMIC_RMB_PRE);
-      if_pf (tmp == GASNETI_SPINLOCK_DESTROYED)
+    int gasneti_spinlock_is_valid(gasneti_atomic_t *_plock) {
+      uint32_t _tmp = gasneti_atomic_read(_plock, GASNETI_ATOMIC_RMB_PRE);
+      if_pf (_tmp == GASNETI_SPINLOCK_DESTROYED)
         gasneti_fatalerror("Detected use of destroyed spinlock");
-      if_pf (!((tmp == GASNETI_SPINLOCK_LOCKED) || (tmp == GASNETI_SPINLOCK_UNLOCKED)))
+      if_pf (!((_tmp == GASNETI_SPINLOCK_LOCKED) || (_tmp == GASNETI_SPINLOCK_UNLOCKED)))
         gasneti_fatalerror("Detected use of uninitialized or corrupted spinlock");
       return 1;
     }
     GASNETI_INLINE(gasneti_spinlock_is_locked)
-    int gasneti_spinlock_is_locked(gasneti_atomic_t *plock) {
-      uint32_t tmp = gasneti_atomic_read(plock, GASNETI_ATOMIC_RMB_PRE);
-      return (tmp == GASNETI_SPINLOCK_LOCKED);
+    int gasneti_spinlock_is_locked(gasneti_atomic_t *_plock) {
+      uint32_t _tmp = gasneti_atomic_read(_plock, GASNETI_ATOMIC_RMB_PRE);
+      return (_tmp == GASNETI_SPINLOCK_LOCKED);
     }
   #else
     #define GASNETI_SPINLOCK_LOCKED	1
@@ -479,22 +479,22 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
       gasneti_assert(gasneti_spinlock_is_locked(plock));                        \
   } while (0)
   GASNETI_INLINE(gasneti_spinlock_unlock)
-  int gasneti_spinlock_unlock(gasneti_atomic_t *plock) {
+  int gasneti_spinlock_unlock(gasneti_atomic_t *_plock) {
       #if GASNET_DEBUG
         /* Using CAS for release is more costly, but adds validation */
-        gasneti_assert(gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_LOCKED, GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_REL));
+        gasneti_assert(gasneti_atomic_compare_and_swap(_plock, GASNETI_SPINLOCK_LOCKED, GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_REL));
       #else
-        gasneti_atomic_set(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_REL);
+        gasneti_atomic_set(_plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_REL);
       #endif
       return 0;
   }
   /* return 0/EBUSY on success/failure to match pthreads */
   GASNETI_INLINE(gasneti_spinlock_trylock) GASNETI_WARN_UNUSED_RESULT
-  int gasneti_spinlock_trylock(gasneti_atomic_t *plock) {
-      gasneti_assert(gasneti_spinlock_is_valid(plock));
-      if ((GASNETI_SPINLOCK_UNLOCKED == gasneti_atomic_read(plock, 0)) &&
-          gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
-	  gasneti_assert(gasneti_spinlock_is_locked(plock));
+  int gasneti_spinlock_trylock(gasneti_atomic_t *_plock) {
+      gasneti_assert(gasneti_spinlock_is_valid(_plock));
+      if ((GASNETI_SPINLOCK_UNLOCKED == gasneti_atomic_read(_plock, 0)) &&
+          gasneti_atomic_compare_and_swap(_plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
+	  gasneti_assert(gasneti_spinlock_is_locked(_plock));
 	  return 0;
       } else {
 	  return EBUSY;
@@ -507,16 +507,16 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
   #define GASNETI_SPINLOCK_DESTROYED	2
   #if GASNET_DEBUG
     GASNETI_INLINE(gasneti_spinlock_is_valid)
-    int gasneti_spinlock_is_valid(gasneti_atomic_t *plock) {
-      uint32_t tmp = gasneti_atomic_read(plock, GASNETI_ATOMIC_RMB_PRE);
-      if_pf (tmp == GASNETI_SPINLOCK_DESTROYED)
+    int gasneti_spinlock_is_valid(gasneti_atomic_t *_plock) {
+      uint32_t _tmp = gasneti_atomic_read(_plock, GASNETI_ATOMIC_RMB_PRE);
+      if_pf (_tmp == GASNETI_SPINLOCK_DESTROYED)
         gasneti_fatalerror("Detected use of destroyed spinlock");
       return 1;
     }
     GASNETI_INLINE(gasneti_spinlock_is_locked)
-    int gasneti_spinlock_is_locked(gasneti_atomic_t *plock) {
-      gasneti_atomic_val_t tmp = gasneti_atomic_read(plock, GASNETI_ATOMIC_RMB_PRE);
-      return (tmp != GASNETI_SPINLOCK_UNLOCKED);
+    int gasneti_spinlock_is_locked(gasneti_atomic_t *_plock) {
+      gasneti_atomic_val_t _tmp = gasneti_atomic_read(_plock, GASNETI_ATOMIC_RMB_PRE);
+      return (_tmp != GASNETI_SPINLOCK_UNLOCKED);
     }
   #else
     #define gasneti_spinlock_is_valid(plock) 1
@@ -529,10 +529,10 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
       gasneti_atomic_set((plock), GASNETI_SPINLOCK_DESTROYED, GASNETI_ATOMIC_WMB_POST); \
   } while (0)
   GASNETI_INLINE(_gasneti_spinlock_try) GASNETI_WARN_UNUSED_RESULT
-  int _gasneti_spinlock_try(gasneti_atomic_t *plock) {
-    gasneti_assert(gasneti_spinlock_is_valid(plock));
-    return (gasneti_atomic_read(plock, 0) == GASNETI_SPINLOCK_UNLOCKED) &&
-           gasneti_atomic_decrement_and_test(plock, GASNETI_ATOMIC_ACQ_IF_TRUE);
+  int _gasneti_spinlock_try(gasneti_atomic_t *_plock) {
+    gasneti_assert(gasneti_spinlock_is_valid(_plock));
+    return (gasneti_atomic_read(_plock, 0) == GASNETI_SPINLOCK_UNLOCKED) &&
+           gasneti_atomic_decrement_and_test(_plock, GASNETI_ATOMIC_ACQ_IF_TRUE);
   }
   /* Ick: forward reference to GASNETI_WAITHOOK only works because this is a macro */
   #define gasneti_spinlock_lock(plock) do { \
@@ -541,15 +541,15 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
     }                                       \
   } while (0)
   GASNETI_INLINE(gasneti_spinlock_unlock)
-  int gasneti_spinlock_unlock(gasneti_atomic_t *plock) {
-    gasneti_assert(gasneti_spinlock_is_locked(plock));
-    gasneti_atomic_set(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_REL);
+  int gasneti_spinlock_unlock(gasneti_atomic_t *_plock) {
+    gasneti_assert(gasneti_spinlock_is_locked(_plock));
+    gasneti_atomic_set(_plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_REL);
     return 0;
   }
   /* return 0/EBUSY on success/failure to match pthreads */
   GASNETI_INLINE(gasneti_spinlock_trylock) GASNETI_WARN_UNUSED_RESULT
-  int gasneti_spinlock_trylock(gasneti_atomic_t *plock) {
-    return _gasneti_spinlock_try(plock) ? 0 : EBUSY;
+  int gasneti_spinlock_trylock(gasneti_atomic_t *_plock) {
+    return _gasneti_spinlock_try(_plock) ? 0 : EBUSY;
   }
   #define GASNETI_HAVE_SPINLOCK 1
 #endif
@@ -1038,12 +1038,12 @@ typedef void (*gasneti_progressfn_t)(void);
   #if !GASNETI_THROTTLE_POLLERS 
     GASNETI_INLINE(_gasneti_AMPoll)
     int _gasneti_AMPoll(GASNETI_THREAD_FARG_ALONE) {
-       int retval;
+       int _retval;
        gasneti_AMPoll_spinpollers_check();
        gasneti_memcheck_one();
-       retval = gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE);
+       _retval = gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE);
        GASNETI_PROGRESSFNS_RUN();
-       return retval;
+       return _retval;
     }
     #define gasneti_suspend_spinpollers() gasneti_suspend_spinpollers_check()
     #define gasneti_resume_spinpollers()  gasneti_resume_spinpollers_check()
@@ -1080,18 +1080,18 @@ typedef void (*gasneti_progressfn_t)(void);
     /* and finally, the throttled poll implementation */
     GASNETI_INLINE(_gasneti_AMPoll)
     int _gasneti_AMPoll(GASNETI_THREAD_FARG_ALONE) {
-       int retval = GASNET_OK;
+       int _retval = GASNET_OK;
        gasneti_AMPoll_spinpollers_check();
        gasneti_memcheck_one();
        /* if another thread is spin-polling then skip both the poll and progress fns: */
        if_pt (!gasneti_mutex_trylock(&gasneti_throttle_spinpoller)) {
           /* if another thread is sending then skip the poll: */
           if_pt (!gasneti_atomic_read(&gasneti_throttle_haveusefulwork,0))
-             retval = gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE);
+             _retval = gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE);
           gasneti_mutex_unlock(&gasneti_throttle_spinpoller);
           GASNETI_PROGRESSFNS_RUN();
        }
-       return retval;
+       return _retval;
     }
   #endif
   #define gasneti_AMPoll() _gasneti_AMPoll(GASNETI_THREAD_GET_ALONE)
@@ -1181,9 +1181,9 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #ifndef _GASNET_GETENV
 #define _GASNET_GETENV
   GASNETI_INLINE(gasnet_getenv)
-  char *gasnet_getenv(const char *s) {
+  char *gasnet_getenv(const char *_s) {
     GASNETI_CHECKINIT();
-    return gasneti_getenv(s);
+    return gasneti_getenv(_s);
   }
 #endif
 
@@ -1192,7 +1192,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   #define GASNET_WAIT_SPIN      0 /* contend aggressively for CPU resources while waiting (spin) */
   #define GASNET_WAIT_BLOCK     1 /* yield CPU resources immediately while waiting (block) */
   #define GASNET_WAIT_SPINBLOCK 2 /* spin for an implementation-dependent period, then block */
-  extern int gasneti_set_waitmode(int wait_mode);
+  extern int gasneti_set_waitmode(int _wait_mode);
   #define gasnet_set_waitmode(wait_mode) gasneti_set_waitmode(wait_mode)
 #endif
 
@@ -1214,14 +1214,14 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 
 #ifndef _GASNET_GETSEGMENTINFO
 #define _GASNET_GETSEGMENTINFO
-  extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
+  extern int gasneti_getSegmentInfo(gasnet_seginfo_t *_seginfo_table, int _numentries);
   #define gasnet_getSegmentInfo(seginfo_table, numentries) \
           gasneti_getSegmentInfo(seginfo_table, numentries)
 #endif
 
 #ifndef _GASNET_GETNODEINFO
 #define _GASNET_GETNODEINFO
-  extern int gasneti_getNodeInfo(gasnet_nodeinfo_t *nodeinfo_table, int numentries);
+  extern int gasneti_getNodeInfo(gasnet_nodeinfo_t *_nodeinfo_table, int _numentries);
   #define gasnet_getNodeInfo(nodeinfo_table, numentries) \
           gasneti_getNodeInfo(nodeinfo_table, numentries)
 #endif
@@ -1229,11 +1229,11 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 
 // TODO-EX: override?
 #if 1
-  extern int gasneti_Segment_QueryBound( gex_TM_t tm,
-                                         gex_Rank_t rank,
-                                         void **owneraddr_p,
-                                         void **localaddr_p,
-                                         uintptr_t *size_p);
+  extern int gasneti_Segment_QueryBound( gex_TM_t _tm,
+                                         gex_Rank_t _rank,
+                                         void **_owneraddr_p,
+                                         void **_localaddr_p,
+                                         uintptr_t *_size_p);
   #define gex_Segment_QueryBound(tm,rank,o_p,l_p,s_p) \
           gasneti_Segment_QueryBound(tm,rank,o_p,l_p,s_p)
 #endif

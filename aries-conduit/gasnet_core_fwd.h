@@ -100,7 +100,7 @@
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
 /* Need to hook pthread create to ensure collective creation of domains */
 typedef int (gasnetc_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
-extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) ;
+extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *_create_fn, pthread_t *_thread, const pthread_attr_t *_attr, void * (*_fn)(void *), void * _arg) ;
 #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
    gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
 #endif
@@ -129,7 +129,7 @@ extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthrea
         CNT(C, AMPOLL_INS, late notifies) \
         /* blank */
 
-extern void gasnetc_fatalsignal_callback(int sig);
+extern void gasnetc_fatalsignal_callback(int _sig);
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 
 extern void gasnetc_trace_finish(void);

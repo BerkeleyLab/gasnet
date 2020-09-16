@@ -114,12 +114,12 @@
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
-extern void gasnetc_fatalsignal_callback(int sig);
+extern void gasnetc_fatalsignal_callback(int _sig);
 
 /* hook getSegmentInfo for NIS check */
 #define _GASNET_GETSEGMENTINFO
 struct gasneti_seginfo_s;
-extern int gasnetc_getSegmentInfo(struct gasneti_seginfo_s *seginfo_table, int numentries);
+extern int gasnetc_getSegmentInfo(struct gasneti_seginfo_s *_seginfo_table, int _numentries);
 #define gasnet_getSegmentInfo(seginfo_table, numentries) \
         gasnetc_getSegmentInfo(seginfo_table, numentries)
 

@@ -110,9 +110,9 @@
 extern void gasnetc_trace_finish(void);
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
-extern void gasnetc_fatalsignal_callback(int sig);
+extern void gasnetc_fatalsignal_callback(int _sig);
 
-extern void _gasnetc_set_waitmode(int wait_mode);
+extern void _gasnetc_set_waitmode(int _wait_mode);
 #define gasnetc_set_waitmode(wait_mode) _gasnetc_set_waitmode(wait_mode)
 
 /* udp-conduit's default spawner produces random node placements.
