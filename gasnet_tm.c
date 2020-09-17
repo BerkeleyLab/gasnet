@@ -126,12 +126,12 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
     color = -1; // tell gasnete_coll_team_split() not to create a team for this caller
   } else {
     gasneti_assert_int(color ,>=, 0);
-#if !GASNET_SEGMENT_EVERYTHING
-    gasneti_assert(ep->_segment);
-#endif
     if (! (flags & GEX_FLAG_TM_NO_SCRATCH)) {
+    #if !GASNET_SEGMENT_EVERYTHING
+      gasneti_assert(ep->_segment);
       gasneti_assert_ptr(addr     ,>=, ep->_segment->_addr);
       gasneti_assert_ptr((uint8_t*)addr+len ,<=, ep->_segment->_ub);
+    #endif
       if (!len) {
         gasneti_fatalerror("Invalid call to gex_TM_Split with scratch_size = 0");
       }
