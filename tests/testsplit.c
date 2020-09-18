@@ -129,7 +129,7 @@ int main(int argc, char **argv)
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testsplit", &argc, &argv, 0));
 
-  test_init("testsplit", 1, "(nrows) (ncols)");
+  test_init("testsplit", 0, "(nrows) (ncols)");
 
   myrank = gex_TM_QueryRank(myteam);
   gex_Rank_t nranks = gex_TM_QuerySize(myteam);
