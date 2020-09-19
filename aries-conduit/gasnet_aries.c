@@ -832,32 +832,58 @@ void gasnetc_segment_register(gasnetc_Segment_t segment)
 }
 
 /*-------------------------------------------------*/
-// set the local memory handle the client segment and exchange with other procs
-void gasnetc_segment_exchange(gasnetc_Segment_t segment, gex_TM_t tm)
+// set the local memory handle for the client segment and exchanges with other procs
+// TODO: non-primordial EP support
+void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
 {
-  gasneti_assert(tm == gasneti_THUNK_TM); // Unless/until this is generalized
+  // Exchange a gni_mem_handle_t
+  struct exchg_data {
+    gex_EP_Location_t loc;
+    gni_mem_handle_t  mem_handle;
+  } *local, *global, *p;
 
-  {
-    GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
-    gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
-    gasneti_blockingExchange(tm, &segment->mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
-    for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
-      DOMAIN_SPECIFIC_VAL(peer_data[i]).mem_handle = all_mem_handle[i];
-    }
-    gasneti_free(all_mem_handle);
+  size_t elem_sz = sizeof(struct exchg_data);
+  local = gasneti_malloc(num_eps * elem_sz);
+
+  // Pack
+  p = local;
+  for (gex_Rank_t i = 0; i < num_eps; ++i) {
+    gex_EP_t ep = eps[i];
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep(ep)->_segment;
+    if (! segment) continue;
+    p->loc.gex_rank = gasneti_mynode;
+    p->loc.gex_ep_index = gex_EP_QueryIndex(ep);
+    p->mem_handle = segment->mem_handle;
+    ++p;
   }
+
+  size_t local_bytes = elem_sz * (p - local);
+  size_t total_bytes = gasneti_blockingRotatedExchangeV(tm, local, local_bytes, (void**)&global, NULL);
+  size_t total_eps = total_bytes / elem_sz;
+  gasneti_free(local);
+
+  // Unpack
+  p = global;
+  for (size_t i = 0; i < total_eps; ++i, ++p) {
+    gex_Rank_t jobrank = p->loc.gex_rank;
+    if (! p->loc.gex_ep_index ) { // Primordial EP (includes loopback)
+      GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+      DOMAIN_SPECIFIC_VAL(peer_data[jobrank]).mem_handle = p->mem_handle;
 
 #if GASNETC_USE_MULTI_DOMAIN && (GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
-  /* Replicate mem handle - not stricty necessary, but cache-friendly: */
-  for (int d = 1; d < gasnetc_domain_count; d++) {
-    gasnete_threadidx_t tidx = gasnetc_get_domain_first_thread_idx(d);
-    GASNETC_DIDX_POST(gasnetc_get_domain_idx(tidx));
-
-    for (gex_Rank_t n = 0; n < gasneti_nodes; ++n) {
-      DOMAIN_SPECIFIC_VAL(peer_data[n]).mem_handle = gasnetc_cdom_data[0].peer_data[n].mem_handle;
+      // Replicate mem handle
+      for (int d = 1; d < gasnetc_domain_count; d++) {
+        gasnete_threadidx_t tidx = gasnetc_get_domain_first_thread_idx(d);
+        GASNETC_DIDX_POST(gasnetc_get_domain_idx(tidx));
+        DOMAIN_SPECIFIC_VAL(peer_data[jobrank]).mem_handle = p->mem_handle;
+      }
+#endif
+    } else {
+      // Non-primordial
+      gasneti_unreachable_error(("gex_Segment_Publish does not yet handle non-primordial EPs"));
     }
   }
-#endif
+  gasneti_free(global);
 }
 
 
