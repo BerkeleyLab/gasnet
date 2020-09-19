@@ -154,7 +154,7 @@ typedef struct gasnetc_Segment_t_ {
 } *gasnetc_Segment_t;
 
 int gasnetc_segment_register(gasnetc_Segment_t segment);
-void gasnetc_segment_exchange(gasnetc_Segment_t segment, gex_TM_t tm);
+void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps);
 
 int gasnetc_ofi_init(void);
 void gasnetc_ofi_poll(void);

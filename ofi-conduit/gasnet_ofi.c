@@ -1004,18 +1004,50 @@ int gasnetc_segment_register(gasnetc_Segment_t segment)
 }
 
 // Exchange memory keys with other nodes.
-void gasnetc_segment_exchange(gasnetc_Segment_t segment, gex_TM_t tm)
+void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
 {
-  gasneti_assert(!tm || tm == gasneti_THUNK_TM); // Unless/until this is generalized
+  if (GASNETC_OFI_HAS_MR_SCALABLE) return;
 
-  if (!GASNETC_OFI_HAS_MR_SCALABLE) {
-      uint64_t local_mr_key = fi_mr_key(segment->mrfd);
-      if (tm) { // Use collectives if available
-        gasneti_blockingExchange(tm, &local_mr_key, sizeof(uint64_t), gasnetc_ofi_target_keys);
-      } else {
-        gasneti_bootstrapExchange(&local_mr_key, sizeof(uint64_t), gasnetc_ofi_target_keys);
-      }
+  // Exchange a 64-bit mr key
+  struct exchg_data {
+    gex_EP_Location_t loc;     // TODO: leverage comms done by conduit-indep code?
+    uint64_t mr_key;
+  } *local, *global, *p;
+
+  size_t elem_sz = sizeof(struct exchg_data);
+  local = gasneti_malloc(num_eps * elem_sz);
+
+  p = local;
+  for (gex_Rank_t i = 0; i < num_eps; ++i) {
+    gex_EP_t ep = eps[i];
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep(ep)->_segment;
+    if (! segment) continue;
+    p->loc.gex_rank = gasneti_mynode;
+    p->loc.gex_ep_index = gex_EP_QueryIndex(ep);
+    p->mr_key = fi_mr_key(segment->mrfd);
+    ++p;
+  }
+
+  // TODO: Merge w/ conduit-indep comms
+  size_t local_bytes = elem_sz * (p - local);
+  size_t total_bytes = gasneti_blockingRotatedExchangeV(tm, local, local_bytes, (void**)&global, NULL);
+  size_t total_eps = total_bytes / elem_sz;
+  gasneti_free(local);
+
+  // Unpack
+  p = global;
+  for (size_t i = 0; i < total_eps; ++i, ++p) {
+    gex_Rank_t jobrank = p->loc.gex_rank;
+    if (! p->loc.gex_ep_index ) { // Primordial EP (includes loopback)
+      gasneti_assert(!gasnetc_ofi_target_keys[jobrank] ||
+                     gasnetc_ofi_target_keys[jobrank] == p->mr_key);
+      gasnetc_ofi_target_keys[jobrank] = p->mr_key;
+    } else {
+      // Non-primordial
+      gasneti_unreachable_error(("gex_Segment_Publish does not yet handle non-primordial EPs"));
     }
+  }
+  gasneti_free(global);
 }
 
 /*------------------------------------------------
