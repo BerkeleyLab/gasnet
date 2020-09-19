@@ -285,6 +285,14 @@ wrap_test: upcxx-install
 	@set -x ; $(DO_ENV) && \
 	$(UPCXX_INSTDIR)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
 
+IGNORE_TESTS_PAT=neg-.+|getenv|promise_multiple_results|promise_reused|quiescence_failure|issue105
+check-testsuite:
+	$(MAKE) -C $(UPCXX_BLDDIR) $(UPCXX_MAKE_J) dev-tests-$(GASNET_CODEMODE) UPCXX_DRY_RUN=1 NETWORKS=smp > check-testsuite.log
+	@$(PERL) -ne 'BEGIN { open F, "harness.conf" or die $$!; while (<F>) { $$tests{$$1}=1 if (m/^TestName:\s*(\S+)/); }; }' \
+	        -e 'if (m/^Compiling test-(.+)-(opt|debug)/) { if(not ($$tests{$$1} || $$1 =~ m/^($(IGNORE_TESTS_PAT))-(seq|par)/)) { print "$$1\n"; $$err=1; } }' \
+		-e 'END { if ($$err) { print "ERROR: Tests above missing from harness.conf\n"; } else { print "SUCCESS\n"; } }' \
+		< check-testsuite.log
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 VPATH = \
 	$(UPCXX_BLDDIR)/test \
