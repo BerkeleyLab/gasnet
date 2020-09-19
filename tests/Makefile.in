@@ -101,6 +101,7 @@ testprograms_seq =      \
         testimm         \
         testsplit       \
         testacc         \
+        testsegment     \
         testreadonly    \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
