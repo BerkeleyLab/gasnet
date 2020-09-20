@@ -95,6 +95,7 @@ GASNet-EX ChangeLog
   - bug4103: Configure failures with -ffat-lto-objects in CFLAGS
   - bug4127: Overflow for >2G pre-pinned memory (ibv-conduit)
   - bug4135: Aries CE use with multi-domain support hangs
+  - bug4138: gasneti_argv_from_sysctl() failure for UPC++ codes on macOS 11
   - bug3630/3828/3842: Various failures on testvis, testratomic, testslice
 
 ----------------------------------------------------------------------
