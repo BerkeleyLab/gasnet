@@ -941,6 +941,7 @@ static void gasneti_argv_from_sysctl(int **ppargc, char ****ppargv) {
   mib[1] = KERN_PROCARGS2;
   mib[2] = getpid();
 
+retry:
   /* Query for length and allocate space */
   len = 0;
   if (sysctl(mib, 3, NULL, &len, NULL, 0) < 0) return;
@@ -956,12 +957,28 @@ static void gasneti_argv_from_sysctl(int **ppargc, char ****ppargv) {
   /* Extract argc and the argv array from buf */
   { char *start, *end;
 
-    argc = *(int*)buf; /* argc is first int */
+    if (mib[1] == KERN_PROCARGS2) {
+      /* argc is first int */
+      argc = *(int*)buf;
+      start = buf + sizeof(int);
+    } else {
+      start = buf;
+    }
 
-    /* Skip over argc, execpath and any trailing '\0' to find argv[0] */
-    start = buf + sizeof(int);
+    /* Skip over execpath and any trailing '\0' to find argv[0] */
     start += strlen(start) + 1;
-    while (! *start) start++;
+    while ((start - buf < len) && ! *start) start++;
+
+    #if defined(KERN_PROCARGS)
+      if ((start - buf == len) && (mib[1] == KERN_PROCARGS2)) {
+        // Did not find anything after exepath.
+        // So, try again using KERN_PROCARGS (which excludes argc).
+        gasneti_free(buf);
+        len = 0;
+        mib[1] = KERN_PROCARGS;
+        goto retry;
+      }
+    #endif
     gasneti_assert_uint(start - buf ,<, len);
 
     /* Skip over the args to find end */
