@@ -747,6 +747,15 @@ extern void gasneti_nodemapFini(void);
 // Currently wraps legacy gasnet_coll_* but should use gex_Coll_* eventually.
 void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *dst);
 
+// Blocking "Rotated" ExchangeV utility function
+// Takes only local data and length, and then discovers (and returns) the total length.
+// Writes malloc()ed data pointer to *dst_p.
+// Writes optional malloc()ed lengths-array pointer to *len_p, if non-NULL.
+//
+// "Rotated" because it does NOT generate the data in normal rank order.
+// See comments in extended-ref/coll/gasnet_team.c for details.
+size_t gasneti_blockingRotatedExchangeV(gex_TM_t tm, const void *src, size_t len, void **dst_p, size_t **len_p);
+
 // An AM-based host-scoped barrier
 extern void gasneti_host_barrier(void);
 extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
