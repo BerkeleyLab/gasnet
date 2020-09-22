@@ -620,8 +620,16 @@ extern int gex_Client_Init(
 //
 // Operations on gex_Segment_t
 //
-// NOTE: currently gex_Segment_Attach() is the only way to create a segment.
-// However, additional APIs for segment creation will be added.
+// NOTE: *currently* gex_Segment_Attach() is the only way to create a segment
+// suitable for use as the bound segment of a primordial endpoint (one created
+// by gex_Client_Init).  In particular, the current release does not *yet*
+// support use of the APIs gex_Segment_Create() and gex_Segment_EP_Bind() as an
+// alternative to Attach.  However, supprt for that usage is anticipated in a
+// future release.
+//
+// See also in [PROPOSED] section:
+//    gex_Segment_Create()
+//    gex_Segment_EP_Bind()
 //
 
 // Query owning client
@@ -784,6 +792,10 @@ extern int gex_Segment_Publish(
 
 //
 // Operations on gex_TM_t
+//
+// See also in [PROPOSED] section:
+//    gex_TM_Create()
+//    gex_TM_Destroy()
 //
 
 // Query owning client
@@ -3229,7 +3241,7 @@ size_t gex_TM_Create(
       //   GEX_FLAG_TM_SCRATCH_SIZE_MIN         \
       //   GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED / mutually-exclusive pair
 
-int gasneti_TM_Destroy(
+int gex_TM_Destroy(
             gex_TM_t      tm,
             gex_Memvec_t  *scratch_p,
             gex_Flags_t   flags);
@@ -3248,7 +3260,7 @@ int gex_Segment_Create(
       // Valid flags:
       //   NONE - zero is currently required
 
-void gasneti_Segment_EP_Bind(
+void gex_Segment_EP_Bind(
             gex_Segment_t   segment,
             gex_EP_t        ep,
             gex_Flags_t     flags);
