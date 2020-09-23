@@ -427,6 +427,61 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
 #endif
 #endif /* GASNET_PSHM */
 
+#if defined(GASNETI_PSHM_XPMEM)
+//-----------------------------------------------------------------------------
+// Bug 3806: Workaround XPMEM incompatibility with Cray perftools-lite
+#define GASNETI_XPMEM_WRAP(error_result, xpmem_call) do { \
+  int err, retry; \
+  uint64_t pause=1; \
+  int sigprof = 0; \
+  struct sigaction act_save; \
+  for (retry=0; retry < 10; retry++) { \
+    xpmem_call; \
+    err = errno; \
+    if_pt (result != error_result) break; /* success */ \
+    /* error handling: */ \
+    if (err == EFAULT || err == EINTR) { \
+        GASNETI_TRACE_PRINTF(I,("GASNETI_XPMEM_WRAP("#xpmem_call") failed: %s(%i)  (retry=%i)\n", strerror(err), err, retry)); \
+        if (!sigprof) { /* attempt to block the sampling signal that triggers the defect */ \
+          if (getenv("PAT_RT_SAMPLING_SIGNAL")) sigprof=atoi(getenv("PAT_RT_SAMPLING_SIGNAL")); \
+          if (sigprof <= 0 || sigprof > SIGRTMAX) sigprof = SIGPROF; \
+          struct sigaction act_ign; \
+          act_ign.sa_handler = SIG_IGN; act_ign.sa_flags = SA_RESTART; \
+          if (sigaction(sigprof, 0, &act_save)) { \
+            perror("sigaction(save)"); \
+            sigprof = 0; \
+          } else if (sigaction(sigprof, &act_ign, 0)) perror("sigaction(clear)"); \
+          /*fprintf(stderr,"SIGPROF sa_flags=\t%x sa_handler=%p sa_sigaction=%p\n", act_save.sa_flags,  act_save.sa_handler, act_save.sa_sigaction);*/ \
+        } \
+        /* wait a bit.. */ \
+        pause = MIN(1e9,pause<<3); \
+        gasneti_nsleep(pause); \
+        continue; /* retry */ \
+    } else break; /* unrecognized error */ \
+  } \
+  if_pf (result == error_result) { \
+    gasneti_console_message("WARNING", #xpmem_call" failed: %s(%i)  (%i retries)\n", strerror(err), err, retry); \
+  } \
+  if (sigprof) { /* restore signal handler */ \
+    if (sigaction(sigprof, &act_save, 0)) perror("sigaction(restore)"); \
+  } \
+  errno = err; \
+} while (0)
+
+extern gasneti_xpmem_segid_t gasneti_xpmem_make(void *base, size_t size) {
+  gasneti_xpmem_segid_t result;
+  #if HAVE_XPMEM_MAKE_2
+    GASNETI_XPMEM_WRAP((gasneti_xpmem_segid_t)(-1), 
+                       result = xpmem_make_2(base, size, XPMEM_PERMIT_MODE, (void *)(uintptr_t)0600));
+  #else
+    GASNETI_XPMEM_WRAP((gasneti_xpmem_segid_t)(-1), 
+                       result = xpmem_make(base, size, XPMEM_PERMIT_MODE, (void *)(uintptr_t)0600));
+  #endif
+  return result;
+}
+//-----------------------------------------------------------------------------
+#endif
+
 #if defined(GASNETI_USE_HUGETLBFS)
 
 /* Apply the default hugepage size for mapping of the requested size.
@@ -639,15 +694,7 @@ void gasneti_publish_segment(gasnet_seginfo_t segment) {
   uintptr_t segsize = segment.size;
 #if defined(GASNETI_PSHM_XPMEM)
   /* Create and supernode-exchange xpmem segment ids */
-  gasneti_xpmem_segid_t segid =
-  #if HAVE_XPMEM_MAKE_2
-          xpmem_make_2(segbase, segsize, XPMEM_PERMIT_MODE, (void *)(uintptr_t)0600);
-  #else
-            xpmem_make(segbase, segsize, XPMEM_PERMIT_MODE, (void *)(uintptr_t)0600);
-  #endif
-  if_pf (segid == (gasneti_xpmem_segid_t)(-1)) {
-    fprintf(stderr, "xpmem_make() failed:%s\n", strerror(errno));
-  }
+  gasneti_xpmem_segid_t segid = gasneti_xpmem_make(segbase, segsize);
   gasneti_pshmnet_bootstrapExchange(gasneti_request_pshmnet, &segid, sizeof(segid), gasneti_pshm_segids);
 #else
   /* empty */
@@ -857,15 +904,8 @@ extern void *gasneti_mmap_vnet(uintptr_t size, gasneti_bootstrapBroadcastfn_t sn
       ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1);
       save_errno = errno;
       if (ptr != MAP_FAILED) {
-      #if HAVE_XPMEM_MAKE_2
-        segid = xpmem_make_2(ptr, size, XPMEM_PERMIT_MODE, (void *)(uintptr_t)0600);
-      #else
-        segid =   xpmem_make(ptr, size, XPMEM_PERMIT_MODE, (void *)(uintptr_t)0600);
-      #endif
+        segid = gasneti_xpmem_make(ptr, size);
         save_errno = errno;
-        if_pf (segid == (gasneti_xpmem_segid_t)(-1)) {
-          fprintf(stderr, "xpmem_make() failed:%s\n", strerror(errno));
-        }
       }
     }
     
