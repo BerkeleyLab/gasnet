@@ -21,7 +21,7 @@
 // TODO-EX: REMOVE THE GASNETE_PUTGET_ALWAYS* DEFINES ENTIRELY
 #if GASNET_CONDUIT_SMP
   #if GASNET_PSHM // smp w/pshm: the PSHM support handles smp loopback
-    #define gasnete_islocal(e_tm,rank) (gasneti_check_tm_rank(e_tm,rank),0)
+    #define gasnete_islocal(e_tm,rank) (gasneti_check_e_tm_rank(e_tm,rank),0)
   #else           // smp nopshm: single-process loopback handled in header
     #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) == 0),1)
   #endif
@@ -417,13 +417,13 @@ void *gasneti_nbrhd_local_addr_or_null(gex_TM_t _e_tm, gex_Rank_t _rank, void *_
 GASNETI_PUREP(gasneti_nbrhd_local_addr_or_null)
 
 #define GASNETI_NBRHD_LOCAL(e_tm,rank) \
-        (gasneti_assert((rank) < gex_TM_QuerySize(e_tm)), \
+        (gasneti_check_e_tm_rank((e_tm),(rank)), \
          _GASNETI_NBRHD_LOCAL(e_tm,rank))
 #define GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr)\
-        (gasneti_assert((rank) < gex_TM_QuerySize(e_tm)), gasneti_assert(addr), \
+        (gasneti_check_e_tm_rank((e_tm),(rank)), gasneti_assert(addr), \
          _GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr))
 #define GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(e_tm,rank,addr) \
-        (gasneti_assert((rank) < gex_TM_QuerySize(e_tm)), gasneti_assert(addr), \
+        (gasneti_check_e_tm_rank((e_tm),(rank)), gasneti_assert(addr), \
          gasneti_nbrhd_local_addr_or_null(e_tm,rank,addr))
 
 #define GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)\

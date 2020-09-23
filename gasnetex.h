@@ -484,6 +484,45 @@ struct gasneti_endpoint_internal_s;
 #error "out-of-date #define of _GASNET_HANDLERENTRY_T"
 #endif
 
+// TM-pair encoding macros
+// Packed bits as [rem:loc:reserved:tag] = [12:12:7:1]
+// Note: the 7 reserved bits will eventually be needed for client index
+// Note: this fits in 32 bits, but LP64 could have wider (or better aligned?) fields
+// Alternatively, gex_TM_t might be uint64_t to provide wide fields even on ILP32
+#define GASNETI_TM_PAIR_TAG_WIDTH 1
+#define GASNETI_TM_PAIR_RSV_WIDTH 7
+#define GASNETI_TM_PAIR_IDX_WIDTH 12
+#define GASNETI_TM_PAIR_IDX_MASK ((1<<GASNETI_TM_PAIR_IDX_WIDTH)-1)
+#define GASNETI_TM_PAIR_LOC_IDX_SHIFT (GASNETI_TM_PAIR_TAG_WIDTH + \
+                                       GASNETI_TM_PAIR_RSV_WIDTH)
+#define GASNETI_TM_PAIR_REM_IDX_SHIFT (GASNETI_TM_PAIR_TAG_WIDTH + \
+                                       GASNETI_TM_PAIR_RSV_WIDTH + \
+                                       GASNETI_TM_PAIR_IDX_WIDTH)
+
+// TM-pair type is integral, distinct from pointer types used for non-pair case
+// This is NOT a object type, but must masquerade as TM including pointer swizzling
+typedef uintptr_t gasneti_TM_Pair_t;
+#if GASNET_DEBUG
+  extern gasneti_TM_Pair_t gasneti_import_tm_pair(gex_TM_t _tm_pair);
+  extern gex_TM_t gasneti_export_tm_pair(gasneti_TM_Pair_t _real_tm_pair);
+#else
+  #define gasneti_import_tm_pair(x) ((gasneti_TM_Pair_t)(x))
+  #define gasneti_export_tm_pair(x) ((gex_TM_t)(x))
+#endif
+
+// Encode a TM-pair
+GASNETI_INLINE(gex_TM_Pair)
+gex_TM_t gex_TM_Pair(gex_EP_t _loc_ep, gex_EP_Index_t _rem_idx)
+{
+  gex_EP_Index_t _loc_idx = gex_EP_QueryIndex(_loc_ep);
+  gasneti_static_assert(GASNET_MAXEPS <= (1 << GASNETI_TM_PAIR_IDX_WIDTH));
+  gasneti_assert_uint(_loc_idx ,<, GASNET_MAXEPS);
+  gasneti_assert_uint(_rem_idx ,<, GASNET_MAXEPS);
+  gasneti_TM_Pair_t _i_pair = 1 // TAG bit
+                            | (_loc_idx << GASNETI_TM_PAIR_LOC_IDX_SHIFT)
+                            | (_rem_idx << GASNETI_TM_PAIR_REM_IDX_SHIFT);
+  return gasneti_export_tm_pair(_i_pair);
+}
 
 /*  struct type used to return info from gex_Token_Info() */
 typedef struct {

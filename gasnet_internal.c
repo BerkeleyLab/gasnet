@@ -602,7 +602,9 @@ GASNETC_TM_EXTRA_DECLS
 gasneti_TM_t gasneti_import_tm(gex_TM_t _tm) {
   gasneti_assert(_tm != GEX_TM_INVALID);
   const gasneti_TM_t _real_tm = GASNETI_IMPORT_POINTER(gasneti_TM_t,_tm);
-  GASNETI_IMPORT_MAGIC(_real_tm, TM);
+  if (! gasneti_i_tm_is_pair(_real_tm)) {
+    GASNETI_IMPORT_MAGIC(_real_tm, TM);
+  }
   return _real_tm;
 }
 #endif
@@ -680,6 +682,27 @@ void gasneti_free_tm(gasneti_TM_t tm)
   gasneti_free_aligned((void*)((uintptr_t)tm - (GASNETI_TM0_ALIGN/2)));
 }
 #endif // _GEX_TM_T
+
+/* ------------------------------------------------------------------------------------ */
+
+// TM-pair is NOT an object type, but must masquerade as a gex_TM_t.
+// Therefore, we handle swizzling and internal/external type distinction
+// in the same manner as for object types (but no MAGIC).
+
+#ifndef gasneti_import_tm_pair
+gasneti_TM_Pair_t gasneti_import_tm_pair(gex_TM_t tm) {
+  gasneti_assert(tm != GEX_TM_INVALID);
+  gasneti_assert(gasneti_e_tm_is_pair(tm));
+  return GASNETI_IMPORT_POINTER(gasneti_TM_Pair_t,tm);
+}
+#endif
+
+#ifndef gasneti_export_tm_pair
+gex_TM_t gasneti_export_tm_pair(gasneti_TM_Pair_t tm_pair) {
+  gasneti_assert(gasneti_i_tm_is_pair((gasneti_TM_t) tm_pair));
+  return GASNETI_EXPORT_POINTER(gex_TM_t, tm_pair);
+}
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 

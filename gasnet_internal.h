@@ -382,6 +382,27 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 #define gasneti_THUNK_SEGMENT gasneti_export_segment(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_segment)
 
 /* ------------------------------------------------------------------------------------ */
+// EP management
+
+GASNETI_INLINE(gasneti_i_tm_to_i_ep)
+gasneti_EP_t gasneti_i_tm_to_i_ep(gasneti_TM_t i_tm) {
+  gasneti_assert(i_tm);
+  if (gasneti_i_tm_is_pair(i_tm)) {
+    // Lookup EP in per-client table
+    gex_EP_Index_t ep_idx = gasneti_tm_pair_loc_idx(gasneti_i_tm_to_pair(i_tm));
+    gasneti_Client_t i_client = gasneti_import_client(gasneti_THUNK_CLIENT); // TODO: multi-client
+    gasneti_assert_int(ep_idx ,<, GASNET_MAXEPS);
+    gasneti_assert_int(ep_idx ,<, gasneti_weakatomic32_read(&i_client->_next_ep_index, 0));
+    gasneti_EP_t i_ep = i_client->_ep_tbl[ep_idx];
+    gasneti_assert(i_ep);
+    return i_ep;
+  } else {
+    return i_tm->_ep;
+  }
+}
+#define gasneti_e_tm_to_i_ep(e_tm) gasneti_i_tm_to_i_ep(gasneti_import_tm(e_tm))
+
+/* ------------------------------------------------------------------------------------ */
 // Internal conduit interface to spawner
 
 typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest);

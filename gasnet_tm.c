@@ -331,9 +331,15 @@ extern void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *d
 
 // Format a gex_TM_t as a GUID
 extern const char *gasneti_formattm(gex_TM_t e_tm) {
-  if ((uintptr_t)e_tm == 1)     return "N/A";  // GASNet-1 collectives team
-  if (e_tm == NULL)             return "JOB";  // JobRank, as with token
-  gasnete_coll_team_t team = gasneti_import_tm(e_tm)->_coll_team;
-  if (team == NULL)             return "TM0";  // Team0 before end of Client_Init
-  return gasneti_dynsprintf("TM%x", (unsigned int)team->team_id);
+  if (e_tm == NULL)             return "JOB";  // JobRank, as with token and legacy collectives
+  if (gasneti_e_tm_is_pair(e_tm)) {
+    gasneti_TM_Pair_t pair = gasneti_import_tm_pair(e_tm);
+    gex_EP_Index_t loc_idx = gasneti_tm_pair_loc_idx(pair);
+    gex_EP_Index_t rem_idx = gasneti_tm_pair_rem_idx(pair);
+    return gasneti_dynsprintf("TM_PAIR(%x,%x)", loc_idx, rem_idx);
+  } else {
+    gasnete_coll_team_t team = gasneti_import_tm(e_tm)->_coll_team;
+    if (team == NULL)             return "TM0";  // Team0 before end of Client_Init
+    return gasneti_dynsprintf("TM%x", (unsigned int)team->team_id);
+  }
 }

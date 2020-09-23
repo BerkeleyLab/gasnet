@@ -2961,7 +2961,7 @@ size_t gasnetc_rdma_put_bulk(gex_TM_t tm, gex_Rank_t rank,
 {
   GASNETC_DIDX_POST(gpd->domain_idx);
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasneti_EP_t i_ep = gasneti_import_tm(tm)->_ep;
+  gasneti_EP_t i_ep = gasneti_e_tm_to_i_ep(tm);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[jobrank];
   gni_post_descriptor_t * const pd = &gpd->pd;
@@ -3035,7 +3035,7 @@ gasnetc_rdma_put_lc(gex_TM_t tm, gex_Rank_t rank,
   GASNETC_DIDX_POST(gpd->domain_idx);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasneti_EP_t i_ep = gasneti_import_tm(tm)->_ep;
+  gasneti_EP_t i_ep = gasneti_e_tm_to_i_ep(tm);
   peer_struct_t * const peer = &peer_data[jobrank];
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
@@ -3186,7 +3186,7 @@ size_t gasnetc_rdma_get(gex_TM_t tm, gex_Rank_t rank,
   GASNETC_DIDX_POST(gpd->domain_idx);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasneti_EP_t i_ep = gasneti_import_tm(tm)->_ep;
+  gasneti_EP_t i_ep = gasneti_e_tm_to_i_ep(tm);
   peer_struct_t * const peer = &peer_data[jobrank];
   gni_post_descriptor_t * const pd = &gpd->pd;
 
@@ -3306,7 +3306,7 @@ int gasnetc_rdma_get_buff(gex_TM_t tm, gex_Rank_t rank,
   GASNETC_DIDX_POST(gpd->domain_idx);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasneti_EP_t i_ep = gasneti_import_tm(tm)->_ep;
+  gasneti_EP_t i_ep = gasneti_e_tm_to_i_ep(tm);
   peer_struct_t * const peer = &peer_data[jobrank];
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
@@ -3445,7 +3445,7 @@ void gasnetc_rdma_put_long(
 
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasneti_EP_t i_ep = gasneti_import_tm(tm)->_ep;
+  gasneti_EP_t i_ep = gasneti_e_tm_to_i_ep(tm);
   peer_struct_t * const peer = &peer_data[jobrank];
   gni_return_t status;
 

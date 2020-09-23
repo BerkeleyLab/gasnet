@@ -3267,6 +3267,12 @@ void gex_Segment_EP_Bind(
       // Valid flags:
       //   NONE - zero is currently required
 
+gex_TM_t gex_TM_Pair(
+            gex_EP_t        local_ep,
+            gex_EP_Index_t  remote_ep_index);
+      // Valid flags:
+      //   N/A
+
 //----------------------------------------------------------------------
 
 // vim: syntax=c
