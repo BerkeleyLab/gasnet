@@ -429,7 +429,7 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
 
 #if defined(GASNETI_PSHM_XPMEM)
 //-----------------------------------------------------------------------------
-// Bug 3806: Workaround XPMEM incompatibility with Cray perftools-lite
+// Bug 3806/3815: Workaround XPMEM incompatibility with Cray perftools-lite
 #define GASNETI_XPMEM_WRAP(error_result, xpmem_call) do { \
   int err, retry; \
   uint64_t pause=1; \
@@ -476,6 +476,17 @@ extern gasneti_xpmem_segid_t gasneti_xpmem_make(void *base, size_t size) {
   #else
     GASNETI_XPMEM_WRAP((gasneti_xpmem_segid_t)(-1), 
                        result = xpmem_make(base, size, XPMEM_PERMIT_MODE, (void *)(uintptr_t)0600));
+  #endif
+  return result;
+}
+extern xpmem_apid_t gasneti_xpmem_get(xpmem_segid_t segid) {
+  gasneti_xpmem_apid_t result;
+  #if HAVE_XPMEM_MAKE_2
+    GASNETI_XPMEM_WRAP((gasneti_xpmem_apid_t)-1,
+                       result = xpmem_get_2(segid, XPMEM_RDWR, XPMEM_PERMIT_MODE, NULL));
+  #else
+    GASNETI_XPMEM_WRAP((gasneti_xpmem_apid_t)-1,
+                       result = xpmem_get(segid, XPMEM_RDWR, XPMEM_PERMIT_MODE, NULL));
   #endif
   return result;
 }
@@ -605,24 +616,7 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
     ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), mmap_flags, 0, 0);
   #endif
   } else {
-    gasneti_xpmem_apid_t apid;
-    // Bounded retry on xpmem_get() failure to tolerate non-fatal signals (see Bug 3815)
-    for (int trial = 1; trial <= 5; ++trial) {
-    #if HAVE_XPMEM_MAKE_2
-      apid =  xpmem_get_2(gasneti_pshm_segids[pshm_rank], XPMEM_RDWR, XPMEM_PERMIT_MODE, NULL);
-    #else
-      apid =    xpmem_get(gasneti_pshm_segids[pshm_rank], XPMEM_RDWR, XPMEM_PERMIT_MODE, NULL);
-    #endif
-      if (apid != (gasneti_xpmem_apid_t)-1) {
-        break; // Success
-      }
-      // Failure with errno == EFAULT has been seen where EINTR was
-      // probably intended.  So, we retry w/o regard to actual errno.
-      int save_errno = errno;
-      GASNETI_TRACE_PRINTF(I, ("xpmem_get() trial %d failed %d(%s)\n",
-                               trial, save_errno, strerror(save_errno)));
-      errno = save_errno;
-    }
+    gasneti_xpmem_apid_t apid = gasneti_xpmem_get(gasneti_pshm_segids[pshm_rank]);
 
     if (apid != (gasneti_xpmem_apid_t)-1) {
     #if HAVE_XPMEM_MAKE_2
