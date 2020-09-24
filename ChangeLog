@@ -81,6 +81,7 @@ GASNet-EX ChangeLog
     how PARSYNC libraries are built.
 
 * Notable bugs fixed in this release:
+  - bug3806: workaround xpmem startup failures while profiling (eg CrayPat)
   - bug4060: tools atomics using constructs deprecated in C++20
   - bug4061: aries-conduit startup time regression
   - bug4074: cross-configure scripts for KNL now default to --enable-large-pshm
