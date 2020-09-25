@@ -583,7 +583,6 @@ typedef struct gasnetc_rbuf_s {
   gasnetc_cep_t			*cep;
 
   /* Fields fixed for life of the rbuf as it is reused */
-  int				rr_is_rdma;	/* is AM-over-RMDA? */
   struct ibv_recv_wr        	rr_desc;        /* recv request descriptor */
   struct ibv_sge			rr_sg;          /* single-entry scatter list */
   gasnetc_EP_t                  rr_ep;
