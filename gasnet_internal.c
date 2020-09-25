@@ -437,6 +437,7 @@ gasneti_Client_t gasneti_alloc_client(
   client->_flags = flags;
   gasneti_assert_always(sizeof(client->_next_ep_index) >= sizeof(gex_EP_Index_t));
   gasneti_weakatomic32_set(&client->_next_ep_index, 0, 0);
+  memset(client->_ep_tbl, 0, sizeof(client->_ep_tbl));
 #ifdef GASNETC_CLIENT_INIT_HOOK
   GASNETC_CLIENT_INIT_HOOK(client);
 #else
@@ -546,8 +547,6 @@ gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
 }
 #endif
 
-// TODO-EX: probably need to add to a per-client container of some sort
-// at which time _next_ep_index could be non-atomic, protected by same lock.
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
                        gex_Flags_t flags)
@@ -566,7 +565,11 @@ extern gasneti_EP_t gasneti_alloc_ep(
   endpoint->_segment = NULL;
   endpoint->_flags = flags;
   endpoint->_index = gasneti_weakatomic32_add(&client->_next_ep_index, 1, 0) - 1;
-  gasneti_assert_always_uint(endpoint->_index ,<, GASNET_MAXEPS);
+  if (endpoint->_index >= GASNET_MAXEPS) {
+    gasneti_fatalerror("Call to gex_EP_Create() would exceed per-client EP limit of %d\n", (int)GASNET_MAXEPS);
+  }
+  gasneti_assert(! client->_ep_tbl[endpoint->_index]);
+  client->_ep_tbl[endpoint->_index] = endpoint;
   gasneti_amtbl_init(endpoint->_amtbl);
 #ifdef GASNETC_EP_INIT_HOOK
   GASNETC_EP_INIT_HOOK(endpoint);

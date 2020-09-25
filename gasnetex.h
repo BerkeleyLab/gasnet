@@ -250,7 +250,7 @@ GASNETI_BEGIN_NOWARN
 
 #ifndef GASNET_MAXEPS
   //  an integer representing the max supported number of endpoints per process
-  #define GASNET_MAXEPS (1 << 12)
+  #define GASNET_MAXEPS 1 // TODO: raise once multi-ep support becomes "the norm"
 #endif
 
 #if !defined(GASNET_ALIGNED_SEGMENTS) || \
@@ -356,15 +356,17 @@ typedef struct {
     const void *       _cdata;         \
     gex_Flags_t        _flags;
 
-// Needed to break client/tm0 cycle
+// Needed to break client/tm0 and client/ep_tbl cycles
 struct gasneti_team_member_internal_s;
+struct gasneti_endpoint_internal_s;
 
 #ifndef _GEX_CLIENT_T
   #define GASNETI_CLIENT_COMMON        \
     GASNETI_OBJECT_HEADER              \
     struct gasneti_team_member_internal_s *_tm0; \
     const char *       _name;          \
-    gasneti_weakatomic32_t _next_ep_index;
+    gasneti_weakatomic32_t _next_ep_index;  \
+    struct gasneti_endpoint_internal_s *_ep_tbl[GASNET_MAXEPS];
   typedef struct { GASNETI_CLIENT_COMMON } *gasneti_Client_t;
   #if GASNET_DEBUG
     extern gasneti_Client_t gasneti_import_client(gex_Client_t _client);
@@ -411,7 +413,10 @@ struct gasneti_team_member_internal_s;
     gasneti_Segment_t  _segment;       \
     gex_Rank_t         _index;         \
     gex_AM_Entry_t     _amtbl[GASNETC_MAX_NUMHANDLERS];
-  typedef struct { GASNETI_EP_COMMON } *gasneti_EP_t;
+  #ifdef __cplusplus  // ensure this struct is anonymous to prevent C++ linkage issues
+    #define gasneti_endpoint_internal_s
+  #endif
+  typedef struct gasneti_endpoint_internal_s { GASNETI_EP_COMMON } *gasneti_EP_t;
   #if GASNET_DEBUG
     extern gasneti_EP_t gasneti_import_ep(gex_EP_t _ep);
     extern gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep);
