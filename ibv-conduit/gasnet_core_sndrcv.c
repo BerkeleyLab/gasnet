@@ -939,7 +939,7 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
   gasnetc_rbuf_t *spare;
   const int isrep = GASNETC_MSG_ISREPLY(flags);
 
-  GASNETC_STAT_EVENT(RCV_AM_SNDRCV);
+  GASNETC_STAT_EVENT(RCV_AM);
 
 #if GASNETC_IBV_SRQ
   if (gasnetc_use_srq) {
@@ -1002,10 +1002,8 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
       gasnetc_buffer_t *buf = gasneti_malloc(sizeof(gasnetc_buffer_t));
       GASNETI_MEMCPY(buf, (void *)(uintptr_t)rbuf->rr_sg.addr, sizeof(gasnetc_buffer_t));
       emergency_spare.rr_sg.addr = (uintptr_t)buf;
-      emergency_spare.rr_is_rdma = 0;
       emergency_spare.rr_ep = rbuf->rr_ep;
       emergency_spare.cep = rbuf->cep;
-      gasneti_assert(rbuf->rr_is_rdma == 0);
   
       gasnetc_rcv_post(cep, rbuf);
 
@@ -2647,7 +2645,6 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
       gasnetc_lifo_init(&hca->rbuf_freelist);
       rbuf = hca->rbufs;
       for (i = 0; i < rcv_count; ++i) {
-        rbuf->rr_is_rdma         = 0;
         rbuf->rr_desc.num_sge    = 1;
         rbuf->rr_desc.sg_list    = &rbuf->rr_sg;
         rbuf->rr_desc.wr_id      = (uintptr_t)rbuf;	/* CQE will point back to this request */
