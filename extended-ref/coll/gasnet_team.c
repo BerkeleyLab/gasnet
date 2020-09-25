@@ -921,7 +921,6 @@ void gasnete_rexchgv_reqh(
   gasneti_weakatomic32_add(&team->rexchgv.rcvd[phase][step], increment, GASNETI_ATOMIC_REL);
 }
 
-// TODO: this really needs a unit test in gasnet_diagnostic.c
 size_t gasneti_blockingRotatedExchangeV(
                 gex_TM_t    tm,
                 const void *src,
