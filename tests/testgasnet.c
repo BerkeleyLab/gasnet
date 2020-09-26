@@ -869,6 +869,8 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_TM_NO_SCRATCH,
     GEX_FLAG_SCRATCH_SEG_OFFSET,
 
+    GEX_FLAG_GLOBALLY_QUIESCED,
+
     GEX_FLAG_RANK_IS_JOBRANK,
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
