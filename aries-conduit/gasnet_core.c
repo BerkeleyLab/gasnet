@@ -28,8 +28,6 @@ GASNETI_IDENT(gasnetc_IdentString_AMMaxMedium, "$GASNetAMMaxMedium: " _STRINGIFY
 
 static void gasnetc_atexit(int exitcode);
 
-gex_AM_Entry_t const *gasnetc_get_handlertable(void);
-
 gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
@@ -672,7 +670,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
-    if (gasnetc_EP_Create(ep_p, *client_p, flags))
+    if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
     gasneti_EP_t ep = gasneti_import_ep(*ep_p);
     gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
@@ -876,7 +874,7 @@ extern int gasnetc_Client_Init(
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
-    if (gasnetc_EP_Create(ep_p, *client_p, flags))
+    if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
   }
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
@@ -966,48 +964,6 @@ extern int gasnetc_Segment_Publish(
   // Avoid race in which AMRequestLong triggers AMRepyLong before exchange completes remotely
   // TODO: barrier for multi-tm per-process
   gex_Event_Wait(gex_Coll_BarrierNB(tm, 0));
-
-  return GASNET_OK;
-}
-
-extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
-                             gex_Client_t       client,
-                             gex_Flags_t        flags) {
-  /* (###) add code here to create an endpoint belonging to the given client */
-#if 1 // TODO-EX: This is a stub, which assumes 1 implicit call from ClientCreate
-  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-  gasneti_mutex_lock(&lock);
-    static int once = 0;
-    int prev = once;
-    once = 1;
-  gasneti_mutex_unlock(&lock);
-  if (prev) gasneti_fatalerror("Multiple endpoints are not yet implemented");
-#endif
-
-  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags);
-  *ep_p = gasneti_export_ep(ep);
-
-  { /*  core API handlers */
-    gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
-    int len = 0;
-    int numreg = 0;
-    gasneti_assert(ctable);
-    while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
-    gasneti_assert(numreg == len);
-  }
-
-  { /*  extended API handlers */
-    gex_AM_Entry_t *etable = (gex_AM_Entry_t *)gasnete_get_handlertable();
-    int len = 0;
-    int numreg = 0;
-    gasneti_assert(etable);
-    while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
-    gasneti_assert(numreg == len);
-  }
 
   return GASNET_OK;
 }

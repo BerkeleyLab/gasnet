@@ -152,8 +152,10 @@
 //#define GASNETC_SIZEOF_TM_T() (###)
 
 #define GASNETC_EP_EXTRA_DECLS \
-  extern size_t gasnetc_sizeof_ep_t(void);
-//#define GASNETC_EP_INIT_HOOK(i_ep) (###)
+  extern size_t gasnetc_sizeof_ep_t(void); \
+  extern int gasnetc_ep_init_hook(gasneti_EP_t);
+#define GASNETC_EP_INIT_HOOK(i_ep) \
+    gasnetc_ep_init_hook(i_ep)
 //#define GASNETC_EP_FINI_HOOK(i_ep) (###)
 #define GASNETC_SIZEOF_EP_T() \
   gasnetc_sizeof_ep_t()

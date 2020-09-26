@@ -958,12 +958,6 @@ gex_Segment_t gex_EP_QuerySegment(gex_EP_t ep);
 // [PROPOSED]
 gex_EP_Index_t gex_EP_QueryIndex(gex_EP_t ep);
 
-// Create an endpoint [UNIMPLEMENTED]
-extern int gex_EP_Create(
-                gex_EP_t                *ep_p,
-                gex_Client_t            client,
-                gex_Flags_t             flags);
-
 // Minimum permitted fixed index for AM handler registration.
 // Applies to both gasnet_attach() and gex_EP_RegisterHandlers().
 // An integer constant, guaranteed to be 128 or less.

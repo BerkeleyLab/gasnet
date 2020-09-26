@@ -411,6 +411,7 @@ struct gasneti_endpoint_internal_s;
     GASNETI_OBJECT_HEADER              \
     gasneti_Client_t   _client;        \
     gasneti_Segment_t  _segment;       \
+    gex_EP_Capabilities_t _caps, _orig_caps; \
     gex_Rank_t         _index;         \
     gex_AM_Entry_t     _amtbl[GASNETC_MAX_NUMHANDLERS];
   #ifdef __cplusplus  // ensure this struct is anonymous to prevent C++ linkage issues
@@ -599,6 +600,12 @@ extern void gex_System_QueryMyPosition(
             gex_Rank_t *_nbrhd_set_rank_p,
             gex_Rank_t *_host_set_size_p,
             gex_Rank_t *_host_set_rank_p);
+
+extern int gex_EP_Create(
+            gex_EP_t               *_ep_p,
+            gex_Client_t           _client,
+            gex_EP_Capabilities_t  _capabilities,
+            gex_Flags_t            _flags);
 
 extern void gex_Segment_EP_Bind(
             gex_Segment_t  _segment,

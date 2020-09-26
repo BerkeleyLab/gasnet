@@ -351,11 +351,6 @@ void gasneti_free_segment(gasneti_Segment_t segment);
 #define GASNETI_EP_MAGIC           GASNETI_MAKE_MAGIC('E','P','_','t')
 #define GASNETI_EP_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('E','P','_','t')
 
-extern gasneti_EP_t gasneti_alloc_ep(
-                       gasneti_Client_t client,
-                       gex_Flags_t flags);
-void gasneti_free_ep(gasneti_EP_t endpoint);
-
 #define GASNETI_TM_MAGIC           GASNETI_MAKE_MAGIC('T','M','_','t')
 #define GASNETI_TM_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('T','M','_','t')
 
@@ -365,6 +360,19 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gex_Rank_t size,
                        gex_Flags_t flags);
 void gasneti_free_tm(gasneti_TM_t tm);
+
+/* ------------------------------------------------------------------------------------ */
+/* Return a pointer to a handler table containing the handlers of
+    the core (gasnetc_) or extended (gasnete_) API, which will be
+    automatically registered upon endpoint creation.
+   Tables are terminated with an entry where fnptr == NULL.
+   Core API handlers are restricted to indices in the range
+      [GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE)
+   Extended API handlers are restricted to indices in the range
+      [GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE)
+*/
+extern gex_AM_Entry_t const *gasnetc_get_handlertable(void);
+extern gex_AM_Entry_t const *gasnete_get_handlertable(void);
 
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: Please remove this!

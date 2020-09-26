@@ -34,8 +34,6 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #endif
 GASNETI_IDENT(gasneti_IdentString_AMMaxMedium,  "$GASNetAMMaxMedium: " _STRINGIFY(GASNETC_IBV_MAX_MEDIUM) " $");
 
-gex_AM_Entry_t const *gasnetc_get_handlertable(void);
-
 gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutdown.
 
 size_t gasnetc_sizeof_segment_t(void) {
@@ -2369,7 +2367,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
-    if (gasnetc_EP_Create(ep_p, *client_p, flags))
+    if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
     ep = gasneti_import_ep(*ep_p);
     gasnetc_ep0 = (gasnetc_EP_t)ep; // TODO-EX: this global variable to be removed
@@ -2869,7 +2867,7 @@ extern int gasnetc_Client_Init(
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
-    if (gasnetc_EP_Create(ep_p, *client_p, flags))
+    if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
   }
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
@@ -2965,58 +2963,29 @@ extern int gasnetc_Segment_Publish(
 }
 #endif
 
-extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
-                             gex_Client_t       client,
-                             gex_Flags_t        flags) {
-  /* (###) add code here to create an endpoint belonging to the given client */
-#if 1 // TODO-EX: This is a stub, which assumes 1 implicit call from ClientCreate
-  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-  gasneti_mutex_lock(&lock);
-    static int once = 0;
-    int prev = once;
-    once = 1;
-  gasneti_mutex_unlock(&lock);
-  if (prev) gasneti_fatalerror("Multiple endpoints are not yet implemented");
-#endif
+// Conduit-specififc hook to run at end of gex_EP_Create()
+int gasnetc_ep_init_hook(gasneti_EP_t i_ep)
+{
+  gasnetc_EP_t c_ep = (gasnetc_EP_t) i_ep;
 
-  gasnetc_EP_t conduit_ep;
-  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags);
-  *ep_p = gasneti_export_ep(ep);
-
-  { /*  core API handlers */
-    gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
-    int len = 0;
-    int numreg = 0;
-    gasneti_assert(ctable);
-    while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
-    gasneti_assert(numreg == len);
-  }
+  // Conduit-specific EP struct member(s):
+  c_ep->cep_table = NULL;
 
   #if !GASNETC_PIN_SEGMENT
   { /*  firehose handlers */
     gex_AM_Entry_t *ftable = firehose_get_handlertable();
     int len = 0;
     int numreg = 0;
+    int dontcare = ! i_ep->_index; // Allocate indices on first call
     gasneti_assert(ftable);
     while (ftable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, ftable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 1, &numreg) != GASNET_OK)
+    if (gasneti_amregister(i_ep->_amtbl, ftable, len,
+                           GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE,
+                           dontcare, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE, "Error registering firehose handlers");
-    gasneti_assert(numreg == len);
+    gasneti_assert_int(numreg ,==, len);
   }
   #endif
-
-  { /*  extended API handlers */
-    gex_AM_Entry_t *etable = (gex_AM_Entry_t *)gasnete_get_handlertable();
-    int len = 0;
-    int numreg = 0;
-    gasneti_assert(etable);
-    while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
-    gasneti_assert(numreg == len);
-  }
 
   return GASNET_OK;
 }

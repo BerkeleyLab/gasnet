@@ -547,8 +547,11 @@ gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
 }
 #endif
 
-extern gasneti_EP_t gasneti_alloc_ep(
+// Static on the assumption that all callers will reside in this file
+// TODO: might subsume into gex_EP_Create() if there are no other callers
+static gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
+                       gex_EP_Capabilities_t caps,
                        gex_Flags_t flags)
 {
   gasneti_EP_t endpoint;
@@ -563,6 +566,7 @@ extern gasneti_EP_t gasneti_alloc_ep(
   endpoint->_client = client;
   endpoint->_cdata = NULL;
   endpoint->_segment = NULL;
+  endpoint->_orig_caps = endpoint->_caps = caps;
   endpoint->_flags = flags;
   endpoint->_index = gasneti_weakatomic32_add(&client->_next_ep_index, 1, 0) - 1;
   if (endpoint->_index >= GASNET_MAXEPS) {
@@ -571,16 +575,15 @@ extern gasneti_EP_t gasneti_alloc_ep(
   gasneti_assert(! client->_ep_tbl[endpoint->_index]);
   client->_ep_tbl[endpoint->_index] = endpoint;
   gasneti_amtbl_init(endpoint->_amtbl);
-#ifdef GASNETC_EP_INIT_HOOK
-  GASNETC_EP_INIT_HOOK(endpoint);
-#else
+#ifndef GASNETC_EP_INIT_HOOK
   size_t extra = alloc_size - sizeof(*endpoint);
   if (extra) memset(endpoint + 1, 0, extra);
 #endif
   return endpoint;
 }
 
-void gasneti_free_ep(gasneti_EP_t endpoint)
+// Static on the assumption that all callers will reside in this file
+static void gasneti_free_ep(gasneti_EP_t endpoint)
 {
 #ifdef GASNETI_EP_FINI_HOOK
   GASNETI_EP_FINI_HOOK(endpoint);
@@ -590,12 +593,91 @@ void gasneti_free_ep(gasneti_EP_t endpoint)
 }
 #endif // _GEX_EP_T
 
+extern int gex_EP_Create(
+            gex_EP_t               *ep_p,
+            gex_Client_t           e_client,
+            gex_EP_Capabilities_t  caps,
+            gex_Flags_t            flags)
+{
+  gasneti_Client_t client = gasneti_import_client(e_client);
+
+  // TODO: formatted printing for capabilities
+  GASNETI_TRACE_PRINTF(W,("EP_Create: client='%s' capabilities=%d flags=%d",
+                          client ? client->_name : "(NULL)", caps, flags));
+
+  if (! client) {
+    gasneti_fatalerror("Invalid call to gex_EP_Create with NULL client");
+  }
+
+  if (!ep_p) {
+    gasneti_fatalerror("Invalid call to gex_EP_Create with NULL ep_p");
+  }
+
+  GASNETI_CHECK_ERRR((! caps), BAD_ARG,
+                     "no capabilities were requested");
+  GASNETI_CHECK_ERRR((caps & ~GEX_EP_CAPABILITY_ALL), BAD_ARG,
+                     "invalid capabilities were requested");
+
+  // Currently require/demand that primordial EP have ALL capabilities
+  gasneti_assert(gasneti_weakatomic32_read(&client->_next_ep_index, 0)
+                 || caps == GEX_EP_CAPABILITY_ALL);
+
+  // TODO: any other validation of caps
+  // TODO: maybe silently OR-in {VIS,AD,COLL} dependencies?
+
+  // TODO: any validation of flags? any conditional behaviors?
+
+  gasneti_EP_t ep = gasneti_alloc_ep(client, caps, flags);
+
+  // TODO: any need/want to omit on non-primordial EPs?
+  { /*  core API handlers */
+    gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
+    int len = 0;
+    int numreg = 0;
+    gasneti_assert(ctable);
+    while (ctable[len].gex_fnptr) len++; /* calc len */
+    if (gasneti_amregister(ep->_amtbl, ctable, len,
+                           GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE,
+                           0, &numreg) != GASNET_OK)
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
+    gasneti_assert_int(numreg ,==, len);
+  }
+
+  // TODO: any need/want to omit on non-primordial EPs?
+  { /*  extended API handlers */
+    gex_AM_Entry_t *etable = (gex_AM_Entry_t *)gasnete_get_handlertable();
+    int len = 0;
+    int numreg = 0;
+    gasneti_assert(etable);
+    while (etable[len].gex_fnptr) len++; /* calc len */
+    if (gasneti_amregister(ep->_amtbl, etable, len,
+                           GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE,
+                           0, &numreg) != GASNET_OK)
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
+    gasneti_assert_int(numreg ,==, len);
+  }
+
+#ifdef GASNETC_EP_INIT_HOOK
+  int rc = GASNETC_EP_INIT_HOOK(ep);
+  if (rc != GASNET_OK) {
+    gasneti_free_ep(ep);
+    ep = NULL;
+  }
+#else
+  int rc = GASNET_OK;
+#endif
+
+  *ep_p = gasneti_export_ep(ep);
+  return rc;
+}
+
 /* ------------------------------------------------------------------------------------ */
 // TM management
 
 #ifdef GASNETC_TM_EXTRA_DECLS
 GASNETC_TM_EXTRA_DECLS
 #endif
+
 
 #ifndef _GEX_TM_T
 #ifndef gasneti_import_tm
