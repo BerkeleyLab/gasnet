@@ -194,6 +194,10 @@ typedef uint32_t gex_Flags_t;
 
 #define GEX_FLAG_RANK_IS_JOBRANK        (1U << 13)
 
+#define GEX_FLAG_HINT_ACCEL_AD          (1U <<  0)
+#define GEX_FLAG_HINT_ACCEL_COLL        (1U <<  1)
+#define GEX_FLAG_HINT_ACCEL_ALL        ((1U <<  2)-1)
+
 //================================================
 // GEX_EP_CAPABILITY_*
 // Flags used when creating endpoints

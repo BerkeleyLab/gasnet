@@ -3276,6 +3276,8 @@ gex_TM_t gex_TM_Pair(
 typedef [some integer type] gex_EP_Capabilities_t;
 #define GEX_EP_CAPABILITY{RMA,AM,VIS,COLL,AD,ALL} ???
 
+#define GEX_FLAG_HINT_ACCEL_{AD,COLL,ALL} ???
+
 //----------------------------------------------------------------------
 
 // vim: syntax=c

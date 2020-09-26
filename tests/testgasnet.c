@@ -872,6 +872,10 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_GLOBALLY_QUIESCED,
 
     GEX_FLAG_RANK_IS_JOBRANK,
+
+    GEX_FLAG_HINT_ACCEL_AD,
+    GEX_FLAG_HINT_ACCEL_COLL,
+    GEX_FLAG_HINT_ACCEL_ALL,
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
@@ -929,6 +933,13 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_SCRATCH_SEG_OFFSET,
   };
   assert_arr_unaliased(gex_Flags_t, flags_tm);
+  static gex_Flags_t const flags_ep[] = { // gex_EP_Create, excludes ALL
+    GEX_FLAG_HINT_ACCEL_AD,
+    GEX_FLAG_HINT_ACCEL_COLL,
+  };
+  assert_arr_nonzero(gex_Flags_t, flags_ep); // No zero values
+  // Not yet specified: assert_arr_unaliased(gex_Flags_t, flags_ep);
+  assert_arr_all_val(gex_EP_Capabilities_t, flags_ep, GEX_FLAG_HINT_ACCEL_ALL); // ALL includes them all
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
