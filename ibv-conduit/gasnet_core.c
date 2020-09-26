@@ -38,6 +38,15 @@ gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
 gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutdown.
 
+size_t gasnetc_sizeof_segment_t(void) {
+  gasnetc_Segment_t segment;
+  return sizeof(*segment);
+}
+size_t gasnetc_sizeof_ep_t(void) {
+  gasnetc_EP_t ep;
+  return sizeof(*ep);
+}
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Configuration
@@ -2356,7 +2365,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   gasneti_EP_t ep;
   {
     //  allocate the client object
-    client = gasneti_alloc_client(clientName, flags, 0);
+    client = gasneti_alloc_client(clientName, flags);
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
@@ -2758,14 +2767,13 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  gasnetc_Segment_t segment;
-  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, sizeof(*segment), tm, segsize, flags);
+  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, tm, segsize, flags);
 
   // Register client segment with NIC
 
   #if GASNETC_PIN_SEGMENT
     // pin the segment 
-    segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
     int rc = gasnetc_segment_register(segment);
     if (rc) {
       gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
@@ -2857,7 +2865,7 @@ extern int gasnetc_Client_Init(
   #endif
   } else { // NOT first client
     //  allocate the client object
-    gasneti_Client_t client = gasneti_alloc_client(clientName, flags, 0);
+    gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
@@ -2867,7 +2875,7 @@ extern int gasnetc_Client_Init(
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -2921,12 +2929,11 @@ extern int gasnetc_Segment_Create(
 
   // Create the Segment object, allocating memory if appropriate
   gasneti_Client_t i_client = gasneti_import_client(client);
-  gasnetc_Segment_t segment;
-  int rc = gasneti_segmentCreate(segment_p, i_client, sizeof(*segment), address, length, kind, flags);
+  int rc = gasneti_segmentCreate(segment_p, i_client, address, length, kind, flags);
 
   if (rc == GASNET_OK) {
     // Register the segment
-    segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
     if (GASNET_OK != gasnetc_segment_register(segment)) {
       gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
     }
@@ -2973,7 +2980,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
 #endif
 
   gasnetc_EP_t conduit_ep;
-  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags, sizeof(*conduit_ep));
+  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags);
   *ep_p = gasneti_export_ep(ep);
 
   { /*  core API handlers */

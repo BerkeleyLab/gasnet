@@ -334,8 +334,7 @@ extern void gasneti_freezeForDebugger(void);
 
 extern gasneti_Client_t gasneti_alloc_client(
                        const char *name, 
-                       gex_Flags_t flags,
-                       size_t alloc_size);
+                       gex_Flags_t flags);
 void gasneti_free_client(gasneti_Client_t client);
 
 #define GASNETI_SEGMENT_MAGIC      GASNETI_MAKE_MAGIC('S','E','G','t')
@@ -346,8 +345,7 @@ extern gasneti_Segment_t gasneti_alloc_segment(
                        void *addr,
                        uintptr_t len,
                        gex_MemKind_t kind,
-                       gex_Flags_t flags,
-                       size_t alloc_size);
+                       gex_Flags_t flags);
 void gasneti_free_segment(gasneti_Segment_t segment);
 
 #define GASNETI_EP_MAGIC           GASNETI_MAKE_MAGIC('E','P','_','t')
@@ -355,8 +353,7 @@ void gasneti_free_segment(gasneti_Segment_t segment);
 
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
-                       gex_Flags_t flags,
-                       size_t alloc_size);
+                       gex_Flags_t flags);
 void gasneti_free_ep(gasneti_EP_t endpoint);
 
 #define GASNETI_TM_MAGIC           GASNETI_MAKE_MAGIC('T','M','_','t')
@@ -366,8 +363,7 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gasneti_EP_t ep,
                        gex_Rank_t rank,
                        gex_Rank_t size,
-                       gex_Flags_t flags,
-                       size_t alloc_size);
+                       gex_Flags_t flags);
 void gasneti_free_tm(gasneti_TM_t tm);
 
 /* ------------------------------------------------------------------------------------ */
@@ -461,14 +457,12 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gex_Flags_t flags);
 gasnet_seginfo_t gasneti_segmentAttach(
                 gex_Segment_t                 *segment_p,
-                size_t                        allocsz,
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
                 gex_Flags_t                   flags);
 int gasneti_segmentCreate(
                 gex_Segment_t           *segment_t,
                 gasneti_Client_t        client,
-                size_t                  allocsz,
                 gex_Addr_t              address,
                 uintptr_t               length,
                 gex_MemKind_t           kind,

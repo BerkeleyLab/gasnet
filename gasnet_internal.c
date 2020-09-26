@@ -395,6 +395,11 @@ extern void gasneti_freezeForDebugger(void) {
   }
 }
 /* ------------------------------------------------------------------------------------ */
+// Client management
+
+#ifdef GASNETC_CLIENT_EXTRA_DECLS
+GASNETC_CLIENT_EXTRA_DECLS
+#endif
 
 #ifndef _GEX_CLIENT_T
 #ifndef gasneti_import_client
@@ -415,12 +420,15 @@ gex_Client_t gasneti_export_client(gasneti_Client_t _real_client) {
 // TODO-EX: either ensure name is unique OR perform "auto-increment" according to flags
 gasneti_Client_t gasneti_alloc_client(
                        const char *name,
-                       gex_Flags_t flags,
-                       size_t requested_sz)
+                       gex_Flags_t flags)
 {
   gasneti_Client_t client;
-  if (requested_sz) gasneti_assert_uint(requested_sz ,>=, sizeof(*client));
-  size_t alloc_size = requested_sz ? requested_sz : sizeof(*client);
+#ifdef GASNETC_SIZEOF_CLIENT_T
+  size_t alloc_size = GASNETC_SIZEOF_CLIENT_T();
+  gasneti_assert_uint(alloc_size ,>=, sizeof(*client));
+#else
+  size_t alloc_size = sizeof(*client);
+#endif
   client = gasneti_malloc(alloc_size);
   GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_MAGIC);
   client->_tm0 = NULL;
@@ -429,18 +437,19 @@ gasneti_Client_t gasneti_alloc_client(
   client->_flags = flags;
   gasneti_assert_always(sizeof(client->_next_ep_index) >= sizeof(gex_EP_Index_t));
   gasneti_weakatomic32_set(&client->_next_ep_index, 0, 0);
-#ifdef GASNETI_CLIENT_ALLOC_EXTRA
-  GASNETI_CLIENT_ALLOC_EXTRA(client);
+#ifdef GASNETC_CLIENT_INIT_HOOK
+  GASNETC_CLIENT_INIT_HOOK(client);
 #else
-  if (requested_sz) memset(client + 1, 0, alloc_size - sizeof(*client));
+  size_t extra = alloc_size - sizeof(*client);
+  if (extra) memset(client + 1, 0, extra);
 #endif
   return client;
 }
 
 void gasneti_free_client(gasneti_Client_t client)
 {
-#ifdef GASNETI_CLIENT_FREE_EXTRA
-  GASNETI_CLIENT_FREE_EXTRA(client);
+#ifdef GASNETI_CLIENT_FINI_HOOK
+  GASNETI_CLIENT_FINI_HOOK(client);
 #endif
   gasneti_free((/*non-const*/char*)client->_name);
   GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_BAD_MAGIC);
@@ -448,6 +457,12 @@ void gasneti_free_client(gasneti_Client_t client)
 }
 #endif // _GEX_CLIENT_T
 
+/* ------------------------------------------------------------------------------------ */
+// Segment management
+
+#ifdef GASNETC_SEGMENT_EXTRA_DECLS
+GASNETC_SEGMENT_EXTRA_DECLS
+#endif
 
 #ifndef _GEX_SEGMENT_T
 #ifndef gasneti_import_segment
@@ -471,12 +486,15 @@ gasneti_Segment_t gasneti_alloc_segment(
                        void *addr,
                        uintptr_t size,
                        gex_MemKind_t kind,
-                       gex_Flags_t flags,
-                       size_t requested_sz)
+                       gex_Flags_t flags)
 {
   gasneti_Segment_t segment;
-  if (requested_sz) gasneti_assert_uint(requested_sz ,>=, sizeof(*segment));
-  size_t alloc_size = requested_sz ? requested_sz : sizeof(*segment);
+#ifdef GASNETC_SIZEOF_SEGMENT_T
+  size_t alloc_size = GASNETC_SIZEOF_SEGMENT_T();
+  gasneti_assert_uint(alloc_size ,>=, sizeof(*segment));
+#else
+  size_t alloc_size = sizeof(*segment);
+#endif
   segment = gasneti_malloc(alloc_size);
   GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_MAGIC);
   segment->_client = client;
@@ -486,24 +504,31 @@ gasneti_Segment_t gasneti_alloc_segment(
   segment->_addr = addr;
   segment->_ub = (void*)((uintptr_t)addr + size);
   segment->_size = size;
-#ifdef GASNETI_SEGMENT_ALLOC_EXTRA
-  GASNETI_SEGMENT_ALLOC_EXTRA(segment);
+#ifdef GASNETC_SEGMENT_INIT_HOOK
+  GASNETC_SEGMENT_INIT_HOOK(segment);
 #else
-  if (requested_sz) memset(segment + 1, 0, alloc_size - sizeof(*segment));
+  size_t extra = alloc_size - sizeof(*segment);
+  if (extra) memset(segment + 1, 0, extra);
 #endif
   return segment;
 }
 
 void gasneti_free_segment(gasneti_Segment_t segment)
 {
-#ifdef GASNETI_SEGMENT_FREE_EXTRA
-  GASNETI_SEGMENT_FREE_EXTRA(segment);
+#ifdef GASNETI_SEGMENT_FINI_HOOK
+  GASNETI_SEGMENT_FINI_HOOK(segment);
 #endif
   GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_BAD_MAGIC);
   gasneti_free(segment);
 }
 #endif // _GEX_SEGMENT_T
 
+/* ------------------------------------------------------------------------------------ */
+// Endpoint management
+
+#ifdef GASNETC_EP_EXTRA_DECLS
+GASNETC_EP_EXTRA_DECLS
+#endif
 
 #ifndef _GEX_EP_T
 #ifndef gasneti_import_ep
@@ -525,12 +550,15 @@ gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
 // at which time _next_ep_index could be non-atomic, protected by same lock.
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
-                       gex_Flags_t flags,
-                       size_t requested_sz)
+                       gex_Flags_t flags)
 {
   gasneti_EP_t endpoint;
-  if (requested_sz) gasneti_assert_uint(requested_sz ,>=, sizeof(*endpoint));
-  size_t alloc_size = requested_sz ? requested_sz : sizeof(*endpoint);
+#ifdef GASNETC_SIZEOF_EP_T
+  size_t alloc_size = GASNETC_SIZEOF_EP_T();
+  gasneti_assert_uint(alloc_size ,>=, sizeof(*endpoint));
+#else
+  size_t alloc_size = sizeof(*endpoint);
+#endif
   endpoint = gasneti_malloc(alloc_size);
   GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_MAGIC);
   endpoint->_client = client;
@@ -540,24 +568,31 @@ extern gasneti_EP_t gasneti_alloc_ep(
   endpoint->_index = gasneti_weakatomic32_add(&client->_next_ep_index, 1, 0) - 1;
   gasneti_assert_always_uint(endpoint->_index ,<, GASNET_MAXEPS);
   gasneti_amtbl_init(endpoint->_amtbl);
-#ifdef GASNETI_EP_ALLOC_EXTRA
-  GASNETI_EP_ALLOC_EXTRA(endpoint);
+#ifdef GASNETC_EP_INIT_HOOK
+  GASNETC_EP_INIT_HOOK(endpoint);
 #else
-  if (requested_sz) memset(endpoint + 1, 0, alloc_size - sizeof(*endpoint));
+  size_t extra = alloc_size - sizeof(*endpoint);
+  if (extra) memset(endpoint + 1, 0, extra);
 #endif
   return endpoint;
 }
 
 void gasneti_free_ep(gasneti_EP_t endpoint)
 {
-#ifdef GASNETI_EP_FREE_EXTRA
-  GASNETI_EP_FREE_EXTRA(endpoint);
+#ifdef GASNETI_EP_FINI_HOOK
+  GASNETI_EP_FINI_HOOK(endpoint);
 #endif
   GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_BAD_MAGIC);
   gasneti_free(endpoint);
 }
 #endif // _GEX_EP_T
 
+/* ------------------------------------------------------------------------------------ */
+// TM management
+
+#ifdef GASNETC_TM_EXTRA_DECLS
+GASNETC_TM_EXTRA_DECLS
+#endif
 
 #ifndef _GEX_TM_T
 #ifndef gasneti_import_tm
@@ -581,8 +616,7 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gasneti_EP_t ep,
                        gex_Rank_t rank,
                        gex_Rank_t size,
-                       gex_Flags_t flags,
-                       size_t requested_sz)
+                       gex_Flags_t flags)
 {
   gasneti_assert_uint(rank ,<, size);
   gasneti_assert_uint(size ,>, 0);
@@ -592,8 +626,12 @@ extern gasneti_TM_t gasneti_alloc_tm(
   const int is_tm0 = (ep->_client->_tm0 == NULL);
 
   gasneti_TM_t tm;
-  if (requested_sz) gasneti_assert_uint(requested_sz ,>=, sizeof(*tm));
-  size_t actual_sz = (requested_sz ? requested_sz : sizeof(*tm));
+#ifdef GASNETC_SIZEOF_TM_T
+  size_t actual_sz = GASNETC_SIZEOF_TM_T();
+  gasneti_assert_uint(actual_sz ,>=, sizeof(*tm));
+#else
+  size_t actual_sz = sizeof(*tm);
+#endif
 
 #if GASNETI_TM0_ALIGN
   // TM0 is aligned to GASNETI_TM0_ALIGN, and all others to half that
@@ -610,10 +648,11 @@ extern gasneti_TM_t gasneti_alloc_tm(
   tm->_rank = rank;
   tm->_size = size;
   tm->_coll_team = NULL;
-#ifdef GASNETI_TM_ALLOC_EXTRA
-  GASNETI_TM_ALLOC_EXTRA(tm);
+#ifdef GASNETC_TM_INIT_HOOK
+  GASNETC_TM_INIT_HOOK(tm);
 #else
-  if (requested_sz) memset(tm + 1, 0, actual_sz - sizeof(*tm));
+  size_t extra = actual_sz - sizeof(*tm);
+  if (extra) memset(tm + 1, 0, extra);
 #endif
   
   if (is_tm0) {
@@ -631,8 +670,8 @@ extern gasneti_TM_t gasneti_alloc_tm(
 
 void gasneti_free_tm(gasneti_TM_t tm)
 {
-#ifdef GASNETI_TM_FREE_EXTRA
-  GASNETI_TM_FREE_EXTRA(tm);
+#ifdef GASNETI_TM_FINI_HOOK
+  GASNETI_TM_FINI_HOOK(tm);
 #endif
   GASNETI_INIT_MAGIC(tm, GASNETI_TM_BAD_MAGIC);
   gasneti_free_aligned((void*)((uintptr_t)tm - (GASNETI_TM0_ALIGN/2)));

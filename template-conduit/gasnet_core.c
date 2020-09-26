@@ -175,7 +175,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  (void) gasneti_segmentAttach(segment_p, 0, tm, segsize, flags);
+  (void) gasneti_segmentAttach(segment_p, tm, segsize, flags);
 
   /* (###) do any client-specific pinning/registration of the client segment */
 
@@ -257,7 +257,7 @@ extern int gasnetc_Client_Init(
   }
 
   //  allocate the client object
-  gasneti_Client_t client = gasneti_alloc_client(clientName, flags, 0);
+  gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
   *client_p = gasneti_export_client(client);
 
   //  create the initial endpoint with internal handlers
@@ -267,7 +267,7 @@ extern int gasnetc_Client_Init(
   gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -314,7 +314,7 @@ extern int gasnetc_Segment_Create(
 
   // Create the Segment object, allocating memory if appropriate
   gasneti_Client_t i_client = gasneti_import_client(client);
-  int rc = gasneti_segmentCreate(segment_p, i_client, 0, address, length, kind, flags);
+  int rc = gasneti_segmentCreate(segment_p, i_client, address, length, kind, flags);
 
   if (rc == GASNET_OK) {
     // (###) add code for any conduit-specific registration or similar
@@ -328,7 +328,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
                              gex_Flags_t        flags) {
   /* (###) add code here to create an endpoint belonging to the given client */
 
-  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags, 0);
+  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags);
   *ep_p = gasneti_export_ep(ep);
 
   { /*  core API handlers */

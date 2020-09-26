@@ -149,8 +149,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
     return 0;
   }
 
-  // TODO-EX: use of a conduit-specific hook is needed here
-  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, team->myrank, team->total_ranks, flags, 0);
+  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, team->myrank, team->total_ranks, flags);
   i_tm->_coll_team = team;
   gex_TM_t e_tm = gasneti_export_tm(i_tm);
   team->e_tm = e_tm;
@@ -272,8 +271,7 @@ size_t gasneti_TM_Create(
                         scratch_size, scratch_addrs, flags
                         GASNETI_THREAD_PASS);
 
-  // TODO-EX: use of a conduit-specific hook is needed here
-  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, my_new_rank, nmembers, flags, 0);
+  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, my_new_rank, nmembers, flags);
   i_tm->_coll_team = team;
   gex_TM_t e_tm = gasneti_export_tm(i_tm);
   team->e_tm = e_tm;

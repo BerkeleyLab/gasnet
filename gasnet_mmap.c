@@ -2039,7 +2039,6 @@ extern int gasneti_Segment_Publish(
 /* ------------------------------------------------------------------------------------ */
 gasnet_seginfo_t gasneti_segmentAttach(
                 gex_Segment_t                 *segment_p,
-                size_t                        allocsz,
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
                 gex_Flags_t                   flags)
@@ -2067,7 +2066,7 @@ gasnet_seginfo_t gasneti_segmentAttach(
   gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
 
   // Final portion of Segment_Create:
-  gasneti_Segment_t i_segment = gasneti_alloc_segment(i_client, segbase, segsize, GEX_MEMKIND_HOST, flags, allocsz);
+  gasneti_Segment_t i_segment = gasneti_alloc_segment(i_client, segbase, segsize, GEX_MEMKIND_HOST, flags);
   gasneti_segtbl_add(i_segment);
 
   // Segment_Bind:
@@ -2093,7 +2092,6 @@ uint8_t gasneti_segment_read_dummy; // global so compiler cannot realize this is
 int gasneti_segmentCreate(
                 gex_Segment_t           *segment_p,
                 gasneti_Client_t        client,
-                size_t                  allocsz,
                 gex_Addr_t              address,
                 uintptr_t               length,
                 gex_MemKind_t           kind,
@@ -2135,7 +2133,7 @@ int gasneti_segmentCreate(
   }
 
   // Create the Segment object
-  gasneti_Segment_t segment = gasneti_alloc_segment(client, address, length, kind, flags, allocsz);
+  gasneti_Segment_t segment = gasneti_alloc_segment(client, address, length, kind, flags);
   gasneti_segtbl_add(segment);
 
   *segment_p = gasneti_export_segment(segment);
