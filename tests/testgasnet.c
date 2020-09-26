@@ -950,6 +950,19 @@ void doit0(int partner, int *partnerseg) {
   assert_arr_all_val(gex_TI_t, ti_arr, ti_all); // ALL includes them all
   test_format(gex_TI_t, ti_arr, gasnett_format_ti);
 
+  assert_inttype(gex_EP_Capabilities_t);
+  static gex_EP_Capabilities_t const ep_cap_all = GEX_EP_CAPABILITY_ALL;
+  static gex_EP_Capabilities_t const ep_cap_arr[] = { // all flags but _ALL
+          GEX_EP_CAPABILITY_RMA,
+          GEX_EP_CAPABILITY_AM,
+          GEX_EP_CAPABILITY_VIS,
+          GEX_EP_CAPABILITY_COLL,
+          GEX_EP_CAPABILITY_AD
+      };
+  assert_arr_nonzero(gex_EP_Capabilities_t, ep_cap_arr); // No zero values
+  // Not yet specified: assert_arr_unaliased(gex_EP_Capabilities_t, ep_cap_arr);
+  assert_arr_all_val(gex_EP_Capabilities_t, ep_cap_arr, ep_cap_all); // ALL includes them all
+
   gex_RMA_Value_t val = 0; test_mark_used(val);
   test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
   test_static_assert(sizeof(gex_RMA_Value_t) >= sizeof(void *));

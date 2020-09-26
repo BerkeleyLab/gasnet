@@ -3273,6 +3273,9 @@ gex_TM_t gex_TM_Pair(
       // Valid flags:
       //   N/A
 
+typedef [some integer type] gex_EP_Capabilities_t;
+#define GEX_EP_CAPABILITY{RMA,AM,VIS,COLL,AD,ALL} ???
+
 //----------------------------------------------------------------------
 
 // vim: syntax=c
