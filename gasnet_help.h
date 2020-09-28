@@ -402,12 +402,17 @@ gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank)
 
 extern gasnet_seginfo_t *gasneti_seginfo;
 extern gasnet_seginfo_t *gasneti_seginfo_aux;
+extern gasnet_seginfo_t *gasneti_seginfo_tbl[GASNET_MAXEPS];
 
-// TODO: generalize for multi-{EP,segment} support
 // TODO: work towards dropping non-scalable seginfo tables
 GASNETI_INLINE(gasneti_client_seginfo)
 const gasnet_seginfo_t *gasneti_client_seginfo(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  return gasneti_seginfo + gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
+  gex_EP_Location_t _loc = gasneti_e_tm_rank_to_location(_e_tm, _rank, 0);
+  gex_Rank_t _jobrank = _loc.gex_rank;
+  gex_EP_Index_t _idx = _loc.gex_ep_index;
+  gasnet_seginfo_t *_si_array = gasneti_seginfo_tbl[_idx];
+  gasneti_assert(_si_array);
+  return _si_array + _jobrank;
 }
 GASNETI_INLINE(gasneti_aux_seginfo)
 const gasnet_seginfo_t *gasneti_aux_seginfo(gex_Rank_t _jobrank) {
