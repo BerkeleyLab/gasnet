@@ -97,6 +97,10 @@
    */
 /* #define GASNETC_REQUESTV_POLLS 1 */
 
+  // uncomment if conduit provides a gasnetc-prefixed override
+  // TODO: this should be a hook rather than an override
+#define GASNETC_HAVE_SEGMENT_PUBLISH 1
+
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
 /* Need to hook pthread create to ensure collective creation of domains */
 typedef int (gasnetc_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);

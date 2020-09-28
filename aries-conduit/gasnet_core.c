@@ -782,7 +782,8 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   gasnetc_segment_register(segment);
 
   // Exchange registration info
-  gasnetc_segment_exchange(segment, tm);
+  gex_EP_t ep = gex_TM_QueryEP(tm);
+  gasnetc_segment_exchange(tm, &ep, 1);
 
   return GASNET_OK;
 }
@@ -917,6 +918,51 @@ extern int gasnetc_Segment_Attach(
   // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
   if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
+
+  return GASNET_OK;
+}
+
+extern int gasnetc_Segment_Create(
+                gex_Segment_t           *segment_p,
+                gex_Client_t            client,
+                gex_Addr_t              address,
+                uintptr_t               length,
+                gex_MemKind_t           kind,
+                gex_Flags_t             flags)
+{
+  gasneti_assert(segment_p);
+
+  // Create the Segment object, allocating memory if appropriate
+  gasneti_Client_t i_client = gasneti_import_client(client);
+  gasnetc_Segment_t segment;
+  int rc = gasneti_segmentCreate(segment_p, i_client, sizeof(*segment), address, length, kind, flags);
+
+  if (rc == GASNET_OK) {
+    // Register segment with NIC
+    segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+    gasnetc_segment_register(segment);
+  }
+
+  return rc;
+}
+
+extern int gasnetc_Segment_Publish(
+                gex_TM_t               tm,
+                gex_EP_t               *eps,
+                size_t                 num_eps,
+                gex_Flags_t            flags)
+{
+  // Conduit-independent parts
+  int rc = gasneti_Segment_Publish(tm, eps, num_eps, flags);
+  if (GASNET_OK != rc) return rc;
+
+  // Conduit-dependent parts
+  // TODO: merge comms into gasneti_Segment_Publish().
+  gasnetc_segment_exchange(tm, eps, num_eps);
+
+  // Avoid race in which AMRequestLong triggers AMRepyLong before exchange completes remotely
+  // TODO: barrier for multi-tm per-process
+  gex_Event_Wait(gex_Coll_BarrierNB(tm, 0));
 
   return GASNET_OK;
 }

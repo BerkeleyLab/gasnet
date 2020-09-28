@@ -62,7 +62,7 @@
 /*---------------------------------------------------------------------------------*/
 /* conduits may override this to relocate the ref-coll handlers */
 #ifndef GASNETE_COLL_HANDLER_BASE
-#define GASNETE_COLL_HANDLER_BASE 118
+#define GASNETE_COLL_HANDLER_BASE 117
 #endif
 
 #define _hidx_gasnete_coll_p2p_memcpy_reqh          (GASNETE_COLL_HANDLER_BASE+0)
@@ -75,6 +75,7 @@
 #define _hidx_gasnete_coll_p2p_med_counting_reqh    (GASNETE_COLL_HANDLER_BASE+7)
 #define _hidx_gasnete_coll_scratch_update_reqh      (GASNETE_COLL_HANDLER_BASE+8)
 #define _hidx_gasnete_subteam_op_reqh               (GASNETE_COLL_HANDLER_BASE+9)
+#define _hidx_gasnete_rexchgv_reqh                  (GASNETE_COLL_HANDLER_BASE+10)
 
 /*---------------------------------------------------------------------------------*/
 /* Forward type decls and typedefs:                                                */
@@ -339,6 +340,14 @@ struct gasnete_coll_team_t_ {
   gasnete_all_barrier_result barrier_result;
   gasnete_all_barrier_fini barrier_fini;
   gasneti_progressfn_t barrier_pf;
+
+  // Stuff for UnorderedExchangeV
+  struct {
+    uint8_t *data[2];
+    gasneti_weakatomic32_t rcvd[2][32];
+    gex_HSL_t lock; // protects data pointers
+    int phase;
+  } rexchgv;
 
 #if GASNET_DEBUG
   gasneti_mutex_t barrier_lock;

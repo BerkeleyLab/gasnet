@@ -124,6 +124,11 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     sz2b = GASNETI_ALIGNUP(sz2b, GASNETI_CACHE_LINE_BYTES);
     sz2b += sizeof(gasneti_pshm_barrier_t) +
 	       (gasneti_pshm_nodes - 1) * sizeof(gasneti_pshm_barrier->node);
+  #ifdef GASNETI_PSHM_PRIVATE_DATA_SIZE
+    // Optional data private to an implementaion of PSHM
+    sz2b = GASNETI_ALIGNUP(sz2b, GASNETI_CACHE_LINE_BYTES);
+    sz2b += GASNETI_PSHM_PRIVATE_DATA_SIZE();
+  #endif
 
     // final info_sz required:
     info_sz = sz1 + MAX(sz2a, sz2b);
@@ -189,6 +194,11 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     gasneti_pshm_barrier = (gasneti_pshm_barrier_t *)addr;
     addr += sizeof(gasneti_pshm_barrier_t) +
 	    (gasneti_pshm_nodes-1) * sizeof(gasneti_pshm_barrier->node);
+  #ifdef GASNETI_PSHM_PRIVATE_DATA_INIT
+    // Optional private data (per implementaion of PSHM)
+    // If used, must be last since this does not advance 'addr'.
+    GASNETI_PSHM_PRIVATE_DATA_INIT(addr);
+  #endif
   }
 
   /* Populate gasneti_pshm_firsts[] */

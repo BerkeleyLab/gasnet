@@ -2670,6 +2670,87 @@ static int gasnetc_segment_register(gasnetc_Segment_t segment)
   return GASNET_OK;
 }
 
+// TODO: non-primordial EP support
+static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
+{
+#if GASNETC_PIN_SEGMENT
+  // Exchange one 32-bit rkey per HCA
+  struct exchg_data {
+    gex_EP_Location_t loc;
+    uint32_t          rkey[1]; // Flexible array member
+  } *local, *global, *p;
+
+  size_t elem_sz = offsetof(struct exchg_data, rkey) + gasnetc_num_hcas * sizeof(uint32_t);
+  local = gasneti_malloc(num_eps * elem_sz);
+
+  // Pack
+  p = local;
+  for (gex_Rank_t i = 0; i < num_eps; ++i) {
+    gex_EP_t ep = eps[i];
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep(ep)->_segment;
+    if (! segment) continue;
+    p->loc.gex_rank = gasneti_mynode;
+    p->loc.gex_ep_index = gex_EP_QueryIndex(ep);
+    for (int j = 0; j < gasnetc_num_hcas; ++j) {
+      p->rkey[j] = segment->seg_reg[j].handle->rkey;
+    }
+    p = (struct exchg_data *)(elem_sz + (uintptr_t)p);
+  }
+
+  size_t local_bytes = (uintptr_t)p - (uintptr_t)local;
+  size_t total_bytes = gasneti_blockingRotatedExchangeV(tm, local, local_bytes, (void**)&global, NULL);
+  gasneti_assert(total_bytes % elem_sz == 0);
+  size_t total_eps = total_bytes / elem_sz;
+  gasneti_free(local);
+
+  // Unpack
+  p = global;
+  for (size_t i = 0; i < total_eps; ++i) {
+    gex_Rank_t jobrank = p->loc.gex_rank;
+    if (jobrank == gasneti_mynode) {
+      // Local:
+      // Fall through to advance p
+    } else if (! p->loc.gex_ep_index) {
+      // Remote + primordial:
+      uint32_t *rkey = p->rkey;
+      for (int j = 0; j < gasnetc_num_hcas; ++j) {
+        gasnetc_hca_t *hca = gasnetc_hca + j;
+        if (!hca->rkeys) {
+          hca->rkeys = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
+          gasneti_leak(hca->rkeys);
+        }
+        gasneti_assert(!hca->rkeys[jobrank] || hca->rkeys[jobrank] == rkey[hca->hca_index]);
+        hca->rkeys[jobrank] = rkey[hca->hca_index];
+      }
+      gasnetc_cep_t *cep = GASNETC_NODE2CEP(gasnetc_ep0, jobrank);
+      if (cep) gasnetc_sndrcv_attach_peer(jobrank, cep);
+    } else {
+      // Remote + non-primordial:
+      gasneti_unreachable_error(("gex_Segment_Publish does not yet handle non-primordial EPs"));
+    }
+    p = (struct exchg_data *)(elem_sz + (uintptr_t)p);
+  }
+  gasneti_free(global);
+#else
+  // Per-endpoint work:
+  // TODO: multi-ep may require more work
+  gex_Rank_t team_size = gex_TM_QuerySize(tm);
+  for (size_t i = 0; i < team_size; ++i) {
+    gex_EP_Location_t loc = gasneti_i_tm_rank_to_location(gasneti_import_tm(tm), i, 0);
+    gex_Rank_t jobrank = loc.gex_rank;
+    if (jobrank == gasneti_mynode) {
+      continue;
+    } else if (! loc.gex_ep_index) {
+      // TODO: this might be redundant?
+      gasnetc_cep_t *cep = GASNETC_NODE2CEP(gasnetc_ep0, jobrank);
+      if (cep) gasnetc_sndrcv_attach_peer(jobrank, cep);
+    }
+  }
+#endif
+
+  return GASNET_OK;
+}
+
 static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   gex_TM_t                      tm,
                                   uintptr_t                     segsize,
@@ -2689,30 +2770,11 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
     if (rc) {
       gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
     }
-
-    // exchange the RKeys
-    gasnetc_hca_t *hca;
-    GASNETC_FOR_ALL_HCA(hca) {
-      hca->rkeys = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
-      gasneti_leak(hca->rkeys);
-
-      /* XXX: hca->rkeys is one of the O(N) storage requirements we might reduce/eliminate.
-       * + When using PSHM we could store rkeys just once per supernode
-       * + When not fully connected, we could utilize sparse storage
-       */
-      gasneti_assert(tm == gasneti_THUNK_TM); // Unless/until this is generalized
-      gasneti_blockingExchange(tm, &segment->seg_reg[hca->hca_index].handle->rkey,
-                               sizeof(uint32_t), hca->rkeys);
-    }
   #endif
 
-  /* Per-endpoint work */
-  for (gex_Rank_t i = 0; i < gasneti_nodes; i++) {
-    gasnetc_cep_t *cep = GASNETC_NODE2CEP(gasnetc_ep0, i);
-    if (cep) {
-      gasnetc_sndrcv_attach_peer(i, cep);
-    }
-  }
+  // Exchange registration info
+  gex_EP_t ep = gex_TM_QueryEP(tm);
+  gasnetc_segment_exchange(tm, &ep, 1);
 
   return GASNET_OK;
 }
@@ -2846,6 +2908,55 @@ extern int gasnetc_Segment_Attach(
 
   return GASNET_OK;
 }
+
+extern int gasnetc_Segment_Create(
+                gex_Segment_t           *segment_p,
+                gex_Client_t            client,
+                gex_Addr_t              address,
+                uintptr_t               length,
+                gex_MemKind_t           kind,
+                gex_Flags_t             flags)
+{
+  gasneti_assert(segment_p);
+
+  // Create the Segment object, allocating memory if appropriate
+  gasneti_Client_t i_client = gasneti_import_client(client);
+  gasnetc_Segment_t segment;
+  int rc = gasneti_segmentCreate(segment_p, i_client, sizeof(*segment), address, length, kind, flags);
+
+  if (rc == GASNET_OK) {
+    // Register the segment
+    segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+    if (GASNET_OK != gasnetc_segment_register(segment)) {
+      gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
+    }
+  }
+
+  return rc;
+}
+
+#if GASNETC_HAVE_SEGMENT_PUBLISH
+extern int gasnetc_Segment_Publish(
+                gex_TM_t               tm,
+                gex_EP_t               *eps,
+                size_t                 num_eps,
+                gex_Flags_t            flags)
+{
+  // Conduit-independent parts
+  int rc = gasneti_Segment_Publish(tm, eps, num_eps, flags);
+  if (GASNET_OK != rc) return rc;
+
+  // Conduit-dependent parts
+  // TODO: merge comms into gasneti_Segment_Publish().
+  gasnetc_segment_exchange(tm, eps, num_eps);
+
+  // Avoid race in which AMRequestLong triggers AMRepyLong before exchange completes remotely
+  // TODO: barrier for multi-tm per-process
+  gex_Event_Wait(gex_Coll_BarrierNB(tm, 0));
+
+  return GASNET_OK;
+}
+#endif
 
 extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
                              gex_Client_t       client,

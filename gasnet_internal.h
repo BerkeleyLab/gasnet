@@ -345,6 +345,7 @@ extern gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
                        void *addr,
                        uintptr_t len,
+                       gex_MemKind_t kind,
                        gex_Flags_t flags,
                        size_t alloc_size);
 void gasneti_free_segment(gasneti_Segment_t segment);
@@ -433,10 +434,12 @@ uintptr_t gasneti_max_segsize();
   #endif
 #endif
 
-// Map memory intended for use as segment
-// Called non-collectively, as by gex_Segment_Create()
-// Boolean 'pshm_compat' requests allocation of memory which
-// is compatible with cross-mapping [UNIMPLMENTED]
+// Allocate/map memory intended for use as segment.
+// May be called non-collectively, as from gex_Segment_Create().
+// Also called collectively, as from gex_Segment_Attach() and aux seg creation.
+// Boolean 'pshm_compat' requests allocation of memory which is compatible with
+// cross-mapping by PSHM (only fully implemented for the collective cases of
+// gex_Segment_Attach() and aux seg creation).
 int gasneti_segment_map(gasnet_seginfo_t *segment_p,
                         uintptr_t segsize,
                         int pshm_compat,
@@ -462,6 +465,20 @@ gasnet_seginfo_t gasneti_segmentAttach(
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
                 gex_Flags_t                   flags);
+int gasneti_segmentCreate(
+                gex_Segment_t           *segment_t,
+                gasneti_Client_t        client,
+                size_t                  allocsz,
+                gex_Addr_t              address,
+                uintptr_t               length,
+                gex_MemKind_t           kind,
+                gex_Flags_t             flags);
+
+int gasneti_Segment_Publish(
+            gex_TM_t       tm,
+            gex_EP_t       *eps,
+            size_t         num_eps,
+            gex_Flags_t    flags);
 
 extern void gasneti_legacy_segment_attach_hook(gasneti_EP_t ep);
 extern void gasneti_legacy_alloc_tm_hook(gasneti_TM_t _tm);
@@ -735,6 +752,15 @@ extern void gasneti_nodemapFini(void);
 // In-place (src == (uint8_t*)dst + len*myrank) is permitted.
 // Currently wraps legacy gasnet_coll_* but should use gex_Coll_* eventually.
 void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *dst);
+
+// Blocking "Rotated" ExchangeV utility function
+// Takes only local data and length, and then discovers (and returns) the total length.
+// Writes malloc()ed data pointer to *dst_p.
+// Writes optional malloc()ed lengths-array pointer to *len_p, if non-NULL.
+//
+// "Rotated" because it does NOT generate the data in normal rank order.
+// See comments in extended-ref/coll/gasnet_team.c for details.
+size_t gasneti_blockingRotatedExchangeV(gex_TM_t tm, const void *src, size_t len, void **dst_p, size_t **len_p);
 
 // An AM-based host-scoped barrier
 extern void gasneti_host_barrier(void);

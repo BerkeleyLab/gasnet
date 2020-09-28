@@ -275,6 +275,17 @@ typedef struct {
 #endif
 } gasnetc_token_t;
 
+// Conduit-specific Segment type
+typedef struct gasnetc_Segment_t_ {
+  GASNETI_SEGMENT_COMMON // conduit-indep part as prefix
+
+#if GASNETC_PIN_SEGMENT
+  // memory registation info
+  gasnetc_mem_info_t *mem_info;
+#endif
+} *gasnetc_Segment_t;
+
+
 typedef enum {
   gasnetc_rdma_op_put,
   gasnetc_rdma_op_get,

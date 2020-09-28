@@ -327,6 +327,10 @@ struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
 #define GEX_SEGMENT_INVALID ((gex_Segment_t)(uintptr_t)0)
 
+struct gasneti_memkind_s;
+typedef struct gasneti_memkind_s *gex_MemKind_t;
+#define GEX_MEMKIND_HOST ((gex_MemKind_t)(uintptr_t)0)
+
 typedef void (*gex_AM_Fn_t)();
 
 /*  struct type used to perform handler registration */
@@ -382,6 +386,7 @@ struct gasneti_team_member_internal_s;
     void *             _addr;          \
     void *             _ub;            \
     uintptr_t          _size;          \
+    gex_MemKind_t      _kind;          \
     unsigned int       _opaque_container_use;
   typedef struct { GASNETI_SEGMENT_COMMON } *gasneti_Segment_t;
   #if GASNET_DEBUG
@@ -550,6 +555,22 @@ extern void gex_System_QueryMyPosition(
             gex_Rank_t *_nbrhd_set_rank_p,
             gex_Rank_t *_host_set_size_p,
             gex_Rank_t *_host_set_rank_p);
+
+extern void gex_Segment_EP_Bind(
+            gex_Segment_t  _segment,
+            gex_EP_t       _ep,
+            gex_Flags_t    _flags);
+
+#if GASNETC_HAVE_SEGMENT_PUBLISH
+  #define gex_Segment_Publish gasnetc_Segment_Publish
+#else
+  #define gex_Segment_Publish gasneti_Segment_Publish
+#endif
+extern int gex_Segment_Publish(
+            gex_TM_t       _tm,
+            gex_EP_t       *_eps,
+            size_t         _num_eps,
+            gex_Flags_t    _flags);
 
 /* ------------------------------------------------------------------------------------ */
 /* extended types */

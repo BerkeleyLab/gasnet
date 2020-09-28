@@ -370,6 +370,7 @@ gasnetc_mem_info_t * gasnetc_find_mem_info(void *addr, int nbytes, gex_Rank_t ra
   // TODO-future: use UCS rcache
   gasnetc_mem_info_t *mem_info;
 
+  // TODO: thread safety in list traversal?
   GASNETI_LIST_FOREACH(mem_info, &gasneti_ucx_module.ep_tbl[rank].mem_tbl,
                        gasnetc_mem_info_t) {
     if (GASNETC_ADDR_IN_RANGE(mem_info->addr, mem_info->length, addr, nbytes)) {

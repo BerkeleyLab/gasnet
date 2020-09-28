@@ -470,6 +470,7 @@ gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
                        void *addr,
                        uintptr_t size,
+                       gex_MemKind_t kind,
                        gex_Flags_t flags,
                        size_t requested_sz)
 {
@@ -480,6 +481,7 @@ gasneti_Segment_t gasneti_alloc_segment(
   GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_MAGIC);
   segment->_client = client;
   segment->_cdata = NULL;
+  segment->_kind = kind;
   segment->_flags = flags;
   segment->_addr = addr;
   segment->_ub = (void*)((uintptr_t)addr + size);
