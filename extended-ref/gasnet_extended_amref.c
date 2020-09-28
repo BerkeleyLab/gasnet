@@ -510,8 +510,9 @@ gex_Event_t gasnete_amref_put_nb(
                                PACK(dest), PACK_EOP_DONE(op));
 
       return (gex_Event_t)op;
+    }
 #if GASNETE_USE_LONG_PUTS
-    } else if (nbytes <= gex_AM_LUBRequestLong()) { // TODO-EX: _lub_ -> _max_
+    else if (nbytes <= gex_AM_LUBRequestLong()) { // TODO-EX: _lub_ -> _max_
       gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
       gex_AM_RequestLong(tm, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
