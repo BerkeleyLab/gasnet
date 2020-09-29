@@ -1922,7 +1922,7 @@ extern void gex_Segment_EP_Bind(
   // TODO: macros for formatting when naming segments in tracing?
   // TODO: macros for formatting when naming endpoints in tracing?
   GASNETI_TRACE_PRINTF(C,("gex_Segment_EP_Bind: segment=%p, EP index=%d, flags=%d",
-                          segment, i_ep->_index, flags));
+                          (void *)segment, i_ep->_index, flags));
 
   if (segment == GEX_SEGMENT_INVALID) {
     gasneti_fatalerror("Invalid call to gex_Segment_EP_Bind() with GEX_SEGMENT_INVALID");
