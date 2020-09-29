@@ -448,18 +448,20 @@ struct gasneti_endpoint_internal_s;
   typedef struct gasneti_team_member_internal_s { GASNETI_TM_COMMON } *gasneti_TM_t;
   #if GASNET_DEBUG
     extern gasneti_TM_t gasneti_import_tm(gex_TM_t _tm);
+    extern gasneti_TM_t gasneti_import_tm_nonpair(gex_TM_t _tm);
     extern gex_TM_t gasneti_export_tm(gasneti_TM_t _real_tm);
   #else
     #define gasneti_import_tm(x) ((gasneti_TM_t)(x))
+    #define gasneti_import_tm_nonpair(x) ((gasneti_TM_t)(x))
     #define gasneti_export_tm(x) ((gex_TM_t)(x))
   #endif
-  #define gex_TM_SetCData(tm,val)              ((void)(gasneti_import_tm(tm)->_cdata = (val)))
-  #define gex_TM_QueryCData(tm)                ((void*)gasneti_import_tm(tm)->_cdata)
-  #define gex_TM_QueryClient(tm)               gasneti_export_client(gasneti_import_tm(tm)->_ep->_client)
-  #define gex_TM_QueryEP(tm)                   gasneti_export_ep(gasneti_import_tm(tm)->_ep)
-  #define gex_TM_QueryFlags(tm)                ((gex_Flags_t)gasneti_import_tm(tm)->_flags)
-  #define gex_TM_QueryRank(tm)                 ((gex_Rank_t)gasneti_import_tm(tm)->_rank)
-  #define gex_TM_QuerySize(tm)                 ((gex_Rank_t)gasneti_import_tm(tm)->_size)
+  #define gex_TM_SetCData(tm,val)              ((void)(gasneti_import_tm_nonpair(tm)->_cdata = (val)))
+  #define gex_TM_QueryCData(tm)                ((void*)gasneti_import_tm_nonpair(tm)->_cdata)
+  #define gex_TM_QueryClient(tm)               gasneti_export_client(gasneti_import_tm_nonpair(tm)->_ep->_client)
+  #define gex_TM_QueryEP(tm)                   gasneti_export_ep(gasneti_import_tm_nonpair(tm)->_ep)
+  #define gex_TM_QueryFlags(tm)                ((gex_Flags_t)gasneti_import_tm_nonpair(tm)->_flags)
+  #define gex_TM_QueryRank(tm)                 ((gex_Rank_t)gasneti_import_tm_nonpair(tm)->_rank)
+  #define gex_TM_QuerySize(tm)                 ((gex_Rank_t)gasneti_import_tm_nonpair(tm)->_size)
 #endif
 
 // TODO-EX: remove these legacy checks

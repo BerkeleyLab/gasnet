@@ -2208,7 +2208,7 @@ static int gasnete_coll_pf_barrier(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
 extern gex_Event_t
 gasnete_tm_barrier_nb_default(gex_TM_t e_tm, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
+  gasnet_team_handle_t team = gasneti_import_tm_nonpair(e_tm)->_coll_team;
   const int coll_flags = 0;
   gex_Event_t result;
 
@@ -2242,7 +2242,7 @@ gasnete_tm_barrier_nb_default(gex_TM_t e_tm, gex_Flags_t flags GASNETI_THREAD_FA
 extern void
 gasnete_tm_barrier_default(gex_TM_t e_tm, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
+  gasnet_team_handle_t team = gasneti_import_tm_nonpair(e_tm)->_coll_team;
   gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);
 }
 
@@ -2263,7 +2263,7 @@ gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
                                 size_t nbytes, gex_Flags_t flags,
                                 uint32_t sequence GASNETI_THREAD_FARG)
 {
-  gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
+  gasnet_team_handle_t team = gasneti_import_tm_nonpair(e_tm)->_coll_team;
   int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
   coll_flags |= (flags & GASNETI_FLAG_COLL_SUBORDINATE) ? GASNETE_COLL_SUBORDINATE : 0;
   return gasnete_coll_broadcast_nb(team, dst, root, (/*non-const*/ void*)src,
@@ -2283,7 +2283,7 @@ gasnete_tm_generic_reduce_nb(gex_TM_t tm, gex_Rank_t root, void *dst, const void
                              gasnete_coll_scratch_req_t *scratch_req
                              GASNETI_THREAD_FARG)
 {
-  gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
+  gasnet_team_handle_t team = gasneti_import_tm_nonpair(tm)->_coll_team;
   gex_Event_t result;
 
   gasnete_coll_threads_lock(team, coll_flags GASNETI_THREAD_PASS);
@@ -2351,7 +2351,7 @@ gasnete_tm_reduce_nb_default(
                 gex_OP_t opcode, gex_Coll_ReduceFn_t user_fnptr, void *user_cdata,
                 gex_Flags_t flags, uint32_t sequence GASNETI_THREAD_FARG)
 {
-  gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
+  gasneti_TM_t i_tm = gasneti_import_tm_nonpair(e_tm);
 
   GASNETI_TRACE_TM_REDUCE(COLL_REDUCE_NB,e_tm,root,dst,src,dt,dt_sz,dt_cnt,opcode,user_fnptr,user_cdata,flags);
 
@@ -2434,7 +2434,7 @@ gasnete_tm_generic_reduce_all_nb(
                         gasnete_coll_scratch_req_t *scratch_req
                         GASNETI_THREAD_FARG)
 {
-  gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
+  gasnet_team_handle_t team = gasneti_import_tm_nonpair(tm)->_coll_team;
   gex_Event_t result;
 
   gasnete_coll_threads_lock(team, coll_flags GASNETI_THREAD_PASS);
@@ -2502,7 +2502,7 @@ gasnete_tm_reduce_all_nb_default(
                 gex_OP_t opcode, gex_Coll_ReduceFn_t user_fnptr, void *user_cdata,
                 gex_Flags_t flags, uint32_t sequence GASNETI_THREAD_FARG)
 {
-  gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
+  gasneti_TM_t i_tm = gasneti_import_tm_nonpair(e_tm);
 
   GASNETI_TRACE_TM_REDUCE_ALL(COLL_REDUCE_ALL_NB,e_tm,dst,src,dt,dt_sz,dt_cnt,opcode,user_fnptr,user_cdata,flags);
 

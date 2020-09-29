@@ -673,7 +673,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
 {
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
                           numentries, segsize));
-  gasneti_TM_t tm = gasneti_import_tm(_tm);
+  gasneti_TM_t tm = gasneti_import_tm_nonpair(_tm);
   gasneti_EP_t ep = tm->_ep;
 
   if (!gasneti_init_done) 

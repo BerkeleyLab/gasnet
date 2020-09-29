@@ -930,7 +930,7 @@ size_t gasneti_blockingRotatedExchangeV(
 {
   GASNET_BEGIN_FUNCTION(); // TODO: remove this lookup
 
-  gasnete_coll_team_t team = gasneti_import_tm(tm)->_coll_team;
+  gasnete_coll_team_t team = gasneti_import_tm_nonpair(tm)->_coll_team;
   uint32_t team_id = team->team_id;
   gex_Rank_t self = gex_TM_QueryRank(tm);
   gex_Rank_t team_sz = gex_TM_QuerySize(tm);

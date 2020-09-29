@@ -2743,7 +2743,7 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   // TODO: multi-ep may require more work
   gex_Rank_t team_size = gex_TM_QuerySize(tm);
   for (size_t i = 0; i < team_size; ++i) {
-    gex_EP_Location_t loc = gasneti_i_tm_rank_to_location(gasneti_import_tm(tm), i, 0);
+    gex_EP_Location_t loc = gasneti_i_tm_rank_to_location(gasneti_import_tm_nonpair(tm), i, 0);
     gex_Rank_t jobrank = loc.gex_rank;
     if (jobrank == gasneti_mynode) {
       continue;
@@ -2793,7 +2793,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
 {
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
                           numentries, segsize));
-  gasneti_TM_t tm = gasneti_import_tm(_tm);
+  gasneti_TM_t tm = gasneti_import_tm_nonpair(_tm);
   gasneti_EP_t ep = tm->_ep;
 
   if (!gasneti_init_done) 

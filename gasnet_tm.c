@@ -79,7 +79,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
                         void *addr, size_t len, gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_TM_t i_parent = gasneti_import_tm(e_parent);
+  gasneti_TM_t i_parent = gasneti_import_tm_nonpair(e_parent);
   gasneti_EP_t ep = i_parent->_ep;
 
   GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" color=%d key=%d flags=%d",
@@ -184,7 +184,7 @@ size_t gasneti_TM_Create(
             GASNETI_THREAD_FARG)
 {
   size_t result = 0;
-  gasneti_TM_t i_parent = gasneti_import_tm(e_parent);
+  gasneti_TM_t i_parent = gasneti_import_tm_nonpair(e_parent);
 
   // NOTE: we can simplify things by observing that ranks in TM0 are always jobranks
   flags |=  gasneti_is_tm0(i_parent) ? GEX_FLAG_RANK_IS_JOBRANK : 0;
@@ -297,7 +297,7 @@ int gasneti_TM_Destroy(
             gex_Flags_t   flags
             GASNETI_THREAD_FARG)
 {
-  gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
+  gasneti_TM_t i_tm = gasneti_import_tm_nonpair(e_tm);
   gasnete_coll_team_t team = i_tm->_coll_team;
 
   GASNETI_TRACE_PRINTF(W,("TM_Destroy: team="GASNETI_TMSELFFMT" flags=%d",
@@ -323,7 +323,7 @@ extern void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *d
 {
   // TODO-EX: use gex_Coll_Exchange() once available
   const int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
-  gasnet_coll_gather_all(gasneti_import_tm(tm)->_coll_team, dst, src, len, coll_flags);
+  gasnet_coll_gather_all(gasneti_import_tm_nonpair(tm)->_coll_team, dst, src, len, coll_flags);
 }
 
 /* ------------------------------------------------------------------------------------ */

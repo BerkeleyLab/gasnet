@@ -2050,7 +2050,7 @@ gasnet_seginfo_t gasneti_segmentAttach(
   called = 1;
 #endif
 
-  gasneti_EP_t i_ep = gasneti_import_tm(tm)->_ep;
+  gasneti_EP_t i_ep = gasneti_import_tm_nonpair(tm)->_ep;
   gasneti_Client_t i_client = i_ep->_client;
 
   /* ------------------------------------------------------------------------------------ */
