@@ -36,7 +36,7 @@ static gex_Rank_t    myrank, nranks;
   #define PTR_NARGS       1
   #define PTR_ARGS        gex_AM_Arg_t arg0
   #define PTR_PACK(ptr)   ((gex_AM_Arg_t)(ptr))
-  #define PTR_UNPACK()    ((void *)a0)
+  #define PTR_UNPACK()    ((void *)arg0)
 #elif PLATFORM_ARCH_64
   #define PTR_NARGS       2
   #define PTR_ARGS        gex_AM_Arg_t arg0, gex_AM_Arg_t arg1
