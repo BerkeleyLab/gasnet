@@ -310,7 +310,7 @@ void gasnetc_am_req_format(gasnetc_am_req_t *am_req,
      * to GASNETI_MEDBUF_ALIGNMENT */
     padding_size = GASNETC_AMMED_PADDING_SIZE(numargs);
     if (padding_size) {
-      gasneti_assert(padding_size <= (GASNETC_MAX_ARGS_SIZE));
+      gasneti_assert(padding_size < GASNETI_MEDBUF_ALIGNMENT);
       /* use `am_req->args` for padding */
       GASNETC_BUF_ADD_SEND_BYTES(am_req, padding_size);
     }
