@@ -624,8 +624,6 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
       if (nbytes <= GASNETC_MAX_MED_(numargs)) {
         GASNETI_MEMCPY(GASNETC_BUF_PTR(am_req->buffer), src_addr, nbytes);
         GASNETC_BUF_ADD_SEND_BYTES(am_req, nbytes);
-        gasnetc_req_add_iov(am_req, GASNETC_BUF_DATA(am_req->buffer),
-                            GASNETC_BUF_SIZE(am_req->buffer));
       } else {
         gasnetc_req_add_iov(am_req, GASNETC_BUF_DATA(am_req->buffer),
                             GASNETC_BUF_SIZE(am_req->buffer));
