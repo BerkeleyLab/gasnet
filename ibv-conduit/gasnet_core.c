@@ -2733,7 +2733,7 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
       if (cep) gasnetc_sndrcv_attach_peer(jobrank, cep);
     } else {
       // Remote + non-primordial:
-      gasneti_unreachable_error(("gex_Segment_Publish does not yet handle non-primordial EPs"));
+      gasneti_unreachable_error(("gex_EP_PublishBoundSegment does not yet handle non-primordial EPs"));
     }
     p = (struct exchg_data *)(elem_sz + (uintptr_t)p);
   }
@@ -2940,19 +2940,19 @@ extern int gasnetc_Segment_Create(
   return rc;
 }
 
-#if GASNETC_HAVE_SEGMENT_PUBLISH
-extern int gasnetc_Segment_Publish(
+#if GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT
+extern int gasnetc_EP_PublishBoundSegment(
                 gex_TM_t               tm,
                 gex_EP_t               *eps,
                 size_t                 num_eps,
                 gex_Flags_t            flags)
 {
   // Conduit-independent parts
-  int rc = gasneti_Segment_Publish(tm, eps, num_eps, flags);
+  int rc = gasneti_EP_PublishBoundSegment(tm, eps, num_eps, flags);
   if (GASNET_OK != rc) return rc;
 
   // Conduit-dependent parts
-  // TODO: merge comms into gasneti_Segment_Publish().
+  // TODO: merge comms into gasneti_EP_PublishBoundSegment().
   gasnetc_segment_exchange(tm, eps, num_eps);
 
   // Avoid race in which AMRequestLong triggers AMRepyLong before exchange completes remotely

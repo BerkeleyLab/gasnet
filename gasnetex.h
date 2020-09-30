@@ -609,17 +609,17 @@ extern int gex_EP_Create(
             gex_EP_Capabilities_t  _capabilities,
             gex_Flags_t            _flags);
 
-extern void gex_Segment_EP_Bind(
-            gex_Segment_t  _segment,
+extern void gex_EP_BindSegment(
             gex_EP_t       _ep,
+            gex_Segment_t  _segment,
             gex_Flags_t    _flags);
 
-#if GASNETC_HAVE_SEGMENT_PUBLISH
-  #define gex_Segment_Publish gasnetc_Segment_Publish
+#if GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT
+  #define gex_EP_PublishBoundSegment gasnetc_EP_PublishBoundSegment
 #else
-  #define gex_Segment_Publish gasneti_Segment_Publish
+  #define gex_EP_PublishBoundSegment gasneti_EP_PublishBoundSegment
 #endif
-extern int gex_Segment_Publish(
+extern int gex_EP_PublishBoundSegment(
             gex_TM_t       _tm,
             gex_EP_t       *_eps,
             size_t         _num_eps,

@@ -367,7 +367,7 @@ gasnetc_segment_exchange(gasnetc_mem_info_t* mem_info, gex_TM_t tm)
     if (tm) {
       gex_EP_Location_t loc = gasneti_e_tm_rank_to_location(tm, i, 0);
       if (loc.gex_ep_index) { // TODO: multi-ep support
-        gasneti_unreachable_error(("gex_Segment_Publish does not yet handle non-primordial EPs"));
+        gasneti_unreachable_error(("gex_EP_PublishBoundSegment does not yet handle non-primordial EPs"));
       }
       jobrank = loc.gex_rank;
     } else {
@@ -922,19 +922,19 @@ extern int gasnetc_Segment_Create(
   return rc;
 }
 
-extern int gasnetc_Segment_Publish(
+extern int gasnetc_EP_PublishBoundSegment(
                 gex_TM_t               tm,
                 gex_EP_t               *eps,
                 size_t                 num_eps,
                 gex_Flags_t            flags)
 {
   // Conduit-independent parts
-  int rc = gasneti_Segment_Publish(tm, eps, num_eps, flags);
+  int rc = gasneti_EP_PublishBoundSegment(tm, eps, num_eps, flags);
   if (GASNET_OK != rc) return rc;
 
 #if GASNETC_PIN_SEGMENT
   // Conduit-dependent parts
-  // TODO: merge comms into gasneti_Segment_Publish().
+  // TODO: merge comms into gasneti_EP_PublishBoundSegment().
   // TODO: generalize for multi-ep
   gasnetc_Segment_t segment;
   segment = num_eps ? (gasnetc_Segment_t) gasneti_import_ep(eps[0])->_segment : NULL;

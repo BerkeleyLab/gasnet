@@ -119,7 +119,7 @@
   // uncomment if conduit provides a gasnetc-prefixed override
   // TODO: this should be a hook rather than an override
 #if GASNETC_PIN_SEGMENT
-  #define GASNETC_HAVE_SEGMENT_PUBLISH 1
+  #define GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT 1
 #endif
 
   /* If your conduit uses conduit-specific extensions to the basic object

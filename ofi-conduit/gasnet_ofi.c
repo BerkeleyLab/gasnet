@@ -1044,7 +1044,7 @@ void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
       gasnetc_ofi_target_keys[jobrank] = p->mr_key;
     } else {
       // Non-primordial
-      gasneti_unreachable_error(("gex_Segment_Publish does not yet handle non-primordial EPs"));
+      gasneti_unreachable_error(("gex_EP_PublishBoundSegment does not yet handle non-primordial EPs"));
     }
   }
   gasneti_free(global);

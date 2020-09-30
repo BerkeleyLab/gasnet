@@ -4,13 +4,14 @@
  * Description: GASNet "disaggregated Attach" test.
  *
  * This test binds a segment to a primordial endpoint using
- * gex_Segment_{Create,EP_Bind,Publish}(), rather than gex_Segment_Attach(),
- * performing Put, Get and Long operations to verify correctness.
+ * gex_Segment_Create(), gex_EP_BindSegment(), and gex_EP_PublishBoundSegment()
+ * rather than gex_Segment_Attach(), performing RMA, AM and VIS operations
+ * to verify correctness.
  */
 
 // WARNING: This test exercises an EXPERIMENTAL feature.
-// One should not clone the logic in this test as a template for use
-// of the gex_Segment_{Create,EP_Bind,Publish}() APIs.
+// One should not clone the logic in this test as a template for use of the
+// gex_Segment_Create, gex_EP_BindSegment, and gex_EP_PublishBoundSegment APIs
 
 #include <gasnetex.h>
 #include <gasnet_coll.h>
@@ -170,7 +171,7 @@ int main(int argc, char **argv)
 
     // Test pre-bind (no segments yet) Publish
     // Should not fail, nor interfere with the post-Bind use of Publish
-    if (GASNET_OK != gex_Segment_Publish(myteam, &myep, 1, 0)) {
+    if (GASNET_OK != gex_EP_PublishBoundSegment(myteam, &myep, 1, 0)) {
       ERR("FAILED EARLY SEGMENT PUBLISH TEST");
     }
 
@@ -191,7 +192,7 @@ int main(int argc, char **argv)
     }
 
     // Bind the chosen segments and validate
-    gex_Segment_EP_Bind(seg, myep, 0);
+    gex_EP_BindSegment(myep, seg, 0);
     {
       void *tmp_addr;
       size_t tmp_size;
@@ -213,8 +214,8 @@ int main(int argc, char **argv)
       assert_always(tmp_tm != GEX_TM_INVALID);
       assert_always(nranks == gex_TM_QuerySize(tmp_tm));
       int coin_flip = TEST_RAND_ONEIN(2);
-      if ((GASNET_OK != gex_Segment_Publish(tmp_tm, &myep,  coin_flip, 0)) ||
-          (GASNET_OK != gex_Segment_Publish(tmp_tm, &myep, !coin_flip, 0))) {
+      if ((GASNET_OK != gex_EP_PublishBoundSegment(tmp_tm, &myep,  coin_flip, 0)) ||
+          (GASNET_OK != gex_EP_PublishBoundSegment(tmp_tm, &myep, !coin_flip, 0))) {
         ERR("FAILED PERMUTED SEGMENT PUBLISH TEST");
       }
       GASNET_Safe(gex_TM_Destroy(tmp_tm, NULL, 0));
@@ -325,7 +326,7 @@ int main(int argc, char **argv)
     }
 
     // Test no-op (redundant) Publish
-    if (GASNET_OK != gex_Segment_Publish(myteam, &myep, 1, 0)) {
+    if (GASNET_OK != gex_EP_PublishBoundSegment(myteam, &myep, 1, 0)) {
       ERR("FAILED NO-OP SEGMENT PUBLISH TEST");
     }
   }
