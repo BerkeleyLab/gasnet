@@ -859,8 +859,8 @@ void gasnetc_recv_fini(void)
                                           gasnetc_am_req_t))) {
     gasneti_free_aligned(rreq->buffer.data);
 #if !GASNETC_PIN_SEGMENT
-    gasneti_assert(!rreq->buffer.long_bytes_used &&
-                   !rreq->buffer.long_data_ptr);
+    gasneti_assert(!rreq->buffer.long_bytes_used);
+    gasneti_assert(!rreq->buffer.long_data_ptr);
 #endif
     gasneti_free(rreq);
   }
@@ -1027,6 +1027,7 @@ void gasnetc_rreq_release(gasnetc_ucx_request_t *req)
   gasnetc_am_req_t *am_req = req->am_req;
   if (GASNETC_BUF_LSIZE(am_req->buffer)) {
     gasneti_free(GASNETC_BUF_LDATA(am_req->buffer));
+    GASNETC_BUF_LDATA(am_req->buffer) = NULL;
   }
   GASNETC_BUF_RESET(am_req->buffer);
   gasneti_list_enq(&gasneti_ucx_module.rreq_free, am_req);
