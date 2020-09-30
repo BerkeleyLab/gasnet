@@ -1069,41 +1069,66 @@ unsigned int gex_AM_MaxArgs(void);
 // + In the absence of the GEX_FLAG_AM_PREPARE_LEAST_{CLIENT,ALLOC} flags,
 //   these queries return the maximum legal 'nbytes' argument value for the
 //   corresponding gex_AM_{Request,Reply}{Medium,Long}*() call (collectively
-//   known as "fixed-payload AM" injection calls).
+//   known as "fixed-payload AM" injection calls) using the named local and
+//   remote endpoint and the same 'lc_opt', 'numargs' and 'flags' arguments.
 // + When passed either of the GEX_FLAG_AM_PREPARE_LEAST_{CLIENT,ALLOC} flags,
 //   these queries return the maximum legal 'least_payload' argument value for
 //   the corresponding gex_AM_Prepare{Request,Reply}{Medium,Long}() call
-//   (collectively known as "negotiated-payload AM" prepare calls).
+//   (collectively known as "negotiated-payload AM" prepare calls) using the
+//   named local and remote endpoint and the same 'lc_opt', numargs' and 'flags'
+//   arguments.
 //
-// These are max payload queries for specific peer, numargs, lc_opt and flags,
-// except that (other_rank == GEX_RANK_INVALID) does not ask about a specific
-// rank, it the yields min-of-maxes over all team members.
-//
-// 1. The result of each query function is guaranteed to be symmetric - ie if
-//    two team members execute a given query on each other's ranks, with all
-//    other input arguments being equal, the queries are guaranteed to return
+// 1. If 'tm' names a local endpoint which is not AM-capable, then the call
+//    is erroneous.  Here "AM-capable endpoint" is defined as any primordial
+//    endpoint or a non-primordial endpoint which was created with
+//    GEX_EP_CAPABILITY_AM.
+// 2. When (other_rank != GEX_RANK_INVALID)
+//    a. The result of each query is a function of the 'numargs', 'lc_opt' and
+//       'flags' arguments, and the two endpoints (one local and one remote)
+//       named by the tuple consisting of the 'tm' and 'other_rank' arguments.
+//    b. The result is independent of *how* the endpoints are named, such as by
+//       distinct 'tm' values with overlapping membership or use of a TM-pair.
+//    c. If the remote endpoint named by the '(tm,other_rank)' tuple is not
+//       AM-capable or does not exist (only possible with a TM-pair), then the
+//       call is erroneous.
+// 3. When (other_rank == GEX_RANK_INVALID)
+//    a. The result of each query is a min-of-maxes over all AM-capable remote
+//       endpoints that are addressable with the given 'tm' when 'other_rank'
+//       is varied over its valid range, with the given 'numargs', 'lc_opt' and
+//       'flags' arguments.
+//    b. This valid range excludes any endpoints which are not AM-capable.
+//    c. In the case that 'tm' is a TM-pair, the valid range also excludes
+//       jobranks which do not have an endpoint at the associated remote
+//       endpoint index.
+//    d. If valid range defined above is empty (no AM-capable endpoints are
+//       addressable), then the call is erroneous.
+// 4. The result of each query function is guaranteed to be symmetric with
+//    respect to exchanging the local and remote endpoints.  Two calls, by
+//    appropriate processes, that reverse the local and remote endpoint roles
+//    while keeping all other input arguments equal, are guaranteed to return
 //    the same value.  Note this does NOT imply any relationship between the
 //    results of different query functions (eg MaxRequestMedium versus
 //    MaxReplyMedium).
-// 2. If other_rank == GEX_RANK_INVALID, then all team members are guaranteed
-//    to get the same result given the same values of the other input
-//    arguments.  Otherwise, other_rank specifies the other team member
-//    involved in the operation being queried (where the rank making the query
-//    is implicitly involved).  Note that due to the symmetry described above,
-//    'other_rank' can (and should) always name the other party in the
-//    communication, regardless of whether that rank or the caller is to be
-//    the sender or the receiver.
-// 3. 'numargs' must be between 0 and gex_AM_MaxArgs(), inclusive.  It is
+// 5. When (other_rank == GEX_RANK_INVALID) all callers providing a 'tm' naming
+//    the same set of participating endpoints are guaranteed to get the same
+//    result when given the same values for the other input arguments.  Due to
+//    the symmetry noted above, this includes two calls using TM-pairs to
+//    identify the same two endpoints.
+// 6. Due to the symmetry properties described above, 'other_rank' can (and
+//    therefore should) always name the other party in the communication,
+//    regardless of whether that rank or the caller is to be the sender or the
+//    receiver.
+// 7. 'numargs' must be between 0 and gex_AM_MaxArgs(), inclusive.  It is
 //    guaranteed that increasing 'numargs' will produce monotonically non-
 //    increasing results when all other parameters are held fixed.
-// 4. 'lc_opt' indicates the payload local completion option to be used for
+// 8. 'lc_opt' indicates the payload local completion option to be used for
 //    the AM injection or prepare call in question.  The predefined constants
 //    GEX_EVENT_NOW and GEX_EVENT_GROUP should be used directly, while a
 //    pointer to any variable of type gex_Event_t (or a NULL pointer) may be
 //    used interchangeably to indicate that the injection or prepare call
 //    passes any such value (without requiring that the same pointer value be
 //    passed).
-// 5. 'flags' indicates the flags that will be provided to the corresponding
+// 9. 'flags' indicates the flags that will be provided to the corresponding
 //    AM injection or prepare function (and should not to be confused with the
 //    handler registration flags).  The result of the query is only guaranteed
 //    to be correct for an injection of prepare call with exactly the same
@@ -1112,15 +1137,17 @@ unsigned int gex_AM_MaxArgs(void);
 //
 // The result of all four query functions is guaranteed to be at least 512 (bytes).
 //
-// The result is guaranteed to be stable - ie for the same set of input arguments,
-// it will always return the same value.
+// The result is guaranteed to be stable thoughout a given job execution - ie
+// for the same set of input arguments, it will always return the same value.
 //
-// Aside from the explicit guarantees above, the result may otherwise vary
-// with the input arguments in unspecified ways, and thus only defines the
-// documented limit for an call with corresponding values of (tm, other_rank,
-// lc_opt, flags and numargs).  For example, limits may vary between different
-// pairs of ranks on the same team, or even between the same pair of processes
-// linked via different team or client.
+// Aside from the explicit guarantees above, the result may otherwise vary with
+// the input arguments in unspecified ways, and thus only defines the documented
+// limit for an call with corresponding local and remote endpoints and values of
+// lc_opt, flags and numargs.  For example, limits often vary between different
+// conduits and may also vary based on job layout, between pairs of ranks in
+// the same team, or between different pair of endpoints linking the same two
+// processes.
+
 size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
            gex_Rank_t other_rank,
@@ -1149,11 +1176,9 @@ size_t gex_AM_MaxReplyMedium(
 // Token-specific max fixed-payload queries for specific nargs, lc_opt and flags
 //
 // Semantics are identical to the may payload queries above, except that
-// a gex_Token_t replaces the (tm,rank) pair.  The token represents a (tm,
-// rank) pair, where tm is the local representative of the gex_TM_t used to
-// initiate the AM which resulted in the execution of the handler which
-// received that token, and rank denotes the rank in that team that initiated
-// the same AM.  In particular, this implies the queries return the limits
+// a gex_Token_t replaces the (tm,rank) tuple.  The token names the local
+// endpoint on which the AM has been received and the remote endpoint which
+// sent it. In particular, this implies the queries return the limits
 // governing the AM Reply operations that can be performed using this token.
 //
 // These are only permitted in Request handlers.
