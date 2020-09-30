@@ -137,13 +137,13 @@ extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *cnt) {
 }
 
 extern void gasnetc_counter_wait(gasnetc_counter_t *counter,
-                                 int handler_context GASNETI_THREAD_FARG)
+                                 int outside_handler_context GASNETI_THREAD_FARG)
 {
   const gasnetc_atomic_val_t initiated = (counter->initiated & GASNETI_ATOMIC_MAX);
   gasnetc_atomic_t * const completed = &counter->completed;
 
   if_pf (!gasnetc_counter_done(counter)) {
-    if (handler_context) {
+    if (outside_handler_context) {
       do {
         GASNETI_WAITHOOK();
         gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
