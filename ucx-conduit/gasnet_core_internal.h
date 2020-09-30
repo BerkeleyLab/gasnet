@@ -139,10 +139,7 @@ extern int gasnetc_exit_running;
 extern gasnete_threadidx_t gasnetc_exit_thread;
 
 #ifdef GASNETC_UCX_THREADS
-#define GASNETC_MY_THREADIDX __mytidx
-
-#define GASNETC_MYTID_POST() \
-  const gasnete_threadidx_t GASNETC_MY_THREADIDX = (GASNETI_MYTHREAD->threadidx)
+#define GASNETC_MY_THREADIDX (GASNETI_MYTHREAD->threadidx)
 
 #define GASNETC_LOCK_UCX()                                                \
   do {                                                                    \
@@ -204,8 +201,6 @@ extern gasnete_threadidx_t gasnetc_exit_thread;
     }                                                           \
   } while(0)
 #else
-#define GASNETC_MYTID_POST()                  ((void)0)
-#define GASNETC_MYTID                         ((void)0)
 #define GASNETC_LOCK_ACQUIRE(lmode)           ((void)0)
 #define GASNETC_LOCK_RELEASE(lmode)           ((void)0)
 #define GASNETC_LOCK_UCX()                    ((void)0)

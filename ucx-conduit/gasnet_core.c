@@ -1106,7 +1106,6 @@ static void gasnetc_exit_sighandler(int sig) {
 static int gasnetc_exit_head(int exitcode) {
   GASNET_BEGIN_FUNCTION();
   int rc = 0;
-  GASNETC_MYTID_POST();
 
   GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
   if (!gasnetc_exit_running) {
@@ -1131,7 +1130,6 @@ static void gasnetc_exit_tail(void) {
 void gasnetc_exit_threads(void) {
   GASNET_BEGIN_FUNCTION();
 #if GASNET_DEBUG
-  GASNETC_MYTID_POST();
   GASNETC_LOCK_UCX();
   gasneti_assert(gasnetc_exit_running);
   GASNETC_UNLOCK_UCX();
@@ -1308,7 +1306,6 @@ static void gasnetc_exit_body(void) {
   int role;
 #if GASNET_DEBUG && GASNET_PAR
   {
-    GASNETC_MYTID_POST();
     GASNETC_LOCK_UCX();
     gasneti_assert(GASNETC_MY_THREADIDX == gasnetc_exit_thread);
     GASNETC_UNLOCK_UCX();

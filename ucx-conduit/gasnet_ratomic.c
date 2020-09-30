@@ -174,7 +174,6 @@ gex_Event_t gasnete_ratomic_fetch_nb(const int length, void *result_p,
                                      int op_cnt, uint64_t operand1, uint64_t operand2,
                                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETC_MYTID_POST();
   gasnete_eop_t * const eop = gasnete_eop_new(GASNETI_MYTHREAD);
   gex_Rank_t rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
   ucp_ep_h ep = GASNETC_UCX_GET_EP(rank);
@@ -195,7 +194,6 @@ int gasnete_ratomic_fetch_nbi(const int length, void *result_p,
                               int op_cnt, uint64_t operand1, uint64_t operand2,
                               gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETC_MYTID_POST();
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const iop = mythread->current_iop;
   gex_Rank_t rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
@@ -257,7 +255,6 @@ gex_Event_t gasnete_ratomic_post_nb(const int length,
                                     uint64_t operand,
                                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETC_MYTID_POST();
   gasnete_eop_t * const eop = gasnete_eop_new(GASNETI_MYTHREAD);
 
   GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
@@ -276,7 +273,6 @@ int gasnete_ratomic_post_nbi(const int length,
                              uint64_t operand,
                              gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETC_MYTID_POST();
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const iop = mythread->current_iop;
 

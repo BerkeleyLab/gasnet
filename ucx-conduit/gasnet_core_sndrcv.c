@@ -472,7 +472,6 @@ GASNETI_INLINE(gasnetc_req_wait)
 void gasnetc_req_wait(gasnetc_ucx_request_t *req, uint8_t is_request
                       GASNETI_THREAD_FARG)
 {
-  GASNETC_MYTID_POST();
   while (GASNETC_UCX_ACTIVE == req->status) {
     if (is_request) {
       /* Ensure full progress only for Requests
@@ -571,7 +570,6 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
 {
   gasnetc_am_req_t *am_req;
   gasnetc_ucx_request_t *req;
-  GASNETC_MYTID_POST();
 
   GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
   am_req = gasnetc_am_req_get();
@@ -876,7 +874,6 @@ void gasnetc_recv_fini(void)
 #if GASNETC_PIN_SEGMENT
 int gasnetc_poll_sndrcv(gasnetc_lock_mode_t lmode GASNETI_THREAD_FARG)
 {
-  GASNETC_MYTID_POST();
   gasnetc_ucx_request_t *req = NULL;
   gasnetc_sreq_hdr_t *am_hdr;
 
@@ -912,7 +909,6 @@ int gasnetc_poll_sndrcv(gasnetc_lock_mode_t lmode GASNETI_THREAD_FARG)
 
 void gasnetc_poll_snd(gasnetc_lock_mode_t lmode GASNETI_THREAD_FARG)
 {
-  GASNETC_MYTID_POST();
   GASNETC_LOCK_ACQUIRE(lmode);
   gasnetc_ucx_progress();
   GASNETC_LOCK_RELEASE(lmode);
@@ -947,7 +943,6 @@ static void gasneti_ucx_recv_handler(void *request, ucs_status_t status,
 
 void gasnetc_poll_snd(gasnetc_lock_mode_t lmode GASNETI_THREAD_FARG)
 {
-  GASNETC_MYTID_POST();
   uint32_t probe_cnt = 0, probe_max;
   gasnetc_ucx_request_t *request = NULL;
   void *buf_ptr = NULL;
@@ -1043,7 +1038,6 @@ void gasnetc_rreq_release(gasnetc_ucx_request_t *req)
 
 int gasnetc_poll_sndrcv(gasnetc_lock_mode_t lmode GASNETI_THREAD_FARG)
 {
-  GASNETC_MYTID_POST();
   int recv_list_size = 0;
   gasnetc_ucx_request_t *request = NULL;
   gasneti_list_t local_recv_list;
@@ -1096,7 +1090,6 @@ void gasnetc_send_list_wait(gasnetc_lock_mode_t lmode GASNETI_THREAD_FARG)
 {
   size_t send_size;
   do {
-    GASNETC_MYTID_POST();
     GASNETI_WAITHOOK();
     GASNETC_LOCK_ACQUIRE(lmode);
     gasnetc_poll_sndrcv(GASNETC_LOCK_INLINE GASNETI_THREAD_PASS);
