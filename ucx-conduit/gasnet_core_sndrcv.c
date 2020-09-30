@@ -861,7 +861,7 @@ void gasnetc_recv_fini(void)
                                           gasnetc_am_req_t))) {
     gasneti_free_aligned(rreq->buffer.data);
 #if !GASNETC_PIN_SEGMENT
-    gasneti_assert(!rreq->buffer.long_bytes_used ||
+    gasneti_assert(!rreq->buffer.long_bytes_used &&
                    !rreq->buffer.long_data_ptr);
 #endif
     gasneti_free(rreq);
