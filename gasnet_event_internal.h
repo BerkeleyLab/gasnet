@@ -188,6 +188,10 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
     gasneti_assert_uint((((iop)->initiated_put_cnt - _temp) & GASNETI_ATOMIC_MAX) ,<, (GASNETI_ATOMIC_MAX/2)); \
     _temp = gasnete_op_atomic_read(&((iop)->completed_get_cnt), GASNETI_ATOMIC_RMB_POST); \
     gasneti_assert_uint((((iop)->initiated_get_cnt - _temp) & GASNETI_ATOMIC_MAX) ,<, (GASNETI_ATOMIC_MAX/2)); \
+    _temp = gasnete_op_atomic_read(&((iop)->completed_alc_cnt), GASNETI_ATOMIC_RMB_POST); \
+    gasneti_assert_uint((((iop)->initiated_alc_cnt - _temp) & GASNETI_ATOMIC_MAX) ,<, (GASNETI_ATOMIC_MAX/2)); \
+    _temp = gasnete_op_atomic_read(&((iop)->completed_rmw_cnt), GASNETI_ATOMIC_RMB_POST); \
+    gasneti_assert_uint((((iop)->initiated_rmw_cnt - _temp) & GASNETI_ATOMIC_MAX) ,<, (GASNETI_ATOMIC_MAX/2)); \
   } while (0)
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
   #define gasnete_event_check(_h) do { \
