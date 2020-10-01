@@ -1911,9 +1911,9 @@ gasneti_do_attach_segment(
 
 /* ------------------------------------------------------------------------------------ */
 
-extern void gex_Segment_EP_Bind(
-                gex_Segment_t       segment,
+extern void gex_EP_BindSegment(
                 gex_EP_t            ep,
+                gex_Segment_t       segment,
                 gex_Flags_t         flags)
 {
   gasneti_Segment_t i_segment = gasneti_import_segment(segment);
@@ -1921,17 +1921,17 @@ extern void gex_Segment_EP_Bind(
 
   // TODO: macros for formatting when naming segments in tracing?
   // TODO: macros for formatting when naming endpoints in tracing?
-  GASNETI_TRACE_PRINTF(C,("gex_Segment_EP_Bind: segment=%p, EP index=%d, flags=%d",
+  GASNETI_TRACE_PRINTF(C,("gex_EP_BindSegment: segment=%p, EP index=%d, flags=%d",
                           (void *)segment, i_ep->_index, flags));
 
   if (segment == GEX_SEGMENT_INVALID) {
-    gasneti_fatalerror("Invalid call to gex_Segment_EP_Bind() with GEX_SEGMENT_INVALID");
+    gasneti_fatalerror("Invalid call to gex_EP_BindSegment() with GEX_SEGMENT_INVALID");
   }
   if (flags) {
-    gasneti_fatalerror("Invalid call to gex_Segment_EP_Bind() with non-zero flags");
+    gasneti_fatalerror("Invalid call to gex_EP_BindSegment() with non-zero flags");
   }
   if (i_ep->_segment) {
-    gasneti_fatalerror("Invalid call to gex_Segment_EP_Bind() on EP with a bound segment");
+    gasneti_fatalerror("Invalid call to gex_EP_BindSegment() on EP with a bound segment");
   }
 
   i_ep->_segment = i_segment;
@@ -1939,24 +1939,24 @@ extern void gex_Segment_EP_Bind(
     gasneti_seginfo[gasneti_mynode].addr = i_segment->_addr;
     gasneti_seginfo[gasneti_mynode].size = i_segment->_size;
   } else {
-    gasneti_unreachable_error(("gex_Segment_EP_Bind() does not yet handle non-primordial EPs"));
+    gasneti_unreachable_error(("gex_EP_BindSegment() does not yet handle non-primordial EPs"));
   }
 
   gasneti_legacy_segment_attach_hook(i_ep);
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasneti_Segment_Publish(
+extern int gasneti_EP_PublishBoundSegment(
                 gex_TM_t               tm,
                 gex_EP_t               *eps,
                 size_t                 num_eps,
                 gex_Flags_t            flags)
 {
-  GASNETI_TRACE_PRINTF(C,("gex_Segment_Publish: tm="GASNETI_TMSELFFMT", num_ep=%"PRIuSZ", flags=%d",
+  GASNETI_TRACE_PRINTF(C,("gex_EP_PublishBoundSegment: tm="GASNETI_TMSELFFMT", num_ep=%"PRIuSZ", flags=%d",
                           GASNETI_TMSELFSTR(tm), num_eps, flags));
 
   if (flags) {
-    gasneti_fatalerror("Invalid call to gex_Segment_Publish() with non-zero flags");
+    gasneti_fatalerror("Invalid call to gex_EP_PublishBoundSegment() with non-zero flags");
   }
 
   // Conduit-indep segment fields
@@ -2017,7 +2017,7 @@ extern int gasneti_Segment_Publish(
       si->size = p->size;
     } else {
       // Remote + non-primordial:
-      gasneti_unreachable_error(("gex_Segment_Publish does not yet handle non-primordial EPs"));
+      gasneti_unreachable_error(("gex_EP_PublishBoundSegment does not yet handle non-primordial EPs"));
     }
   }
   gasneti_free(global);
@@ -2069,7 +2069,7 @@ gasnet_seginfo_t gasneti_segmentAttach(
   gasneti_Segment_t i_segment = gasneti_alloc_segment(i_client, segbase, segsize, GEX_MEMKIND_HOST, flags);
   gasneti_segtbl_add(i_segment);
 
-  // Segment_Bind:
+  // EP_BindSegment:
   i_ep->_segment = i_segment;
   gasneti_legacy_segment_attach_hook(i_ep);
   

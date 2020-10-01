@@ -200,9 +200,9 @@ int main(int argc, char **argv)
     for (gex_EP_Index_t idx = 1; idx < num_eps; ++idx) {
       // TODO: distinct segments would provide a stronger test,
       // but currently this has a risk of conflicting with PSHM.
-      gex_Segment_EP_Bind(mysegment, eps[idx], 0);
+      gex_EP_BindSegment(eps[idx], mysegment, 0);
     }
-    gex_Segment_Publish(myteam, eps+1, num_eps-1, 0);
+    gex_EP_PublishBoundSegment(myteam, eps+1, num_eps-1, 0);
   #endif
   }
 #endif

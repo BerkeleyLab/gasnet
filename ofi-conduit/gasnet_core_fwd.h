@@ -95,7 +95,7 @@
 
   // uncomment if conduit provides a gasnetc-prefixed override
   // TODO: this should be a hook rather than an override
-#define GASNETC_HAVE_SEGMENT_PUBLISH 1
+#define GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT 1
 
   /* If your conduit uses conduit-specific extensions to the basic object
      types, then define the corresponding SIZEOF macros below to return

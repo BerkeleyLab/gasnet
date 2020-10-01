@@ -497,7 +497,7 @@ int gasneti_segmentCreate(
                 gex_MemKind_t           kind,
                 gex_Flags_t             flags);
 
-int gasneti_Segment_Publish(
+int gasneti_EP_PublishBoundSegment(
             gex_TM_t       tm,
             gex_EP_t       *eps,
             size_t         num_eps,
