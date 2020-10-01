@@ -1021,7 +1021,7 @@ gasnetc_ucx_request_t *gasneti_req_probe_complete(gasneti_list_t *req_list)
   return req;
 }
 
-GASNETI_INLINE(gasnetc_am_req_release)
+GASNETI_INLINE(gasnetc_rreq_release)
 void gasnetc_rreq_release(gasnetc_ucx_request_t *req)
 {
   gasnetc_am_req_t *am_req = req->am_req;
