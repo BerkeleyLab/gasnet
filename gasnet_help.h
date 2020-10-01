@@ -226,6 +226,7 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 // transparent support for both encodings and may be sufficient to keep much
 // code independent of TM-pairness:
 //   + gasneti_[ei]_tm_rank_to_jobrank()
+//   + gasneti_[ei]_tm_rank_to_ep_index()
 //   + gasneti_[ei]_tm_rank_to_location()
 //   + gasneti_[ei]_tm_jobrank_to_rank()
 //   + gasneti_[ei]_tm_size()
@@ -344,6 +345,27 @@ gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
 }
 #define gasneti_e_tm_rank_to_jobrank(e_tm,rank) \
         gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
+
+GASNETI_INLINE(gasneti_i_tm_rank_to_ep_index)
+gex_Rank_t gasneti_i_tm_rank_to_ep_index(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
+  gasneti_check_i_tm_rank(_i_tm, _rank);
+  gex_EP_Index_t _result;
+  if (gasneti_is_tm0(_i_tm)) {
+    _result = 0;
+  } else if (gasneti_i_tm_is_pair(_i_tm)) {
+    _result = gasneti_tm_pair_rem_idx(gasneti_i_tm_to_pair(_i_tm));
+  } else if (!GASNETI_ALLOW_SPARSE_TEAMREP || _i_tm->_rank_map) {
+    // NULL _index_map indicates all members of TM are primordial EPs (idx==0)
+    _result = _i_tm->_index_map ? _i_tm->_index_map[_rank] : 0;
+  } else {
+    gex_EP_Location_t _loc = gasneti_tm_fwd_location(_i_tm, _rank, 0);
+    _result = _loc.gex_ep_index;
+  }
+  gasneti_assert(_result < GASNET_MAXEPS);
+  return _result;
+}
+#define gasneti_e_tm_rank_to_ep_index(e_tm,rank) \
+        gasneti_i_tm_rank_to_ep_index(gasneti_import_tm(e_tm),rank)
 
 GASNETI_INLINE(gasneti_i_tm_rank_to_location)
 gex_EP_Location_t gasneti_i_tm_rank_to_location(gasneti_TM_t _i_tm, gex_Rank_t _rank, gex_Flags_t _flags) {
