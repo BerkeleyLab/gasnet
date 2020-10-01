@@ -520,6 +520,8 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
   }
 #endif
 
+  if (local_cnt) (*local_cnt)++;
+
   request = ucp_tag_send_nb(server_ep, src_ptr, count, datatype,
       (ucp_tag_t)gasneti_mynode, gasnetc_ucx_send_handler);
   if_pf (UCS_PTR_IS_ERR(request)) {
