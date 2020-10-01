@@ -243,6 +243,9 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 //   + gasneti_boundscheck()
 //   + gasneti_boundscheck_allowoutseg()
 //   + gasneti_formattm()
+//   + gasneti_pshm_local_rank()
+//   + gasneti_pshm_in_supernode()
+//   + gasneti_pshm_addr2local()
 
 #if GASNET_DEBUG
   GASNETI_INLINE(gasneti_assertvalid_tm_pair)
@@ -1514,18 +1517,23 @@ void *gasneti_pshm_jobrank_addr2local(gex_Rank_t _jobrank, const void *_addr) {
 GASNETI_PUREP(gasneti_pshm_jobrank_addr2local)
 
 // Same as the three functions above, but taking (tm,rank) in place of jobrank
+// All are TM-pair aware, and the first two are multi-EP aware
 
 GASNETI_INLINE(gasneti_pshm_local_rank) GASNETI_PURE
 unsigned int gasneti_pshm_local_rank(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  gex_Rank_t _jobrank = gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
-  return gasneti_pshm_jobrank_to_local_rank(_jobrank);
+  gex_EP_Location_t _loc = gasneti_e_tm_rank_to_location(_e_tm, _rank, 0);
+  gex_Rank_t _jobrank = _loc.gex_rank;
+  gex_EP_Index_t _idx = _loc.gex_ep_index;
+  return _idx ? (unsigned int)(-1) : gasneti_pshm_jobrank_to_local_rank(_jobrank);
 }
 GASNETI_PUREP(gasneti_pshm_local_rank)
 
 GASNETI_INLINE(gasneti_pshm_in_supernode) GASNETI_PURE
 int gasneti_pshm_in_supernode(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  gex_Rank_t _jobrank = gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
-  return gasneti_pshm_jobrank_in_supernode(_jobrank);
+  gex_EP_Location_t _loc = gasneti_e_tm_rank_to_location(_e_tm, _rank, 0);
+  gex_Rank_t _jobrank = _loc.gex_rank;
+  gex_EP_Index_t _idx = _loc.gex_ep_index;
+  return !_idx && gasneti_pshm_jobrank_in_supernode(_jobrank);
 }
 GASNETI_PUREP(gasneti_pshm_in_supernode)
 
