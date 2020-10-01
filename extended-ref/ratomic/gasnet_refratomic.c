@@ -72,7 +72,7 @@ void gasneti_AD_Create(
         gex_OP_t                   ops,
         gex_Flags_t                flags)
 {
-  gasneti_TM_t real_tm = gasneti_import_tm(tm);
+  gasneti_TM_t real_tm = gasneti_import_tm_nonpair(tm);
 
   // Argument validation is done here, rather than gasneti_alloc_ad(), to
   // allow conduit-specific extensions (such as additional types or ops).

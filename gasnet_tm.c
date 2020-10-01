@@ -79,7 +79,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
                         void *addr, size_t len, gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_TM_t i_parent = gasneti_import_tm(e_parent);
+  gasneti_TM_t i_parent = gasneti_import_tm_nonpair(e_parent);
   gasneti_EP_t ep = i_parent->_ep;
 
   GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" color=%d key=%d flags=%d",
@@ -149,8 +149,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
     return 0;
   }
 
-  // TODO-EX: use of a conduit-specific hook is needed here
-  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, team->myrank, team->total_ranks, flags, 0);
+  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, team->myrank, team->total_ranks, flags);
   i_tm->_coll_team = team;
   gex_TM_t e_tm = gasneti_export_tm(i_tm);
   team->e_tm = e_tm;
@@ -185,7 +184,7 @@ size_t gasneti_TM_Create(
             GASNETI_THREAD_FARG)
 {
   size_t result = 0;
-  gasneti_TM_t i_parent = gasneti_import_tm(e_parent);
+  gasneti_TM_t i_parent = gasneti_import_tm_nonpair(e_parent);
 
   // NOTE: we can simplify things by observing that ranks in TM0 are always jobranks
   flags |=  gasneti_is_tm0(i_parent) ? GEX_FLAG_RANK_IS_JOBRANK : 0;
@@ -272,8 +271,7 @@ size_t gasneti_TM_Create(
                         scratch_size, scratch_addrs, flags
                         GASNETI_THREAD_PASS);
 
-  // TODO-EX: use of a conduit-specific hook is needed here
-  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, my_new_rank, nmembers, flags, 0);
+  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, my_new_rank, nmembers, flags);
   i_tm->_coll_team = team;
   gex_TM_t e_tm = gasneti_export_tm(i_tm);
   team->e_tm = e_tm;
@@ -299,7 +297,7 @@ int gasneti_TM_Destroy(
             gex_Flags_t   flags
             GASNETI_THREAD_FARG)
 {
-  gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
+  gasneti_TM_t i_tm = gasneti_import_tm_nonpair(e_tm);
   gasnete_coll_team_t team = i_tm->_coll_team;
 
   GASNETI_TRACE_PRINTF(W,("TM_Destroy: team="GASNETI_TMSELFFMT" flags=%d",
@@ -325,7 +323,7 @@ extern void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *d
 {
   // TODO-EX: use gex_Coll_Exchange() once available
   const int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
-  gasnet_coll_gather_all(gasneti_import_tm(tm)->_coll_team, dst, src, len, coll_flags);
+  gasnet_coll_gather_all(gasneti_import_tm_nonpair(tm)->_coll_team, dst, src, len, coll_flags);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -333,9 +331,15 @@ extern void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *d
 
 // Format a gex_TM_t as a GUID
 extern const char *gasneti_formattm(gex_TM_t e_tm) {
-  if ((uintptr_t)e_tm == 1)     return "N/A";  // GASNet-1 collectives team
-  if (e_tm == NULL)             return "JOB";  // JobRank, as with token
-  gasnete_coll_team_t team = gasneti_import_tm(e_tm)->_coll_team;
-  if (team == NULL)             return "TM0";  // Team0 before end of Client_Init
-  return gasneti_dynsprintf("TM%x", (unsigned int)team->team_id);
+  if (e_tm == NULL)             return "JOB";  // JobRank, as with token and legacy collectives
+  if (gasneti_e_tm_is_pair(e_tm)) {
+    gasneti_TM_Pair_t pair = gasneti_import_tm_pair(e_tm);
+    gex_EP_Index_t loc_idx = gasneti_tm_pair_loc_idx(pair);
+    gex_EP_Index_t rem_idx = gasneti_tm_pair_rem_idx(pair);
+    return gasneti_dynsprintf("TM_PAIR(%x,%x)", loc_idx, rem_idx);
+  } else {
+    gasnete_coll_team_t team = gasneti_import_tm(e_tm)->_coll_team;
+    if (team == NULL)             return "TM0";  // Team0 before end of Client_Init
+    return gasneti_dynsprintf("TM%x", (unsigned int)team->team_id);
+  }
 }

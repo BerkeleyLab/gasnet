@@ -254,10 +254,11 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
       gex_Flags_t tmp_flags = flags | (cbuf ? GEX_FLAG_AM_PREPARE_LEAST_CLIENT             \
                                             : GEX_FLAG_AM_PREPARE_LEAST_ALLOC);            \
       size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt,tmp_flags,nargs);               \
-      if (dest >= gex_TM_QuerySize(tm))                                                    \
+      gex_Rank_t tm_size = gasneti_e_tm_size(tm);                                          \
+      if (dest >= tm_size)                                                                 \
         gasneti_fatalerror("gex_AM_PrepareRequest" _STRINGIFY(cat) ": "                    \
                            "destination rank out-of-range (%lu >= %lu)",                   \
-                           (unsigned long)dest, (unsigned long)gex_TM_QuerySize(tm));      \
+                           (unsigned long)dest, (unsigned long)tm_size);                   \
       _GASNETI_CHECK_PREPARE(cbuf,least_pl,most_pl,limit,lc_opt,nargs,1,cat);              \
     } while(0)
   #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) \

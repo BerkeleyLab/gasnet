@@ -92,6 +92,38 @@
   // TODO: this should be a hook rather than an override
 //#define GASNETC_HAVE_SEGMENT_PUBLISH 1
 
+  /* If your conduit uses conduit-specific extensions to the basic object
+     types, then define the corresponding SIZEOF macros below to return
+     the total length of the conduit-specific object, including the prefix
+     portion which must be the matching GASNETI_[OBJECT]_COMMON fields.
+     Similarly, *_HOOK macros should be defined as callbacks to perform
+     conduit-specific initialization and finalization tasks, if any.
+     If a given SIZEOF macro is defined, but the corresponding INIT_HOOK is
+     not, then space beyond the COMMON fields will be zero-initialized.
+     In all cases, GASNETC_[OBJECT]_EXTRA_DECLS provides the place to
+     provide necessary declarations (since this file is included very early).
+    */
+
+//#define GASNETC_CLIENT_EXTRA_DECLS (###)
+//#define GASNETC_CLIENT_INIT_HOOK(i_client) (###)
+//#define GASNETC_CLIENT_FINI_HOOK(i_client) (###)
+//#define GASNETC_SIZEOF_CLIENT_T() (###)
+
+//#define GASNETC_SEGMENT_EXTRA_DECLS (###)
+//#define GASNETC_SEGMENT_INIT_HOOK(i_segment) (###)
+//#define GASNETC_SEGMENT_FINI_HOOK(i_segment) (###)
+//#define GASNETC_SIZEOF_SEGMENT_T() (###)
+
+//#define GASNETC_TM_EXTRA_DECLS (###)
+//#define GASNETC_TM_INIT_HOOK(i_tm) (###)
+//#define GASNETC_TM_FINI_HOOK(i_tm) (###)
+//#define GASNETC_SIZEOF_TM_T() (###)
+
+//#define GASNETC_EP_EXTRA_DECLS (###)
+//#define GASNETC_EP_INIT_HOOK(i_ep) (###)
+//#define GASNETC_EP_FINI_HOOK(i_ep) (###)
+//#define GASNETC_SIZEOF_EP_T() (###)
+
 /* mpi-conduit supports top-level poll throttling */
 #define GASNETC_USING_SUSPEND_RESUME 1
 

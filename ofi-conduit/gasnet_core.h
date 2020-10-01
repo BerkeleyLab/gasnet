@@ -59,12 +59,6 @@ extern int gasnetc_Segment_Create(
                 gex_Flags_t            _flags);
 #define gex_Segment_Create gasnetc_Segment_Create
 
-extern int gasnetc_EP_Create(
-                gex_EP_t                *_ep_p,
-                gex_Client_t            _client,
-                gex_Flags_t             _flags);
-#define gex_EP_Create gasnetc_EP_Create
-
 extern int gasnetc_EP_RegisterHandlers(
                 gex_EP_t                _ep,
                 gex_AM_Entry_t          *_table,

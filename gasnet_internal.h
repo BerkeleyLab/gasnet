@@ -334,8 +334,7 @@ extern void gasneti_freezeForDebugger(void);
 
 extern gasneti_Client_t gasneti_alloc_client(
                        const char *name, 
-                       gex_Flags_t flags,
-                       size_t alloc_size);
+                       gex_Flags_t flags);
 void gasneti_free_client(gasneti_Client_t client);
 
 #define GASNETI_SEGMENT_MAGIC      GASNETI_MAKE_MAGIC('S','E','G','t')
@@ -346,18 +345,11 @@ extern gasneti_Segment_t gasneti_alloc_segment(
                        void *addr,
                        uintptr_t len,
                        gex_MemKind_t kind,
-                       gex_Flags_t flags,
-                       size_t alloc_size);
+                       gex_Flags_t flags);
 void gasneti_free_segment(gasneti_Segment_t segment);
 
 #define GASNETI_EP_MAGIC           GASNETI_MAKE_MAGIC('E','P','_','t')
 #define GASNETI_EP_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('E','P','_','t')
-
-extern gasneti_EP_t gasneti_alloc_ep(
-                       gasneti_Client_t client,
-                       gex_Flags_t flags,
-                       size_t alloc_size);
-void gasneti_free_ep(gasneti_EP_t endpoint);
 
 #define GASNETI_TM_MAGIC           GASNETI_MAKE_MAGIC('T','M','_','t')
 #define GASNETI_TM_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('T','M','_','t')
@@ -366,9 +358,21 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gasneti_EP_t ep,
                        gex_Rank_t rank,
                        gex_Rank_t size,
-                       gex_Flags_t flags,
-                       size_t alloc_size);
+                       gex_Flags_t flags);
 void gasneti_free_tm(gasneti_TM_t tm);
+
+/* ------------------------------------------------------------------------------------ */
+/* Return a pointer to a handler table containing the handlers of
+    the core (gasnetc_) or extended (gasnete_) API, which will be
+    automatically registered upon endpoint creation.
+   Tables are terminated with an entry where fnptr == NULL.
+   Core API handlers are restricted to indices in the range
+      [GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE)
+   Extended API handlers are restricted to indices in the range
+      [GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE)
+*/
+extern gex_AM_Entry_t const *gasnetc_get_handlertable(void);
+extern gex_AM_Entry_t const *gasnete_get_handlertable(void);
 
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: Please remove this!
@@ -384,6 +388,27 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 #define gasneti_THUNK_EP      gasneti_export_ep(gasneti_thing_that_goes_thunk_in_the_dark->_ep)
 #define gasneti_THUNK_CLIENT  gasneti_export_client(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_client)
 #define gasneti_THUNK_SEGMENT gasneti_export_segment(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_segment)
+
+/* ------------------------------------------------------------------------------------ */
+// EP management
+
+GASNETI_INLINE(gasneti_i_tm_to_i_ep)
+gasneti_EP_t gasneti_i_tm_to_i_ep(gasneti_TM_t i_tm) {
+  gasneti_assert(i_tm);
+  if (gasneti_i_tm_is_pair(i_tm)) {
+    // Lookup EP in per-client table
+    gex_EP_Index_t ep_idx = gasneti_tm_pair_loc_idx(gasneti_i_tm_to_pair(i_tm));
+    gasneti_Client_t i_client = gasneti_import_client(gasneti_THUNK_CLIENT); // TODO: multi-client
+    gasneti_assert_int(ep_idx ,<, GASNET_MAXEPS);
+    gasneti_assert_int(ep_idx ,<, gasneti_weakatomic32_read(&i_client->_next_ep_index, 0));
+    gasneti_EP_t i_ep = i_client->_ep_tbl[ep_idx];
+    gasneti_assert(i_ep);
+    return i_ep;
+  } else {
+    return i_tm->_ep;
+  }
+}
+#define gasneti_e_tm_to_i_ep(e_tm) gasneti_i_tm_to_i_ep(gasneti_import_tm(e_tm))
 
 /* ------------------------------------------------------------------------------------ */
 // Internal conduit interface to spawner
@@ -461,14 +486,12 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gex_Flags_t flags);
 gasnet_seginfo_t gasneti_segmentAttach(
                 gex_Segment_t                 *segment_p,
-                size_t                        allocsz,
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
                 gex_Flags_t                   flags);
 int gasneti_segmentCreate(
                 gex_Segment_t           *segment_t,
                 gasneti_Client_t        client,
-                size_t                  allocsz,
                 gex_Addr_t              address,
                 uintptr_t               length,
                 gex_MemKind_t           kind,
