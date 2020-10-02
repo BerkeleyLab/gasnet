@@ -35,6 +35,10 @@ pkgconfig_files = $(pkgconfig_files_seq) $(pkgconfig_files_par) $(pkgconfig_file
 @GASNET_SEGMENT_LARGE_TRUE@GASNET_SEGMENT_STR="LARGE"
 @GASNET_SEGMENT_EVERYTHING_TRUE@GASNET_SEGMENT_STR="EVERYTHING"
 
+# All configured-in memory kinds objects
+@HAVE_MK_CLASS_CUDA_UVA_TRUE@kinds_cuda_uva_obj = $(builddir)/gasnet_cuda_uva-$(THREAD_MODEL).o
+KINDS_SPECIAL_OBJS = $(kinds_cuda_uva_obj)
+
 include $(top_builddir)/other/Makefile-libgasnet.mak
 
 EXTRA_DIST = $(CONDUIT_FILELIST) README
@@ -366,3 +370,10 @@ do-pkgconfig-conduit: force
 	>> $(pkgconfig_file)
 
 
+#
+# Memory Kinds support "special objects"
+#
+
+# Memory kinds for CUDA UVA devices
+$(builddir)/gasnet_cuda_uva-$(THREAD_MODEL).o: force
+	$(CC) @CUDA_CFLAGS@ $(LIBCFLAGS) -o $@ -c $(top_srcdir)/other/kinds/gasnet_cuda_uva.c

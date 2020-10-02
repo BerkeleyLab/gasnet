@@ -218,6 +218,9 @@
 /* --with-max-threads value (if given) */
 #undef GASNETI_MAX_THREADS_CONFIGURE
 
+/* memory kinds support */
+#undef GASNET_HAVE_MK_CLASS_CUDA_UVA
+
 /* has clock_gettime() */
 #undef HAVE_CLOCK_GETTIME
 
