@@ -4696,6 +4696,70 @@ if test "$use_printstack" != no; then
   fi
 fi
 
+########################################################################
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
+GASNET_HELP_OUTPUT([
+Memory-kinds options:])
+
+# Concatenation of libs for all configured kinds:
+GASNET_KINDS_LDFLAGS=''
+GASNET_KINDS_LIBS=''
+
+# GEX_MK_CLASS_CUDA_UVA
+GASNET_IF_ENABLED_WITH_AUTO(kinds-cuda-uva,
+        [support for memory kinds on UVA-capable CUDA devices (auto-detect)],
+        [enable_mk_cuda_uva="yes"; force_mk_cuda_uva="yes"],
+        [enable_mk_cuda_uva="no"], [enable_mk_cuda_uva="probe"])
+unset have_mk_cuda_uva
+if test "$enable_mk_cuda_uva" != "no"; then
+  # TODO: Can/should we scrape nvcc as UPC++ does?
+  GASNET_PACKAGE_HOME(CUDA, [CUDA toolkit], [nvcc], [/usr/local/cuda], [include/cuda.h])
+  GASNET_PACKAGE_CFLAGS(CUDA)
+  GASNET_ENV_DEFAULT(CUDA_LIBS, -lcudart -lcuda)
+  GASNET_PACKAGE_LDFLAGS(CUDA, cudart)
+  GASNET_SPLIT_LINKER_OPTS(CUDA_LDFLAGS,CUDA_LIBS)
+
+  # Assume the best
+  have_mk_cuda_uva=yes
+
+  # Try to compile and link a basic program using the CUDA Driver and Runtime APIs
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $CUDA_CFLAGS")
+  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $CUDA_LDFLAGS")
+  GASNET_PUSHVAR(LIBS,"$LIBS $CUDA_LIBS")
+
+  GASNET_TRY_CACHE_LINK(for CUDA runtime configuration, cudart_works, [
+    #include <cuda.h>
+    #include <cuda_runtime_api.h>
+  ], [
+    cuInit(0);
+    int count;
+    cudaError_t err = cudaGetDeviceCount(&count);
+    struct cudaDeviceProp dprop;
+    dprop.unifiedAddressing = 0;
+  ], [ : ], [ have_mk_cuda_uva=no; GASNET_ERR_SAVE() ])
+
+  GASNET_POPVAR(LIBS)
+  GASNET_POPVAR(LDFLAGS)
+  GASNET_POPVAR(CFLAGS)
+
+  if test "$have_mk_cuda_uva" = "yes"; then
+    AC_DEFINE(GASNET_HAVE_MK_CLASS_CUDA_UVA)
+    AC_SUBST(CUDA_CFLAGS)
+    GASNET_KINDS_LDFLAGS="$GASNET_KINDS_LDFLAGS $CUDA_LDFLAGS"
+    GASNET_KINDS_LIBS="$GASNET_KINDS_LIBS $CUDA_LIBS"
+  elif test "$force_mk_cuda_uva" = "yes"; then
+    GASNET_MSG_ERROR([CUDA UVA memory kinds support was requested with --enable-kinds-cuda-uva but is not available])
+  fi
+fi
+AM_CONDITIONAL(HAVE_MK_CLASS_CUDA_UVA, test "$have_mk_cuda_uva" = "yes")
+
+# Concatenation of libs for all configured kinds
+AC_SUBST(GASNET_KINDS_LDFLAGS)
+AC_SUBST(GASNET_KINDS_LIBS)
+
+dnl GASNET_TOOLSONLY_FALSE_END
+########################################################################
+
 GASNET_HELP_OUTPUT([
 Misc options:])
 

@@ -3238,10 +3238,11 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 //----------------------------------------------------------------------
 
 // [PROPOSED]
-// The remainder of this document is for APIs described in more detail in
+// This section of this document covers APIs described in more detail in
 //   GASNet-EX API Proposal: Multi-EP, Revision 2020.6.1
-// Only prototypes and supported flags are provided here.
 //
+// For functions, only prototypes and supported flags are provided here.
+// For function semantics, one should consult the document cited above.
 // Copies of the most recent revision of that document are available on
 // request from gasnet-staff@lbl.gov.
 
@@ -3314,6 +3315,65 @@ int gex_EP_Create(
       // Valid flags:
       //   NONE - zero is currently required
 
+// End of "GASNet-EX API Proposal: Multi-EP, Revision 2020.6.1" section
+//----------------------------------------------------------------------
+
+// [PROPOSED]
+// This section of this document covers APIs described in more detail in
+//   GASNet-EX API Proposal: Memory Kinds
+//
+// For functions, only prototypes and supported flags are provided here.
+// For function semantics, one should consult the document cited above.
+// Copies of the most recent revision of that document are available on
+// request from gasnet-staff@lbl.gov.
+//
+// With the exceptions of the type gex_MK_t and constant GEX_MK_HOST,
+// APIs in this section are provided by gasnet_mk.h
+
+// gex_MK_t is an opaque scalar handle to a Memory Kind (MK)
+typedef ... gex_MK_t;
+
+// GEX_MK_HOST is a predefined constant for the "kind" for host memory
+#define GEX_MK_HOST ((gex_MK_t)???)
+
+// gex_MK_Class_t is enum naming available "classes" of memory kinds.
+// It includes at least the following values (in unspecified order):
+typedef enum {
+    GEX_MK_CLASS_HOST,      // "normal" memory (eg GEX_MK_HOST)
+    GEX_MK_CLASS_CUDA_UVA,  // CUDA UVA memory
+    ???
+} gex_MK_Class_t;
+
+// The gex_MK_Create_args_t struct is passed to gex_MK_Create to create a
+// per-device instance of a memory kind of the given class, and includes
+// at least the following members (in unspecified order):
+typedef struct {
+    uint64_t            gex_flags; // Reserved.  Must be 0 currently.
+    gex_MK_Class_t      gex_class;
+    union {
+        struct {
+            int                    gex_CUdevice;
+        }                    gex_class_cuda_uva;
+    }                    gex_args;
+} gex_MK_Create_args_t;
+
+int gex_MK_Create(
+            gex_MK_t                      *memkind_p, // OUT
+            gex_Client_t                  client,
+            const gex_MK_Create_args_t    *args,      // IN
+            gex_Flags_t                   flags       // Reserved.  Must be 0 currently.
+            );
+      // Valid flags:
+      //   NONE - zero is currently required
+
+void gex_MK_Destroy(
+            gex_MK_t                      memkind,
+            gex_Flags_t                   flags       // Reserved.  Must be 0 currently.
+            );
+      // Valid flags:
+      //   NONE - zero is currently required
+
+// End of "GASNet-EX API Proposal: Memory Kinds" section
 //----------------------------------------------------------------------
 
 // vim: syntax=c
