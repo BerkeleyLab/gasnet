@@ -82,7 +82,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   gasneti_TM_t i_parent = gasneti_import_tm_nonpair(e_parent);
   gasneti_EP_t ep = i_parent->_ep;
 
-  GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" color=%d key=%d flags=%d",
+  GASNETI_TRACE_PRINTF(O,("gex_TM_Split: parent="GASNETI_TMSELFFMT" color=%d key=%d flags=%d",
                           GASNETI_TMSELFSTR(e_parent), color, key, flags));
 
   static int did_warn = 0;
@@ -107,7 +107,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   if (flags & (GEX_FLAG_TM_SCRATCH_SIZE_MIN | GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
     // Don't know true size w/o comms, but singleton parent can only produce singleton children
     size_t result =  new_tm_p ? get_scratch_size(i_parent->_size, flags) : 0;
-    GASNETI_TRACE_PRINTF(W,("TM_Split: scratch size query result=%"PRIuSZ, result));
+    GASNETI_TRACE_PRINTF(O,("gex_TM_Split: scratch size query result=%"PRIuSZ, result));
     return result;
   }
 
@@ -144,7 +144,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
 
   if (team == NULL) {
     gasneti_assert(!new_tm_p);
-    GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" [No team created]",
+    GASNETI_TRACE_PRINTF(O,("gex_TM_Split: parent="GASNETI_TMSELFFMT" [No team created]",
                             GASNETI_TMSELFSTR(e_parent)));
     return 0;
   }
@@ -158,9 +158,9 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   i_tm->_rank_map = team->rel2act_map;
   i_tm->_index_map = NULL; // TODO-EX: provide this for teams w/ non-primordial EPs
 
-  GASNETI_TRACE_PRINTF(W,("TM_Split: parent="GASNETI_TMSELFFMT" result="GASNETI_TMSELFFMT,
+  GASNETI_TRACE_PRINTF(O,("gex_TM_Split: parent="GASNETI_TMSELFFMT" result="GASNETI_TMSELFFMT,
                           GASNETI_TMSELFSTR(e_parent), GASNETI_TMSELFSTR(e_tm)));
-  GASNETI_STAT_EVENT(W, TEAM_NEW_SPLIT);
+  GASNETI_STAT_EVENT(O, TEAM_NEW_SPLIT);
 
   return 1; // return is documented as undefined
 }
@@ -192,7 +192,7 @@ size_t gasneti_TM_Create(
   gasneti_EP_t ep = i_parent->_ep;
   int is_jobrank = (flags & GEX_FLAG_RANK_IS_JOBRANK);
 
-  GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" num_new_tms=%"PRIuSZ" nmembers=%"PRIuSZ" scratch_size=%"PRIuSZ" flags=%d",
+  GASNETI_TRACE_PRINTF(O,("gex_TM_Create: parent="GASNETI_TMSELFFMT" num_new_tms=%"PRIuSZ" nmembers=%"PRIuSZ" scratch_size=%"PRIuSZ" flags=%d",
                           GASNETI_TMSELFSTR(e_parent), num_new_tms, nmembers, scratch_size, flags));
 
   static int did_warn = 0;
@@ -219,7 +219,7 @@ size_t gasneti_TM_Create(
 
   if (flags & (GEX_FLAG_TM_SCRATCH_SIZE_MIN | GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
     size_t result = nmembers ? get_scratch_size(nmembers, flags) : 0;
-    GASNETI_TRACE_PRINTF(W,("TM_Create: scratch size query result=%"PRIuSZ, result));
+    GASNETI_TRACE_PRINTF(O,("gex_TM_Create: scratch size query result=%"PRIuSZ, result));
     return result;
   }
 
@@ -227,14 +227,14 @@ size_t gasneti_TM_Create(
     if (!scratch_size && !(flags & GEX_FLAG_TM_NO_SCRATCH)) {
       gasneti_fatalerror("Invalid call to gex_TM_Create with scratch_size = 0");
     }
-    GASNETI_TRACE_PRINTF(D,("TM_Create: members[ %s ]", gasneti_format_eploc(members, nmembers)));
+    GASNETI_TRACE_PRINTF(D,("gex_TM_Create: members[ %s ]", gasneti_format_eploc(members, nmembers)));
   }
 
   // TODO-EX: remove when subteam collectives no longer require a parent-scope entry barrier
   gasnete_coll_consensus_barrier(i_parent->_coll_team GASNETI_THREAD_PASS);
 
   if (! nmembers) {
-    GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" [No team created]",
+    GASNETI_TRACE_PRINTF(O,("gex_TM_Create: parent="GASNETI_TMSELFFMT" [No team created]",
                             GASNETI_TMSELFSTR(e_parent)));
     goto done;
   }
@@ -281,9 +281,9 @@ size_t gasneti_TM_Create(
   i_tm->_index_map = NULL; // TODO-EX: provide this for teams w/ non-primordial EPs
 
   // TODO-EX: outut only correct for num_new_tms==1
-  GASNETI_TRACE_PRINTF(W,("TM_Create: parent="GASNETI_TMSELFFMT" rank=%d size=%d result="GASNETI_TMSELFFMT,
+  GASNETI_TRACE_PRINTF(O,("gex_TM_Create: parent="GASNETI_TMSELFFMT" rank=%d size=%d result="GASNETI_TMSELFFMT,
                           GASNETI_TMSELFSTR(e_parent), my_new_rank, (int)nmembers, GASNETI_TMSELFSTR(e_tm)));
-  GASNETI_STAT_EVENT(W, TEAM_NEW_CREATE);
+  GASNETI_STAT_EVENT(O, TEAM_NEW_CREATE);
 
   result = 1; // return is documented as undefined
 
@@ -300,10 +300,10 @@ int gasneti_TM_Destroy(
   gasneti_TM_t i_tm = gasneti_import_tm_nonpair(e_tm);
   gasnete_coll_team_t team = i_tm->_coll_team;
 
-  GASNETI_TRACE_PRINTF(W,("TM_Destroy: team="GASNETI_TMSELFFMT" flags=%d",
+  GASNETI_TRACE_PRINTF(O,("gex_TM_Destroy: team="GASNETI_TMSELFFMT" flags=%d",
                           GASNETI_TMSELFSTR(e_tm), flags));
   if (1) { // TODO: w/ multi-EP exactly one tm per proc should log this event
-    GASNETI_STAT_EVENT(W, TEAM_DESTROY);
+    GASNETI_STAT_EVENT(O, TEAM_DESTROY);
   }
 
   if (gasneti_is_tm0(i_tm)) {

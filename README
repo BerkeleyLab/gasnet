@@ -901,6 +901,7 @@ Optional environment variable settings:
      A - AM requests/replies (and handler execution, if conduit-supported)
      X - AMPoll
      I - informational messages about system status or performance alerts
+     O - Object creation, modification and destruction
      C - conduit-specific (low-level) messages
      D - Detailed message data for gets/puts/AMreqrep
      N - Line number information from client source files

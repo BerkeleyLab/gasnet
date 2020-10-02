@@ -886,9 +886,9 @@ void gasnete_amratomic_create_hook(
     #undef GASNETE_AMRATOMIC_TBL_CASE
 
 #if GASNETE_BUILD_AMRATOMIC_STUBS
-    GASNETI_TRACE_PRINTF(C,("gex_AD_Create(dt=%d, ops=0x%x) -> AM_stubs", (int)dt, (unsigned int)ops));
+    GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x) -> AM_stubs", (int)dt, (unsigned int)ops));
 #else
-    GASNETI_TRACE_PRINTF(C,("gex_AD_Create(dt=%d, ops=0x%x) -> AM", (int)dt, (unsigned int)ops));
+    GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x) -> AM", (int)dt, (unsigned int)ops));
 #endif
 }
 
