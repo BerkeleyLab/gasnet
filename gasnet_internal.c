@@ -602,7 +602,7 @@ extern int gex_EP_Create(
   gasneti_Client_t client = gasneti_import_client(e_client);
 
   // TODO: formatted printing for capabilities
-  GASNETI_TRACE_PRINTF(W,("EP_Create: client='%s' capabilities=%d flags=%d",
+  GASNETI_TRACE_PRINTF(O,("gex_EP_Create: client='%s' capabilities=%d flags=%d",
                           client ? client->_name : "(NULL)", caps, flags));
 
   if (! client) {

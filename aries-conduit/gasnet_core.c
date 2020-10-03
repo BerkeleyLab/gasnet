@@ -879,6 +879,10 @@ extern int gasnetc_Client_Init(
   }
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
+  // Do NOT move this prior to the gasneti_trace_init() call
+  GASNETI_TRACE_PRINTF(O,("gex_Client_Init: name='%s' argc_p=%p argv_p=%p flags=%d",
+                          clientName, argc, argv, flags));
+
   // TODO-EX: create team
   gasneti_TM_t tm = first_client
                     ? gasneti_import_tm(gasnetc_bootstrap_tm) // gasnetc_init() creates very first TM

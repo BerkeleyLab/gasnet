@@ -657,7 +657,7 @@ extern void gasneti_trace_finish(void);
 extern FILE *gasneti_open_outputfile(const char *_filename, const char *_desc);
 
 /* defines all the types */
-#define GASNETI_ALLTYPES "GPRSWXBLAICDNH"
+#define GASNETI_ALLTYPES "GPRSWXBLAIOCDNH"
 
 
 /* GASNETI_ALL_STATS lists all the statistics values we gather, 

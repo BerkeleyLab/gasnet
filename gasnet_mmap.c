@@ -1921,7 +1921,7 @@ extern void gex_EP_BindSegment(
 
   // TODO: macros for formatting when naming segments in tracing?
   // TODO: macros for formatting when naming endpoints in tracing?
-  GASNETI_TRACE_PRINTF(C,("gex_EP_BindSegment: segment=%p, EP index=%d, flags=%d",
+  GASNETI_TRACE_PRINTF(O,("gex_EP_BindSegment: segment=%p, EP index=%d, flags=%d",
                           (void *)segment, i_ep->_index, flags));
 
   if (segment == GEX_SEGMENT_INVALID) {
@@ -1952,7 +1952,7 @@ extern int gasneti_EP_PublishBoundSegment(
                 size_t                 num_eps,
                 gex_Flags_t            flags)
 {
-  GASNETI_TRACE_PRINTF(C,("gex_EP_PublishBoundSegment: tm="GASNETI_TMSELFFMT", num_ep=%"PRIuSZ", flags=%d",
+  GASNETI_TRACE_PRINTF(O,("gex_EP_PublishBoundSegment: tm="GASNETI_TMSELFFMT", num_ep=%"PRIuSZ", flags=%d",
                           GASNETI_TMSELFSTR(tm), num_eps, flags));
 
   if (flags) {
@@ -2099,7 +2099,7 @@ int gasneti_segmentCreate(
 {
   gasneti_assert(segment_p);
 
-  GASNETI_TRACE_PRINTF(C,("gex_Segment_Create: addr="GASNETI_LADDRFMT" len=%"PRIuPTR" flags=%d",
+  GASNETI_TRACE_PRINTF(O,("gex_Segment_Create: addr="GASNETI_LADDRFMT" len=%"PRIuPTR" flags=%d",
                           GASNETI_LADDRSTR(address), length, flags));
 
   if (flags) {
