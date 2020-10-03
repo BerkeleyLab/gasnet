@@ -104,6 +104,7 @@ testprograms_seq =      \
         testsegment     \
         testtmpair      \
         testreadonly    \
+        testcudauva     \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
 
@@ -395,6 +396,9 @@ testgasnet_extraincs    = $(AMX_INC)
 testlegacy_extraincs    = $(AMX_INC)
 testcxx_extraincs       = $(AMX_INC)
 testlegacycxx_extraincs = $(AMX_INC)
+
+# some tests need cuda.h
+testcudauva_extraincs = @CUDA_UVA_CFLAGS@
 
 # delay function, used by multiple tests
 # need to deliberately exclude and disable optimization for this object file to prevent breaking delay
