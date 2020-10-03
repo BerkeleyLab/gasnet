@@ -105,6 +105,7 @@ testprograms_seq =      \
         testtmpair      \
         testreadonly    \
         testcudauva     \
+        testhip         \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
 
@@ -407,6 +408,9 @@ testlegacycxx_extraincs = $(AMX_INC)
 
 # some tests need cuda.h
 testcudauva_extraincs = @CUDA_UVA_CFLAGS@
+
+# some tests need hip_runtime.h
+testhip_extraincs = @HIP_CFLAGS@
 
 # delay function, used by multiple tests
 # need to deliberately exclude and disable optimization for this object file to prevent breaking delay
