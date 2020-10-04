@@ -633,6 +633,17 @@ gasneti_iop_t *gasneti_iop_register_rmw(unsigned int noperations GASNETI_THREAD_
 void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations);
 
 /* ------------------------------------------------------------------------------------ */
+// memory kinds hooks
+
+int gasneti_MK_Segment_Create(
+            gasneti_Segment_t *i_segment_p,
+            gasneti_Client_t  i_client,
+            void              *address,
+            uintptr_t         length,
+            gex_MK_t          e_kind,
+            gex_Flags_t       flags);
+
+/* ------------------------------------------------------------------------------------ */
 /* macros for returning errors that allow verbose error tracking */
 extern int gasneti_VerboseErrors;
 #define GASNETI_RETURN_ERR(type) do {                                        \
