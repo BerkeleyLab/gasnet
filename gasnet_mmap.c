@@ -2115,17 +2115,20 @@ int gasneti_segmentCreate(
                 gex_MK_t                kind,
                 gex_Flags_t             flags)
 {
-  gasneti_assert(segment_p);
-
   GASNETI_TRACE_PRINTF(O,("gex_Segment_Create: addr="GASNETI_LADDRFMT" len=%"PRIuPTR" flags=%d",
                           GASNETI_LADDRSTR(address), length, flags));
 
+  if (!segment_p) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with NULL segment_p");
+  }
   if (flags) {
     gasneti_fatalerror("Invalid call to gex_Segment_Create() with non-zero flags");
   }
   if (! length) {
     gasneti_fatalerror("Invalid call to gex_Segment_Create() with zero length");
   }
+
+  gasneti_Segment_t segment = gasneti_import_segment(GEX_SEGMENT_INVALID);
 
   if (kind == GEX_MK_HOST) {
     if (address) {
@@ -2146,12 +2149,18 @@ int gasneti_segmentCreate(
       address = seginfo.addr;
       length  = seginfo.size;
     }
+
+    // Create the Segment object
+    segment = gasneti_alloc_segment(client, address, length, kind, flags);
   } else {
-    gasneti_fatalerror("Invalid call to gex_Segment_Create() with unknown kind");
+    int rc = gasneti_MK_Segment_Create(&segment, client, address, length, kind, flags);
+    if (rc) return rc;
   }
 
-  // Create the Segment object
-  gasneti_Segment_t segment = gasneti_alloc_segment(client, address, length, kind, flags);
+  gasneti_assert(segment != NULL);
+  gasneti_assert(segment->_client == client);
+  gasneti_assert(segment->_kind == kind);
+
   gasneti_segtbl_add(segment);
 
   *segment_p = gasneti_export_segment(segment);
