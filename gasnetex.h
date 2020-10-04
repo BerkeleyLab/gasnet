@@ -389,6 +389,7 @@ struct gasneti_endpoint_internal_s;
     void *             _ub;            \
     uintptr_t          _size;          \
     gex_MK_t           _kind;          \
+    void *             _opaque_mk_use; \
     unsigned int       _opaque_container_use;
   typedef struct { GASNETI_SEGMENT_COMMON } *gasneti_Segment_t;
   #if GASNET_DEBUG

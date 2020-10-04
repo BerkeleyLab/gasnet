@@ -22,7 +22,18 @@ typedef struct my_MK_s {
 
   CUcontext       ctx;
   CUdevice        dev;
+  int             use_sync_memops;
 } *my_MK_t;
+
+// Wrapper and format for use of cuGetErrorName()
+const char *_gasneti_cuerror_name(CUresult res) {
+  static const char *unknown = "UNKNOWN";
+  const char *errorname;
+  if (cuGetErrorName(res, &errorname)) errorname = unknown;
+  return errorname;
+}
+#define GASNETI_CURESULT_FMT         "%s(%d)"
+#define GASNETI_CURESULT_STRING(res) _gasneti_cuerror_name(res),(res)
 
 //
 // Error checking/reporting wrapper
@@ -32,7 +43,7 @@ typedef struct my_MK_s {
     if_pf (_retval) {                                       \
       const char *_errorname;                               \
       if (cuGetErrorName(_retval, &_errorname)) _errorname = "UNKNOWN"; \
-      gasneti_fatalerror("%s returned %s(%i)",#op,_errorname,_retval);\
+      gasneti_fatalerror("%s returned "GASNETI_CURESULT_FMT,#op,GASNETI_CURESULT_STRING(_retval));\
     }                                                       \
   } while (0)
 #if GASNET_DEBUG
@@ -49,6 +60,97 @@ static void gasneti_MK_Destroy_cuda_uva(
   gasneti_check_cudacall_always(cuCtxSetCurrent(NULL));
   gasneti_check_cudacall_always(cuDevicePrimaryCtxRelease(mk->dev));
   gasneti_free_mk(i_mk);
+}
+
+static int gasneti_MK_Segment_Create_cuda_uva(
+            gasneti_Segment_t                *i_segment_p,
+            gasneti_MK_t                     i_mk,
+            void *                           addr,
+            uintptr_t                        size,
+            gex_Flags_t                      flags)
+{
+  my_MK_t kind = (my_MK_t) i_mk;
+  CUdeviceptr dptr;
+  CUresult result;
+  void * to_free = NULL;
+  int retval = GASNET_OK;
+
+  gasneti_check_cudacall_always(cuCtxPushCurrent(kind->ctx));
+
+  // TODO:
+  // Might want additional care with respect to error returns from the CUDA device API.
+  // In particular, any call "may also return error codes from previous, asynchronous launches."
+  // Presently, we try to always provide the specific CUDA error code as we fatalerror.
+
+  if (addr) { // Client-allocated
+    dptr = (CUdeviceptr)addr;
+
+    // cuPointerGetAttributes available since CUDA 7.0
+    unsigned int mem_type = 0;
+    unsigned int is_managed = 0;
+    CUcontext ctx = NULL;
+    void * ptrs[3] = { (void*)&mem_type, (void*)&is_managed, (void*)&ctx };
+    CUpointer_attribute attrs[3] = { CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                     CU_POINTER_ATTRIBUTE_IS_MANAGED,
+                                     CU_POINTER_ATTRIBUTE_CONTEXT };
+
+    result = cuPointerGetAttributes(3, attrs, ptrs, dptr);
+    if (result) {
+      gasneti_fatalerror("Failed to query pointer attributes of client-allocated memory: "
+                         GASNETI_CURESULT_FMT, GASNETI_CURESULT_STRING(result));
+    }
+
+    if (mem_type != CU_MEMORYTYPE_DEVICE) {
+      gasneti_fatalerror("Invalid call to gex_Segment_Create(CUDA_UVA) with non-device memory");
+    }
+    if (is_managed) {
+      gasneti_fatalerror("Invalid call to gex_Segment_Create(CUDA_UVA) with managed memory");
+    }
+
+    // We currently accept memory allocated by *any* context for the same device.
+    // TODO: should we be more strict by checking equality of contexts instead of devices?
+    CUdevice dev;
+    if ((result = cuCtxPushCurrent(ctx)) ||
+        (result = cuCtxGetDevice(&dev))  ||
+        (result = cuCtxPopCurrent(&ctx))) {
+      gasneti_fatalerror("Failed to query CUDA device of client-allocated memory: "
+                         GASNETI_CURESULT_FMT, GASNETI_CURESULT_STRING(result));
+    } else if (dev != kind->dev) {
+      gasneti_fatalerror("gex_Segment_Create(CUDA_UVA) with memory associated with wrong device");
+    }
+  } else { // GASNet-allocated
+    result = cuMemAlloc(&dptr, size);
+
+    if (result == CUDA_ERROR_OUT_OF_MEMORY) {
+      retval = GASNET_ERR_RESOURCE;
+      goto out;
+    } else if (result != CUDA_SUCCESS) {
+      gasneti_fatalerror("cuMemAlloc() returned unexpected failure: "
+                         GASNETI_CURESULT_FMT, GASNETI_CURESULT_STRING(result));
+    }
+
+    addr = to_free = (void *) dptr;
+  }
+
+  if (kind->use_sync_memops) {
+    int one = 1;
+    gasneti_check_cudacall_always(cuPointerSetAttribute(&one, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, dptr));
+  }
+
+  gasneti_Client_t client = i_mk->_client;
+  gex_MK_t e_mk = gasneti_export_mk(i_mk);
+  gasneti_Segment_t i_segment = gasneti_alloc_segment(client, addr, size, e_mk, flags);
+  i_segment->_opaque_mk_use = to_free;
+
+  *i_segment_p = i_segment;
+
+out:
+  {
+    CUcontext prev_ctx;
+    gasneti_check_cudacall_always(cuCtxPopCurrent(&prev_ctx));
+    gasneti_assert(prev_ctx == kind->ctx);
+  }
+  return retval;
 }
 
 //
@@ -71,6 +173,8 @@ static gasneti_mk_impl_t *get_impl(void) {
       the_impl.mk_sizeof    = sizeof(struct my_MK_s);
 
       the_impl.mk_destroy   = &gasneti_MK_Destroy_cuda_uva;
+      the_impl.mk_segment_create
+                            = &gasneti_MK_Segment_Create_cuda_uva;
 
       gasneti_sync_writes();
       result = &the_impl;
@@ -147,6 +251,10 @@ int gasneti_MK_Create_cuda_uva(
   my_MK_t result = (my_MK_t) gasneti_alloc_mk(client, get_impl(), flags);
   result->dev = dev;
   result->ctx = ctx;
+
+  // TODO: could be a per-device setting?
+  // TODO: is '1' the best default?
+  result->use_sync_memops = gasneti_getenv_yesno_withdefault("GASNET_USE_CUDA_SYNC_MEMOPS", 1);
 
   *i_memkind_p = (gasneti_MK_t) result;
   return GASNET_OK;
