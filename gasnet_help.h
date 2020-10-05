@@ -246,6 +246,9 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 //   + gasneti_pshm_local_rank()
 //   + gasneti_pshm_in_supernode()
 //   + gasneti_pshm_addr2local()
+//   + GASNETI_NBRHD_LOCAL()
+//   + GASNETI_NBRHD_LOCAL_ADDR()
+//   + GASNETI_NBRHD_LOCAL_ADDR_OR_NULL()
 
 #if GASNET_DEBUG
   GASNETI_INLINE(gasneti_assertvalid_tm_pair)
