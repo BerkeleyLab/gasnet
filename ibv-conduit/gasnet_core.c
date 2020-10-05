@@ -2676,7 +2676,31 @@ static int gasnetc_segment_register(gasnetc_Segment_t segment)
   return GASNET_OK;
 }
 
-// TODO: non-primordial EP support
+#if GASNETC_PIN_SEGMENT
+static void gasnetc_install_np_rkeys(
+            gex_Rank_t jobrank,
+            gex_EP_Index_t idx,
+            const uint32_t *new_rkeys)
+{
+  uint32_t *rkey_array = gasnetc_np_rkeys[idx];
+
+  if_pf (!rkey_array) {
+    static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+    gasneti_mutex_lock(&lock);
+    rkey_array = gasnetc_np_rkeys[idx];
+    if (!rkey_array) {
+      rkey_array = gasneti_calloc(gasneti_nodes * gasnetc_num_hcas, sizeof(uint32_t));
+      gasnetc_np_rkeys[idx] = rkey_array;
+    }
+    gasneti_mutex_unlock(&lock);
+  }
+
+  GASNETI_MEMCPY_SAFE(rkey_array + jobrank * gasnetc_num_hcas,
+                      new_rkeys,
+                      gasnetc_num_hcas * sizeof(uint32_t));
+}
+#endif
+
 static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
 {
 #if GASNETC_PIN_SEGMENT
@@ -2713,10 +2737,11 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   p = global;
   for (size_t i = 0; i < total_eps; ++i) {
     gex_Rank_t jobrank = p->loc.gex_rank;
+    gex_EP_Index_t idx = p->loc.gex_ep_index;
     if (jobrank == gasneti_mynode) {
       // Local:
       // Fall through to advance p
-    } else if (! p->loc.gex_ep_index) {
+    } else if (! idx) {
       // Remote + primordial:
       uint32_t *rkey = p->rkey;
       for (int j = 0; j < gasnetc_num_hcas; ++j) {
@@ -2732,7 +2757,7 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
       if (cep) gasnetc_sndrcv_attach_peer(jobrank, cep);
     } else {
       // Remote + non-primordial:
-      gasneti_unreachable_error(("gex_EP_PublishBoundSegment does not yet handle non-primordial EPs"));
+      gasnetc_install_np_rkeys(jobrank, idx, p->rkey);
     }
     p = (struct exchg_data *)(elem_sz + (uintptr_t)p);
   }
@@ -2971,8 +2996,29 @@ int gasnetc_ep_init_hook(gasneti_EP_t i_ep)
 {
   gasnetc_EP_t c_ep = (gasnetc_EP_t) i_ep;
 
+  // Conduit-specific validation
+#if GASNETC_PIN_SEGMENT
+  if (i_ep->_index) {
+    // Current non-primordial EP support is RMA-only
+    if (i_ep->_caps & ~GEX_EP_CAPABILITY_RMA) {
+      // Unsupported capability/ies requested
+      GASNETI_RETURN_ERRR(BAD_ARG,
+                          "ibv-conduit supports only GEX_EP_CAPABILITY_RMA for non-primordial endpoints");
+    }
+  }
+#else
+  gasneti_static_assert(GASNET_MAXEPS == 1);
+#endif
+
   // Conduit-specific EP struct member(s):
-  c_ep->cep_table = NULL;
+  if (! i_ep->_index) {
+    c_ep->cep_table = NULL;
+  } else {
+    // Simply share the QPs of EP0, which are sufficient for RMA
+    // TODO: AM will require isolation that this sharing cannot provide
+    gasneti_assert(gasnetc_ep0->cep_table);
+    c_ep->cep_table = gasnetc_ep0->cep_table;
+  }
 
   #if !GASNETC_PIN_SEGMENT
   { /*  firehose handlers */
@@ -4174,6 +4220,9 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
                           gasnetc_counter_t *counter, va_list argptr
                           GASNETI_THREAD_FARG)
 {
+    // AMs to in-nbrhd peers must currently use PSHM
+    gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(gasnetc_epid2node(cep->epid)));
+
     // Set header fields and locate arguments
     gex_AM_Arg_t *args;
     switch (category) {

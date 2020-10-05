@@ -160,6 +160,11 @@
 #define GASNETC_SIZEOF_EP_T() \
   gasnetc_sizeof_ep_t()
 
+#if GASNETC_PIN_SEGMENT
+  // Initial (limited) multi-EP support
+  #define GASNET_MAXEPS 8
+#endif
+
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)       \
