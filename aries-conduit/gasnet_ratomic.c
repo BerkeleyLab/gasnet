@@ -643,13 +643,13 @@ GASNETE_DT_APPLY(GASNETE_GNIRATOMIC_TBL)
 //
 // Create-hook to install the dispatch tables (aka algoritm selection)
 //
-void gasnete_gniratomic_create_hook(
-        gasneti_AD_t               real_ad,
-        gasneti_TM_t               real_tm,
-        gex_DT_t                   dt,
-        gex_OP_t                   ops,
-        gex_Flags_t                flags)
+void gasnete_gniratomic_init_hook(gasneti_AD_t real_ad)
 {
+    gex_Flags_t flags = real_ad->_flags;
+    gasneti_TM_t real_tm = real_ad->_tm;
+    gex_DT_t dt = real_ad->_dt;
+    gex_OP_t ops = real_ad->_ops;
+
     // Check for cases that should favor AM over NIC
     if (! (flags & GEX_FLAG_AD_FAVOR_REMOTE)) {
         if (flags & (GEX_FLAG_AD_FAVOR_MY_RANK | GEX_FLAG_AD_FAVOR_MY_NBRHD)) {
@@ -694,7 +694,7 @@ void gasnete_gniratomic_create_hook(
     return;
 
 use_am:
-    gasnete_amratomic_create_hook(real_ad, real_tm, dt, ops, flags);
+    gasnete_amratomic_init_hook(real_ad);
     return;
 }
 
