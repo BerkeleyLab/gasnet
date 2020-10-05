@@ -155,6 +155,10 @@ gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark = NULL;
 gasnet_seginfo_t *gasneti_seginfo = NULL;
 gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
 
+// TODO: this is proof-of-concept and not a scalable final solution (bug 4088)
+// Note that (gasneti_seginfo_tbl[0] == gasneti_seginfo) to simplify some logic.
+gasnet_seginfo_t *gasneti_seginfo_tbl[GASNET_MAXEPS] = {NULL, };
+
 /* ------------------------------------------------------------------------------------ */
 /* conduit-independent sanity checks */
 extern void gasneti_check_config_preinit(void) {

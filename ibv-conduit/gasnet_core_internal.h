@@ -918,6 +918,9 @@ extern size_t           gasnetc_am_inline_limit_sndrcv;
 extern enum ibv_mtu    gasnetc_max_mtu;
 extern int              gasnetc_qp_timeout;
 extern int              gasnetc_qp_retry_count;
+#if GASNETC_PIN_SEGMENT
+  extern uint32_t *gasnetc_np_rkeys[GASNET_MAXEPS];
+#endif
 
 #if GASNETC_IBV_SRQ
   extern int			gasnetc_rbuf_limit;
@@ -950,7 +953,6 @@ extern size_t			gasnetc_fh_align_mask;
 extern firehose_info_t		gasnetc_firehose_info;
 extern gasnetc_port_info_t      *gasnetc_port_tbl;
 extern int                      gasnetc_num_ports;
-extern gex_Rank_t            gasnetc_remote_nodes;
 #if GASNETC_DYNAMIC_CONNECT
   extern gasnetc_sema_t         gasnetc_zero_sema;
 #endif
