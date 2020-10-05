@@ -91,6 +91,7 @@ GASNet-EX ChangeLog
   - bug4127: Overflow for >2G pre-pinned memory (ibv-conduit)
   - bug4135: Aries CE use with multi-domain support hangs
   - bug4138: gasneti_argv_from_sysctl() failure for UPC++ codes on macOS 11
+  - bug4143: ibv-conduit GASNET_USE_FIREHOSE=0 support broken
   - bug3630/3828/3842: Various failures on testvis, testratomic, testslice
 
 ----------------------------------------------------------------------
