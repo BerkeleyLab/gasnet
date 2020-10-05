@@ -744,7 +744,7 @@ extern int gasnetc_Client_Init(
 
   // Do NOT move this prior to the gasneti_trace_init() call
   GASNETI_TRACE_PRINTF(O,("gex_Client_Init: name='%s' argc_p=%p argv_p=%p flags=%d",
-                          clientName, argc, argv, flags));
+                          clientName, (void *)argc, (void *)argv, flags));
 
   //  allocate the client object
   gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
