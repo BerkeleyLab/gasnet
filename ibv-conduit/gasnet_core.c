@@ -1062,7 +1062,7 @@ static void gasneti_segreg_failed(size_t size, const char *which, int why) {
   // Others are unknown
 #endif
 #ifdef GASNETC_PSHM_FS
-  if (why == EFAULT) {
+  if (why == EFAULT && strcmp(which, " device")) {
     hint1 = "\n        This could be caused by insufficient space in " GASNETC_PSHM_FS " (or similar).";
   }
 #endif
@@ -2664,7 +2664,8 @@ static int gasnetc_segment_register(gasnetc_Segment_t segment)
       int rc = gasnetc_pin(hca, (void*)lb, ub - lb, gasneti_seg_access_flags, &memreg);
 
       if (rc) {
-        gasneti_segreg_failed(segment->_size, "", errno);
+        const char *which = gasneti_i_segment_kind_is_host((gasneti_Segment_t)segment) ? "" : " device";
+        gasneti_segreg_failed(segment->_size, which, errno);
       }
       GASNETI_TRACE_PRINTF(I, ("Registered %"PRIuPTR" byte segment on HCA %d", segment->_size, hca->hca_index));
 
