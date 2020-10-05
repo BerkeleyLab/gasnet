@@ -1646,6 +1646,7 @@ void gasnetc_do_put_inline(
 
   gasneti_assert(nbytes != 0);
   gasneti_assert(nbytes <= gasnetc_inline_limit);
+  gasneti_assert(gasneti_i_segment_kind_is_host(ep->_segment));
 
   sreq = gasnetc_get_sreq(GASNETC_OP_PUT_INLINE GASNETI_THREAD_PASS);
   sreq->fh_count = 0;
@@ -1684,6 +1685,7 @@ void gasnetc_do_put_bounce(
                                                         : GASNETC_OP_PUT_BOUNCE;
 
   gasneti_assert(nbytes != 0);
+  gasneti_assert(gasneti_i_segment_kind_is_host(ep->_segment));
 
   do {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(sreq_op GASNETI_THREAD_PASS);
@@ -1769,6 +1771,7 @@ void gasnetc_do_get_bounce(
 
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
+  gasneti_assert(gasneti_i_segment_kind_is_host(ep->_segment));
 
   do {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_GET_BOUNCE GASNETI_THREAD_PASS);
@@ -3095,6 +3098,10 @@ extern int gasnetc_rdma_put(
   // RMA Put to in-nbrhd auxseg and primordial endpoints should always use PSHM
   gasneti_assert((rem_epidx > 0) || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 
+  // Local "device memory" can never use inline or bounce buffers
+  // TODO: maybe some devices classes can in the future?
+  const int device_mem = !gasneti_i_segment_kind_is_host(ep->_segment);
+
   gasneti_assert(nbytes != 0);
   
   sr_desc->wr.rdma.remote_addr = (uintptr_t)dst_ptr;
@@ -3105,7 +3112,7 @@ extern int gasnetc_rdma_put(
    * Note that we do this based only on the size, without checking whether
    * the caller cares about local completion, or whether zero-copy is possible.
    */
-  if (nbytes <= gasnetc_inline_limit)
+  if ((nbytes <= gasnetc_inline_limit) && !device_mem)
   {
     gasnetc_do_put_inline(ep, jobrank, rem_epidx, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
     return 0;
@@ -3115,9 +3122,17 @@ extern int gasnetc_rdma_put(
   const int bias_remote_cnt = (remote_cb == gasnetc_cb_eop_put);
   if (bias_remote_cnt) ++(*remote_cnt);
 
-  // Distinct cases depending on whether LC matters or not
+  // Distinct cases below for host memory, depending on whether LC matters or not
   // TODO-EX: this may suggest 2 distinct functions are in order?
-  if (local_cb) {
+  if (device_mem) {
+    gasneti_assert(gasnetc_in_bound_segment(ep, (uintptr_t)src_ptr, nbytes));
+    const int bias_local_cnt = (local_cb == gasnetc_cb_eop_alc);
+    if (bias_local_cnt) ++(*local_cnt);
+    size_t unsent = gasnetc_do_put_zerocp(ep, jobrank, rem_epidx, sr_desc, nbytes,
+                                          local_cnt, local_cb GASNETI_THREAD_PASS);
+    gasneti_assert_uint(unsent ,==, 0);
+    if (bias_local_cnt) local_cb(local_cnt);
+  } else if (local_cb) {
     const int bias_local_cnt  = (local_cb  == gasnetc_cb_eop_alc);
     if (bias_local_cnt) ++(*local_cnt);
 

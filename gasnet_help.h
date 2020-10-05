@@ -1465,6 +1465,23 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Memory Kinds
+
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA // || GASNET_HAVE_MK_CLASS_[FOO]
+  GASNETI_INLINE(gasneti_i_segment_kind_is_host)
+  int gasneti_i_segment_kind_is_host(gasneti_Segment_t _segment) {
+    // Either NULL (such as for no bound segment, which is just fine for
+    // out-of-segment or in-aux-seg local addrs) OR the kind is GEX_MK_HOST.
+    return !_segment || (_segment->_kind == GEX_MK_HOST);
+  }
+  #define gasneti_e_segment_kind_is_host(segment) \
+          gasneti_i_segment_kind_is_host(gasneti_import_segment(segment))
+#else
+  #define gasneti_i_segment_kind_is_host(segment) 1
+  #define gasneti_e_segment_kind_is_host(segment) 1
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* PSHM support */
 #if GASNET_PSHM
 
