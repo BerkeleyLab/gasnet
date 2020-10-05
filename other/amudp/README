@@ -68,7 +68,7 @@ AMUDP has a few notable departures from the AM-2 specification:
 
 Change Log
 ----------
-PENDING 3.17
+AMUDP 3.17 (10/2020)
 - Remove BLCR support
 - This version breaks compatibility of the amudprun spawner with prior versions
 
