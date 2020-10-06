@@ -2222,7 +2222,7 @@ static void event_loop(void)
     wait_for_all();
 
     BOOTSTRAP_VERBOSE(("[%d] Exit with status %d\n", myname, (int)(unsigned char)exit_status));
-    exit (exit_status);
+    _exit (exit_status); // See UPC++ Issue #419
 }
 
 /* rank process wait for a specific command byte from parent */
