@@ -935,7 +935,9 @@ size_t gasneti_blockingRotatedExchangeV(
   gex_Rank_t self = gex_TM_QueryRank(tm);
   gex_Rank_t team_sz = gex_TM_QuerySize(tm);
   int steps = 0; // ceil(log_2(team_sz));
-  for (int tmp = team_sz-1; tmp; tmp >>= 1) ++steps;
+  for (gex_Rank_t tmp = team_sz-1; tmp; tmp >>= 1) ++steps;
+  // Without the following hint, some gcc versions warn about massive malloc sizes below
+  gasneti_assume(steps <= 8*sizeof(gex_Rank_t));
 
   int phase = team->rexchgv.phase;
   gasneti_assert(phase == 0 || phase == 1);
