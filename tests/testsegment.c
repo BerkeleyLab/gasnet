@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 
   test_init("testsegment", 0, "[options] (seed)\n"
                " Segment allocation options:\n"
-               "    -client-segs:  Test client-allocated segments (default)\n"
+               "     -client-seg:  Test client-allocated segments (default)\n"
                "     -gasnet-seg:  Test GASNet-allocated segments\n"
                "     -random-seg:  Test with a random mix of the two options above\n"
                " Segment alignment options:\n"
