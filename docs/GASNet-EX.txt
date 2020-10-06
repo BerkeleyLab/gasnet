@@ -3301,9 +3301,18 @@ gex_TM_t gex_TM_Pair(
       //   N/A
 
 typedef [some integer type] gex_EP_Capabilities_t;
-#define GEX_EP_CAPABILITY{RMA,AM,VIS,COLL,AD,ALL} ???
+#define GEX_EP_CAPABILITY_{RMA,AM,VIS,COLL,AD,ALL} ???
 
 #define GEX_FLAG_HINT_ACCEL_{AD,COLL,ALL} ???
+
+// NOTE: implemented only by ibv-conduit and GEX_EP_CAPABILITY_RMA
+int gex_EP_Create(
+            gex_EP_t               *ep_p,        // OUT
+            gex_Client_t           client,
+            gex_EP_Capabilities_t  capabilities,
+            gex_Flags_t            flags);
+      // Valid flags:
+      //   NONE - zero is currently required
 
 //----------------------------------------------------------------------
 
