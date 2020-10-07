@@ -490,7 +490,7 @@ gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
                        void *addr,
                        uintptr_t size,
-                       gex_MemKind_t kind,
+                       gex_MK_t kind,
                        gex_Flags_t flags)
 {
   gasneti_Segment_t segment;

@@ -309,7 +309,7 @@ extern int gasnetc_Segment_Create(
                 gex_Client_t            client,
                 gex_Addr_t              address,
                 uintptr_t               length,
-                gex_MemKind_t           kind,
+                gex_MK_t                kind,
                 gex_Flags_t             flags)
 {
   gasneti_assert(segment_p);

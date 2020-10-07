@@ -52,7 +52,7 @@ extern int gasnetc_Segment_Create(
                 gex_Client_t           _client,
                 gex_Addr_t             _address,
                 uintptr_t              _length,
-                gex_MemKind_t          _kind,
+                gex_MK_t               _kind,
                 gex_Flags_t            _flags);
 #define gex_Segment_Create gasnetc_Segment_Create
 
