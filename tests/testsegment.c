@@ -149,7 +149,7 @@ int main(int argc, char **argv)
     // Test creation of a GASNet-allocated segment
     gex_Segment_t g_segment = GEX_SEGMENT_INVALID;
     size_t g_segment_size = GASNET_PAGESIZE - offset;
-    GASNET_Safe(gex_Segment_Create(&g_segment, myclient, NULL, g_segment_size, GEX_MEMKIND_HOST, 0));
+    GASNET_Safe(gex_Segment_Create(&g_segment, myclient, NULL, g_segment_size, GEX_MK_HOST, 0));
     if ((g_segment == GEX_SEGMENT_INVALID) ||
         (gex_Segment_QueryAddr(g_segment) == NULL) ||
         (gex_Segment_QuerySize(g_segment) < g_segment_size)) {
@@ -162,7 +162,7 @@ int main(int argc, char **argv)
     uint8_t *c_segment_mem = (uint8_t *) test_malloc(GASNET_PAGESIZE);
     uint8_t *c_segment_addr = c_segment_mem + offset;
     size_t c_segment_size = GASNET_PAGESIZE - 2*offset;
-    GASNET_Safe(gex_Segment_Create(&c_segment, myclient, c_segment_addr, c_segment_size, GEX_MEMKIND_HOST, 0));
+    GASNET_Safe(gex_Segment_Create(&c_segment, myclient, c_segment_addr, c_segment_size, GEX_MK_HOST, 0));
     if ((c_segment == GEX_SEGMENT_INVALID) ||
         (gex_Segment_QueryAddr(c_segment) != c_segment_addr) ||
         (gex_Segment_QuerySize(c_segment) != c_segment_size)) {

@@ -344,7 +344,7 @@ extern gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
                        void *addr,
                        uintptr_t len,
-                       gex_MemKind_t kind,
+                       gex_MK_t kind,
                        gex_Flags_t flags);
 void gasneti_free_segment(gasneti_Segment_t segment);
 
@@ -494,7 +494,7 @@ int gasneti_segmentCreate(
                 gasneti_Client_t        client,
                 gex_Addr_t              address,
                 uintptr_t               length,
-                gex_MemKind_t           kind,
+                gex_MK_t                kind,
                 gex_Flags_t             flags);
 
 int gasneti_EP_PublishBoundSegment(
