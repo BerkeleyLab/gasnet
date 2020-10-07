@@ -3092,8 +3092,8 @@ extern int gasnetc_rdma_put(
   const gex_Rank_t jobrank = loc.gex_rank;
   const int rem_epidx = gasneti_in_auxsegment(jobrank, dst_ptr, nbytes) ? -1 : loc.gex_ep_index;
 
-  // Primordial endpoints should always use PSHM for in-nbrhd RMA
-  gasneti_assert(ep->_index || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
+  // RMA Put to in-nbrhd auxseg and primordial endpoints should always use PSHM
+  gasneti_assert((rem_epidx > 0) || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 
   gasneti_assert(nbytes != 0);
   
@@ -3237,8 +3237,8 @@ extern int gasnetc_rdma_get(
   const gex_Rank_t jobrank = loc.gex_rank;
   const int rem_epidx = gasneti_in_auxsegment(jobrank, src_ptr, nbytes) ? -1 : loc.gex_ep_index;
 
-  // Primordial endpoints should always use PSHM for in-nbrhd RMA
-  gasneti_assert(ep->_index || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
+  // RMA Get from in-nbrhd auxseg and primordial endpoints should always use PSHM
+  gasneti_assert((rem_epidx > 0) || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
