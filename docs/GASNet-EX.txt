@@ -3238,9 +3238,12 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 //----------------------------------------------------------------------
 
 // [PROPOSED]
-// The remainder of this document is for APIs descibed in more detail in
+// The remainder of this document is for APIs described in more detail in
 //   GASNet-EX API Proposal: Multi-EP, Revision 2020.6.1
 // Only prototypes and supported flags are provided here.
+//
+// Copies of the most recent revision of that document are available on
+// request from gasnet-staff@lbl.gov.
 
 size_t gex_TM_Create(
             gex_TM_t *new_tms,         // OUT
