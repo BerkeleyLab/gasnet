@@ -27,7 +27,7 @@
 #include <gasnet_ratomic.h>
 #endif
 
-#if GASNETI_NEED_GASNET_KINDS_H
+#if GASNETI_NEED_GASNET_MK_H
 #include <gasnet_mk.h>
 #endif
 
