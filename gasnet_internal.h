@@ -27,6 +27,10 @@
 #include <gasnet_ratomic.h>
 #endif
 
+#if GASNETI_NEED_GASNET_KINDS_H
+#include <gasnet_mk.h>
+#endif
+
 #if GASNETI_COMPILER_IS_UNKNOWN
   #error "Invalid attempt to build GASNet with a compiler other than the one probed at configure time"
 #endif
