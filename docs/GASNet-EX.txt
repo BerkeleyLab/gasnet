@@ -3273,12 +3273,14 @@ int gex_TM_Destroy(
 
 // NOTE: gex_Segment_Create() takes a `client` argument which was
 // *not* included in the 2020.6.1 API proposal
+// NOTE: the `gex_MemKind_t` type has been renamed to `gex_MK_t`, and
+//       the `GEX_MEMKIND_HOST` constant has been renamed to `GEX_MK_HOST`.
 int gex_Segment_Create(
             gex_Segment_t   *segment_p,  // OUT
             gex_Client_t    client,
             gex_Addr_t      address,
             uintptr_t       length,
-            gex_MemKind_t   kind,
+            gex_MK_t        kind,
             gex_Flags_t     flags);
       // Valid flags:
       //   NONE - zero is currently required

@@ -2066,7 +2066,7 @@ gasnet_seginfo_t gasneti_segmentAttach(
   gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
 
   // Final portion of Segment_Create:
-  gasneti_Segment_t i_segment = gasneti_alloc_segment(i_client, segbase, segsize, GEX_MEMKIND_HOST, flags);
+  gasneti_Segment_t i_segment = gasneti_alloc_segment(i_client, segbase, segsize, GEX_MK_HOST, flags);
   gasneti_segtbl_add(i_segment);
 
   // EP_BindSegment:
@@ -2094,7 +2094,7 @@ int gasneti_segmentCreate(
                 gasneti_Client_t        client,
                 gex_Addr_t              address,
                 uintptr_t               length,
-                gex_MemKind_t           kind,
+                gex_MK_t                kind,
                 gex_Flags_t             flags)
 {
   gasneti_assert(segment_p);
@@ -2109,7 +2109,7 @@ int gasneti_segmentCreate(
     gasneti_fatalerror("Invalid call to gex_Segment_Create() with zero length");
   }
 
-  if (kind == GEX_MEMKIND_HOST) {
+  if (kind == GEX_MK_HOST) {
     if (address) {
       // Client-allocated segment
       // TODO: stronger checks such as for read-only memory?
