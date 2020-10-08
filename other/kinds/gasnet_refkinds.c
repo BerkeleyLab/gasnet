@@ -4,7 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
-#define GASNETI_NEED_GASNET_KINDS_H 1
+#define GASNETI_NEED_GASNET_MK_H 1
 #include <gasnet_internal.h>
 #include <gasnet_kinds_internal.h>
 
