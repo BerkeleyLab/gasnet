@@ -1467,6 +1467,17 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 /* ------------------------------------------------------------------------------------ */
 // Memory Kinds
 
+// The following GASNET_HAVE_MK_CLASS_* identifiers are either `1` or unset
+
+#define GASNET_HAVE_MK_CLASS_HOST 1 // For consistency - always available
+
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA
+  #undef GASNET_HAVE_MK_CLASS_CUDA_UVA
+  #define GASNET_HAVE_MK_CLASS_CUDA_UVA 1
+#else
+  #undef GASNET_HAVE_MK_CLASS_CUDA_UVA
+#endif
+
 #if GASNET_HAVE_MK_CLASS_CUDA_UVA // || GASNET_HAVE_MK_CLASS_[FOO]
   GASNETI_INLINE(gasneti_i_segment_kind_is_host)
   int gasneti_i_segment_kind_is_host(gasneti_Segment_t _segment) {
