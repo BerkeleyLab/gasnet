@@ -4699,7 +4699,7 @@ GASNET_KINDS_LDFLAGS=''
 GASNET_KINDS_LIBS=''
 
 # GEX_MK_CLASS_CUDA_UVA
-GASNET_IF_ENABLED_WITH_AUTO(kinds-cuda-uva,
+GASNET_IF_ENABLED_WITH_AUTO(kind-cuda-uva,
         [support for memory kinds on UVA-capable CUDA devices (auto-detect)],
         [enable_mk_cuda_uva="yes"; force_mk_cuda_uva="yes"],
         [enable_mk_cuda_uva="no"], [enable_mk_cuda_uva="probe"])
@@ -4741,7 +4741,7 @@ if test "$enable_mk_cuda_uva" != "no"; then
     GASNET_KINDS_LDFLAGS="$GASNET_KINDS_LDFLAGS $CUDA_LDFLAGS"
     GASNET_KINDS_LIBS="$GASNET_KINDS_LIBS $CUDA_LIBS"
   elif test "$force_mk_cuda_uva" = "yes"; then
-    GASNET_MSG_ERROR([CUDA UVA memory kinds support was requested with --enable-kinds-cuda-uva but is not available])
+    GASNET_MSG_ERROR([CUDA UVA memory kinds support was requested with --enable-kind-cuda-uva but is not available])
   fi
 fi
 AM_CONDITIONAL(HAVE_MK_CLASS_CUDA_UVA, test "$have_mk_cuda_uva" = "yes")
