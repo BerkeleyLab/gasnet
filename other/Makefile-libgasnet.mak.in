@@ -28,6 +28,7 @@ TOOLLIBINCLUDES =         \
 	$(PLPA_INCLUDES)
 
 LIBINCLUDES = $(TOOLLIBINCLUDES) \
+        -I$(top_srcdir)/other/kinds \
         -I$(top_srcdir)/extended-ref/coll \
         -I$(top_srcdir)/extended-ref/vis \
         -I$(top_srcdir)/extended-ref/ratomic \
@@ -86,6 +87,7 @@ libgasnet_sources =                                         \
         $(top_srcdir)/extended-ref/coll/gasnet_team.c	    \
         $(top_srcdir)/extended-ref/coll/gasnet_hashtable.c  \
         $(top_srcdir)/extended-ref/coll/gasnet_reduce.c     \
+        $(top_srcdir)/other/kinds/gasnet_refkinds.c         \
         $(top_srcdir)/gasnet_event.c                        \
         $(top_srcdir)/gasnet_legacy.c                       \
         $(top_srcdir)/gasnet_internal.c                     \
@@ -97,7 +99,7 @@ libgasnet_sources =                                         \
 
 libgasnet_objects = \
 	`for file in $(libgasnet_sources) ; do echo \`basename $$file .c\`.o ; done` \
-	$(CONDUIT_SPECIAL_OBJS)
+	$(CONDUIT_SPECIAL_OBJS) $(KINDS_SPECIAL_OBJS)
 
 libgasnet_tools_dependencies =  \
         $(CONFIG_HEADER)        \
@@ -109,6 +111,7 @@ libgasnet_dependencies =                  \
         $(srcdir)/*.[ch]                  \
         $(top_srcdir)/extended-ref/*/*.[ch] \
         $(top_srcdir)/extended-ref/*.[ch] \
+        $(top_srcdir)/other/kinds/*.[ch]  \
         $(top_srcdir)/tests/test.h        \
 	$(CONDUIT_SOURCELIST)             \
 	$(CONDUIT_EXTRAHEADERS)           \
@@ -118,7 +121,7 @@ libgasnet_dependencies =                  \
 THREAD_MODEL=SEQ
 THREAD_MODEL_LC=`echo "$(THREAD_MODEL)" | @AWK@ '{print tolower($$0)}'`
 LIBGASNET_NAME=libgasnet-$(CONDUIT_NAME)
-do-libgasnet: $(CONDUIT_SPECIAL_OBJS)
+do-libgasnet: $(CONDUIT_SPECIAL_OBJS) $(KINDS_SPECIAL_OBJS)
 	@mkdir -p .$(THREAD_MODEL)
 	@libgasnet_objects="$(libgasnet_objects)" ; libgasnet_objects=`echo $$libgasnet_objects` ; \
 	pwd=`@PWD_PROG@`; keeptmps='$(KEEPTMPS)'; \
