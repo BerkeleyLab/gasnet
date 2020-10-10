@@ -38,7 +38,7 @@ const char *_gasneti_cuerror_name(CUresult res) {
 //
 // Error checking/reporting wrapper
 //
-#define gasneti_check_cudacall_always(op) do {              \
+#define gasneti_check_cudacall(op) do {              \
     CUresult _retval = (op);                                \
     if_pf (_retval) {                                       \
       const char *_errorname;                               \
@@ -46,19 +46,14 @@ const char *_gasneti_cuerror_name(CUresult res) {
       gasneti_fatalerror("%s returned "GASNETI_CURESULT_FMT,#op,GASNETI_CURESULT_STRING(_retval));\
     }                                                       \
   } while (0)
-#if GASNET_DEBUG
-  #define gasneti_check_cudacall(op)  gasneti_check_cudacall_always(op)
-#else
-  #define gasneti_check_cudacall(op)  do { op; } while(0)
-#endif
 
 static void gasneti_MK_Destroy_cuda_uva(
             gasneti_MK_t                     i_mk,
             gex_Flags_t                      flags)
 {
   my_MK_t mk = (my_MK_t) i_mk;
-  gasneti_check_cudacall_always(cuCtxSetCurrent(NULL));
-  gasneti_check_cudacall_always(cuDevicePrimaryCtxRelease(mk->dev));
+  gasneti_check_cudacall(cuCtxSetCurrent(NULL));
+  gasneti_check_cudacall(cuDevicePrimaryCtxRelease(mk->dev));
   gasneti_free_mk(i_mk);
 }
 
@@ -75,7 +70,7 @@ static int gasneti_MK_Segment_Create_cuda_uva(
   void * to_free = NULL;
   int retval = GASNET_OK;
 
-  gasneti_check_cudacall_always(cuCtxPushCurrent(kind->ctx));
+  gasneti_check_cudacall(cuCtxPushCurrent(kind->ctx));
 
   // TODO:
   // Might want additional care with respect to error returns from the CUDA device API.
@@ -134,7 +129,7 @@ static int gasneti_MK_Segment_Create_cuda_uva(
 
   if (kind->use_sync_memops) {
     int one = 1;
-    gasneti_check_cudacall_always(cuPointerSetAttribute(&one, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, dptr));
+    gasneti_check_cudacall(cuPointerSetAttribute(&one, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, dptr));
   }
 
   gasneti_Client_t client = i_mk->_client;
@@ -147,7 +142,7 @@ static int gasneti_MK_Segment_Create_cuda_uva(
 out:
   {
     CUcontext prev_ctx;
-    gasneti_check_cudacall_always(cuCtxPopCurrent(&prev_ctx));
+    gasneti_check_cudacall(cuCtxPopCurrent(&prev_ctx));
     gasneti_assert(prev_ctx == kind->ctx);
   }
   return retval;
