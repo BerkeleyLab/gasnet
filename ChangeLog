@@ -43,6 +43,11 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 PENDING GASNet-EX "memory_kinds" feature branch
 
 * General and Misc.
+  - Initial implementation of "Memory Kinds": support for GASNet-EX remote
+    segments comprised of non-host memory.  This initial version supports only
+    UVA-based CUDA device memory and the GASNet-EX RMA APIs.  The file
+    docs/memory_kinds.txt provides an up-to-date summary of the status of the
+    memory kinds implementation.
   - New GASNet trace/stats tracemask categories:
     + O - Object creation, modification and destruction
     + X - AMPoll
