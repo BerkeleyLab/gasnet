@@ -61,7 +61,7 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 11
+#define GEX_SPEC_VERSION_MINOR 12
 
 // Major and Minor versions of the GASNet-1 specification.
 //
