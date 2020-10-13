@@ -1,6 +1,28 @@
 GASNet-EX ChangeLog
 -------------------
 
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+
+  This is the "memory_kinds" feature branch of GASNet-EX, intended only
+  for use by developers with a specific interest in this feature.
+  Other client developers should consider use of the "stable" branch.
+  GASNet conduit developers not working specifically on memory kinds
+  should be targeting the "develop" branch for any pull requests.
+
+  While it is intended that features and capabilities introduced in this
+  branch will make their way into a full release of GASNet-EX, this is
+  only a prototype. All aspects of the APIs and capabilities first
+  introduced on this branch are subject to non-trivial changes before
+  the prototype stage ends.
+
+  More detailed information is available in docs/memory_kinds.md
+
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+
   GASNet-EX is a work-in-progress.
   Many features remain to be specified, implemented, and/or tuned.
 
@@ -18,7 +40,20 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX.YY.ZZ: PENDING
+PENDING GASNet-EX "memory_kinds" feature branch
+
+* General and Misc.
+  - New GASNet trace/stats tracemask categories:
+    + O - Object creation, modification and destruction
+    + X - AMPoll
+
+* GASNet-EX Spec v0.11:
+  - Deprecate GEX_FLAG_TM_SCRATCH_SIZE_MIN flag and remove the corresponding
+    GASNET_COLL_MIN_SCRATCH_SIZE environment variable.
+  - Add GEX_FLAG_TM_NO_SCRATCH support in gex_TM_{Split,Create}(), eliminating
+    the requirement that a client always provide a collectives scratch space.
+
+2020-10-30: GASNet-EX 2020.10.0 Release
 
 * General and Misc.
   - NEW: Improved compatability with heap analysis tools like Valgrind
@@ -47,6 +82,11 @@ GASNet-EX ChangeLog
   - The amudprun spawning protocol has changed slightly, breaking backwards
     compatibility for amudprun binaries built against earlier versions.
 
+* Unified Communication X framework (ucx-conduit) [EXPERIMENTAL]
+  - Tune the Active Message buffer handling, resulting in improved performance
+  - Fix an unreported defect in AM injection with asynchronous LC
+  - For details, see ucx-conduit/README
+
 * Platform support/portability
   - Installs on Cray XC systems now default to using linker options for
     low-level libraries that are more resilient to minor system upgrades. 
@@ -57,6 +97,8 @@ GASNet-EX ChangeLog
     in a host list (such as GASNET_SSH_SERVERS).  Setting the environment
     variable GASNET_SSH_KEEPDUP=1 restores the previous behavior.
     See other/ssh-spawner/README for details.
+  - Job exit no longer runs atexit handlers and static destructors on
+    the "hidden" processes used to implement ssh-spawner.
 
 * GASNet-EX Spec v0.9:
   - Restrict scratch sizes (query outputs and split inputs) for gex_TM_Split()
@@ -66,12 +108,6 @@ GASNet-EX ChangeLog
 
 * GASNet-EX Spec v0.10:
   - Add gex_TM_Destroy() and associated GEX_FLAG_GLOBALLY_QUIESCED flag.
-
-* GASNet-EX Spec v0.11:
-  - Deprecate GEX_FLAG_TM_SCRATCH_SIZE_MIN flag and remove the corresponding
-    GASNET_COLL_MIN_SCRATCH_SIZE environment variable.
-  - Add GEX_FLAG_TM_NO_SCRATCH support in gex_TM_{Split,Create}(), eliminating
-    the requirement that a client always provide a collectives scratch space.
 
 * GASNet tools (spec v1.16)
   - Add gasnett_fatalerror_nopos
