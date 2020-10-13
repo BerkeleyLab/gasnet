@@ -303,6 +303,7 @@ VPATH = \
 	$(UPCXX_BLDDIR)/bench \
 	$(UPCXX_BLDDIR)/extras/extensions/allocator \
 	$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator \
+	$(UPCXX_BLDDIR)/extras/examples/vector_accumulate \
 	$(UPCXX_BLDDIR)/extras/tutorials/2019-12/examples \
 	$(UPCXX_BLDDIR)/extras/tutorials/2019-12/solutions
 
