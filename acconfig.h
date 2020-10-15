@@ -219,7 +219,7 @@
 #undef GASNETI_MAX_THREADS_CONFIGURE
 
 /* memory kinds support */
-#undef GASNET_HAVE_MK_CLASS_CUDA_UVA
+#undef GASNETI_MK_CLASS_CUDA_UVA_ENABLED
 
 /* has clock_gettime() */
 #undef HAVE_CLOCK_GETTIME
