@@ -1447,8 +1447,10 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 #if GASNET_HAVE_MK_CLASS_CUDA_UVA
   #undef GASNET_HAVE_MK_CLASS_CUDA_UVA
   #define GASNET_HAVE_MK_CLASS_CUDA_UVA 1
+  #define GASNETI_MK_CLASS_CUDA_UVA_CONFIG mk_class_cuda_uva
 #else
   #undef GASNET_HAVE_MK_CLASS_CUDA_UVA
+  #define GASNETI_MK_CLASS_CUDA_UVA_CONFIG nomk_class_cuda_uva
 #endif
 
 #if GASNET_HAVE_MK_CLASS_CUDA_UVA // || GASNET_HAVE_MK_CLASS_[FOO]
