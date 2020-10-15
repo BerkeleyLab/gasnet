@@ -4702,38 +4702,77 @@ GASNET_KINDS_LIBS=''
 GASNET_IF_ENABLED_WITH_AUTO(kind-cuda-uva,
         [support for memory kinds on UVA-capable CUDA devices (auto-detect)],
         [enable_mk_cuda_uva="yes"; force_mk_cuda_uva="yes"],
-        [enable_mk_cuda_uva="no"], [enable_mk_cuda_uva="probe"])
+        [enable_mk_cuda_uva="no"], [
+         if test "$GASNETI_PTR_BITS" = 32; then
+           enable_mk_cuda_uva="no"
+         else
+           enable_mk_cuda_uva="probe"
+         fi
+        ])
 unset have_mk_cuda_uva
 if test "$enable_mk_cuda_uva" != "no"; then
-  # TODO: Can/should we scrape nvcc as UPC++ does?
-  GASNET_PACKAGE_HOME(CUDA, [CUDA toolkit], [nvcc], [/usr/local/cuda], [include/cuda.h])
-  GASNET_PACKAGE_CFLAGS(CUDA)
-  GASNET_ENV_DEFAULT(CUDA_LIBS, -lcudart -lcuda)
-  GASNET_PACKAGE_LDFLAGS(CUDA, cudart)
-  GASNET_SPLIT_LINKER_OPTS(CUDA_LDFLAGS,CUDA_LIBS)
+  AC_MSG_CHECKING(for target having CUDA UVA memory kinds support)
+  if test "$GASNETI_PTR_BITS" = 32; then
+    AC_MSG_RESULT([no (ILP32 targets are not supported)])
+    have_mk_cuda_uva=no
+  else
+    have_mk_cuda_uva=no
+    case "$target_cpu:$target_os" in
+      x86_64:linux*)    have_mk_cuda_uva='yes';;
+      powerpc*:linux*)  if test "$WORDS_BIGENDIAN" = '0'; then have_mk_cuda_uva='yes'; fi;;
+      aarch64:linux*)   have_mk_cuda_uva='maybe';;
+    esac
+    if test "$have_mk_cuda_uva" = 'no'; then
+      AC_MSG_RESULT([no (unsupported or unrecognized target $target)])
+    else
+      AC_MSG_RESULT([$have_mk_cuda_uva])
+    fi
+  fi
 
-  # Assume the best
-  have_mk_cuda_uva=yes
+  if test "$have_mk_cuda_uva" != "no"; then
+    # TODO: Can/should we scrape nvcc as UPC++ does?
+    GASNET_PACKAGE_HOME(CUDA, [CUDA toolkit], [nvcc], [/usr/local/cuda], [include/cuda.h])
+    GASNET_PACKAGE_CFLAGS(CUDA)
+    GASNET_ENV_DEFAULT(CUDA_LIBS, -lcudart -lcuda)
+    GASNET_PACKAGE_LDFLAGS(CUDA, cudart)
+    GASNET_SPLIT_LINKER_OPTS(CUDA_LDFLAGS,CUDA_LIBS)
 
-  # Try to compile and link a basic program using the CUDA Driver and Runtime APIs
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $CUDA_CFLAGS")
-  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $CUDA_LDFLAGS")
-  GASNET_PUSHVAR(LIBS,"$LIBS $CUDA_LIBS")
+    # Try to compile and link a basic program using the CUDA Driver and Runtime APIs
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $CUDA_CFLAGS")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $CUDA_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS $CUDA_LIBS")
 
-  GASNET_TRY_CACHE_LINK(for CUDA runtime configuration, cudart_works, [
-    #include <cuda.h>
-    #include <cuda_runtime_api.h>
-  ], [
-    cuInit(0);
-    int count;
-    cudaError_t err = cudaGetDeviceCount(&count);
-    struct cudaDeviceProp dprop;
-    dprop.unifiedAddressing = 0;
-  ], [ : ], [ have_mk_cuda_uva=no; GASNET_ERR_SAVE() ])
+    GASNET_TRY_CACHE_LINK(for CUDA runtime configuration, cudart_works, [
+      #include <cuda.h>
+      #include <cuda_runtime_api.h>
+    ], [
+      cuInit(0);
+      int count;
+      cudaError_t err = cudaGetDeviceCount(&count);
+      struct cudaDeviceProp dprop;
+      dprop.unifiedAddressing = 0;
+    ], [ : ], [ have_mk_cuda_uva=no; GASNET_ERR_SAVE() ])
 
-  GASNET_POPVAR(LIBS)
-  GASNET_POPVAR(LDFLAGS)
-  GASNET_POPVAR(CFLAGS)
+    GASNET_POPVAR(LIBS)
+    GASNET_POPVAR(LDFLAGS)
+    GASNET_POPVAR(CFLAGS)
+  fi
+
+  # If the probe(s) above passed on a target identified as "maybe" having
+  # support, then either upgrade to "yes" if enabled explicitly, or downgrade
+  # to "no" if just probing.  Either way, we issue a warning.
+  if test "$have_mk_cuda_uva" = "maybe"; then
+    if test "$enable_mk_cuda_uva" = "yes"; then
+      have_mk_cuda_uva=yes
+      GASNET_MSG_WARN([CUDA UVA memory kinds support enabled for $target, which may not be officially supported])
+    else
+      have_mk_cuda_uva=no
+      GASNET_MSG_WARN([It appears your system has the software required for CUDA UVA memory kinds support.
+However, $target may not be officially supported.
+You can enable an unsupported build of this feature with --enable-kind-cuda-uva.
+Otherwise, you can disable this message with --disable-kind-cuda-uva.])
+    fi
+  fi
 
   if test "$have_mk_cuda_uva" = "yes"; then
     AC_DEFINE(GASNETI_MK_CLASS_CUDA_UVA_ENABLED)
