@@ -153,3 +153,29 @@ void gex_MK_Destroy(
   if (MK_IMPL(i_mk,destroy)) MK_IMPL(i_mk,destroy)(i_mk, flags);
   else                       gasneti_free_mk(i_mk);
 }
+
+int gasneti_MK_Segment_Create(
+            gasneti_Segment_t *i_segment_p,
+            gasneti_Client_t  i_client,
+            void              *addr,
+            uintptr_t         size,
+            gex_MK_t          e_mk,
+            gex_Flags_t       flags)
+{
+  gasneti_MK_t i_mk = gasneti_import_mk_nonhost(e_mk);
+
+  if (i_mk->_client != i_client) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create with a gex_MK_t from a different client");
+  }
+
+  // Class-specific hook, if any
+  if (MK_IMPL(i_mk,segment_create)) {
+    int rc = MK_IMPL(i_mk,segment_create)(i_segment_p, i_mk, addr, size, flags);
+    if (rc) return rc;
+  } else {
+    GASNETI_RETURN_ERRR(BAD_ARG,"gex_Segment_Create() called on unsupported memory kind");
+  }
+
+  gasneti_weakatomic32_increment(&i_mk->_ref_count, 0);
+  return GASNET_OK;
+}
