@@ -331,7 +331,8 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 
 struct gasneti_memkind_s;
 typedef struct gasneti_memkind_s *gex_MK_t;
-#define GEX_MK_HOST ((gex_MK_t)(uintptr_t)0)
+#define GEX_MK_INVALID ((gex_MK_t)(uintptr_t)0)
+#define GEX_MK_HOST ((gex_MK_t)(uintptr_t)1)
 
 typedef void (*gex_AM_Fn_t)();
 
