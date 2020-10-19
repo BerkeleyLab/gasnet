@@ -508,6 +508,16 @@ void doit(int partner, int *partnerseg) {
   CHECK_ZERO_CONSTANT(gex_TM_t,      GEX_TM_INVALID);
   CHECK_ZERO_CONSTANT(gex_Client_t,  GEX_CLIENT_INVALID);
   CHECK_ZERO_CONSTANT(gex_EP_t,      GEX_EP_INVALID);
+  CHECK_ZERO_CONSTANT(gex_MK_t,      GEX_MK_INVALID);
+
+  #define CHECK_NONZERO_CONSTANT(type, constant) do { \
+    static type vz;                                \
+    type v = constant;                             \
+    test_static_assert(sizeof(constant) == sizeof(type));  \
+    assert_always(sizeof(constant) == sizeof(v));  \
+    assert_always(memcmp(&v,&vz,sizeof(type)));    \
+  } while (0)
+  CHECK_NONZERO_CONSTANT(gex_MK_t,   GEX_MK_HOST);
 
   if (strcmp(clientname, gex_Client_QueryName(myclient))) {
     MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");

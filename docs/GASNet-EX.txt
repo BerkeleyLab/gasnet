@@ -3363,6 +3363,10 @@ int gex_EP_Create(
 // gex_MK_t is an opaque scalar handle to a Memory Kind (MK)
 typedef ... gex_MK_t;
 
+// GEX_MK_INVALID is a predefined constant guaranteed to have the value
+// zero and never alias a valid memory kind
+#define GEX_MK_INVALID ((gex_MK_t)0)
+
 // GEX_MK_HOST is a predefined constant for the "kind" for host memory
 #define GEX_MK_HOST ((gex_MK_t)???)
 
