@@ -13,6 +13,8 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
+GASNETI_IDENT(gasneti_IdentString_MKClassCUDAUVA, "$GASNetMKClassCUDAUVA: 1 $");
+
 //
 // Class-specific MK type and functions
 //
