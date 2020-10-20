@@ -669,34 +669,49 @@ gex_Client_t gex_Segment_QueryClient(gex_Segment_t seg);
 // There are no segment flags defined in the current release.
 gex_Flags_t  gex_Segment_QueryFlags(gex_Segment_t seg);
 
-// Query address and length of a segment
+// Query base address of a segment
+// For segments created using gex_Create_Segment() with a 'kind' not equal to
+// GEX_MK_HOST, the return value is a device address.
+// Otherwise, it is a host address.
 void *       gex_Segment_QueryAddr(gex_Segment_t seg);
+
+// Query length of a segment
 uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 
-// Query addresses and length of a (possibly remote) bound segment [EXPERIMENTAL]
+// Query addresses and length of a (possibly remote) bound segment
 //
 // This query takes a gex_TM_t and gex_Rank_t, which together name an endpoint.
 // The remaining arguments are pointers to locations for outputs, each of which
 // may be NULL if the caller does not need a particular value.
 //
-// If the endpoint named by (rm, rank) does not have a bound segment, this call
+// If the endpoint named by (tm, rank) does not have a bound segment, this call
 // returns non-zero, and the output locations are unmodified.  Otherwise, this
 // call returns 0 and writes the corresponding segment properties to each of
 // the non-NULL output locations as follows:
 //
 //   owneraddr_p: receives the address of the segment in the address space
 //                of the process which owns the segment.
+//                For segments of kind GEX_MK_HOST, this is a host address
+//                while for all other kinds this is a device address.  In
+//                either case it is the address which would be returned by
+//                gex_Segment_QueryAddr() immediately after segment creation
+//                (via either gex_Segment_Attach() or gex_Segment_Create()).
 //   localaddr_p: receives the address of the segment in the address space
-//                of the calling process, if mapped, and NULL otherwise.
+//                of the calling process, *if* mapped, and NULL otherwise.
 //   size_p:      receives the length of the segment.
 //
-// In this release the gex_Segment_Attach call (below) is the only mechanism to
-// create segments, and unconditionally binds them to an endpoint.  Thus all
-// segments are "bound" in the current release.  However, not all endpoints may
-// have a segment bound to them.
+// Only segments of kind GEX_MK_HOST may report a non-NULL localaddr property,
+// and all other kinds will yield NULL.  The current release additionally
+// limits the reporting of non-NULL values to primordial segments (those
+// created by gex_Segment_Attach()).
+//
+// In this release the gex_Segment_Attach() and gex_EP_BindSegment() calls can
+// both bind a segment to an endpoint.  However, not all segments may be bound
+// to an endpoint and not all endpoints may have a segment bound to them.
 //
 // rank == GEX_RANK_INVALID is *not* permitted.
 // rank == gex_TM_QueryRank(tm) *is* permitted.
+// Use of a TM-pair for the 'tm' argument *is* permitted.
 //
 // For rank != gex_TM_QueryRank(tm), this query MAY communicate.
 // This call is not legal in contexts which prohibit communication, including
