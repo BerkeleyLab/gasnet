@@ -240,6 +240,9 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 //        `gex_TM_QueryEP(e_tm)`
 //        `gasneti_import_tm(e_tm)->_ep`
 //        `i_tm->_ep`
+//   + gasneti_[ei]_tm_to_ep_index()
+//     More efficient replacement for `gasneti_[ei]_tm_to_i_ep()->_index`,
+//     replacing multiple alternatives which do not accept a TM-pair
 //   + gasneti_boundscheck()
 //   + gasneti_boundscheck_allowoutseg()
 //   + gasneti_formattm()
@@ -316,6 +319,19 @@ gex_Rank_t gasneti_i_tm_size(gasneti_TM_t _i_tm) {
   gasneti_assert(_i_tm);
   return gasneti_i_tm_is_pair(_i_tm) ? gex_System_QueryJobSize() : _i_tm->_size;
 }
+
+GASNETI_INLINE(gasneti_i_tm_to_ep_index)
+gex_Rank_t gasneti_i_tm_to_ep_index(gasneti_TM_t _i_tm) {
+  gasneti_assert(_i_tm);
+  if (gasneti_is_tm0(_i_tm)) {
+    return 0; // fast path
+  } else if (gasneti_i_tm_is_pair(_i_tm)) {
+    return gasneti_tm_pair_loc_idx(gasneti_i_tm_to_pair(_i_tm));
+  } else {
+    return _i_tm->_ep->_index;
+  }
+}
+#define gasneti_e_tm_to_ep_index(_e_tm) gasneti_i_tm_to_ep_index(gasneti_import_tm(_e_tm))
 
 #if GASNET_DEBUG
   #define gasneti_check_jobrank(jobrank) \
