@@ -803,6 +803,17 @@ gex_TM_t gasneti_export_tm_pair(gasneti_TM_Pair_t tm_pair) {
 }
 #endif
 
+// Helper for PSHM queries which cannot inline THUNK_CLIENT
+gasneti_Segment_t gasneti_tm_pair_to_segment(gasneti_TM_Pair_t tm_pair) {
+  gex_EP_Index_t ep_idx = gasneti_tm_pair_loc_idx(tm_pair);
+  gasneti_Client_t i_client = gasneti_import_client(gasneti_THUNK_CLIENT); // TODO: multi-client
+  gasneti_assert_int(ep_idx ,<, GASNET_MAXEPS);
+  gasneti_assert_int(ep_idx ,<, gasneti_weakatomic32_read(&i_client->_next_ep_index, 0));
+  gasneti_EP_t i_ep = i_client->_ep_tbl[ep_idx];
+  gasneti_assert(i_ep);
+  return i_ep->_segment;
+}
+
 /* ------------------------------------------------------------------------------------ */
 
 #if GASNET_DEBUG
