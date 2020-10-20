@@ -3095,8 +3095,14 @@ extern int gasnetc_rdma_put(
   const gex_Rank_t jobrank = loc.gex_rank;
   const int rem_epidx = gasneti_in_auxsegment(jobrank, dst_ptr, nbytes) ? -1 : loc.gex_ep_index;
 
-  // RMA Put to in-nbrhd auxseg and primordial endpoints should always use PSHM
-  gasneti_assert((rem_epidx > 0) || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
+  // To reach here legally, at least one of three things must be true:
+  //  1. local ep is bound to non-host memory
+  //  2. remote ep is neither primordial nor aux-seg
+  //  3. remote jobrank is not in-nbrhd
+  // Otherwise, PSHM should be used.
+  gasneti_assert(!gasneti_i_segment_kind_is_host(ep->_segment) ||
+                 (rem_epidx > 0) ||
+                 !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 
   // Local "device memory" can never use inline or bounce buffers
   // TODO: maybe some devices classes can in the future?
@@ -3252,8 +3258,14 @@ extern int gasnetc_rdma_get(
   const gex_Rank_t jobrank = loc.gex_rank;
   const int rem_epidx = gasneti_in_auxsegment(jobrank, src_ptr, nbytes) ? -1 : loc.gex_ep_index;
 
-  // RMA Get from in-nbrhd auxseg and primordial endpoints should always use PSHM
-  gasneti_assert((rem_epidx > 0) || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
+  // To reach here legally, at least one of three things must be true:
+  //  1. local ep is bound to non-host memory
+  //  2. remote ep is neither primordial nor aux-seg
+  //  3. remote jobrank is not in-nbrhd
+  // Otherwise, PSHM should be used.
+  gasneti_assert(!gasneti_i_segment_kind_is_host(ep->_segment) ||
+                 (rem_epidx > 0) ||
+                 !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
