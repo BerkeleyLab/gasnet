@@ -319,9 +319,11 @@ typedef struct gasneti_team_member_s *gex_TM_t;
 
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;
+#define GEX_CLIENT_INVALID ((gex_Client_t)(uintptr_t)0)
 
 struct gasneti_endpoint_s;
 typedef struct gasneti_endpoint_s *gex_EP_t;
+#define GEX_EP_INVALID ((gex_EP_t)(uintptr_t)0)
 
 struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
@@ -329,7 +331,8 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 
 struct gasneti_memkind_s;
 typedef struct gasneti_memkind_s *gex_MK_t;
-#define GEX_MK_HOST ((gex_MK_t)(uintptr_t)0)
+#define GEX_MK_INVALID ((gex_MK_t)(uintptr_t)0)
+#define GEX_MK_HOST ((gex_MK_t)(uintptr_t)1)
 
 typedef void (*gex_AM_Fn_t)();
 

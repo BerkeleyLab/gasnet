@@ -73,6 +73,10 @@ PENDING GASNet-EX "memory_kinds" feature branch
     + gex_MK_Create_args_t
     + gex_MK_Create()
     + gex_MK_Destroy()
+  - Add the following constants (zero values of the appropriate types)
+    + GEX_CLIENT_INVALID
+    + GEX_EP_INVALID
+    + GEX_MK_INVALID
 
 ----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
