@@ -2127,6 +2127,9 @@ int gasneti_segmentCreate(
   if (! length) {
     gasneti_fatalerror("Invalid call to gex_Segment_Create() with zero length");
   }
+  if (kind == GEX_MK_INVALID) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with kind = GEX_MK_INVALID");
+  }
 
   gasneti_Segment_t segment = gasneti_import_segment(GEX_SEGMENT_INVALID);
 

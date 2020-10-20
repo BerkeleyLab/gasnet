@@ -128,7 +128,10 @@ void gex_MK_Destroy(
             gex_MK_t                    e_mk,
             gex_Flags_t                 flags)
 {
-  if (e_mk == GEX_MK_HOST) { // also NULL, fwiw
+  if (e_mk == GEX_MK_INVALID) {
+    gasneti_fatalerror("Invalid call to gex_MK_Destroy(GEX_MK_INVALID)");
+  }
+  if (e_mk == GEX_MK_HOST) {
     gasneti_fatalerror("Invalid call to gex_MK_Destroy(GEX_MK_HOST)");
   }
 
@@ -162,6 +165,8 @@ int gasneti_MK_Segment_Create(
             gex_MK_t          e_mk,
             gex_Flags_t       flags)
 {
+  gasneti_assert(e_mk != GEX_MK_INVALID); // Caller should have already checked user args
+
   gasneti_MK_t i_mk = gasneti_import_mk_nonhost(e_mk);
 
   if (i_mk->_client != i_client) {
