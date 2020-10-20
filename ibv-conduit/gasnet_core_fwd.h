@@ -165,7 +165,7 @@
 
 #if GASNETC_PIN_SEGMENT
   // Initial (limited) multi-EP support
-  #define GASNET_MAXEPS 8
+  #define GASNET_MAXEPS 33
 #endif
 
   /* this can be used to add conduit-specific 
