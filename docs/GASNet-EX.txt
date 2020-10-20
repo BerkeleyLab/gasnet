@@ -1749,6 +1749,54 @@ extern void gex_AM_CommitReplyLong[M](
 //   to a variable of type 'gex_Event_t' allows the call to return without
 //   delay, and allows the client to check local completion using
 //   gex_Event_{Test,Wait}*().
+//
+// NOTE 3: Local addressing
+//
+//   Let "the local endpoint" refer to the endpoint associated with 'tm'.
+//
+//   Let "device segment" denote a segment created using gex_Segment_Create()
+//   with a 'kind' argument other than GEX_MK_HOST.
+//
+//   Let "in the local bound segment" mean that a given range of addresses
+//   lies entirely within the range of the segment as might be determined by
+//   applying gex_Segment_QueryAddr() and gex_Segment_QuerySize() to the
+//   segment bound to the local endpoint.
+//
+//   The local address (src of a Put, dest of a Get) is interpreted and
+//   constrained as follows:
+//   + [UNIMPLEMENTED] In the presence of GEX_FLAG_SELF_SEG_OFFSET in 'flags'
+//     the address argument is interpreted as an unsigned offset in bytes from
+//     the start address of the local endpoint's (required) bound segment.
+//     The memory so named must be in the local bound segment.
+//   + In the absence of GEX_FLAG_SELF_SEG_OFFSET in 'flags':
+//     - If the local endpoint has a bound device segment, then the address is
+//       a device address and the memory so named must be in the local bound
+//       segment.
+//     - Otherwise the address is a host address, and the named memory is not
+//       constrained to lie within the local bound segment (if any).
+//
+// NOTE 4: Remote addressing
+//
+//   Let "the remote endpoint" refer to the endpoint named by '(tm,rank)'.
+//
+//   Let "device segment" denote a segment created using gex_Segment_Create()
+//   with a 'kind' argument other than GEX_MK_HOST.
+//
+//   Let "in the remote bound segment" mean that a given range of addresses
+//   lies entirely within the range of the segment as might be determined from
+//   the owneraddr and size properties obtained using gex_Segment_QueryBound()
+//   applied to the '(tm,rank)' tuple.
+//
+//   The remote address (dest of a Put, src of a Get) is interpreted as
+//   follows:
+//   + [UNIMPLEMENTED] In the presence of GEX_FLAG_PEER_SEG_OFFSET in 'flags'
+//     the address argument is interpreted as an unsigned offset in bytes from
+//     the start address of the remote endpoint's bound segment.
+//   + In the absence of GEX_FLAG_PEER_SEG_OFFSET in 'flags':
+//     - If the bound segment of the remote endpoint is a device segment, then
+//       the address is a device address.
+//     - Otherwise the address is a host address.
+//   In all cases, the remote memory must be in the remote bound segment.
 
 // Put
 int gex_RMA_PutBlocking(
