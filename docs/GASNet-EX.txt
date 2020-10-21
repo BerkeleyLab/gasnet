@@ -3343,6 +3343,9 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 // Copies of the most recent revision of that document are available on
 // request from gasnet-staff@lbl.gov.
 
+// NOTE: The current implementation only supports creation of teams composed
+// entirely of primordial endpoints, even with conduits which support creation
+// of additional endpoints.  This limitation will be removed in a later release.
 size_t gex_TM_Create(
             gex_TM_t *new_tms,         // OUT
             size_t num_new_tms,        // Length of new_tms
