@@ -81,6 +81,22 @@ To the best of our knowledge, Mellanox currently disclaims support for GPUDirect
 RDMA on aarch64 (aka ARM64 or ARMv8) and NVIDIA does not support UVA on ILP32
 platforms.  Therefore, this work currently supports only x86-64 and ppc64le.
 
+## Limits on GPU segment size
+
+Modern NVIDIA GPUs with GPUDirect utilize a "Base Address Register" mechanism
+to map the device memory into the PCIe address space.  The amount of memory
+which can be mapped by GASNet-EX as a GPU segment is limited by the `BAR1`
+capability of your GPU, which can also be severely limited by the motherboard
+and/or BIOS.
+
+To query the BAR1 capability of your GPU, run `nvidia-smi -q` and look for the
+"Total" value in the "BAR1 Memory Usage" section for an (optimistic) maximum on
+the amount of memory which can be mapped.  This limit is per GPU across all
+process and runtimes on a given node.  Thus a portion is consumed by each
+GASNet-EX segment created on a given node, as well as by other uses of
+GPUDirect RDMA such as an MPI implementation.  Typically a few tens of MB are
+also reserved by the driver itself.
+
 ## Multi-rail
 
 Though our test and development systems have multi-rail InfiniBand networks,
