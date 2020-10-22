@@ -1044,6 +1044,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_physmem_check("Probing O/S limits and HCA capabilities", limit);
 }
 
+// TODO: enum instead of string-valued 'which'
 GASNETI_NORETURN
 static void gasneti_segreg_failed(size_t size, const char *which, int why) {
   const char *hint1 = "";
@@ -1065,7 +1066,10 @@ static void gasneti_segreg_failed(size_t size, const char *which, int why) {
     hint1 = "\n        This could be caused by insufficient space in " GASNETC_PSHM_FS " (or similar).";
   }
 #endif
-  if (! *which) { // empty string == NOT " aux"
+  if (why == EFAULT && !strcmp(which, " device")) {
+    hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+  }
+  if (! *which) { // empty string == NOT " aux" nor " device"
     hint2 = "\n        Reducing the value of environment variable GASNET_MAX_SEGSIZE may help.";
   }
   char sizestr[16];
