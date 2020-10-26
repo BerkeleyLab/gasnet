@@ -140,7 +140,7 @@ void gex_MK_Destroy(
   gasneti_assert(MK_IMPL(i_mk,name));
 
   GASNETI_TRACE_PRINTF(O,("gex_MK_Destroy: memkind=%p, class='%s' flags=%d",
-                          e_mk, MK_IMPL(i_mk,name), flags));
+                          (void*)e_mk, MK_IMPL(i_mk,name), flags));
 
   if (flags) {
     gasneti_fatalerror("Invalid call to gex_MK_Destroy with non-zero flags");
