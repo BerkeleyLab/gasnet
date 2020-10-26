@@ -60,14 +60,14 @@ PENDING GASNet-EX "memory_kinds" feature branch
 
 * GASNet-EX Spec v0.12:
   - Add the following APIs, documented in "GASNet-EX API Proposal: Multi-EP,
-    Revision 2020.6.1" and subsequent revisions (available on request):
+    Revision 2020.11.1" (available on request):
     + gex_TM_Pair()
     + gex_Segment_Create()
     + gex_EP_Create()
     + gex_EP_BindSegment()
     + gex_EP_PublishBoundSegment()
   - Add the following types and APIs as documented in "GASNet-EX API Proposal:
-    Memory Kinds" (available on request):
+    Memory Kinds, Revision 2020.11.1" (available on request):
     + gex_MK_t
     + gex_MK_Class_t
     + gex_MK_Create_args_t
