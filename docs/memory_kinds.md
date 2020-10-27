@@ -30,8 +30,8 @@ implementation and is updated as that status changes.
 This document will make references to two other documents, which are
 available on request from gasnet-staff@lbl.gov:  
 
-  + GASNet-EX API Proposal: Multi-EP
-  + GASNet-EX API Proposal: Memory Kinds
+  + GASNet-EX API Proposal: Multi-EP, Revision 2020.11.1
+  + GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.1
 
 For brevity, these will be referenced as "the Multi-EP Proposal" and
 "the Memory Kinds Proposal", respectively.
@@ -63,9 +63,9 @@ All current memory kinds implementation work is limited to devices with the
 CUDA Device API and Unified Virtual Addressing (UVA).  This should include
 all modern NVIDIA GPUs and CUDA Toolkit versions.
 
-Support is limited to ibv-conduit on Linux and only when using Mellanox
-InfiniBand hardware and drivers with support for "GPUDirect RDMA".  In some
-cases additional optional software, such as "nvidia_peer_memory" must be
+Support is further limited to ibv-conduit on Linux and only when using Mellanox
+InfiniBand hardware and drivers with support for "GPUDirect RDMA" (GDR).  In
+some cases additional optional software, such as "nvidia_peer_memory" must be
 installed.  Please consult Mellanox documentation for assistance determining
 what driver software is needed for your specific hardware and Linux
 distribution.  The Open MPI and MVAPICH projects also have some documentation
@@ -80,6 +80,16 @@ the memory kinds work in this branch.
 To the best of our knowledge, Mellanox currently disclaims support for GPUDirect
 RDMA on aarch64 (aka ARM64 or ARMv8) and NVIDIA does not support UVA on ILP32
 platforms.  Therefore, this work currently supports only x86-64 and ppc64le.
+
+For any configurations that do not meet all of the configure-testable
+requirements outlined above, the memory kinds support in the current prototype
+implementation will be disabled (or `configure` will fail if it was passed
+`--with-kind-cuda-uva`).  Specifically, `GASNET_HAVE_MK_CLASS_CUDA_UVA` will be
+undefined and attempts to create device segments will fail at runtime.  Future
+releases are expected to eventually include a "reference implementation" that
+will allow creation of device segments on a wider range of platforms and
+transparently stage transfers through host memory bounce buffers, but that is
+not yet present.
 
 ## Limits on GPU segment size
 
@@ -97,7 +107,14 @@ GASNet-EX segment created on a given node, as well as by other uses of
 GPUDirect RDMA such as an MPI implementation.  Typically a few tens of MB are
 also reserved by the driver itself.
 
-## Multi-rail
+Currently, the implementation cannot determine at runtime if GDR support is
+present or not.  If it is not, then `gex_Segment_Create()` will fail with a
+message which suggests that "exhaustion of BAR1 resources" may be the cause.  If
+you have been directed to this documentation by that error message, then you
+should also consider the possibility that GDR support is not present, especially
+if the BAR1 resources, queried as described above, appear sufficient.
+
+## GDR and Multi-rail
 
 Though our test and development systems have multi-rail InfiniBand networks,
 there are currently unresolved issues with respect to use of multiple rails
@@ -107,15 +124,12 @@ using the option `--disable-ibv-multirail`, or at runtime by setting the
 environment variable `GASNET_IBV_PORTS` to name a single valid port.  Both
 mechanisms are documented in `ibv-conduit/README`.
 
-## CUDA Multi-Process Service (MPS)
-
-Testing conducted to date is insufficient to establish whether the current
-implementation is compatible with the use of CUDA MPS.  Reports (positive or
-negative) regarding such compatibility are welcome.
+For the most up-to-date information on this issue see
+[bug 4148](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4148)
 
 ## Loopback
 
-The currently implementation does not handle RMA operations between combinations
+The current implementation does not handle RMA operations between combinations
 of host and GPU memory in the same processes (loopback), though this will be
 supported in the future.
 
@@ -126,7 +140,10 @@ peer-to-peer access).  Therefore, it is recommended practice (and will
 *continue* to be so when this limitation is removed) that clients bypass
 GASNet-EX to perform such transfers.
 
-## PSHM
+For the most up-to-date information on this issue see
+[bug 4149](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4149)
+
+## GDR and PSHM
 
 Currently the implementation is sufficient (when using supported hardware,
 drivers and libraries) to perform RMA operations between combinations of host
@@ -142,6 +159,48 @@ Currently, RMA transfers involving GPU memory between processes in the same
 compute node are supported only when PSHM is "inactive" (meaning either
 `--disable-pshm` at configure time, or `GASNET_SUPERNODE_MAXSIZE=1` in ones
 environment at runtime).
+
+For the most up-to-date information on this issue see
+[bug 4148](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4148)
+
+## Premature local completion of GDR Puts from device memory
+
+In addition to the multi-path issues described above (under "GDR and
+Multi-rail" and "GDR and PSHM" sub-headings), Put operations with their source
+in device memory have been observed to signal local completion prior to actual
+transfer of the data (as can be demonstrated by writing data to the source
+after sync and observing it arrive in the destination buffer).
+
+This is believed to be an issue with how ibv and GDR interact, and we are
+hopeful that a workaround can be implemented in a future release.
+
+For the most up-to-date information on this issue see
+[bug 4150](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4150)
+
+## GDR and small Gets into device memory
+
+As documented
+[here](https://github.com/linux-rdma/rdma-core/blob/master/providers/mlx5/man/mlx5dv_create_qp.3.md)
+current versions of libibverbs for "mlx5" generation HCAs may default to
+performing small RDMA Gets into an unused space in the work request structure
+to minimize the number of PCI bus crossings required.  Such Get operations are
+eventually completed by a `memcpy()` to the original destination when the
+completion queue entry is reaped.  This `memcpy()` fails (with a `SIGSEGV`)
+when the destination is device memory.
+
+As noted in Mellanox's documentation, setting `MLX5_SCATTER_TO_CQE=0` in the
+environment disables this undesired behavior.  We hope to be able to provide a
+better solution (automatic and specific to device memory Gets) in a future
+release.
+
+For the most up-to-date information on this issue see
+[bug 4151](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4151)
+
+## CUDA Multi-Process Service (MPS)
+
+Testing conducted to date is insufficient to establish whether the current
+implementation is compatible with the use of CUDA MPS.  Reports (positive or
+negative) regarding such compatibility are welcome.
 
 # Tested Configurations
 
@@ -174,7 +233,9 @@ configuration constraints are met) to use the pseudo-code below to perform RMA
 operations between combinations of host and GPU memory (subject to the
 previously noted temporary prohibitions on loopback and intra-nbrhd transfers).
 
-Please note that all error checking has been elided from this example.
+Please note that all error checking has been elided from this example.  Proper
+checking of return codes, if any, is especially important when using this
+prototype.
 
 ```
   // Bootstrap and establish host memory segment for the primordial endpoints
@@ -214,7 +275,7 @@ Please note that all error checking has been elided from this example.
   gex_RMA_GetBlocking(gex_TM_Pair(dev0EP,1), loc_dev0, peer_rank, rem_dev0, 4*1024*1024, 0);
 ```
 
-# Implementation Status by GASNet-EX AP
+# Implementation Status by GASNet-EX API
 
 This section describes the known limitations of each of the APIs introduced
 recently in order to support memory kinds.  Due to interaction among
@@ -236,7 +297,9 @@ original proposals:
   + `gex_MemKind_Create_args_t` to `gex_MK_Create_args_t`
     - With `gex_mk_` shortened to `gex_` in naming of struct and union members
 
-The remainder of this section will utilize the new names exclusively.
+The current (2020.11.1) revisions of the two API proposal documents use the
+names above, and the remainder of this section will utilize the new names
+exclusively.
 
 ## `gex_Segment_Attach()`
 
@@ -272,7 +335,7 @@ Not currently implemented.
 
 This API, along with all types and constants required to specify its arguments,
 are defined and will link in any conduit.  However, it is useful only when
-multi-EP support exists, as descibed in the following paragraphs.
+multi-EP support exists, as described in the following paragraphs.
 
 Any build of GASNet-EX from this branch will define a preprocessor macro
 `GASNET_MAXEPS` which advertises the optimistic maximum number of endpoints per
@@ -281,7 +344,7 @@ Any call to `gex_EP_Create()` which would exceed this limit results in a fatal
 error.  
 
 Currently, only ibv-conduit in FAST segment mode has a value of `GASNET_MAXEPS`
-larger than 1 (it is currently 8).  Additionally, ibv-conduit only supports the
+larger than 1 (it is currently 33).  Additionally, ibv-conduit only supports the
 `GEX_EP_CAPABILITY_RMA` capability for non-primordial endpoints.
 
 The `GEX_FLAG_HINT_ACCEL_*` values are currently defined, but ignored.
@@ -316,7 +379,8 @@ all APIs required to by the Multi-EP Proposal (notably the `gex_RMA_*()`,
 `gex_AM_*()` and `gex_VIS_*() API families).
 
 Since multi-EP support is currently exclusive to ibv-conduit in FAST segment
-mode, the use in other conduits is limited to aliasing of the primordial team.
+mode, the use in other conduits is effectively limited to aliasing of the
+primordial team.
 
 ## `gex_TM_Create()`
 
@@ -336,17 +400,18 @@ Fully implemented.
 
 ## `gex_MK_Create()`
 
-This API is (modulo the renames detiled earlier in this document), implemented
-as described in the Memory Kinds Proposal.  This includes the conditional
-definition (defined to `1` or undefined) of `GASNET_HAVE_MK_CLASS_CUDA_UVA`,
-which is currently defined only when the necessary headers and libs were
-located at configure time *and* one is using ibv-conduit in FAST segment mode.
-In all other circumstances `GASNET_HAVE_MK_CLASS_CUDA_UVA` will be undefined.
+This API is implemented as described in the Memory Kinds Proposal (with renames
+relative to the original proposal, as detailed earlier in this document), This
+includes the conditional definition (defined to `1` or undefined) of
+`GASNET_HAVE_MK_CLASS_CUDA_UVA`, which is currently defined only when the
+necessary headers and libs were located at configure time *and* one is using
+ibv-conduit in FAST segment mode.  In all other circumstances
+`GASNET_HAVE_MK_CLASS_CUDA_UVA` will be undefined.
 
 While `GASNET_HAVE_MK_CLASS_CUDA_UVA` has only a conditional definition, the
-enum value `GEX_MK_CLASS_CUDA_UVA` is defined unconditionally.  Any calls to
-`gex_MK_Create()` specifying this class when *not* supported will return
-`GASNET_ERR_BAD_ARG`, as documented in the Memory Kinds Proposal.
+enum value `GEX_MK_CLASS_CUDA_UVA` is defined unconditionally in `gasnet-mk.h`.
+Any calls to `gex_MK_Create()` specifying this class when *not* supported will
+return `GASNET_ERR_BAD_ARG`, as documented in the Memory Kinds Proposal.
 
 ## `gex_MK_Destroy()`
 

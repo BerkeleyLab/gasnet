@@ -189,7 +189,8 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 // "Single-valued"
 //
 // This term is used to designate an argument to a collective call as one that
-// must have the same value on all callers participating in the collective.
+// must have the same value on all callers participating in the collective, or
+// on a well-defined subset of callers.
 //
 // In the case of 'flags' arguments, this term may be applied in a qualified
 // form as "partially single-valued" when the constraint applies only to some
@@ -358,7 +359,7 @@ typedef [some integer type] gex_Flags_t;
 //
 // This flag indicates, to those calls explicitly documented as accepting it,
 // that the 'rank' (or equivalent argument) is a jobrank rather than a rank
-// within the the normal associated team.
+// within the normal associated team.
 //
 // Currently this flags is accepted by:
 //   gex_AD_Op*()
@@ -393,14 +394,14 @@ typedef [some integer type] gex_Flags_t;
 // The segment disposition flags come in two varieties:
 //
 // SELF - describes the segment disposition of addresses associated
-//        with local memory and the initiating endpoint (ie the EP 
+//        with local buffers and the initiating endpoint (ie the EP 
 //        which is usually implicitly named by a gex_TM_t argument).
 //        Eg in a Put operation this variety describes source locations,
 //        and in a Get this variety describes destination locations.
 //
-// PEER - describes the segment disposition of addresses associated
+// PEER - describes the segment disposition of buffers associated
 //        with (potentially) remote memory and the peer endpoint(s)
-//        (the EPs usually explicitly named by gex_Rank_t arguments)
+//        (the EPs usually explicitly named by gex_Rank_t arguments).
 //        Eg in a Put operation this variety describes destination locations,
 //        and in a Get this variety describes source locations.
 //
@@ -408,8 +409,12 @@ typedef [some integer type] gex_Flags_t;
 // a given operation may specify at most one SELF flag and one PEER flag.
 // Unless otherwise noted, the default behavior for each variety in the
 // absence of an explicitly provided flag corresponds to:
+// + When the local EP is unbound or bound to host memory:
 //    GEX_FLAG_SELF_SEG_UNKNOWN, GEX_FLAG_PEER_SEG_BOUND
-// which is backwards-compatible with GASNet-1 segment behavior.
+// + When the local EP is bound to a device segment:
+//    GEX_FLAG_SELF_SEG_BOUND, GEX_FLAG_PEER_SEG_BOUND
+// These are backwards-compatible with GASNet-1 segment behavior (where
+// there is no support for device memory).
 // NOTE: the flags below are currently [UNIMPLEMENTED], and consequently
 // these defaults are also the only supported settings for all APIs.
 //
@@ -517,7 +522,7 @@ typedef [some unsigned integer type] gex_RMA_Value_t;
 //
 // This is always an alias for `void*`, but is given a distinct type to make
 // prototypes self-documenting with respect to arguments which may (with the
-// proper flags) be interepreted alternatively as addresses or offsets.
+// proper flags) be interpreted alternatively as addresses or offsets.
 typedef void* gex_Addr_t;
 
 // Memvec
@@ -555,7 +560,7 @@ typedef ... gex_EP_Index_t;
 // [PROPOSED]
 #define GASNET_MAXEPS ...
 
-// gex_EP_Location_t is a (rank, ep_index) tuple
+// gex_EP_Location_t is a (rank, ep_index) tuple.
 // [PROPOSED]
 typedef struct {
   gex_Rank_t     gex_rank;
@@ -578,13 +583,24 @@ typedef ... gex_Segment_t;
 // Used, for instance, to indicate no bound segment
 #define GEX_SEGMENT_INVALID ((gex_Segment_t)0)
 
-// gex_TM_t is an opaque scalar handle to a Team Member,
+// In general, gex_TM_t is an opaque scalar handle to a Team Member,
 // a collective communication context used for remote endpoint naming.
-// A gex_TM_t specifies both an ordered set of Endpoints (local or remote),
-// and a local gex_EP_t, a local representative of that team.
+// There is also a less-general form, known as a "TM-pair" which carries only
+// sufficient information for naming an endpoint in point-to-point communication
+// or queries.
+// In collective calls, an argument of type gex_TM_t specifies both an ordered
+// set of Endpoints (local or remote), and a local gex_EP_t, a local
+// representative of that team.  Use of a TM-pair is prohibited in such calls.
+// In point-to-point calls the local and remote gex_EP_t are named by a tuple
+// consisting of one argument of type gex_TM_t and another of type gex_Rank_t
+// together.  Similarly, several queries take a '(tm,rank)' tuple to name an
+// endpoint.  Use of a TM-pair or a fully general gex_TM_t are both permitted
+// in these non-collective calls.
+
 typedef ... gex_TM_t;
 
 // Pre-defined value of type gex_TM_t
+// This zero value will never to alias a valid gex_TM_t (including TM-pairs)
 #define GEX_TM_INVALID ((gex_TM_t)0)
 
 //
@@ -655,7 +671,7 @@ extern int gex_Client_Init(
 // by gex_Client_Init).  In particular, the current release does not *yet*
 // support use of the APIs gex_Segment_Create(), gex_EP_BindSegment() and
 // gex_EP_PublishBoundSegment() as an alternative to Attach.  However, support
-// for that usage is anticipated in a future release.
+// for that usage may appear in a future release.
 //
 // See also in [PROPOSED] section:
 //    gex_Segment_Create()
@@ -684,11 +700,23 @@ uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 // The remaining arguments are pointers to locations for outputs, each of which
 // may be NULL if the caller does not need a particular value.
 //
-// If the endpoint named by (tm, rank) does not have a bound segment, this call
-// returns non-zero, and the output locations are unmodified.  Otherwise, this
-// call returns 0 and writes the corresponding segment properties to each of
-// the non-NULL output locations as follows:
+// If the endpoint named by (tm, rank) has a bound segment *and* one or more of
+// the following are true, then the call returns 0 and writes the corresponding
+// segment properties to each of the non-NULL output locations as described in
+// "Segment properties and output locations", below.
+//   + The endpoint resides in the calling process
+//   + The endpoint has a segment that was bound via gex_Segment_Attach()
+//   + The endpoint had the bound segment at the time it was the subject of a
+//     preceding call to gex_EP_PublishBoundSegment() in which the calling
+//     process was a participant.
 //
+// If the endpoint named by (tm, rank) does not satisfy the conditions above,
+// then the call returns non-zero and the output locations are unmodified.
+// This notably includes the case of a remote endpoint with a bound segment
+// which has not been published to the calling process.  However, the behavior
+// for this case is subject to possible change in a future release.
+//
+// Segment properties and output locations:
 //   owneraddr_p: receives the address of the segment in the address space
 //                of the process which owns the segment.
 //                For segments of kind GEX_MK_HOST, this is a host address
@@ -710,10 +738,12 @@ uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 // to an endpoint and not all endpoints may have a segment bound to them.
 //
 // rank == GEX_RANK_INVALID is *not* permitted.
-// rank == gex_TM_QueryRank(tm) *is* permitted.
 // Use of a TM-pair for the 'tm' argument *is* permitted.
+// Passing a '(tm,rank)' tuple naming an endpoint residing on the calling
+// process *is* permitted.
 //
-// For rank != gex_TM_QueryRank(tm), this query MAY communicate.
+// When passing a '(tm,rank)' tuple naming an endpoint not residing on the
+// calling process, this query MAY communicate.
 // This call is not legal in contexts which prohibit communication, including
 // (but not limited to) AM Handler context or when holding an HSL.
 int gex_Segment_QueryBound(
@@ -1028,7 +1058,7 @@ extern int gex_EP_PublishBoundSegment(
 //
 // The gex_nargs and gex_flags fields are used by the client to supply the implementation 
 // with assertions regarding the future invocations and behavior of each AM handler.
-// If a handler invocation (eg via an AM injection targetting a given handler) or
+// If a handler invocation (eg via an AM injection targeting a given handler) or
 // execution of an AM handler violates its registration assertions, behavior is undefined.
 typedef struct {
     gex_AM_Index_t          gex_index;     // 0 or in [GEX_AM_INDEX_BASE .. 255]
@@ -1187,7 +1217,7 @@ unsigned int gex_AM_MaxArgs(void);
 //
 // The result of all four query functions is guaranteed to be at least 512 (bytes).
 //
-// The result is guaranteed to be stable thoughout a given job execution - ie
+// The result is guaranteed to be stable throughout a given job execution - ie
 // for the same set of input arguments, it will always return the same value.
 //
 // Aside from the explicit guarantees above, the result may otherwise vary with
@@ -3336,7 +3366,7 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 
 // [PROPOSED]
 // This section of this document covers APIs described in more detail in
-//   GASNet-EX API Proposal: Multi-EP, Revision 2020.6.1
+//   GASNet-EX API Proposal: Multi-EP, Revision 2020.11.1
 //
 // For functions, only prototypes and supported flags are provided here.
 // For function semantics, one should consult the document cited above.
@@ -3372,10 +3402,10 @@ int gex_TM_Destroy(
       // Valid flags:
       //   GEX_FLAG_GLOBALLY_QUIESCED
 
-// NOTE: gex_Segment_Create() takes a `client` argument which was
-// *not* included in the 2020.6.1 API proposal
-// NOTE: the `gex_MemKind_t` type has been renamed to `gex_MK_t`, and
-//       the `GEX_MEMKIND_HOST` constant has been renamed to `GEX_MK_HOST`.
+// NOTE: Changes relative to the 2020.6.1 API proposal include:
+//  + `gex_Segment_Create()` takes a `client` argument
+//  + the `gex_MemKind_t` type has been renamed to `gex_MK_t`
+//  + the `GEX_MEMKIND_HOST` constant has been renamed to `GEX_MK_HOST`.
 int gex_Segment_Create(
             gex_Segment_t   *segment_p,  // OUT
             gex_Client_t    client,
@@ -3386,8 +3416,9 @@ int gex_Segment_Create(
       // Valid flags:
       //   NONE - zero is currently required
 
-// NOTE: this is a renamed and argument-permuted replacement for the
-// gex_Segment_EP_Bind() appearing in the 2020.6.1 API proposal
+// NOTE: Changes relative to the 2020.6.1 API proposal include:
+//  + this is a renamed and argument-permuted replacement for the API
+//    `gex_Segment_EP_Bind()`
 void gex_EP_BindSegment(
             gex_EP_t        ep,
             gex_Segment_t   segment,
@@ -3415,12 +3446,12 @@ int gex_EP_Create(
       // Valid flags:
       //   NONE - zero is currently required
 
-// End of "GASNet-EX API Proposal: Multi-EP, Revision 2020.6.1" section
+// End of "GASNet-EX API Proposal: Multi-EP, Revision 2020.11.1" section
 //----------------------------------------------------------------------
 
 // [PROPOSED]
 // This section of this document covers APIs described in more detail in
-//   GASNet-EX API Proposal: Memory Kinds
+//   GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.0
 //
 // For functions, only prototypes and supported flags are provided here.
 // For function semantics, one should consult the document cited above.
@@ -3477,7 +3508,7 @@ void gex_MK_Destroy(
       // Valid flags:
       //   NONE - zero is currently required
 
-// End of "GASNet-EX API Proposal: Memory Kinds" section
+// End of "GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.0" section
 //----------------------------------------------------------------------
 
 // vim: syntax=c
