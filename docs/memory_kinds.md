@@ -30,8 +30,8 @@ implementation and is updated as that status changes.
 This document will make references to two other documents, which are
 available on request from gasnet-staff@lbl.gov:  
 
-  + GASNet-EX API Proposal: Multi-EP, Revision 2020.11.1
-  + GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.1
+  + GASNet-EX API Proposal: Multi-EP, Revision 2020.11.0
+  + GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.0
 
 For brevity, these will be referenced as "the Multi-EP Proposal" and
 "the Memory Kinds Proposal", respectively.
@@ -297,7 +297,7 @@ original proposals:
   + `gex_MemKind_Create_args_t` to `gex_MK_Create_args_t`
     - With `gex_mk_` shortened to `gex_` in naming of struct and union members
 
-The current (2020.11.1) revisions of the two API proposal documents use the
+The current (2020.11.0) revisions of the two API proposal documents use the
 names above, and the remainder of this section will utilize the new names
 exclusively.
 
