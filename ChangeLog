@@ -18,7 +18,7 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX.YY.ZZ: PENDING
+2020-10-30: GASNet-EX 2020.10.0 Release
 
 * General and Misc.
   - NEW: Improved compatability with heap analysis tools like Valgrind
@@ -47,6 +47,11 @@ GASNet-EX ChangeLog
   - The amudprun spawning protocol has changed slightly, breaking backwards
     compatibility for amudprun binaries built against earlier versions.
 
+* Unified Communication X framework (ucx-conduit) [EXPERIMENTAL]
+  - Tune the Active Message buffer handling, resulting in improved performance
+  - Fix an unreported defect in AM injection with asynchronous LC
+  - For details, see ucx-conduit/README
+
 * Platform support/portability
   - Installs on Cray XC systems now default to using linker options for
     low-level libraries that are more resilient to minor system upgrades. 
@@ -57,6 +62,8 @@ GASNet-EX ChangeLog
     in a host list (such as GASNET_SSH_SERVERS).  Setting the environment
     variable GASNET_SSH_KEEPDUP=1 restores the previous behavior.
     See other/ssh-spawner/README for details.
+  - Job exit no longer runs atexit handlers and static destructors on
+    the "hidden" processes used to implement ssh-spawner.
 
 * GASNet-EX Spec v0.9:
   - Restrict scratch sizes (query outputs and split inputs) for gex_TM_Split()
