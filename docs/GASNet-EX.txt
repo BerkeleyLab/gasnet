@@ -3366,7 +3366,7 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 
 // [PROPOSED]
 // This section of this document covers APIs described in more detail in
-//   GASNet-EX API Proposal: Multi-EP, Revision 2020.11.1
+//   GASNet-EX API Proposal: Multi-EP, Revision 2020.11.0
 //
 // For functions, only prototypes and supported flags are provided here.
 // For function semantics, one should consult the document cited above.
@@ -3446,7 +3446,7 @@ int gex_EP_Create(
       // Valid flags:
       //   NONE - zero is currently required
 
-// End of "GASNet-EX API Proposal: Multi-EP, Revision 2020.11.1" section
+// End of "GASNet-EX API Proposal: Multi-EP, Revision 2020.11.0" section
 //----------------------------------------------------------------------
 
 // [PROPOSED]
