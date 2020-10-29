@@ -3366,7 +3366,7 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 
 // [PROPOSED]
 // This section of this document covers APIs described in more detail in
-//   GASNet-EX API Proposal: Multi-EP, Revision 2020.11.0
+//   GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.0
 //
 // For functions, only prototypes and supported flags are provided here.
 // For function semantics, one should consult the document cited above.
@@ -3402,7 +3402,7 @@ int gex_TM_Destroy(
       // Valid flags:
       //   GEX_FLAG_GLOBALLY_QUIESCED
 
-// NOTE: Changes relative to the 2020.6.1 API proposal include:
+// NOTE: Changes relative to the 2020.6.1 Multi-EP API proposal include:
 //  + `gex_Segment_Create()` takes a `client` argument
 //  + the `gex_MemKind_t` type has been renamed to `gex_MK_t`
 //  + the `GEX_MEMKIND_HOST` constant has been renamed to `GEX_MK_HOST`.
@@ -3416,7 +3416,7 @@ int gex_Segment_Create(
       // Valid flags:
       //   NONE - zero is currently required
 
-// NOTE: Changes relative to the 2020.6.1 API proposal include:
+// NOTE: Changes relative to the 2020.6.1 Multi-EP API proposal include:
 //  + this is a renamed and argument-permuted replacement for the API
 //    `gex_Segment_EP_Bind()`
 void gex_EP_BindSegment(
@@ -3446,21 +3446,6 @@ int gex_EP_Create(
       // Valid flags:
       //   NONE - zero is currently required
 
-// End of "GASNet-EX API Proposal: Multi-EP, Revision 2020.11.0" section
-//----------------------------------------------------------------------
-
-// [PROPOSED]
-// This section of this document covers APIs described in more detail in
-//   GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.0
-//
-// For functions, only prototypes and supported flags are provided here.
-// For function semantics, one should consult the document cited above.
-// Copies of the most recent revision of that document are available on
-// request from gasnet-staff@lbl.gov.
-//
-// With the exceptions of the type gex_MK_t and constant GEX_MK_HOST,
-// APIs in this section are provided by gasnet_mk.h
-
 // gex_MK_t is an opaque scalar handle to a Memory Kind (MK)
 typedef ... gex_MK_t;
 
@@ -3470,6 +3455,10 @@ typedef ... gex_MK_t;
 
 // GEX_MK_HOST is a predefined constant for the "kind" for host memory
 #define GEX_MK_HOST ((gex_MK_t)???)
+
+// ****
+// The APIs in the remainder of this section are provided by gasnet_mk.h
+// ****
 
 // gex_MK_Class_t is enum naming available "classes" of memory kinds.
 // It includes at least the following values (in unspecified order):
@@ -3507,6 +3496,10 @@ void gex_MK_Destroy(
             );
       // Valid flags:
       //   NONE - zero is currently required
+
+// ****
+// End of APIs provided by gasnet_mk.h
+// ****
 
 // End of "GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.0" section
 //----------------------------------------------------------------------

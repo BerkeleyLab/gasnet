@@ -27,14 +27,12 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 This document provides a detailed status of the Memory Kinds feature
 implementation and is updated as that status changes.
 
-This document will make references to two other documents, which are
-available on request from gasnet-staff@lbl.gov:  
+This document makes references to an external document, which is available on
+request from gasnet-staff@lbl.gov:  
 
-  + GASNet-EX API Proposal: Multi-EP, Revision 2020.11.0
   + GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.0
 
-For brevity, these will be referenced as "the Multi-EP Proposal" and
-"the Memory Kinds Proposal", respectively.
+For brevity, this will be referenced as simply "the API Proposal".
 
 # General Usage
 
@@ -283,8 +281,9 @@ APIs, it is impossible to completely avoid forward references.
 
 ## Renames:
 
-Some types, constants and functions have been renamed relative to the
-original proposals:
+Some types, constants and functions have been renamed relative to their first
+appearances in the API Proposal (when it was known as "GASNet API Proposal:
+Multi-EP. Revision 2020.6.1"):
 
   + `gex_Segment_EP_Bind()` is replaced by `gex_EP_SegmentBind()`
   + `gex_MemKind_Create()` is replaced by `gex_MK_Create()`
@@ -297,9 +296,8 @@ original proposals:
   + `gex_MemKind_Create_args_t` to `gex_MK_Create_args_t`
     - With `gex_mk_` shortened to `gex_` in naming of struct and union members
 
-The current (2020.11.0) revisions of the two API proposal documents use the
-names above, and the remainder of this section will utilize the new names
-exclusively.
+The current (2020.11.0) revision of the API Proposal uses the names above, and
+the remainder of this section will utilize the new names exclusively.
 
 ## `gex_Segment_Attach()`
 
@@ -319,9 +317,9 @@ multi-EP support exists (see `gex_EP_Create()` for the current scope of
 multi-EP support).
 
 On ibv-conduit, specifically, the implementation of this API is believed to be
-complete with respect to the Multi-EP Proposal.  In particular, it is capable
-of creating segments of both client-allocated and GASNet-allocated memory,
-using either the defined `kind` value `GEX_MK_HOST` or a kind created using
+complete with respect to the API Proposal.  In particular, it is capable of
+creating segments of both client-allocated and GASNet-allocated memory, using
+either the defined `kind` value `GEX_MK_HOST` or a kind created using
 `gex_MK_Create()` with a class of `GEX_MK_CLASS_CUDA_UVA`.
 
 Notably lacking from both specification and implementation is a means to request
@@ -358,8 +356,8 @@ multi-EP support).
 
 ## `gex_EP_PublishBoundSegment()`
 
-This API did not appear in either the Multi-EP Proposal or Memory Kinds
-Proposal.  Complete semantics are documented in `docs/GASNet-EX.txt`.
+This API does not appear in the API Proposal, nor in related documents which
+preceded it.  Complete semantics are documented in `docs/GASNet-EX.txt`.
 
 This call is currently necessary as the only means to actively distribute the
 RMA credentials required by some conduits (ibv among them).  While this task is
@@ -375,7 +373,7 @@ multi-EP support).
 ## `gex_TM_Pair()`
 
 This API is believed to be fully implemented in all conduits and accepted by
-all APIs required to by the Multi-EP Proposal (notably the `gex_RMA_*()`,
+all APIs required to do so by the API Proposal (notably the `gex_RMA_*()`,
 `gex_AM_*()` and `gex_VIS_*() API families).
 
 Since multi-EP support is currently exclusive to ibv-conduit in FAST segment
@@ -400,8 +398,8 @@ Fully implemented.
 
 ## `gex_MK_Create()`
 
-This API is implemented as described in the Memory Kinds Proposal (with renames
-relative to the original proposal, as detailed earlier in this document), This
+This API is implemented as described in the API Proposal (with some renames
+relative to their first appearance, as detailed earlier in this document), This
 includes the conditional definition (defined to `1` or undefined) of
 `GASNET_HAVE_MK_CLASS_CUDA_UVA`, which is currently defined only when the
 necessary headers and libs were located at configure time *and* one is using
@@ -411,7 +409,7 @@ ibv-conduit in FAST segment mode.  In all other circumstances
 While `GASNET_HAVE_MK_CLASS_CUDA_UVA` has only a conditional definition, the
 enum value `GEX_MK_CLASS_CUDA_UVA` is defined unconditionally in `gasnet-mk.h`.
 Any calls to `gex_MK_Create()` specifying this class when *not* supported will
-return `GASNET_ERR_BAD_ARG`, as documented in the Memory Kinds Proposal.
+return `GASNET_ERR_BAD_ARG`, as documented in the API Proposal.
 
 ## `gex_MK_Destroy()`
 
