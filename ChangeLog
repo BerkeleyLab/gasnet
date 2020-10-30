@@ -40,44 +40,6 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-PENDING GASNet-EX "memory_kinds" feature branch
-
-* General and Misc.
-  - Initial implementation of "Memory Kinds": support for GASNet-EX remote
-    segments comprised of non-host memory.  This initial version supports only
-    UVA-based CUDA device memory and the GASNet-EX RMA APIs.  The file
-    docs/memory_kinds.txt provides an up-to-date summary of the status of the
-    memory kinds implementation.
-  - New GASNet trace/stats tracemask categories:
-    + O - Object creation, modification and destruction
-    + X - AMPoll
-
-* GASNet-EX Spec v0.11:
-  - Deprecate GEX_FLAG_TM_SCRATCH_SIZE_MIN flag and remove the corresponding
-    GASNET_COLL_MIN_SCRATCH_SIZE environment variable.
-  - Add GEX_FLAG_TM_NO_SCRATCH support in gex_TM_{Split,Create}(), eliminating
-    the requirement that a client always provide a collectives scratch space.
-
-* GASNet-EX Spec v0.12:
-  - Add the following APIs, types and constants as documented in "GASNet-EX API
-    Proposal: Memory Kinds, Revision 2020.11.0" (available on request):
-    + gex_TM_Pair()
-    + gex_Segment_Create()
-    + gex_EP_Create()
-    + gex_EP_BindSegment()
-    + gex_EP_PublishBoundSegment()
-    + gex_MK_t
-    + gex_MK_Class_t
-    + gex_MK_Create_args_t
-    + gex_MK_Create()
-    + gex_MK_Destroy()
-    + GEX_MK_HOST
-  - Add the following constants (zero values of the appropriate types)
-    + GEX_CLIENT_INVALID
-    + GEX_EP_INVALID
-    + GEX_MK_INVALID
-
-----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
 
 * General and Misc.
@@ -128,6 +90,44 @@ PENDING GASNet-EX "memory_kinds" feature branch
   - bug4145: Vector/Indexed incorrect with non-primordial teams and loopback/PSHM
   - bug4122: ODP support broken with recent libibverbs releases
   - bug4173: ibv: race in firehose on powerpc
+
+----------------------------------------------------------------------
+2020-10-30: GASNet-EX 2020.11.0 "Memory Kinds" Prototype Release
+
+* General and Misc.
+  - Initial implementation of "Memory Kinds": support for GASNet-EX remote
+    segments comprised of non-host memory.  This initial version supports only
+    UVA-based CUDA device memory and the GASNet-EX RMA APIs.  The file
+    docs/memory_kinds.txt provides an up-to-date summary of the status of the
+    memory kinds implementation.
+  - New GASNet trace/stats tracemask categories:
+    + O - Object creation, modification and destruction
+    + X - AMPoll
+
+* GASNet-EX Spec v0.11:
+  - Deprecate GEX_FLAG_TM_SCRATCH_SIZE_MIN flag and remove the corresponding
+    GASNET_COLL_MIN_SCRATCH_SIZE environment variable.
+  - Add GEX_FLAG_TM_NO_SCRATCH support in gex_TM_{Split,Create}(), eliminating
+    the requirement that a client always provide a collectives scratch space.
+
+* GASNet-EX Spec v0.12:
+  - Add the following APIs, types and constants as documented in "GASNet-EX API
+    Proposal: Memory Kinds, Revision 2020.11.0" (available on request):
+    + gex_TM_Pair()
+    + gex_Segment_Create()
+    + gex_EP_Create()
+    + gex_EP_BindSegment()
+    + gex_EP_PublishBoundSegment()
+    + gex_MK_t
+    + gex_MK_Class_t
+    + gex_MK_Create_args_t
+    + gex_MK_Create()
+    + gex_MK_Destroy()
+    + GEX_MK_HOST
+  - Add the following constants (zero values of the appropriate types)
+    + GEX_CLIENT_INVALID
+    + GEX_EP_INVALID
+    + GEX_MK_INVALID
 
 ----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.10.0 Release
