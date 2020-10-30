@@ -27,6 +27,10 @@
    If none of the above definitions are present, then thread-safety defaults to
      THREAD_SAFE if _REENTRANT or _THREAD_SAFE are defined and/or pthread.h is included, 
      and THREAD_SINGLE otherwise.
+
+   Headers should:
+     test for GASNETI_THREADS to determine if multiple threads might exist (such as for backtracing)
+     test for GASNETT_THREAD_SAFE to determine if multiple threads might call GASNet(_Tools) concurrently
 */
 #if defined(GASNETT_LITE_MODE) + defined(GASNETT_THREAD_SAFE) + defined(GASNETT_THREAD_SINGLE) > 1
   #error You must define at most one of: GASNETT_THREAD_SAFE, GASNETT_THREAD_SINGLE, GASNETT_LITE_MODE
@@ -52,14 +56,15 @@
   #undef GASNETT_THREAD_SAFE
   #define GASNETT_THREAD_SAFE 1
   #define GASNETT_THREAD_MODEL PAR
-  /* headers should test for GASNETI_THREADS, not GASNETT_THREAD_SAFE */
-  #ifndef GASNETI_THREADS 
-  #define GASNETI_THREADS 1
-  #endif
 #else
   #undef  GASNETT_THREAD_SINGLE
   #define GASNETT_THREAD_SINGLE 1
   #define GASNETT_THREAD_MODEL SEQ
+#endif
+#if GASNETT_THREAD_SAFE || defined(GASNET_PARSYNC)
+  #ifndef GASNETI_THREADS 
+  #define GASNETI_THREADS 1
+  #endif
 #endif
 
 #include <gasnet_config.h>

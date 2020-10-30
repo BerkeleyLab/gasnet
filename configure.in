@@ -10,8 +10,8 @@ define([cv_prefix],[gasnet_cv_])
 
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2020])
-define([GASNET_RELEASE_VERSION_MINOR_D],[3])
-define([GASNET_RELEASE_VERSION_PATCH_D],[1])
+define([GASNET_RELEASE_VERSION_MINOR_D],[10])
+define([GASNET_RELEASE_VERSION_PATCH_D],[0])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
 define([GASNETEX_SPEC_VERSION_MINOR_D],[10])
@@ -20,7 +20,7 @@ define([GASNET_SPEC_VERSION_MAJOR_D],[1])
 define([GASNET_SPEC_VERSION_MINOR_D],[8])
 dnl GASNet tools spec version:
 define([GASNETT_SPEC_VERSION_MAJOR_D],[1])
-define([GASNETT_SPEC_VERSION_MINOR_D],[15])
+define([GASNETT_SPEC_VERSION_MINOR_D],[16])
 
 define([GASNET_RELEASE_VERSION_D],
          [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])
@@ -769,7 +769,7 @@ case "$CC_FAMILY" in
        # PGI 20.1 introduced fine-grained warning control at the same time as
        # default-enabling a large number of useless warnings (on the level of
        # -Wextra in other compilers).
-       GASNET_TRY_CFLAG([--diag_suppress177],
+       GASNET_TRY_CFLAG([[-Wc,--diag_suppress=177]],
                         [MISC_CFLAGS="-w $MISC_CFLAGS"])
        ;;
   Sun) if test "$target_cpu" = "sparc"; then 
@@ -2631,6 +2631,9 @@ ifelse(CONDUIT_IMPLEMENTED,[no],[ enabled_[]$1=no ],[
   ])
 ])
 dnl GASNET_TOOLSONLY_FALSE_END
+dnl GASNET_TOOLSONLY_TRUE_BEGIN
+dnl enabled_[]$1=no
+dnl GASNET_TOOLSONLY_TRUE_END
 ])
 dnl CONDUIT_DISALLOW_SEGMENT(segment_type)
 AC_DEFUN([CONDUIT_DISALLOW_SEGMENT],[
@@ -2991,7 +2994,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
            # because it's not a valid option for PGI C compilation.
            GASNET_TRY_CXXFLAG([--display_error_number], [DEVWARN_CXXFLAGS="--display_error_number"])
 
-           GASNET_TRY_CXXFLAG([--diag_suppress177], [ 
+           GASNET_TRY_CXXFLAG([[-Wc,--diag_suppress=177]], [ 
              # Intentionally empty - this is just to test whether surgical warning suppresion is available
            ], [
              MISC_CXXFLAGS="-w $MISC_CXXFLAGS" # old versions of pgc++ have no way to indep control warnings
@@ -3539,6 +3542,7 @@ AM_CONDITIONAL(USE_SMP_CONDUIT, test "$enabled_smp" = yes)
 #
 
 CONDUIT_BEGIN(ucx,exp,[Unified Communication X conduit (ucx)])
+CONDUIT_DISALLOW_SEGMENT(everything)
 if test "$enabled_ucx" = no; then
     :
 elif test "$have_fork" = no; then

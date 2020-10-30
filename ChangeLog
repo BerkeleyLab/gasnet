@@ -18,7 +18,7 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX.YY.ZZ: PENDING
+2020-10-30: GASNet-EX 2020.10.0 Release
 
 * General and Misc.
   - NEW: Improved compatability with heap analysis tools like Valgrind
@@ -39,10 +39,18 @@ GASNet-EX ChangeLog
     Connected to this change, the default GASNET_NETWORKDEPTH_SPACE has
     increased from 12K to 16K, resulting in an increased default per-peer
     memory consumption for the Eager AM algorithm (not used at large scale).
+  - The parameter GASNET_GNI_ROUTING_MODE is now available to set the
+    Aries routing mode, accepting the same values as the parameter
+    MPICH_GNI_ROUTING_MODE used by Cray MPICH (see the intro_mpi manpage).
 
 * Portable UDP support (udp-conduit)
   - The amudprun spawning protocol has changed slightly, breaking backwards
     compatibility for amudprun binaries built against earlier versions.
+
+* Unified Communication X framework (ucx-conduit) [EXPERIMENTAL]
+  - Tune the Active Message buffer handling, resulting in improved performance
+  - Fix an unreported defect in AM injection with asynchronous LC
+  - For details, see ucx-conduit/README
 
 * Platform support/portability
   - Installs on Cray XC systems now default to using linker options for
@@ -54,6 +62,8 @@ GASNet-EX ChangeLog
     in a host list (such as GASNET_SSH_SERVERS).  Setting the environment
     variable GASNET_SSH_KEEPDUP=1 restores the previous behavior.
     See other/ssh-spawner/README for details.
+  - Job exit no longer runs atexit handlers and static destructors on
+    the "hidden" processes used to implement ssh-spawner.
 
 * GASNet-EX Spec v0.9:
   - Restrict scratch sizes (query outputs and split inputs) for gex_TM_Split()
@@ -72,6 +82,7 @@ GASNet-EX ChangeLog
     how PARSYNC libraries are built.
 
 * Notable bugs fixed in this release:
+  - bug3806: workaround xpmem startup failures while profiling (eg CrayPat)
   - bug4060: tools atomics using constructs deprecated in C++20
   - bug4061: aries-conduit startup time regression
   - bug4074: cross-configure scripts for KNL now default to --enable-large-pshm
@@ -84,6 +95,10 @@ GASNet-EX ChangeLog
   - bug4093: partial fix to scale "p2p" data with team size, not job size
   - bug4095: Incorrect algorithms for small scratch and/or large data
   - bug4103: Configure failures with -ffat-lto-objects in CFLAGS
+  - bug4127: Overflow for >2G pre-pinned memory (ibv-conduit)
+  - bug4135: Aries CE use with multi-domain support hangs
+  - bug4138: gasneti_argv_from_sysctl() failure for UPC++ codes on macOS 11
+  - bug4143: ibv-conduit GASNET_USE_FIREHOSE=0 support broken
   - bug3630/3828/3842: Various failures on testvis, testratomic, testslice
 
 ----------------------------------------------------------------------

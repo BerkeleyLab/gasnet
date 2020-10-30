@@ -3302,7 +3302,6 @@ static void gasnetc_exit_sighandler(int sig) {
 
 #if GASNET_DEBUG || GASNETC_IBV_ODP
   // protect until we reach reentrance check
-  GASNETC_EXIT_STATE("in exit sighandler");
   gasneti_reghandler(SIGALRM, _exit);
   gasneti_unblocksig(SIGALRM);
   alarm(30);

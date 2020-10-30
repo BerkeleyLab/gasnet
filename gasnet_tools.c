@@ -123,7 +123,8 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
 }
 #endif
 
-#if GASNETI_THREADS && GASNETI_BUG3430_WORKAROUND
+#if GASNETI_BUG3430_WORKAROUND
+  // Only used subject to GASNETI_USE_TRUE_MUTEXES, but that is not always available
   gasneti_mutex_t gasneti_bug3430_lock = GASNETI_MUTEX_INITIALIZER;
   gasneti_cond_t gasneti_bug3430_cond = GASNETI_COND_INITIALIZER;
   volatile int gasneti_bug3430_creating = 0;

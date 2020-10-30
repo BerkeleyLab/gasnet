@@ -130,7 +130,7 @@ extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *test
     void *owneraddr;
     void *localaddr;
     uintptr_t size;
-    check_zeroret(gex_Segment_QueryBound(myteam_arg, rank, &owneraddr, &localaddr, &size));
+    GASNET_Safe(gex_Segment_QueryBound(myteam_arg, rank, &owneraddr, &localaddr, &size));
     gasneti_assert_always_uint(size ,>=, TEST_SEGSZ);
     gasneti_assert_always_uint((((uintptr_t)owneraddr) % PAGESZ) ,==, 0);
     gasneti_assert_always_uint((((uintptr_t)localaddr) % PAGESZ) ,==, 0);

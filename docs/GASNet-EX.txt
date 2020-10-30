@@ -32,8 +32,8 @@
 // This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2020
-#define GASNET_RELEASE_VERSION_MINOR 3
-#define GASNET_RELEASE_VERSION_PATCH 1
+#define GASNET_RELEASE_VERSION_MINOR 10
+#define GASNET_RELEASE_VERSION_PATCH 0
 
 // Major and Minor versions of the GASNet-EX specification.
 //
@@ -53,7 +53,7 @@
 //
 // This is the spec version for the GASNet Tools
 #define GASNETT_SPEC_VERSION_MAJOR 1
-#define GASNETT_SPEC_VERSION_MINOR 15
+#define GASNETT_SPEC_VERSION_MINOR 16
 
 //
 // Relationship to GASNet-1 APIs:
@@ -3122,9 +3122,12 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 //----------------------------------------------------------------------
 
 // [PROPOSED]
-// The remainder of this document is for APIs descibed in more detail in
+// The remainder of this document is for APIs described in more detail in
 //   GASNet-EX API Proposal: Multi-EP, Revision 2020.6.1
 // Only prototypes and supported flags are provided here.
+//
+// Copies of the most recent revision of that document are available on
+// request from gasnet-staff@lbl.gov.
 
 size_t gex_TM_Create(
             gex_TM_t *new_tms,         // OUT
