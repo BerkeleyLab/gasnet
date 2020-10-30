@@ -40,7 +40,7 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-PENDING GASNet-EX "memory_kinds" feature branch
+2020-10-30: GASNet-EX 2020.11.0 "Memory Kinds" Prototype Release
 
 * General and Misc.
   - Initial implementation of "Memory Kinds": support for GASNet-EX remote
@@ -77,6 +77,7 @@ PENDING GASNet-EX "memory_kinds" feature branch
     + GEX_EP_INVALID
     + GEX_MK_INVALID
 
+----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.10.0 Release
 
 * General and Misc.
