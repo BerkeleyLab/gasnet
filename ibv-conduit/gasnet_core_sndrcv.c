@@ -2388,7 +2388,7 @@ extern int gasnetc_sndrcv_limits(void) {
   } else {
     gasnetc_am_oust_limit = MIN(gasnetc_am_oust_limit, gasnetc_op_oust_limit);
     if (gasnetc_am_oust_limit > gasnetc_num_qps * gasnetc_am_rqst_per_qp) {
-      GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDIT_{PP,TOTAL} exceed HCA capabilities");
+      GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDITS_{PP,TOTAL} exceed HCA capabilities");
     }
   }
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_AM_CREDITS_TOTAL = %d", gasnetc_am_oust_limit));
