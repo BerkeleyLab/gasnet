@@ -4762,24 +4762,27 @@ if test "$enable_mk_cuda_uva" != "no"; then
     # TODO: Can/should we scrape nvcc as UPC++ does?
     GASNET_PACKAGE_HOME(CUDA, [CUDA toolkit], [nvcc], [/usr/local/cuda], [include/cuda.h])
     GASNET_PACKAGE_CFLAGS(CUDA)
-    GASNET_ENV_DEFAULT(CUDA_LIBS, -lcudart -lcuda)
-    GASNET_PACKAGE_LDFLAGS(CUDA, cudart)
+    GASNET_ENV_DEFAULT(CUDA_LIBS, -lcuda)
+    GASNET_PACKAGE_LDFLAGS(CUDA, cuda)
     GASNET_SPLIT_LINKER_OPTS(CUDA_LDFLAGS,CUDA_LIBS)
 
-    # Try to compile and link a basic program using the CUDA Driver and Runtime APIs
+    # Try to compile and link a basic program using the CUDA Driver API
     GASNET_PUSHVAR(CFLAGS,"$CFLAGS $CUDA_CFLAGS")
     GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $CUDA_LDFLAGS")
     GASNET_PUSHVAR(LIBS,"$LIBS $CUDA_LIBS")
 
-    GASNET_TRY_CACHE_LINK(for CUDA runtime configuration, cudart_works, [
+    GASNET_TRY_CACHE_LINK(for working CUDA configuration, libcuda_works, [
       #include <cuda.h>
-      #include <cuda_runtime_api.h>
     ], [
       cuInit(0);
-      int count;
-      cudaError_t err = cudaGetDeviceCount(&count);
-      struct cudaDeviceProp dprop;
-      dprop.unifiedAddressing = 0;
+      CUdevice dev = 0;
+      CUcontext ctx;
+      CUresult res = cuDevicePrimaryCtxRetain(&ctx, dev);
+      int isUVA;
+      cuDeviceGetAttribute(&isUVA, CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING, dev);
+      CUpointer_attribute attrs[3] = { CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                       CU_POINTER_ATTRIBUTE_IS_MANAGED,
+                                       CU_POINTER_ATTRIBUTE_CONTEXT };
     ], [ : ], [ have_mk_cuda_uva=no; GASNET_ERR_SAVE() ])
 
     GASNET_POPVAR(LIBS)
