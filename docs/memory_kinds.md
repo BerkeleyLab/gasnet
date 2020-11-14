@@ -122,6 +122,10 @@ mechanisms are documented in `ibv-conduit/README`.
 For the most up-to-date information on this issue see
 [bug 4148](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4148)
 
+Additionally, the BAR1 usage (described earlier in this document) has been
+observed to be *per-HCA* and thus use of multiple rails may limit the size of
+GPU segments.
+
 ## Loopback
 
 The current implementation does not handle RMA operations between combinations
