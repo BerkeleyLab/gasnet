@@ -40,6 +40,10 @@ void gasneti_free_mk(gasneti_MK_t mk);
 GASNETI_MK_CLASS_DECL(cuda_uva)
 #endif
 
+#if GASNET_HAVE_MK_CLASS_HIP
+GASNETI_MK_CLASS_DECL(hip)
+#endif
+
 
 /*---------------------------------------------------------------------------------*/
 //

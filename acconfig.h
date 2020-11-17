@@ -223,6 +223,7 @@
 
 /* memory kinds support */
 #undef GASNETI_MK_CLASS_CUDA_UVA_ENABLED
+#undef GASNETI_MK_CLASS_HIP_ENABLED
 
 /* has clock_gettime() */
 #undef HAVE_CLOCK_GETTIME

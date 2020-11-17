@@ -4979,6 +4979,92 @@ AC_SUBST(CUDA_UVA_LDFLAGS)
 AC_SUBST(CUDA_UVA_LIBS)
 AM_CONDITIONAL(HAVE_MK_CLASS_CUDA_UVA, test "$have_mk_cuda_uva" = "yes")
 
+# GEX_MK_CLASS_HIP
+GASNET_IF_ENABLED_WITH_AUTO(kind-hip,
+        [support for memory kinds on HIP-compatible devices (auto-detected with --enable-memory-kinds, otherwise disabled)],
+        [enable_mk_hip="yes"; force_mk_hip="yes"],
+        [enable_mk_hip="no"], [
+         if test "x$enable_kind_hip" = 'xprobe'; then
+           enable_mk_hip="probe"
+         elif test "$GASNETI_PTR_BITS" = 32; then
+           enable_mk_hip="no"
+         else
+           enable_mk_hip="$enable_mk_default"
+         fi
+        ])
+unset have_mk_hip
+if test "$enable_mk_hip" != "no"; then
+  AC_MSG_CHECKING(for target having HIP memory kinds support)
+  if test "$GASNETI_PTR_BITS" = 32; then
+    AC_MSG_RESULT([no (32-bit targets are not supported)])
+    have_mk_hip=no
+  else
+    have_mk_hip=no
+    case "$target_cpu:$target_os" in
+      x86_64:linux*)    have_mk_hip='yes';;
+      powerpc*:linux*)  have_mk_hip='maybe';;
+      aarch64:linux*)   have_mk_hip='maybe';;
+    esac
+    if test "$have_mk_hip" = 'no'; then
+      AC_MSG_RESULT([no (unsupported or unrecognized target $target)])
+    else
+      AC_MSG_RESULT([$have_mk_hip])
+    fi
+  fi
+
+  if test "$have_mk_hip" != "no"; then
+    GASNET_PACKAGE_HOME(HIP, [HIP developer tools], [hipcc], [/opt/rocm], [include/hip/hip_runtime.h])
+    GASNET_PACKAGE_CFLAGS(HIP)
+    GASNET_ENV_DEFAULT(HIP_LIBS, -lamdhip64)
+    GASNET_PACKAGE_LDFLAGS(HIP, amdhip64)
+    GASNET_SPLIT_LINKER_OPTS(HIP_LDFLAGS,HIP_LIBS)
+
+    # Try to compile and link a basic program using the HIP Driver API
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $HIP_CFLAGS")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $HIP_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS $HIP_LIBS")
+
+    GASNET_TRY_CACHE_LINK(for working HIP configuration, libamdhip64_works, [
+      #define __HIP_PLATFORM_HCC__
+      #include <hip/hip_runtime_api.h>
+    ], [
+      void *addr;
+      hipInit(0);
+      hipDevice_t dev = 0;
+      hipPointerAttribute_t attr;
+      hipError_t res;
+      res = hipMalloc(&addr, 1024);
+      res = hipPointerGetAttributes(&attr, addr);
+      int bad = (attr.memoryType != hipMemoryTypeDevice) || attr.isManaged;
+    ], [ : ], [ have_mk_hip=no; GASNET_ERR_SAVE() ])
+
+    GASNET_POPVAR(LIBS)
+    GASNET_POPVAR(LDFLAGS)
+    GASNET_POPVAR(CFLAGS)
+  fi
+
+  # If the probe(s) above passed on a target identified as "maybe" having
+  # support, then upgrade to "yes" with a warning.
+  if test "$have_mk_hip" = "maybe"; then
+      have_mk_hip=yes
+      GASNET_MSG_WARN([HIP memory kinds support enabled for $target, which may not be officially supported])
+  fi
+
+  if test "$have_mk_hip" = "yes"; then
+    AC_DEFINE(GASNETI_MK_CLASS_HIP_ENABLED)
+  elif test "$force_mk_hip" = "yes"; then
+    GASNET_MSG_ERROR([HIP memory kinds support was requested with --enable-kind-hip but is not available])
+  else
+    unset HIP_CFLAGS
+    unset HIP_LDFLAGS
+    unset HIP_LIBS
+  fi
+fi
+AC_SUBST(HIP_CFLAGS)
+AC_SUBST(HIP_LDFLAGS)
+AC_SUBST(HIP_LIBS)
+AM_CONDITIONAL(HAVE_MK_CLASS_HIP, test "$have_mk_hip" = "yes")
+
 dnl GASNET_TOOLSONLY_FALSE_END
 ########################################################################
 
