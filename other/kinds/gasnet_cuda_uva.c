@@ -42,8 +42,6 @@ const char *_gasneti_cuerror_name(CUresult res) {
 #define gasneti_check_cudacall(op) do {              \
     CUresult _retval = (op);                                \
     if_pf (_retval) {                                       \
-      const char *_errorname;                               \
-      if (cuGetErrorName(_retval, &_errorname)) _errorname = "UNKNOWN"; \
       gasneti_fatalerror("%s returned "GASNETI_CURESULT_FMT,#op,GASNETI_CURESULT_STRING(_retval));\
     }                                                       \
   } while (0)
