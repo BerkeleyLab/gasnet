@@ -11,7 +11,6 @@
 #if GASNET_HAVE_MK_CLASS_CUDA_UVA // Else empty
 
 #include <cuda.h>
-#include <cuda_runtime_api.h>
 
 GASNETI_IDENT(gasneti_IdentString_MKClassCUDAUVA, "$GASNetMKClassCUDAUVA: 1 $");
 
