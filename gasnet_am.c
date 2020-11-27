@@ -477,7 +477,7 @@ void gasneti_init_srcdesc(GASNETI_THREAD_FARG_ALONE)
 #endif // GASNETI_NEED_INIT_SRCDESC
 #endif // _GEX_AM_SRCDESC_T
 
-#ifndef GASNETC_HAVE_NP_REQ_MEDIUM
+#ifndef GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        gex_TM_t           tm,
                        gex_Rank_t         rank,
@@ -517,9 +517,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REQ_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
-#ifndef GASNETC_HAVE_NP_REP_MEDIUM
+#ifndef GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Token_t        token,
                        const void        *client_buf,
@@ -550,9 +550,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REP_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
-#ifndef GASNETC_HAVE_NP_REQ_LONG
+#ifndef GASNET_NATIVE_NP_ALLOC_REQ_LONG
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                        gex_TM_t           tm,
                        gex_Rank_t         rank,
@@ -594,9 +594,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     GASNETI_TRACE_PREP_RETURN(REQUEST_LONG, sd);
     return gasneti_export_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REQ_LONG
+#endif // GASNET_NATIVE_NP_ALLOC_REQ_LONG
 
-#ifndef GASNETC_HAVE_NP_REP_LONG
+#ifndef GASNET_NATIVE_NP_ALLOC_REP_LONG
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
                        gex_Token_t        token,
                        const void        *client_buf,
@@ -629,9 +629,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
     GASNETI_TRACE_PREP_RETURN(REPLY_LONG, sd);
     return gasneti_export_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REP_LONG
+#endif // GASNET_NATIVE_NP_ALLOC_REP_LONG
 
-#ifndef GASNETC_HAVE_NP_REQ_MEDIUM
+#ifndef GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 void gasnetc_AM_CommitRequestMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes
@@ -671,9 +671,9 @@ void gasnetc_AM_CommitRequestMediumM(
 
     gasneti_reset_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REQ_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
-#ifndef GASNETC_HAVE_NP_REP_MEDIUM
+#ifndef GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 void gasnetc_AM_CommitReplyMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
@@ -711,9 +711,9 @@ void gasnetc_AM_CommitReplyMediumM(
 
     gasneti_reset_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REP_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
-#ifndef GASNETC_HAVE_NP_REQ_LONG
+#ifndef GASNET_NATIVE_NP_ALLOC_REQ_LONG
 void gasnetc_AM_CommitRequestLongM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
@@ -754,9 +754,9 @@ void gasnetc_AM_CommitRequestLongM(
 
     gasneti_reset_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REQ_LONG
+#endif // GASNET_NATIVE_NP_ALLOC_REQ_LONG
 
-#ifndef GASNETC_HAVE_NP_REP_LONG
+#ifndef GASNET_NATIVE_NP_ALLOC_REP_LONG
 void gasnetc_AM_CommitReplyLongM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
@@ -795,7 +795,7 @@ void gasnetc_AM_CommitReplyLongM(
 
     gasneti_reset_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REP_LONG
+#endif // GASNET_NATIVE_NP_ALLOC_REP_LONG
 
 /* ------------------------------------------------------------------------------------ */
 
