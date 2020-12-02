@@ -134,12 +134,19 @@ typedef struct {
 
   /* Provide tigher bounds based on parameters (*/
 /* Example for closed-form macros:
-#define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  ((size_t)###)
-#define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    ((size_t)###)
-#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    ((size_t)###)
-#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      ((size_t)###)
-#define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   ((size_t)###)
-#define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     ((size_t)###)
+ * Note the need to ensure every argument is evaluated *exactly once*.
+#define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  \
+        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)###)
+#define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    \
+        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)###)
+#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    \
+        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)###)
+#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      \
+        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)###)
+#define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   \
+        ((void)(token),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)###)
+#define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     \
+        ((void)(token),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)###)
  */
 /* Example for true functions:
 extern GASNETI_PURE size_t gasnetc_AM_MaxRequestMedium(

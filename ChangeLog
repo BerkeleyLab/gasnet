@@ -20,8 +20,10 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
 
-* PLACE HOLDER
+* Notable bugs fixed in this release:
+  - bug4159: AM max-payload queries do not evaluate arguments
 
+----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.10.0 Release
 
 * General and Misc.
