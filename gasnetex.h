@@ -250,6 +250,7 @@ GASNETI_BEGIN_NOWARN
 
 #ifndef GASNET_MAXEPS
   //  an integer representing the max supported number of endpoints per process
+  //  should be kept _STRINGIFY()-friendly (e.g. `4095` not `((1<<12)-1)`)
   #define GASNET_MAXEPS 1 // TODO: raise once multi-ep support becomes "the norm"
 #endif
 

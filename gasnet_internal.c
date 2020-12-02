@@ -557,7 +557,8 @@ gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
 static gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
                        gex_EP_Capabilities_t caps,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       int new_index)
 {
   gasneti_EP_t endpoint;
 #ifdef GASNETC_SIZEOF_EP_T
@@ -573,12 +574,9 @@ static gasneti_EP_t gasneti_alloc_ep(
   endpoint->_segment = NULL;
   endpoint->_orig_caps = endpoint->_caps = caps;
   endpoint->_flags = flags;
-  endpoint->_index = gasneti_weakatomic32_add(&client->_next_ep_index, 1, 0) - 1;
-  if (endpoint->_index >= GASNET_MAXEPS) {
-    gasneti_fatalerror("Call to gex_EP_Create() would exceed per-client EP limit of %d\n", (int)GASNET_MAXEPS);
-  }
-  gasneti_assert(! client->_ep_tbl[endpoint->_index]);
-  client->_ep_tbl[endpoint->_index] = endpoint;
+  endpoint->_index = new_index;
+  gasneti_assert(! client->_ep_tbl[new_index]);
+  client->_ep_tbl[new_index] = endpoint;
   gasneti_amtbl_init(endpoint->_amtbl);
 #ifndef GASNETC_EP_INIT_HOOK
   size_t extra = alloc_size - sizeof(*endpoint);
@@ -632,7 +630,13 @@ extern int gex_EP_Create(
 
   // TODO: any validation of flags? any conditional behaviors?
 
-  gasneti_EP_t ep = gasneti_alloc_ep(client, caps, flags);
+  uint32_t new_index = gasneti_weakatomic32_add(&client->_next_ep_index, 1, 0) - 1;
+  if_pf (new_index >= GASNET_MAXEPS) {
+    gasneti_weakatomic32_decrement(&client->_next_ep_index, 0);
+    GASNETI_RETURN_ERRR(RESOURCE,"would exceed per-client EP limit of " _STRINGIFY(GASNET_MAXEPS));
+  }
+    
+  gasneti_EP_t ep = gasneti_alloc_ep(client, caps, flags, new_index);
 
   // TODO: any need/want to omit on non-primordial EPs?
   { /*  core API handlers */
