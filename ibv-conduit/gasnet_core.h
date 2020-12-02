@@ -131,7 +131,7 @@ typedef struct {
 
 #define GASNETC_MAX_MEDIUM_(nargs) \
                (GASNETC_BUFSZ - \
-                GASNETI_ALIGNUP_NOASSERT(GASNETC_MEDIUM_HDRSZ + 4*(GASNETC_MAX_ARGS_EXTRA+nargs), \
+                GASNETI_ALIGNUP_NOASSERT(GASNETC_MEDIUM_HDRSZ + 4*(GASNETC_MAX_ARGS_EXTRA+(nargs)), \
                                          8))
 #define GASNETC_MAX_MEDIUM	GASNETC_MAX_MEDIUM_(GASNETC_MAX_ARGS_USER)
 #define GASNETC_MAX_LONG_REQ	(0x7fffffff)
