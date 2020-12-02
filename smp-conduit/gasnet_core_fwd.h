@@ -71,8 +71,17 @@
      your conduit must provide the V-suffixed functions for any of these that
      are not defined.
    */
-/* #define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1 */
-/* #define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM 1 */
+// smp-conduit falls into the degenerate case of these symbols, which
+// are specified to only denote behavior of the "network transport" which
+// does not exist in smp-conduit. In smp-conduit the *only* transport
+// is the shared-memory one (which is guaranteed to provide native behavior
+// for NPAM Medium). So setting these symbols for smp-conduit is 
+// technically redundant (and deliberately underspecified), but it was
+// deemed more helpful than harmful to client authors to have them set, 
+// so that clients don't need additional work to recognize/optimize for 
+// this special case.
+#define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1
+#define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM 1
 /* #define GASNET_NATIVE_NP_ALLOC_REQ_LONG 1 */
 /* #define GASNET_NATIVE_NP_ALLOC_REP_LONG 1 */
 
