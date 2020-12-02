@@ -40,6 +40,13 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+PENDING GASNet-EX "memory_kinds" feature branch
+
+* General and Misc.
+  - Calls to gex_EP_Create() which would exceed GASNET_MAXEPS now return
+    GASNET_ERR_RESOURCE rather than aborting.
+
+----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
 
 * Cray XC uGNI (aries-conduit)
