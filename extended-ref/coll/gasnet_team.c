@@ -961,7 +961,7 @@ size_t gasneti_blockingRotatedExchangeV(
     uint32_t nbytes = MIN(offset, len_array_sz - offset);
     uint32_t sent = 0;
     uint32_t arg1 = phase | (step << 1);
-    size_t limit = gasnetc_AM_MaxRequestMedium(tm,dest_rank,GEX_EVENT_GROUP,flags,4);
+    size_t limit = gex_AM_MaxRequestMedium(tm,dest_rank,GEX_EVENT_GROUP,0,4);
     do {
       const uint32_t to_xfer = MIN(nbytes - sent, limit);
       gex_AM_RequestMedium4(tm, dest_rank, _hidx_gasnete_rexchgv_reqh,
@@ -1035,7 +1035,7 @@ size_t gasneti_blockingRotatedExchangeV(
     uint32_t nbytes = MIN(l_sums[step], total_len - offset);
     uint32_t sent = 0;
     uint32_t arg1 = phase | (step << 1);
-    size_t limit = gasnetc_AM_MaxRequestMedium(tm,dest_rank,GEX_EVENT_GROUP,flags,4);
+    size_t limit = gex_AM_MaxRequestMedium(tm,dest_rank,GEX_EVENT_GROUP,0,4);
     do { // Note: must not skip nbytes==0 case, since message is needed for synchronization
       const uint32_t to_xfer = MIN(nbytes - sent, limit);
       gex_AM_RequestMedium4(tm, dest_rank, _hidx_gasnete_rexchgv_reqh,
