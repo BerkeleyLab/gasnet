@@ -494,7 +494,7 @@ void gasneti_checknpam(int for_reply GASNETI_THREAD_FARG) {
 #endif
 #endif // _GEX_AM_SRCDESC_T
 
-#ifndef GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
+#if !defined(GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM) || GASNET_CONDUIT_SMP
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        gex_TM_t           tm,
                        gex_Rank_t         rank,
@@ -538,7 +538,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
 }
 #endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
-#ifndef GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
+#if !defined(GASNET_NATIVE_NP_ALLOC_REP_MEDIUM) || GASNET_CONDUIT_SMP
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Token_t        token,
                        const void        *client_buf,
@@ -655,7 +655,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
 }
 #endif // GASNET_NATIVE_NP_ALLOC_REP_LONG
 
-#ifndef GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
+#if !defined(GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM) || GASNET_CONDUIT_SMP
 void gasnetc_AM_CommitRequestMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes
@@ -697,7 +697,7 @@ void gasnetc_AM_CommitRequestMediumM(
 }
 #endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
-#ifndef GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
+#if !defined(GASNET_NATIVE_NP_ALLOC_REP_MEDIUM) || GASNET_CONDUIT_SMP
 void gasnetc_AM_CommitReplyMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
