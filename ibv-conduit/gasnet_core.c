@@ -4,6 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
+#define GASNETI_NEED_GASNET_MK_H 1
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_am.h>
@@ -1044,9 +1045,15 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_physmem_check("Probing O/S limits and HCA capabilities", limit);
 }
 
-// TODO: enum instead of string-valued 'which'
-GASNETI_NORETURN
-static void gasneti_segreg_failed(size_t size, const char *which, int why) {
+enum gasnetc_segreg {
+  gasnetc_segreg_aux,
+  gasnetc_segreg_attach, // aka "primordial"
+  gasnetc_segreg_create
+};
+
+static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which, int why, gex_MK_Class_t mk_class)
+{
+  const char *descr = "";
   const char *hint1 = "";
   const char *hint2 = "";
 #if !GASNETI_PSHM_POSIX
@@ -1061,22 +1068,38 @@ static void gasneti_segreg_failed(size_t size, const char *which, int why) {
   // Cygwin, macOS and Solaris are not believed to back with a filesystem
   // Others are unknown
 #endif
-#ifdef GASNETC_PSHM_FS
-  if (why == EFAULT && strcmp(which, " device")) {
-    hint1 = "\n        This could be caused by insufficient space in " GASNETC_PSHM_FS " (or similar).";
-  }
-#endif
-  if (why == EFAULT && !strcmp(which, " device")) {
-    hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
-  }
-  if (! *which) { // empty string == NOT " aux" nor " device"
-    hint2 = "\n        Reducing the value of environment variable GASNET_MAX_SEGSIZE may help.";
+  switch (mk_class) {
+    case GEX_MK_CLASS_HOST:
+    #ifdef GASNETC_PSHM_FS
+      if (why == EFAULT) {
+        hint1 = "\n        This could be caused by insufficient space in " GASNETC_PSHM_FS " (or similar).";
+      }
+    #endif
+      if (which == gasnetc_segreg_attach) {
+          hint2 = "\n        Reducing the value of environment variable GASNET_MAX_SEGSIZE may help.";
+      } else if (which == gasnetc_segreg_aux) {
+          descr = " aux";
+      }
+      break;
+
+    #if GASNET_HAVE_MK_CLASS_CUDA_UVA
+    case GEX_MK_CLASS_CUDA_UVA:
+      descr = " CUDA_UVA";
+      if (why == EFAULT) {
+        hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+      }
+      break;
+    #endif
+
+    default: // avoids unhandled case warnings
+      break;
   }
   char sizestr[16];
-  gasneti_fatalerror("Unexpected error %s (errno=%d) when registering a %s%s segment%s%s",
+  return gasneti_dynsprintf(
+                     "Unexpected error %s (errno=%d) when registering a %s%s segment%s%s",
                      strerror(why), why,
                      gasnett_format_number(size, sizestr, sizeof(sizestr), 1),
-                     which, hint1, hint2);
+                     descr, hint1, hint2);
 }
 
 #if GASNET_TRACE
@@ -2484,7 +2507,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   
   GASNETC_FOR_ALL_HCA(hca) {
     if (0 != gasnetc_pin(hca, auxbase, auxsize, gasneti_seg_access_flags, &hca->aux_reg)) {
-      gasneti_segreg_failed(auxsize, " aux", errno);
+      gasneti_fatalerror(gasnetc_segreg_failed(auxsize, gasnetc_segreg_aux, errno, GEX_MK_CLASS_HOST));
     }
     // TODO_EX: need scalable and/or lazy storage of aux segments and their rkeys
     hca->aux_rkeys = gasneti_malloc(gasneti_nodes*sizeof(uint32_t));
@@ -2656,7 +2679,7 @@ static int gasnetc_attach_primary(void) {
 
 // Purely local memory registration and conduit-specific segment tracking
 // Applicable to both primordial and non-primordial segments
-static int gasnetc_segment_register(gasnetc_Segment_t segment)
+static int gasnetc_segment_register(gasnetc_Segment_t segment, int is_attach)
 {
 #if GASNETC_PIN_SEGMENT
     gasnetc_hca_t *hca;
@@ -2669,8 +2692,20 @@ static int gasnetc_segment_register(gasnetc_Segment_t segment)
       int rc = gasnetc_pin(hca, (void*)lb, ub - lb, gasneti_seg_access_flags, &memreg);
 
       if (rc) {
-        const char *which = gasneti_i_segment_kind_is_host((gasneti_Segment_t)segment) ? "" : " device";
-        gasneti_segreg_failed(segment->_size, which, errno);
+        if (gasneti_VerboseErrors) {
+          gex_MK_Class_t mk_class = (segment->_kind == GEX_MK_HOST)
+                                  ? GEX_MK_CLASS_HOST
+                                  : gex_MK_QueryClass(segment->_kind);
+          enum gasnetc_segreg which = is_attach ? gasnetc_segreg_attach : gasnetc_segreg_create;
+          gasneti_console_message("WARNING", gasnetc_segreg_failed(segment->_size, which, errno, mk_class));
+        }
+      #if (GASNETC_IB_MAX_HCAS > 1)
+        for (int i = 0; i < hca->hca_index; ++i) {
+          gasnetc_unpin(gasnetc_hca+i, segment->seg_reg+i);
+        }
+      #endif
+        // TODO: can we do better sorting out failure modes?
+        return GASNET_ERR_RESOURCE;
       }
       GASNETI_TRACE_PRINTF(I, ("Registered %"PRIuPTR" byte segment on HCA %d", segment->_size, hca->hca_index));
 
@@ -2802,7 +2837,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   #if GASNETC_PIN_SEGMENT
     // pin the segment 
     gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
-    int rc = gasnetc_segment_register(segment);
+    int rc = gasnetc_segment_register(segment, 1);
     if (rc) {
       gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
     }
@@ -2966,7 +3001,8 @@ extern int gasnetc_Segment_Create(
   if (rc == GASNET_OK) {
     // Register the segment
     gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
-    if (GASNET_OK != gasnetc_segment_register(segment)) {
+    rc = gasnetc_segment_register(segment, 0);
+    if ((GASNET_OK != rc) && (GASNET_ERR_RESOURCE != rc)) {
       gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
     }
   }
