@@ -153,7 +153,16 @@ extern gex_Rank_t gasneti_mynode;
 extern gex_Rank_t gasneti_nodes;
 #define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
 
+/* ------------------------------------------------------------------------------------ */
+extern int gasneti_VerboseErrors;
+#define gex_System_GetVerboseErrors() ((int)gasneti_VerboseErrors)
+GASNETI_INLINE(gex_System_SetVerboseErrors)
+void gex_System_SetVerboseErrors(int _enable) {
+  gasneti_assert(_enable == 1 || _enable == 0);
+  gasneti_VerboseErrors = _enable;
+}
 
+/* ------------------------------------------------------------------------------------ */
 #if GASNETI_TM0_ALIGN
 // We can detect TM0 by its better alignment than other tm's
 GASNETI_INLINE(gasneti_is_tm0)
