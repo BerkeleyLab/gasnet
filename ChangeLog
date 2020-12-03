@@ -48,6 +48,7 @@ PENDING GASNet-EX "memory_kinds" feature branch
 
 * GASNet-EX Spec v0.13: (work-in-progress)
   - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
+  - Add gex_System_{Get,Set}VerboseErrors()
 
 ----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
