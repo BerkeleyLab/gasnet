@@ -5141,7 +5141,7 @@ extern int gasnetc_AMRequestShortM(
   return retval;
 }
 
-#if !GASNETC_HAVE_NP_REQ_MEDIUM
+#if !GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 extern int gasnetc_AMRequestMediumV(
                             gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
@@ -5214,7 +5214,7 @@ extern int gasnetc_AMRequestLongM(
 
 // ---- external NPAM requests ----
 
-#if GASNETC_HAVE_NP_REQ_MEDIUM
+#if GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        gex_TM_t           tm,
@@ -5294,7 +5294,7 @@ extern void gasnetc_AM_CommitRequestMediumM(
     gasneti_reset_srcdesc(sd);
 }
 
-#endif // GASNETC_HAVE_NP_REQ_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 // ---- external FPAM replies ----
 
@@ -5314,7 +5314,7 @@ extern int gasnetc_AMReplyShortM(
   return retval;
 }
 
-#if !GASNETC_HAVE_NP_REP_MEDIUM
+#if !GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 extern int gasnetc_AMReplyMediumV(
                             gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
@@ -5373,7 +5373,7 @@ extern int gasnetc_AMReplyLongM(
 
 // ---- external NPAM replies ----
 
-#if GASNETC_HAVE_NP_REP_MEDIUM
+#if GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Token_t        token,
@@ -5443,7 +5443,7 @@ extern void gasnetc_AM_CommitReplyMediumM(
     gasneti_reset_srcdesc(sd);
 }
 
-#endif // GASNETC_HAVE_NP_REP_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 /* ------------------------------------------------------------------------------------ */
 /*
