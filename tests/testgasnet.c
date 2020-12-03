@@ -683,6 +683,12 @@ void doit(int partner, int *partnerseg) {
     assert_always(n_proc >= n_size && n_size >= h_size);
   }
 
+  assert_always(gex_System_GetVerboseErrors());
+  gex_System_SetVerboseErrors(0);
+  assert_always(!gex_System_GetVerboseErrors());
+  gex_System_SetVerboseErrors(1);
+  assert_always(gex_System_GetVerboseErrors());
+
   /* width-independent computation of an integer variable with unknown unsigned type */
   #if PLATFORM_ARCH_LITTLE_ENDIAN
     #define compute_uint_val(lval_u64,var) do {          \
