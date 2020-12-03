@@ -46,6 +46,9 @@ PENDING GASNet-EX "memory_kinds" feature branch
   - Calls to gex_EP_Create() which would exceed GASNET_MAXEPS now return
     GASNET_ERR_RESOURCE rather than aborting.
 
+* GASNet-EX Spec v0.13: (work-in-progress)
+  - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
+
 ----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
 

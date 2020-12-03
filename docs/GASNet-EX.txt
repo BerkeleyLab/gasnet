@@ -39,7 +39,7 @@
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 12
+#define GEX_SPEC_VERSION_MINOR 13 // work-in-progress, not "closed"
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -1549,6 +1549,26 @@ void *gex_AM_SrcDescAddr(gex_AM_SrcDesc_t sd);
 // Will be between the 'least_payload' and 'most_payload' passed
 // to the Prepare call (inclusive).
 size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
+
+// Native implementation indicators for negotiated-payload active messages
+// GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} symbols are defined to 1 or
+// undefined to indicate whether (or not, respectively) the implementation
+// of negotiated-payload AM Request/Reply Medium/Long (with a GASNet-allocated
+// source buffer, i.e., initiated with client_buf == NULL) for the network
+// transport of the current conduit are "native". This is a performance hint
+// to clients, and does not affect correctness or normative behavior.
+// The native designation implies that AM injection using these calls can avoid
+// one or more payload copies relative to the corresponding fixed-payload AM
+// call under the right conditions (which may be implementation dependent).
+// Note that in configurations providing GASNet shared-memory bypass for AM
+// to intra-nbrhd peers (activated by --enable-pshm, enabled by default), 
+// these only denote the behavior of the network transport (AM to peers outside
+// the caller's nbrhd). The shared-memory transport for all conduits always 
+// provides native behavior for Medium requests and replies.
+#define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM  1 or undefined
+#define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM  1 or undefined
+#define GASNET_NATIVE_NP_ALLOC_REQ_LONG    1 or undefined
+#define GASNET_NATIVE_NP_ALLOC_REP_LONG    1 or undefined
 
 //
 // gex_AM_Prepare calls
