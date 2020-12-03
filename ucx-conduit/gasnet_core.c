@@ -1681,7 +1681,7 @@ extern int gasnetc_AMRequestShortM(
   return retval;
 }
 
-#if !GASNETC_HAVE_NP_REQ_MEDIUM // (###)
+#if !GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM // (###)
 
 // This provides a template implementing the following two external functions:
 //     int gasnetc_AMRequestMediumV()
@@ -1748,7 +1748,7 @@ extern int gasnetc_AMRequestMediumM(
   return retval;
 }
 
-#else // GASNETC_HAVE_NP_REQ_MEDIUM
+#else // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 // This provides a template implementing the following three external functions:
 //     int gasnetc_AMRequestMediumM()
@@ -1763,7 +1763,7 @@ extern int gasnetc_AMRequestMediumM(
 // This example provides a specialized implementation of Negotiated-Payload
 // RequestMedium (by providing gasnetc_AM_PrepareRequestMedium() and
 // gasnetc_AM_CommitRequestMediumM()) and one must
-//    #define GASNETC_HAVE_NP_REQ_MEDIUM 1
+//    #define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1
 // in the conduit's gasnet_core_fwd.h to disable (conflicting) definitions in
 // the reference implementation.
 
@@ -1916,7 +1916,7 @@ extern void gasnetc_AM_CommitRequestMediumM(
 
     gasneti_reset_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REQ_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMRequestLong)
 int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
@@ -2009,7 +2009,7 @@ extern int gasnetc_AMReplyShortM(
   return retval;
 }
 
-#if !GASNETC_HAVE_NP_REP_MEDIUM // (###)
+#if !GASNET_NATIVE_NP_ALLOC_REP_MEDIUM // (###)
 
 // This provides a template implementing the following two external functions:
 //     int gasnetc_AMReplyMediumV()
@@ -2066,13 +2066,13 @@ extern int gasnetc_AMReplyMediumM(
   return retval;
 }
 
-#else // GASNETC_HAVE_NP_REP_MEDIUM
+#else // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 // This provides a template implementing the following three external functions:
 //     int gasnetc_AMReplyMediumM()
 //     int gasnetc_AM_PrepareReplyMedium()
 //     void gasnetc_AM_CommitReplyMediumM()
-// See comments with GASNETC_HAVE_NP_REQ_MEDIUM for more information.
+// See comments with GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM for more information.
 
 GASNETI_INLINE(gasnetc_prepare_rep_medium)
 int gasnetc_prepare_rep_medium(
@@ -2219,7 +2219,7 @@ extern void gasnetc_AM_CommitReplyMediumM(
     gasneti_reset_srcdesc(sd);
 }
 
-#endif // GASNETC_HAVE_NP_REP_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMReplyLong)
 int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
