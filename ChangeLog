@@ -20,6 +20,9 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
 
+* GASNet tools (spec v1.17)
+  - Add GASNETT_UNUSED_ARGS*() family of macros
+
 * Notable bugs fixed in this release:
   - bug4159: AM max-payload queries do not evaluate arguments
 

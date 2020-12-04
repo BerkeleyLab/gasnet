@@ -158,6 +158,17 @@ GASNETI_BEGIN_NOWARN
 #define gasnett_unreachable             gasneti_unreachable
 
 /* ------------------------------------------------------------------------------------ */
+/* discard macro aguments w/ compiler-specific warning supression */
+#define GASNETT_UNUSED_ARGS1            GASNETI_UNUSED_ARGS1
+#define GASNETT_UNUSED_ARGS2            GASNETI_UNUSED_ARGS2
+#define GASNETT_UNUSED_ARGS3            GASNETI_UNUSED_ARGS3
+#define GASNETT_UNUSED_ARGS4            GASNETI_UNUSED_ARGS4
+#define GASNETT_UNUSED_ARGS5            GASNETI_UNUSED_ARGS5
+#define GASNETT_UNUSED_ARGS6            GASNETI_UNUSED_ARGS6
+#define GASNETT_UNUSED_ARGS7            GASNETI_UNUSED_ARGS7
+#define GASNETT_UNUSED_ARGS8            GASNETI_UNUSED_ARGS8
+
+/* ------------------------------------------------------------------------------------ */
 /* portable memory barriers */
 
 #define gasnett_local_wmb()          gasneti_local_wmb()
