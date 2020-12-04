@@ -864,6 +864,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 //    #define OPTION_1_OF_3(x,y,z)  (GASNETI_UNUSED_ARGS2(y,z),(x))
 //    #define OPTION_2_OF_3(x,y,z)  (GASNETI_UNUSED_ARGS2(x,z),(y))
 //    #define OPTION_3_OF_3(x,y,z)  (GASNETI_UNUSED_ARGS2(x,y),(z))
+// See also: gasnetc_{AM,Token}_Max*() macros.
 
 #if PLATFORM_COMPILER_PGI
   GASNETI_INLINE(gasneti_empty_function)
