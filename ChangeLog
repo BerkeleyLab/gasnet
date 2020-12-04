@@ -50,6 +50,9 @@ PENDING GASNet-EX "memory_kinds" feature branch
   - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
   - Add gex_System_{Get,Set}VerboseErrors()
 
+* GASNet tools (spec v1.17)
+  - Add GASNETT_UNUSED_ARGS*() family of macros
+
 * Notable bugs fixed in this release:
   - bug4159: AM max-payload queries do not evaluate arguments
 
