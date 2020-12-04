@@ -89,6 +89,10 @@ will allow creation of device segments on a wider range of platforms and
 transparently stage transfers through host memory bounce buffers, but that is
 not yet present.
 
+If support is enabled at configure time, then the implementation will attempt
+to determine at runtime if GDR support is present or not.  If it is not, then
+`gex_MK_Create()` will fail with an appropriate message.
+
 ## Limits on GPU segment size
 
 Modern NVIDIA GPUs with GPUDirect utilize a "Base Address Register" mechanism
@@ -105,13 +109,6 @@ GASNet-EX segment created on a given node, as well as by other uses of
 GPUDirect RDMA such as an MPI implementation.  Typically a few tens of MB are
 also reserved by the driver itself.
 
-Currently, the implementation cannot determine at runtime if GDR support is
-present or not.  If it is not, then `gex_Segment_Create()` will fail with a
-message which suggests that "exhaustion of BAR1 resources" may be the cause.  If
-you have been directed to this documentation by that error message, then you
-should also consider the possibility that GDR support is not present, especially
-if the BAR1 resources, queried as described above, appear sufficient.
-
 ## GDR and Multi-rail
 
 Though our test and development systems have multi-rail InfiniBand networks,
@@ -124,6 +121,10 @@ mechanisms are documented in `ibv-conduit/README`.
 
 For the most up-to-date information on this issue see
 [bug 4148](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4148)
+
+Additionally, the BAR1 usage (described earlier in this document) has been
+observed to be *per-HCA* and thus use of multiple rails may limit the size of
+GPU segments.
 
 ## Loopback
 

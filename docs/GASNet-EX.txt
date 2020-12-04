@@ -2,28 +2,6 @@
 // GASNet-EX API Description //
 ///////////////////////////////
 
-NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
-NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
-NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
-
-  This is the "memory_kinds" feature branch of GASNet-EX, intended only
-  for use by developers with a specific interest in this feature.
-  Other client developers should consider use of the "stable" branch.
-  GASNet conduit developers not working specifically on memory kinds
-  should be targeting the "develop" branch for any pull requests.
-
-  While it is intended that features and capabilities introduced in this
-  branch will make their way into a full release of GASNet-EX, this is
-  only a prototype. All aspects of the APIs and capabilities first
-  introduced on this branch are subject to non-trivial changes before
-  the prototype stage ends.
-
-  More detailed information is available in docs/memory_kinds.md
-
-NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
-NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
-NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
-
 // This is *not* a final normative document.
 // This is "beta documentation" for a work-in-progress.
 //
@@ -55,13 +33,13 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2020
 #define GASNET_RELEASE_VERSION_MINOR 11
-#define GASNET_RELEASE_VERSION_PATCH 0
+#define GASNET_RELEASE_VERSION_PATCH 1
 
 // Major and Minor versions of the GASNet-EX specification.
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 12
+#define GEX_SPEC_VERSION_MINOR 13 // work-in-progress, not "closed"
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -140,6 +118,7 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 // gex_System_QueryMyPosition(), gex_System_QueryJob{Rank,Size}(), gex_HSL_*(),
 // gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*()
 // gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(),
+// gex_System_GetVerboseErrors(), gex_System_SetVerboseErrors(),
 // 
 // The following are conditionally permitted in handler context, the condition being the 
 // caller must be within an AMRequest handler and not holding a handler-safe lock:
@@ -231,6 +210,17 @@ gex_Rank_t gex_System_QueryJobRank(void);
 // Semantics in a resilient build will be defined in a later release.
 gex_Rank_t gex_System_QueryJobSize(void);
 
+// Utility
+
+// By default, certain non-fatal error returns in GASNet-EX will print messages
+// to the console.  This behavior can be queried and set with the following.
+
+// Returns non-zero if console messages are enabled for certain non-fatal errors.
+int gex_System_GetVerboseErrors();
+
+// Enable (1) or disable (0) console messages for certain non-fatal errors.
+// Values other than 0 and 1 are currently reserved.
+void  gex_System_SetVerboseErrors(int enable);
 
 // Events
 
@@ -1567,6 +1557,26 @@ void *gex_AM_SrcDescAddr(gex_AM_SrcDesc_t sd);
 // Will be between the 'least_payload' and 'most_payload' passed
 // to the Prepare call (inclusive).
 size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
+
+// Native implementation indicators for negotiated-payload active messages
+// GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} symbols are defined to 1 or
+// undefined to indicate whether (or not, respectively) the implementation
+// of negotiated-payload AM Request/Reply Medium/Long (with a GASNet-allocated
+// source buffer, i.e., initiated with client_buf == NULL) for the network
+// transport of the current conduit are "native". This is a performance hint
+// to clients, and does not affect correctness or normative behavior.
+// The native designation implies that AM injection using these calls can avoid
+// one or more payload copies relative to the corresponding fixed-payload AM
+// call under the right conditions (which may be implementation dependent).
+// Note that in configurations providing GASNet shared-memory bypass for AM
+// to intra-nbrhd peers (activated by --enable-pshm, enabled by default), 
+// these only denote the behavior of the network transport (AM to peers outside
+// the caller's nbrhd). The shared-memory transport for all conduits always 
+// provides native behavior for Medium requests and replies.
+#define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM  1 or undefined
+#define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM  1 or undefined
+#define GASNET_NATIVE_NP_ALLOC_REQ_LONG    1 or undefined
+#define GASNET_NATIVE_NP_ALLOC_REP_LONG    1 or undefined
 
 //
 // gex_AM_Prepare calls

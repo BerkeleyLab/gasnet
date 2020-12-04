@@ -40,6 +40,20 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+PENDING GASNet-EX "memory_kinds" feature branch
+
+* General and Misc.
+  - Calls to gex_EP_Create() which would exceed GASNET_MAXEPS now return
+    GASNET_ERR_RESOURCE rather than aborting.
+
+* GASNet-EX Spec v0.13: (work-in-progress)
+  - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
+  - Add gex_System_{Get,Set}VerboseErrors()
+
+* Notable bugs fixed in this release:
+  - bug4159: AM max-payload queries do not evaluate arguments
+
+----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.11.0 "Memory Kinds" Prototype Release
 
 * General and Misc.
