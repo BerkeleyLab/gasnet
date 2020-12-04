@@ -150,17 +150,17 @@ typedef struct {
 
   // TODO-EX: Medium sizes can be further improved upon for PSHM case
 #define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(size_t)GASNETC_MAX_MEDIUM_(nargs))
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),(size_t)GASNETC_MAX_MEDIUM_(nargs))
 #define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(size_t)GASNETC_MAX_MEDIUM_(nargs))
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),(size_t)GASNETC_MAX_MEDIUM_(nargs))
 #define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)GASNETC_MAX_LONG_REQ)
+        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)GASNETC_MAX_LONG_REQ)
 #define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)GASNETC_MAX_LONG_REP)
+        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)GASNETC_MAX_LONG_REP)
 #define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   \
-        ((void)(token),(void)(lc_opt),(void)(flags),(size_t)GASNETC_MAX_MEDIUM_(nargs))
+        (GASNETI_UNUSED_ARGS3(token,lc_opt,flags),(size_t)GASNETC_MAX_MEDIUM_(nargs))
 #define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     \
-        ((void)(token),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)GASNETC_MAX_LONG_REP)
+        (GASNETI_UNUSED_ARGS4(token,lc_opt,flags,nargs),(size_t)GASNETC_MAX_LONG_REP)
 
 /* ------------------------------------------------------------------------------------ */
 /*
