@@ -2696,7 +2696,7 @@ static int gasnetc_segment_register(gasnetc_Segment_t segment, int is_attach)
                                   ? GEX_MK_CLASS_HOST
                                   : gex_MK_QueryClass(segment->_kind);
           enum gasnetc_segreg which = is_attach ? gasnetc_segreg_attach : gasnetc_segreg_create;
-          gasneti_console_message("WARNING", gasnetc_segreg_failed(segment->_size, which, errno, mk_class));
+          gasneti_console_message("WARNING", "%s", gasnetc_segreg_failed(segment->_size, which, errno, mk_class));
         }
       #if (GASNETC_IB_MAX_HCAS > 1)
         for (int i = 0; i < hca->hca_index; ++i) {
