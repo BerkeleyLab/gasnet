@@ -218,6 +218,94 @@ void test_libgasnet_tools(void) {
     gasnett_getheapstats(&hs);
   }
   #endif
+  {
+    static int c1,c2,c3,c4,c5,c6,c7,c8; // zero-initialized counters
+
+    #define MACRO8A(a1,a2,a3,a4,a5,a6,a7,a8)  \
+            (GASNETT_UNUSED_ARGS8(a1,a2,a3,a4,a5,a6,a7,a8),8)
+    #define MACRO7A(a1,a2,a3,a4,a5,a6,a7) \
+            (GASNETT_UNUSED_ARGS7(a1,a2,a3,a4,a5,a6,a7),7)
+    #define MACRO6A(a1,a2,a3,a4,a5,a6) \
+            (GASNETT_UNUSED_ARGS6(a1,a2,a3,a4,a5,a6),6)
+    #define MACRO5A(a1,a2,a3,a4,a5) \
+            (GASNETT_UNUSED_ARGS5(a1,a2,a3,a4,a5),5)
+    #define MACRO4A(a1,a2,a3,a4) \
+            (GASNETT_UNUSED_ARGS4(a1,a2,a3,a4),4)
+    #define MACRO3A(a1,a2,a3) \
+            (GASNETT_UNUSED_ARGS3(a1,a2,a3),3)
+    #define MACRO2A(a1,a2) \
+            (GASNETT_UNUSED_ARGS2(a1,a2),2)
+    #define MACRO1A(a1) \
+            (GASNETT_UNUSED_ARGS1(a1),1)
+    int x;
+    x = MACRO8A(++c8,++c7,++c6,++c5,++c4,++c3,++c2,++c1);
+    x = MACRO7A(++c8,++c7,++c6,++c5,++c4,++c3,++c2);
+    x = MACRO6A(++c8,++c7,++c6,++c5,++c4,++c3);
+    x = MACRO5A(++c8,++c7,++c6,++c5,++c4);
+    x = MACRO4A(++c8,++c7,++c6,++c5);
+    x = MACRO3A(++c8,++c7,++c6);
+    x = MACRO2A(++c8,++c7);
+    x = MACRO1A(++c8);
+    assert_always(c1 == 1);
+    assert_always(c2 == 2);
+    assert_always(c3 == 3);
+    assert_always(c4 == 4);
+    assert_always(c5 == 5);
+    assert_always(c6 == 6);
+    assert_always(c7 == 7);
+    assert_always(c8 == 8);
+    assert_always(x == 1);
+
+    #define MACRO8B(a0,a1,a2,a3,a4,a5,a6,a7,a8) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS8(a1,a2,a3,a4,a5,a6,a7,a8);\
+            } while (0)
+    #define MACRO7B(a0,a1,a2,a3,a4,a5,a6,a7) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS7(a1,a2,a3,a4,a5,a6,a7);\
+            } while (0)
+    #define MACRO6B(a0,a1,a2,a3,a4,a5,a6) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS6(a1,a2,a3,a4,a5,a6);\
+            } while (0)
+    #define MACRO5B(a0,a1,a2,a3,a4,a5) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS5(a1,a2,a3,a4,a5);\
+            } while (0)
+    #define MACRO4B(a0,a1,a2,a3,a4) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS4(a1,a2,a3,a4);\
+            } while (0)
+    #define MACRO3B(a0,a1,a2,a3) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS3(a1,a2,a3);\
+            } while (0)
+    #define MACRO2B(a0,a1,a2) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS2(a1,a2);\
+            } while (0)
+    #define MACRO1B(a0,a1) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS1(a1);\
+            } while (0)
+    MACRO8B(8,++c8,++c7,++c6,++c5,++c4,++c3,++c2,++c1);
+    MACRO7B(7,++c8,++c7,++c6,++c5,++c4,++c3,++c2);
+    MACRO6B(6,++c8,++c7,++c6,++c5,++c4,++c3);
+    MACRO5B(5,++c8,++c7,++c6,++c5,++c4);
+    MACRO4B(4,++c8,++c7,++c6,++c5);
+    MACRO3B(3,++c8,++c7,++c6);
+    MACRO2B(2,++c8,++c7);
+    MACRO1B(1,++c8);
+    assert_always(c1 == 1*2);
+    assert_always(c2 == 2*2);
+    assert_always(c3 == 3*2);
+    assert_always(c4 == 4*2);
+    assert_always(c5 == 5*2);
+    assert_always(c6 == 6*2);
+    assert_always(c7 == 7*2);
+    assert_always(c8 == 8*2);
+    assert_always(x == 37);
+  }
   #if GASNET_PAR
     num_threads = test_thread_limit(num_threads);
     test_createandjoin_pthreads(num_threads, &test_libgasnetpar_tools, NULL, 0);
