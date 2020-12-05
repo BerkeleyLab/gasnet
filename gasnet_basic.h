@@ -847,5 +847,64 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #if !defined(GASNETT_USE_BUILTIN_UNREACHABLE) && GASNETI_COMPILER_HAS_BUILTIN(UNREACHABLE,unreachable)
     #define GASNETT_USE_BUILTIN_UNREACHABLE 1
 #endif
+
 /* ------------------------------------------------------------------------------------ */
+// Handling of unused macro arguments
+//
+// When writing function-like macros, it is often necessary to ensure that
+// every argument is evaluated exactly once for side-effects.  However, the
+// simple idiom `((void)(arg))` is not always sufficient because some
+// compilers will warn about expressions/statements "with no effect".
+//
+// This `GASNETI_UNUSED_ARGS{1..8}()` family of macros hides any
+// compiler-specific means of suppressing such warnings, and
+// provides a self-documenting name as well.
+//
+// Contrived example:
+//    #define OPTION_1_OF_3(x,y,z)  (GASNETI_UNUSED_ARGS2(y,z),(x))
+//    #define OPTION_2_OF_3(x,y,z)  (GASNETI_UNUSED_ARGS2(x,z),(y))
+//    #define OPTION_3_OF_3(x,y,z)  (GASNETI_UNUSED_ARGS2(x,y),(z))
+// See also: gasnetc_{AM,Token}_Max*() macros.
+
+#if PLATFORM_COMPILER_PGI
+  GASNETI_INLINE(gasneti_empty_function)
+  void gasneti_empty_function(void) {}
+  #define GASNETI_UNUSED_ARG_PRE_ gasneti_empty_function(),
+#endif
+
+#ifndef GASNETI_UNUSED_ARG_PRE_
+  #define GASNETI_UNUSED_ARG_PRE_ //empty
+#endif
+#ifndef GASNETI_UNUSED_ARG_
+  #define GASNETI_UNUSED_ARG_(x) (void)(x)
+#endif
+
+#define GASNETI_UNUSED_ARGS1(a1) \
+    (GASNETI_UNUSED_ARG_PRE_ GASNETI_UNUSED_ARG_(a1))
+#define GASNETI_UNUSED_ARGS2(a1,a2) \
+    (GASNETI_UNUSED_ARG_PRE_ GASNETI_UNUSED_ARG_(a1),GASNETI_UNUSED_ARG_(a2))
+#define GASNETI_UNUSED_ARGS3(a1,a2,a3) \
+    (GASNETI_UNUSED_ARG_PRE_ GASNETI_UNUSED_ARG_(a1),GASNETI_UNUSED_ARG_(a2),\
+     GASNETI_UNUSED_ARG_(a3))
+#define GASNETI_UNUSED_ARGS4(a1,a2,a3,a4) \
+    (GASNETI_UNUSED_ARG_PRE_ GASNETI_UNUSED_ARG_(a1),GASNETI_UNUSED_ARG_(a2),\
+     GASNETI_UNUSED_ARG_(a3),GASNETI_UNUSED_ARG_(a4))
+#define GASNETI_UNUSED_ARGS5(a1,a2,a3,a4,a5) \
+    (GASNETI_UNUSED_ARG_PRE_ GASNETI_UNUSED_ARG_(a1),GASNETI_UNUSED_ARG_(a2),\
+     GASNETI_UNUSED_ARG_(a3),GASNETI_UNUSED_ARG_(a4),GASNETI_UNUSED_ARG_(a5))
+#define GASNETI_UNUSED_ARGS6(a1,a2,a3,a4,a5,a6) \
+    (GASNETI_UNUSED_ARG_PRE_ GASNETI_UNUSED_ARG_(a1),GASNETI_UNUSED_ARG_(a2),\
+     GASNETI_UNUSED_ARG_(a3),GASNETI_UNUSED_ARG_(a4),GASNETI_UNUSED_ARG_(a5),\
+     GASNETI_UNUSED_ARG_(a6))
+#define GASNETI_UNUSED_ARGS7(a1,a2,a3,a4,a5,a6,a7) \
+    (GASNETI_UNUSED_ARG_PRE_ GASNETI_UNUSED_ARG_(a1),GASNETI_UNUSED_ARG_(a2),\
+     GASNETI_UNUSED_ARG_(a3),GASNETI_UNUSED_ARG_(a4),GASNETI_UNUSED_ARG_(a5),\
+     GASNETI_UNUSED_ARG_(a6),GASNETI_UNUSED_ARG_(a7))
+#define GASNETI_UNUSED_ARGS8(a1,a2,a3,a4,a5,a6,a7,a8) \
+    (GASNETI_UNUSED_ARG_PRE_ GASNETI_UNUSED_ARG_(a1),GASNETI_UNUSED_ARG_(a2),\
+     GASNETI_UNUSED_ARG_(a3),GASNETI_UNUSED_ARG_(a4),GASNETI_UNUSED_ARG_(a5),\
+     GASNETI_UNUSED_ARG_(a6),GASNETI_UNUSED_ARG_(a7),GASNETI_UNUSED_ARG_(a8))
+
+/* ------------------------------------------------------------------------------------ */
+
 #endif
