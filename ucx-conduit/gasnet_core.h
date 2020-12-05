@@ -155,17 +155,17 @@ size_t gasnetc_AMHeaderSize(void);
 #define gex_AM_LUBReplyLong()     (GASNETC_MAX_LONG_(GASNETC_MAX_ARGS))
 
 #define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(size_t)(GASNETC_MAX_MED_(nargs)))
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),(size_t)(GASNETC_MAX_MED_(nargs)))
 #define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(size_t)(GASNETC_MAX_MED_(nargs)))
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),(size_t)(GASNETC_MAX_MED_(nargs)))
 #define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(size_t)(GASNETC_MAX_LONG_(nargs)))
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),(size_t)(GASNETC_MAX_LONG_(nargs)))
 #define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(size_t)(GASNETC_MAX_LONG_(nargs)))
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),(size_t)(GASNETC_MAX_LONG_(nargs)))
 #define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   \
-        ((void)(token),(void)(lc_opt),(void)(flags),(size_t)(GASNETC_MAX_MED_(nargs)))
+        (GASNETI_UNUSED_ARGS3(token,lc_opt,flags),(size_t)(GASNETC_MAX_MED_(nargs)))
 #define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     \
-        ((void)(token),(void)(lc_opt),(void)(flags),(size_t)(GASNETC_MAX_LONG_(nargs)))
+        (GASNETI_UNUSED_ARGS3(token,lc_opt,flags),(size_t)(GASNETC_MAX_LONG_(nargs)))
 
 /* Example for true functions: */
 #if 0
