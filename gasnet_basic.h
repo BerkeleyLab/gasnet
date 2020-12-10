@@ -209,7 +209,8 @@
 #else
   // mismatch behavior: define away to nothing, which should always be safe
   //   define to 1 because 0 triggers use of (void*) in place of the typedef
-  #define GASNETI_RESTRICT                      GASNETI_COMPILER_FEATURE(RESTRICT,)
+  #define GASNETI_RESTRICT_NOOP                 // this intermediate avoids empty macro argument on next line
+  #define GASNETI_RESTRICT                      GASNETI_COMPILER_FEATURE(RESTRICT,GASNETI_RESTRICT_NOOP)
   #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS GASNETI_COMPILER_FEATURE(RESTRICT_MAY_QUALIFY_TYPEDEFS,1)
 #endif
 
