@@ -290,13 +290,13 @@ gex_EP_Index_t gasneti_tm_pair_rem_idx(gasneti_TM_Pair_t _tm_pair)
 
 
 // Given (tm,rank) return the jobrank or ep_location
-extern GASNETI_PURE gex_Rank_t        gasneti_tm_fwd_rank(gasneti_TM_t tm, gex_Rank_t rank);
+extern GASNETI_PURE gex_Rank_t        gasneti_tm_fwd_rank(gasneti_TM_t _tm, gex_Rank_t _rank);
 GASNETI_PUREP(gasneti_tm_fwd_rank)
-extern GASNETI_PURE gex_EP_Location_t gasneti_tm_fwd_location(gasneti_TM_t tm, gex_Rank_t rank, gex_Flags_t flags);
+extern GASNETI_PURE gex_EP_Location_t gasneti_tm_fwd_location(gasneti_TM_t _tm, gex_Rank_t _rank, gex_Flags_t _flags);
 GASNETI_PUREP(gasneti_tm_fwd_location)
 
 // Given (tm,jobrank) return the rank of jobrank in tm, or GEX_RANK_INVALID
-extern gex_Rank_t gasneti_tm_rev_rank(gasneti_TM_t tm, gex_Rank_t jobrank);
+extern gex_Rank_t gasneti_tm_rev_rank(gasneti_TM_t _tm, gex_Rank_t _jobrank);
 
 // Helpers which deal correctly/transparently with TM-pair
 GASNETI_INLINE(gasneti_e_tm_size)
@@ -1390,12 +1390,12 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 #if defined(PTHREAD_MUTEX_INITIALIZER) /* only if pthread.h available */ && !GASNET_SEQ
   /* gasneti_pthread_create() available on all non-SEQ builds w/ pthreads */
   typedef int (gasneti_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
-  extern int gasneti_pthread_create(gasneti_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+  extern int gasneti_pthread_create(gasneti_pthread_create_fn_t *_create_fn, pthread_t *_thread, const pthread_attr_t *_attr, void *(*_start_routine)(void *), void *_arg);
 
   #if defined(GASNETC_PTHREAD_CREATE_OVERRIDE)
     /* Capture existing defn, which could be another library's override */
-    static int gasneti_pthread_create_system(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg) {
-      return pthread_create(thread,attr,start_routine,arg);
+    static int gasneti_pthread_create_system(pthread_t *_thread, const pthread_attr_t *_attr, void *(*_start_routine)(void *), void *_arg) {
+      return pthread_create(_thread,_attr,_start_routine,_arg);
     }
     /* Install our override */
     #undef pthread_create
@@ -1655,12 +1655,12 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
 
 // Is the argument a *single* valid data type?
 GASNETI_INLINE(gasneti_dt_valid) GASNETI_PURE
-int gasneti_dt_valid(gex_DT_t dt) {
-  return (((dt) & _GEX_DT_VALID) && GASNETI_POWEROFTWO(dt));
+int gasneti_dt_valid(gex_DT_t _dt) {
+  return (((_dt) & _GEX_DT_VALID) && GASNETI_POWEROFTWO(_dt));
 }
 GASNETI_INLINE(gasneti_dt_valid_atomic) GASNETI_PURE
-int gasneti_dt_valid_atomic(gex_DT_t dt) {
-  return gasneti_dt_valid(dt) && (dt != GEX_DT_USER);
+int gasneti_dt_valid_atomic(gex_DT_t _dt) {
+  return gasneti_dt_valid(_dt) && (_dt != GEX_DT_USER);
 }
 #define gasneti_dt_valid_reduce gasneti_dt_valid
 
@@ -1681,9 +1681,9 @@ int gasneti_dt_valid_atomic(gex_DT_t dt) {
 // What is the size of the type?
 // TODO: might be made cheaper by encoding size into the GEX_DT_* constants
 GASNETI_INLINE(gasneti_dt_size) GASNETI_PURE
-size_t gasneti_dt_size(gex_DT_t dt) {
-  gasneti_assert(!gasneti_dt_4byte(dt) ^ !gasneti_dt_8byte(dt));
-  return (size_t) (gasneti_dt_4byte(dt) ? 4 : 8);
+size_t gasneti_dt_size(gex_DT_t _dt) {
+  gasneti_assert(!gasneti_dt_4byte(_dt) ^ !gasneti_dt_8byte(_dt));
+  return (size_t) (gasneti_dt_4byte(_dt) ? 4 : 8);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1766,16 +1766,16 @@ size_t gasneti_dt_size(gex_DT_t dt) {
 
 // Is the argument a *single* valid operation?
 GASNETI_INLINE(gasneti_op_valid) GASNETI_PURE
-int gasneti_op_valid(gex_OP_t op) {
-  return (((op) & _GEX_OP_VALID) && GASNETI_POWEROFTWO(op));
+int gasneti_op_valid(gex_OP_t _op) {
+  return (((_op) & _GEX_OP_VALID) && GASNETI_POWEROFTWO(_op));
 }
 GASNETI_INLINE(gasneti_op_valid_atomic) GASNETI_PURE
-int gasneti_op_valid_atomic(gex_OP_t op) {
-  return gasneti_op_valid(op) && gasneti_op_atomic(op);
+int gasneti_op_valid_atomic(gex_OP_t _op) {
+  return gasneti_op_valid(_op) && gasneti_op_atomic(_op);
 }
 GASNETI_INLINE(gasneti_op_valid_reduce) GASNETI_PURE
-int gasneti_op_valid_reduce(gex_OP_t op) {
-  return gasneti_op_valid(op) && gasneti_op_reduce(op);
+int gasneti_op_valid_reduce(gex_OP_t _op) {
+  return gasneti_op_valid(_op) && gasneti_op_reduce(_op);
 }
 
 // Predicates on masks:
