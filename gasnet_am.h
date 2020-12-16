@@ -579,11 +579,12 @@ extern int gasnetc_AMReplyLongV(
         gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
         if_pf (! mythread->loopback_requestBuf) {
             // Allocate both buffers, ensuring GASNETI_MEDBUF_ALIGNMENT (dflt 8-byte) alignment of each
-            size_t sz = GASNETI_ALIGNUP(GASNETC_MAX_MEDIUM_NBRHD,8) + GASNETC_MAX_MEDIUM_NBRHD;
+            size_t padded_max_med = GASNETI_ALIGNUP(GASNETC_MAX_MEDIUM_NBRHD, GASNETI_MEDBUF_ALIGNMENT);
+            size_t sz = padded_max_med + GASNETC_MAX_MEDIUM_NBRHD;
             uint8_t *buf = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT, sz);
             gasneti_leak_aligned(buf);
             mythread->loopback_requestBuf = buf;
-            mythread->loopback_replyBuf =   buf + GASNETI_ALIGNUP(GASNETC_MAX_MEDIUM_NBRHD,8);
+            mythread->loopback_replyBuf =   buf + padded_max_med;
             gasnete_register_threadcleanup(gasneti_loopback_cleanup_threaddata, buf);
         }
         return isReq ? mythread->loopback_requestBuf : mythread->loopback_replyBuf;
