@@ -286,8 +286,12 @@ typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
 typedef struct {
   gasneti_AMPSHM_msg_t msg;
   uint32_t numbytes;
-  uint8_t  mediumdata[4 + GASNETC_MAX_MEDIUM_NBRHD]; /* +4 to deal with 4 or 8-byte alignment */
+  uint8_t  mediumdata[1]; // flexible array member
 } gasneti_AMPSHM_medmsg_t;
+// Note: we round offset up to GASNETI_MEDBUF_ALIGNMENT boundary, since that is where payload will be placed
+#define GASNETI_AMPSHM_MEDMSG_DATA_OFFSET \
+        GASNETI_ALIGNUP(offsetof(gasneti_AMPSHM_medmsg_t,mediumdata), GASNETI_MEDBUF_ALIGNMENT)
+#define GASNETI_SIZEOF_AMPSHM_MEDMSG_T (GASNETI_AMPSHM_MEDMSG_DATA_OFFSET + GASNETC_MAX_MEDIUM_NBRHD)
 
 typedef struct {
   gasneti_AMPSHM_msg_t msg;
@@ -300,6 +304,7 @@ typedef union {
   gasneti_AMPSHM_medmsg_t   Medium;
   gasneti_AMPSHM_longmsg_t  Long;
 } gasneti_AMPSHM_maxmsg_t;
+#define GASNETI_SIZEOF_AMPSHM_MAXMSG_T GASNETI_SIZEOF_AMPSHM_MEDMSG_T
 
 /* atomic operations on queue tail */
 #if defined(GASNETI_HAVE_ATOMIC_CAS)
@@ -383,6 +388,8 @@ typedef struct gasneti_pshmnet_payload {
   size_t len;
   gasneti_AMPSHM_maxmsg_t data;
 } gasneti_pshmnet_payload_t;
+#define GASNETI_SIZEOF_PSHMNET_PAYLOAD_T \
+        (offsetof(gasneti_pshmnet_payload_t,data) + GASNETI_SIZEOF_AMPSHM_MAXMSG_T)
 
 /******************************************************************************
  * Payload memory allocator interface.
@@ -405,9 +412,11 @@ typedef struct {
   gasneti_atomic_t in_use;
   gasneti_pshmnet_payload_t payload;
 } gasneti_pshmnet_allocator_block_t;
+#define GASNETI_SIZEOF_PSHMNET_ALLOCATOR_BLOCK_T \
+        (offsetof(gasneti_pshmnet_allocator_block_t,payload) + GASNETI_SIZEOF_PSHMNET_PAYLOAD_T)
 
 #define GASNETI_PSHMNET_ALLOC_MAXSZ \
-    round_up_to_pshmpage(sizeof(gasneti_pshmnet_allocator_block_t))
+    round_up_to_pshmpage(GASNETI_SIZEOF_PSHMNET_ALLOCATOR_BLOCK_T)
 #define GASNETI_PSHMNET_ALLOC_MAXPG (GASNETI_PSHMNET_ALLOC_MAXSZ >> GASNETI_PSHMNET_PAGESHIFT)
 
 #define GASNETI_PSHMNET_MAX_PAYLOAD \
@@ -545,7 +554,10 @@ gasneti_pshmnet_init(void *region, size_t regionlen, gasneti_pshm_rank_t pshmnod
   void *myregion;
 
   /* make sure that our max buffer size fits all possible AMs */
-  gasneti_assert(sizeof(gasneti_AMPSHM_maxmsg_t) <= GASNETI_PSHMNET_MAX_PAYLOAD);
+  gasneti_assert(GASNETI_SIZEOF_AMPSHM_MAXMSG_T <= GASNETI_PSHMNET_MAX_PAYLOAD);
+  gasneti_assert(GASNETI_SIZEOF_AMPSHM_MAXMSG_T >= sizeof(gasneti_AMPSHM_shortmsg_t));
+  gasneti_assert(GASNETI_SIZEOF_AMPSHM_MAXMSG_T >= GASNETI_SIZEOF_AMPSHM_MEDMSG_T);
+  gasneti_assert(GASNETI_SIZEOF_AMPSHM_MAXMSG_T >= sizeof(gasneti_AMPSHM_longmsg_t));
 
   gasneti_assert((offsetof(gasneti_AMPSHM_medmsg_t, mediumdata) % 4) == 0);
 
@@ -554,12 +566,12 @@ gasneti_pshmnet_init(void *region, size_t regionlen, gasneti_pshm_rank_t pshmnod
       (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64)
     // Arbitrary choice of frequently-tested ABIs known to provide tight fit
     gasneti_assert((GASNETC_MAX_MEDIUM_NBRHD != GASNETC_MAX_MEDIUM_NBRHD_DFLT) || \
-                   (sizeof(gasneti_pshmnet_allocator_block_t) == 65536));
+                   (GASNETI_SIZEOF_PSHMNET_ALLOCATOR_BLOCK_T == 65536));
   #else
     // Other ABIs may have less restrictive alignments (allow 16-byte slack)
     gasneti_assert((GASNETC_MAX_MEDIUM_NBRHD != GASNETC_MAX_MEDIUM_NBRHD_DFLT) || \
-                   ((sizeof(gasneti_pshmnet_allocator_block_t) <= 65536) && \
-                    (sizeof(gasneti_pshmnet_allocator_block_t) >= 65536 - 16)));
+                   ((GASNETI_SIZEOF_PSHMNET_ALLOCATOR_BLOCK_T <= 65536) && \
+                    (GASNETI_SIZEOF_PSHMNET_ALLOCATOR_BLOCK_T >= 65536 - 16)));
   #endif
 
   szpernode = gasneti_pshmnet_memory_needed_pernode(pshmnodes);
@@ -1254,14 +1266,14 @@ static void * ampshm_buf_alloc(
         msgsz = sizeof(gasneti_AMPSHM_shortmsg_t);
         break;
       case gasneti_Medium:
-        msgsz = sizeof(gasneti_AMPSHM_medmsg_t) - (GASNETC_MAX_MEDIUM_NBRHD - nbytes);
+        msgsz = GASNETI_AMPSHM_MEDMSG_DATA_OFFSET + nbytes;
         break;
       case gasneti_Long:
         msgsz = sizeof(gasneti_AMPSHM_longmsg_t);
         break;
       default: gasneti_unreachable_error(("Invalid category=%i",(int)category));
     }
-    gasneti_assert_uint(msgsz ,<=, sizeof(gasneti_AMPSHM_maxmsg_t));
+    gasneti_assert_uint(msgsz ,<=, GASNETI_SIZEOF_AMPSHM_MAXMSG_T);
 
     /* Get buffer, poll if busy (unless IMMEDIATE)
        Lock serializes allocation so small messages can't starve large ones */
