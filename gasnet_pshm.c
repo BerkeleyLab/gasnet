@@ -1115,9 +1115,9 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 
 /* The mediumdata field may not be aligned */
 #define GASNETI_AMPSHM_MSG_MEDDATA_OFFSET \
-   (offsetof(gasneti_pshmnet_allocator_block_t, payload.data.Medium.mediumdata)&7)
+   (offsetof(gasneti_pshmnet_allocator_block_t, payload.data.Medium.mediumdata)&(GASNETI_MEDBUF_ALIGNMENT-1))
 #define GASNETI_AMPSHM_MSG_MEDDATA_SHIFT \
-   (GASNETI_AMPSHM_MSG_MEDDATA_OFFSET?(8-GASNETI_AMPSHM_MSG_MEDDATA_OFFSET):0)
+   (GASNETI_AMPSHM_MSG_MEDDATA_OFFSET?(GASNETI_MEDBUF_ALIGNMENT-GASNETI_AMPSHM_MSG_MEDDATA_OFFSET):0)
 
 #define GASNETI_AMPSHM_MSG_CATEGORY(msg)      (((gasneti_AMPSHM_msg_t*)msg)->category)
 #define GASNETI_AMPSHM_MSG_HANDLERID(msg)     (((gasneti_AMPSHM_msg_t*)msg)->handler_id)
