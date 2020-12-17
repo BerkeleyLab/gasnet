@@ -10,7 +10,7 @@
 #include <signal.h>
 #include <string.h>
 
-#define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (16*1024)
+#define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (4*GASNETC_MAX_MEDIUM(0))
 #define GASNETC_NETWORKDEPTH_TOTAL_DEFAULT 64
 #define GASNETC_NETWORKDEPTH_DEFAULT 64
 
@@ -2125,9 +2125,9 @@ gasnetc_alloc_request_post_descriptor_np(
 #if GASNETC_NP_MEDXL
   gasnetc_post_descriptor_t *gpd =
     request_post_descriptor_inner(dest, 0, 0, min_length, max_length, flags GASNETI_THREAD_PASS);
-  if (gpd && (gpd->pd.length > GASNETC_MSG_MAXSIZE)) {
+  if (gpd && (gpd->pd.length > GASNETC_MAX_MEDIUM(0))) {
     // We have a "extra large" landing zone on the peer, but the gpd has a
-    // source buffer of at most GASNETC_MSG_MAXSIZE.  We need an alternate.
+    // source buffer of at most GASNETC_MAX_MEDIUM(0).  We need an alternate.
     void *buf = gasneti_lifo_pop(&medxl_descriptor_pool);
     if_pf (! buf) buf = gasneti_malloc(am_maxcredit << am_slot_bits);
     gpd->pd.local_addr = (uint64_t) buf;
@@ -2136,8 +2136,7 @@ gasnetc_alloc_request_post_descriptor_np(
   return gpd;
 #else
   // TODO-EX: cannot negotiate larger than MaxMedium until/unless reply_pool is over-sized too
-  // We cannot send 65536 bytes in a 16-bit field (bug 4042)
-  max_length = MIN(max_length, MIN(GASNETC_MSG_MAXSIZE,65535));
+  max_length = MIN(max_length, GASNETC_MAX_MEDIUM(0));
   return request_post_descriptor_inner(dest, 0, 0, min_length, max_length, flags GASNETI_THREAD_PASS);
 #endif
 }
