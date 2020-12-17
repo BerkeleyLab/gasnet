@@ -24,7 +24,7 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-GASNETI_IDENT(gasnetc_IdentString_AMMaxMedium, "$GASNetAMMaxMedium: " _STRINGIFY(GASNETC_GNI_MAX_MEDIUM) " $");
+GASNETI_IDENT(gasnetc_IdentString_AMMaxMediumDefault, "$GASNetAMMaxMediumDefault: " _STRINGIFY(GASNETC_GNI_MAX_MEDIUM_DFLT) " $");
 
 static void gasnetc_atexit(int exitcode);
 
@@ -40,6 +40,8 @@ size_t gasnetc_sizeof_segment_t(void) {
   return sizeof(*segment);
 }
 
+size_t gasnetc_gni_lub_medium = (size_t)(-1); // "goes boom" if not overwritten
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -54,10 +56,6 @@ static void gasnetc_check_config(void) {
 
   gasneti_assert((1<<GASNETC_LOG2_MAXNODES) == GASNET_MAXNODES);
 
-  /* Otherwise space is being wasted: */
-  gasneti_assert(GASNETC_MSG_MAXSIZE ==
-                 (GASNETC_HEADLEN(medium, GASNETC_MAX_ARGS) + GASNETC_LUB_MEDIUM));
-  
   gasneti_assert((int)GC_CMD_AM_LONG_PACKED == ((int)GC_CMD_AM_LONG + 1));
 
   { gni_nic_device_t device_type;
@@ -222,7 +220,7 @@ void gasnetc_bootstrapBarrier_gni(void))
     phase ^= 1;
 }
 
-#define GASNETC_SYS_EXCHANGE_MAX GASNETC_GNI_MAX_MEDIUM
+#define GASNETC_SYS_EXCHANGE_MAX GASNETC_MAX_MEDIUM(2)
 static unsigned int gasnetc_sys_exchange_rcvd[2][GASNETC_LOG2_MAXNODES];
 static uint8_t *gasnetc_sys_exchange_buf[2] = { NULL, NULL };
 
@@ -639,6 +637,44 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasneti_assert_always(nidlist);
     gasneti_nodemapInit(NULL, nidlist, sizeof(int), sizeof(int));
   }
+
+  // Process GASNET_GNI_MAX_MEDIUM
+  // This must be done early because both initialization of PSHM and the
+  // GNI-level bootstrap collectives depend on this setting.
+  { const char *env_val =
+          gasneti_getenv_withdefault("GASNET_GNI_MAX_MEDIUM", GASNETC_GNI_MAX_MEDIUM_DFLT);
+    const char *p = env_val;
+    while (*p && isspace(*p)) p++; // eat spaces
+    int exact = (*p == '+');
+    gasnetc_gni_lub_medium = gasneti_parse_int(p, 1);
+    if ((gasnetc_gni_lub_medium < 512) || (gasnetc_gni_lub_medium > 65536) || (gasnetc_gni_lub_medium % 64)) {
+      gasneti_fatalerror("GASNET_GNI_MAX_MEDIUM setting (%s) is not valid.  "
+                         "The value must be a multiple of 64, between 512 and 65408, inclusive.  "
+                         "See aries-conduit README for more details.",
+                         env_val);
+    }
+    int orig = gasnetc_gni_lub_medium;
+    if (gasnetc_gni_lub_medium > 65408) {
+      // MUST make this adjustment for correctness, even if prefixed by '+' (bug 4042)
+      // However, since 65408 the advertised maximum, this is just an undocumented convenience.
+      gasnetc_gni_lub_medium = 65408;
+    } else if (!exact && !GASNETI_POWEROFTWO(gasnetc_gni_lub_medium + 64)) {
+      gasnetc_gni_lub_medium = gasnetc_prev_power_of_2(gasnetc_gni_lub_medium) - 64;
+      gasnetc_gni_lub_medium = MAX(512, gasnetc_gni_lub_medium);  // pointy corner
+    }
+    if ((gasnetc_gni_lub_medium != orig) && !exact && !gasneti_mynode) {
+      int is_max = (orig > 65408);
+      gasneti_console_message("WARNING", "GASNET_GNI_MAX_MEDIUM reduced from %d to %s value %d.  "
+                              "One may prefix the value with '+' to %ssilence this warning.",
+                              orig, is_max ? "the maximum" : "recommended", (int)gasnetc_gni_lub_medium,
+                              is_max ? "" : "prevent this behavior and ");
+    }
+  }
+
+  // Ensure different views of the max-sized medium and its buffer are consistent
+  gasneti_assert_uint(GASNETC_MSG_MAXSIZE ,==,
+                      gasnetc_gni_lub_medium + GASNETC_HEADLEN(medium, GASNETC_MAX_ARGS));
+  gasneti_assert_uint(GASNETC_MSG_MAXSIZE ,==, GASNETC_MAX_MEDIUM(0));
 
   #if GASNET_PSHM
     /* If your conduit will support PSHM, you should initialize it here.
