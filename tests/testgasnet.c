@@ -464,7 +464,7 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
   // verify that payload queries evalute their args exactly once
   #define CHECK_TOKEN_MAX_EVAL(cat) \
     do { \
-      int a = 0, b = 0, c = 0, d = 0, e = 0; \
+      int a = 0, b = 0, c = 0, d = 0; \
       (void) gex_Token_MaxReply##cat((a++,token),(b++,GEX_EVENT_NOW),(c++,0),(d++,0)); \
       assert_always(a==1); assert_always(b==1); assert_always(c==1); assert_always(d==1); \
     } while (0)
