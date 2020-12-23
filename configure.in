@@ -4758,7 +4758,7 @@ if test "$enable_mk_cuda_uva" != "no"; then
       CUresult res = cuDevicePrimaryCtxRetain(&ctx, dev);
       int isUVA;
       cuDeviceGetAttribute(&isUVA, CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING, dev);
-      CUpointer_attribute attrs[3] = { CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+      CUpointer_attribute attrs[[3]] = { CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
                                        CU_POINTER_ATTRIBUTE_IS_MANAGED,
                                        CU_POINTER_ATTRIBUTE_CONTEXT };
     ], [ : ], [ have_mk_cuda_uva=no; GASNET_ERR_SAVE() ])
