@@ -46,6 +46,12 @@ PENDING GASNet-EX "memory_kinds" feature branch
   - Calls to gex_EP_Create() which would exceed GASNET_MAXEPS now return
     GASNET_ERR_RESOURCE rather than aborting.
 
+* Cray XC uGNI (aries-conduit)
+  - A new environment variable GASNET_GNI_MAX_MEDIUM enables selecting the
+    size of AM Medium buffers at job launch, and the existing configure
+    option `--with-aries-max-medium` now sets the default value.
+    See details, including supported values, in the conduit README.
+
 * GASNet-EX Spec v0.13: (work-in-progress)
   - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
   - Add gex_System_{Get,Set}VerboseErrors()
