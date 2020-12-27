@@ -20,6 +20,12 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
 
+* Cray XC uGNI (aries-conduit)
+  - A new environment variable GASNET_GNI_MAX_MEDIUM enables selecting the
+    size of AM Medium buffers at job launch, and the existing configure
+    option `--with-aries-max-medium` now sets the default value.
+    See details, including supported values, in the conduit README.
+
 * GASNet tools (spec v1.17)
   - Add GASNETT_UNUSED_ARGS*() family of macros
 
