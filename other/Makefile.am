@@ -20,6 +20,7 @@ CONDUITMODE_SUBDIRS = \
 
 CONDUITMODE_EXTRADIST = \
 	amx         \
+	hwloc       \
 	ssh-spawner \
 	mpi-spawner \
 	pmi-spawner \
