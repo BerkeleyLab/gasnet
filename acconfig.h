@@ -242,6 +242,12 @@
 /* has Portable Linux Processor Affinity */
 #undef HAVE_PLPA
 
+/* Portable Hardware Locality (hwloc) library and command-line utils */
+#undef GASNETI_HAVE_HWLOC_LIB
+#undef GASNETI_HAVE_HWLOC_UTILS
+#undef GASNETI_HWLOC_BIND_PATH
+#undef GASNETI_HWLOC_CALC_PATH
+
 /* have ptmalloc's mallopt() options */
 #undef HAVE_PTMALLOC
 
