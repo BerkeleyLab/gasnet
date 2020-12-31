@@ -103,11 +103,9 @@ typedef struct {
 /*
   Protocol for TCP bootstrapping/control sockets
   initialization: 
-    worker->master (int32) - send my procid for init
+    worker->master (int32) - (reserved) send -1
     worker->master (en_t) - send my endpoint name for init
-   if received procid == AMUDP_PROCID_ALLOC
-    master->worker (int32 next_rank++)
-   else
+
     master->worker (int32 sizeof(AMUDP_SPMDBootstrapInfo_t))
     master->worker (AMUDP_SPMDBootstrapInfo_t) 
     master->worker (AMUDP_SPMDTranslation_name (variable size)) 
@@ -669,29 +667,21 @@ pollentry:
             #endif
 
             { // receive bootstrapping info
-              static int32_t next_procid = 0;
-              int32_t procid, procid_nb;
+              int32_t procid_nb;
               en_t name;
 
               recvAll(newcoord, &procid_nb, sizeof(procid_nb));
               recvAll(newcoord, &name, sizeof(name));
-              procid = ntoh32(procid_nb);
-              if (procid == AMUDP_PROCID_ALLOC) {
-                // This is a request (e.g. by a spawner) for a procid assignment
-                procid = next_procid++;
-                procid_nb = hton32(procid);
-                sendAll(newcoord, &procid_nb, sizeof(procid_nb));
-                shutdown(newcoord, SHUT_RDWR);
-                close_socket(newcoord);
-              } else {
-                // This is a worker connecting
-                if (procid == AMUDP_PROCID_NEXT) procid = next_procid++;
-                AMUDP_SPMDWorkerSocket[procid] = newcoord;
-                AMUDP_SPMDTranslation_name[procid] = name;
-                coordList.insert(newcoord);
-                allList.insert(newcoord);
-                numWorkersAttached++;
-              }
+              int32_t procid = ntoh32(procid_nb);
+              AMX_assert(procid == AMUDP_PROCID_NEXT);
+
+              // This is a worker connecting
+              procid = numWorkersAttached; // provisional procid
+              AMUDP_SPMDWorkerSocket[procid] = newcoord;
+              AMUDP_SPMDTranslation_name[procid] = name;
+              coordList.insert(newcoord);
+              allList.insert(newcoord);
+              numWorkersAttached++;
             }
 
             if (numWorkersAttached == AMUDP_SPMDNUMPROCS) { // all have now reported in, so we can begin computation
