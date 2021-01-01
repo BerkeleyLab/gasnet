@@ -3690,17 +3690,23 @@ if test "$enabled_ibv" = yes; then
 
     CONDUIT_SPAWNER
 
+    # Multirail support options
+    # ibv-conduit/README explains the interactions
     gasnetc_ibv_max_hcas=2
-    GASNET_IF_ENABLED(ibv-multirail, [Enable IBV over multiple HCAs, see ibv-conduit/README (disabled by default)], enabled_ibv_multirail=yes, enabled_ibv_multirail=no)
+    enabled_ibv_multirail=no
     GASNET_WITH(ibv-max-hcas,
-       [maximum number of IBV HCAs to open for multi-rail support (default is 2)],
+       [Maximum number of IBV HCAs to open (default is 1)],
        [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
           gasnetc_ibv_max_hcas="$withval"
+          enabled_ibv_multirail=yes
         else
           AC_MSG_ERROR([--with-ibv-max-hcas requires a positive integer argument])
         fi],
        [AC_MSG_ERROR([--with-ibv-max-hcas requires a positive integer argument])],
        [:])
+    GASNET_IF_ENABLED_WITH_AUTO(ibv-multirail,
+            [Enable IBV over multiple HCAs. Use of --with-ibv-max-hcas=N is prefered (see ibv-conduit/README for more info).],
+            enabled_ibv_multirail=yes, enabled_ibv_multirail=no)
     if test "$enabled_ibv_multirail" = yes; then
       AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_HCAS, $gasnetc_ibv_max_hcas)
     fi
