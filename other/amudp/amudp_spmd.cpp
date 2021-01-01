@@ -176,6 +176,25 @@ extern char *AMUDP_tagStr(tag_t tag, char *buf) {
   return buf;
 }
 //------------------------------------------------------------------------------------
+typedef struct {
+  en_t name;
+  SOCKET socket;
+} workerinfo_t;
+static int workerinfo_compare(const void *left_, const void *right_) {
+  workerinfo_t *left = (workerinfo_t *)left_;
+  workerinfo_t *right = (workerinfo_t *)right_;
+  uint32_t lip = ntohl(left->name.sin_addr.s_addr);
+  uint32_t rip = ntohl(right->name.sin_addr.s_addr);
+  uint16_t lport = ntohs(left->name.sin_port);
+  uint16_t rport = ntohs(right->name.sin_port);
+  // compare ascending by IP then port
+  if (lip < rip) return -1;
+  else if (rip < lip) return 1;
+  else if (lport < rport) return -1;
+  else if (rport < lport) return 1;
+  else return 0;
+}
+//------------------------------------------------------------------------------------
 static void setupStdSocket(SOCKET& ls, SocketList& list, SocketList& allList) {
   if ((int)list.getCount() < AMUDP_SPMDNUMPROCS) {
     SockAddr remoteAddr;
@@ -710,6 +729,20 @@ pollentry:
                          "ex: " AMX_ENV_PREFIX_STR "_WORKERIP=%s",
                          saw_local, AMUDP_SPMDNUMPROCS, SockAddr(&worker_subnet).IPStr());
                 force_output = true;
+              }
+
+              { // sort worker entries by name (ie IP address, port)
+                workerinfo_t *info_tmp = (workerinfo_t *)AMX_malloc(AMUDP_SPMDNUMPROCS * sizeof(workerinfo_t));
+                for (int i=0; i < AMUDP_SPMDNUMPROCS; i++) {
+                  info_tmp[i].name = AMUDP_SPMDTranslation_name[i];
+                  info_tmp[i].socket = AMUDP_SPMDWorkerSocket[i];
+                }
+                qsort(info_tmp, AMUDP_SPMDNUMPROCS, sizeof(workerinfo_t), &workerinfo_compare);
+                for (int i=0; i < AMUDP_SPMDNUMPROCS; i++) {
+                  AMUDP_SPMDTranslation_name[i] = info_tmp[i].name;
+                  AMUDP_SPMDWorkerSocket[i] = info_tmp[i].socket;
+                }
+                AMX_free(info_tmp);
               }
 
               int32_t bootstrapinfosz_nb = hton32(sizeof(bootstrapinfo));
