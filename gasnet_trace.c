@@ -346,6 +346,21 @@ size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
 }
 
 /* ------------------------------------------------------------------------------------ */
+/* Magic number trace formatting - legal even without STATS/TRACE */
+
+void gasneti_format_magic(char *buf, uint64_t magic) {
+  char *p = buf + snprintf(buf, GASNETI_MAX_MAGICSZ, "0x%016" PRIx64 "(", magic);
+  gasneti_magic_t m; m._u = magic;
+  for (int i = 0; i < sizeof(uint64_t); ++i) {
+    unsigned char c = m._c[i];
+    *(p++) = isprint((int)c) ? c : '?';
+  }
+  *(p++) = ')';
+  *(p++) = '\0';
+  gasneti_assert_uint(strlen(buf) ,==, GASNETI_MAX_MAGICSZ-1);
+}
+
+/* ------------------------------------------------------------------------------------ */
 
 /* line number control */
 #if GASNET_SRCLINES
