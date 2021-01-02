@@ -103,7 +103,7 @@ typedef struct {
 /*
   Protocol for TCP bootstrapping/control sockets
   initialization: 
-    worker->master (int32) - (reserved) send -1
+    worker->master (int32) - send a forced rank, or -1 for default allocation
     worker->master (en_t) - send my endpoint name for init
 
     master->worker (int32 sizeof(AMUDP_SPMDBootstrapInfo_t))
@@ -345,6 +345,16 @@ extern int AMUDP_SPMDMyProc() {
   }
   AMX_assert(AMUDP_SPMDMYPROC >= 0);
   return AMUDP_SPMDMYPROC;
+}
+/* ------------------------------------------------------------------------------------ */
+extern void AMUDP_SPMDSetProc(int rank) {
+  if (AMUDP_SPMDStartupCalled) 
+    AMX_Err("called AMUDP_SPMDSetProc after AMUDP_SPMDStartup()");
+  if (rank < 0 || AMUDP_SPMDMYPROC != AMUDP_PROCID_NEXT) 
+    AMX_Err("AMUDP_SPMDSetProc may be called at most once before AMUDP_SPMDStartup()");
+
+  AMX_assert(rank != AMUDP_PROCID_NEXT);
+  AMUDP_SPMDMYPROC = rank;
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_SPMDIsWorker(char **argv) {
@@ -685,17 +695,31 @@ pollentry:
             }
             #endif
 
+            static int forced_ranks = 0;
             { // receive bootstrapping info
               int32_t procid_nb;
               en_t name;
 
-              recvAll(newcoord, &procid_nb, sizeof(procid_nb));
-              recvAll(newcoord, &name, sizeof(name));
-              int32_t procid = ntoh32(procid_nb);
-              AMX_assert(procid == AMUDP_PROCID_NEXT);
-
               // This is a worker connecting
-              procid = numWorkersAttached; // provisional procid
+
+              recvAll(newcoord, &procid_nb, sizeof(procid_nb)); // procid request (if any)
+              recvAll(newcoord, &name, sizeof(name)); // worker address
+
+              int32_t procid = ntoh32(procid_nb);
+              if ( procid >= AMUDP_SPMDNUMPROCS || 
+                  (procid < 0 && procid != AMUDP_PROCID_NEXT) ) {
+                 AMX_FatalErr("Invalid forced rank assignment (%i) via WORKER_RANK envvar or AMUDP_SPMDSetProc", procid);
+              }
+              if (numWorkersAttached == 0) forced_ranks = (procid != AMUDP_PROCID_NEXT);
+              if ( ( procid == AMUDP_PROCID_NEXT && forced_ranks ) ||
+                   ( procid != AMUDP_PROCID_NEXT && !forced_ranks ) ) {
+                 AMX_FatalErr("Non-collective use of forced rank assignments via WORKER_RANK envvar or AMUDP_SPMDSetProc");
+              }
+              if (procid != AMUDP_PROCID_NEXT && AMUDP_SPMDWorkerSocket[procid] != INVALID_SOCKET) {
+                 AMX_FatalErr("Conflicting rank assignment (%i) by two or more worker processes via WORKER_RANK envvar or AMUDP_SPMDSetProc", procid);
+              }
+
+              if (procid == AMUDP_PROCID_NEXT) procid = numWorkersAttached; // provisional procid
               AMUDP_SPMDWorkerSocket[procid] = newcoord;
               AMUDP_SPMDTranslation_name[procid] = name;
               coordList.insert(newcoord);
@@ -731,7 +755,7 @@ pollentry:
                 force_output = true;
               }
 
-              { // sort worker entries by name (ie IP address, port)
+              if (!forced_ranks) { // sort worker entries by name (ie IP address, port)
                 workerinfo_t *info_tmp = (workerinfo_t *)AMX_malloc(AMUDP_SPMDNUMPROCS * sizeof(workerinfo_t));
                 for (int i=0; i < AMUDP_SPMDNUMPROCS; i++) {
                   info_tmp[i].name = AMUDP_SPMDTranslation_name[i];
@@ -994,6 +1018,20 @@ pollentry:
           AMX_RETURN_ERRFR(RESOURCE, AMUDP_SPMDStartup, "worker failed DNSLookup on master host name");
         }
         AMX_free(IPStr);
+      }
+    }
+
+    if (AMUDP_SPMDMYPROC == AMUDP_PROCID_NEXT) { 
+      // WORKER_RANK is *deliberately* not propagated or fetched from the master environment,
+      // because it must be set non-collectively by each worker process
+      const char *rank_str = AMUDP_getenv_prefixed_withdefault("WORKER_RANK", _STRINGIFY(AMUDP_PROCID_NEXT));
+      if (rank_str[0] >= 'A') { // indirect envvar load
+        rank_str = getenv(rank_str);
+        if (!rank_str) rank_str = _STRINGIFY(AMUDP_PROCID_NEXT);
+      }
+      int forced_rank = atoi( rank_str );
+      if (forced_rank != AMUDP_PROCID_NEXT) {
+        AMUDP_SPMDSetProc(forced_rank);
       }
     }
 
