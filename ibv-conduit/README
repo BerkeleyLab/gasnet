@@ -82,11 +82,14 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   By default, each ibv-conduit process in a GASNet job will open at most
   one Host Channel Adapter (HCA).  To allow a process to utilize more
-  than one HCA, specify '--enable-ibv-multirail' at configure time,
-  which will enable use of up to two HCAs.  To use more than two,
-  additionally specify '--with-ibv-max-hcas=N' at configure time (where
+  than one HCA, specify '--with-ibv-max-hcas=N' at configure time (where
   'N' is the number of HCAs to support per process).
-  
+  Alternatively, specifying '--enable-ibv-multirail' is equivalent to
+  '--with-ibv-max-hcas=2' unless an explicit '--with-ibv-max-hcas=N'
+  option provides a different value.  Passing '--disable-ibv-multirail'
+  is equivalent to '--with-ibv-max-hcas=1', overridding any explicit
+  '--with-ibv-max-hcas=N' options.
+
   When using dynamic connections (see GASNET_CONNECT_DYNAMIC env var,
   below) there is an extra thread spawned to block for the arrival of
   connection requests.  If needed, this can be disabled at configure

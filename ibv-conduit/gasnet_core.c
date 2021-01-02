@@ -1566,16 +1566,14 @@ static void gasnetc_probe_ports(int max_ports) {
   if ((ib_hcas > GASNETC_IB_MAX_HCAS) && (gasnetc_port_list == NULL)) {
 #if GASNETC_IBV_MAX_HCAS
     const char *current = "with '--with-ibv-max-hcas=" _STRINGIFY(GASNETC_IB_MAX_HCAS) "'";
-    const char *enable = "";
 #else
     const char *current = "without multi-rail support";
-    const char *enable = "--enable-ibv-multirail ";
 #endif
     fprintf(stderr, "WARNING: Found %d IB HCAs, but GASNet was configured %s.  "
 		    "To utilize all your HCAs, you should "
-		    "reconfigure GASNet with '%s--with-ibv-max-hcas=%d'.  You can silence this warning "
+		    "reconfigure GASNet using '--with-ibv-max-hcas=%d'.  You can silence this warning "
 		    "by setting the environment variable GASNET_IBV_PORTS as described in the file "
-		    "'gasnet/ibv-conduit/README'.\n", num_hcas, current, enable, num_hcas);
+		    "'gasnet/ibv-conduit/README'.\n", num_hcas, current, num_hcas);
   }
 
   int16_t pkey = get_pkey();
