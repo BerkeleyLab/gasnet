@@ -20,6 +20,10 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
 
+* General and Misc.
+  - Additional debug checks for use of calls which are prohibited in the NPAM
+    Prepare/Commit interval.
+
 * Cray XC uGNI (aries-conduit)
   - A new environment variable GASNET_GNI_MAX_MEDIUM enables selecting the
     size of AM Medium buffers at job launch, and the existing configure

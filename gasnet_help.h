@@ -1005,6 +1005,20 @@ extern int gasnete_maxthreadidx;
     gasneti_memcheck(gasnete_threadtable[_thid]);       \
 } while (0)
 
+// ------------------------------------------------------------------------------------
+// Checks for communication calls in invalid contexts
+//
+// TODO: should be expanded to check handler and HSL contexts as well (not just NPAM)
+
+#if GASNET_DEBUG
+  extern void gasneti_checknpam(int _for_reply GASNETI_THREAD_FARG);
+  #define GASNETI_CHECK_INJECT()        gasneti_checknpam(0 GASNETI_THREAD_GET)
+  #define GASNETI_CHECK_INJECT_REPLY()  gasneti_checknpam(1 GASNETI_THREAD_GET)
+#else
+  #define GASNETI_CHECK_INJECT(x)       ((void)0)
+  #define GASNETI_CHECK_INJECT_REPLY(x) ((void)0)
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* GASNet progressfn support
  * progressfns are internal functions that are called "periodically" by a conduit to 
@@ -1313,6 +1327,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   GASNETI_INLINE(_gasnet_AMPoll)
   int _gasnet_AMPoll(GASNETI_THREAD_FARG_ALONE) {
     GASNETI_TRACE_EVENT(X, AMPOLL);
+    GASNETI_CHECK_INJECT();
     return _gasneti_AMPoll(GASNETI_THREAD_PASS_ALONE);
   }
   #define gasnet_AMPoll() _gasnet_AMPoll(GASNETI_THREAD_GET_ALONE)

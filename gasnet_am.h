@@ -15,6 +15,7 @@
 
 #define GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs) do {      \
     GASNETI_CHECKATTACH();                                                     \
+    GASNETI_CHECK_INJECT();                                                    \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));              \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));               \
     gasneti_assert_int(numargs ,>=, 0);                                        \
@@ -24,6 +25,7 @@
   } while (0)
 #define GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                           \
+    GASNETI_CHECK_INJECT();                                                          \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                    \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                     \
     gasneti_assert_int(numargs ,>=, 0);                                        \
@@ -37,6 +39,7 @@
   } while (0)
 #define GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                                   \
+    GASNETI_CHECK_INJECT();                                                                  \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                            \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                             \
     gasneti_assert_int(numargs ,>=, 0);                                                      \
@@ -49,6 +52,7 @@
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
   } while (0)
 #define GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs) do {    \
+    GASNETI_CHECK_INJECT_REPLY();                                  \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));  \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));   \
     gasneti_assert_int(numargs ,>=, 0);                            \
@@ -56,6 +60,7 @@
     GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs);       \
   } while (0)
 #define GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
+    GASNETI_CHECK_INJECT_REPLY();                                                   \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                   \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                    \
     gasneti_assert_int(numargs ,>=, 0);                                             \
@@ -68,6 +73,7 @@
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_GROUP),BAD_ARG,"EVENT_GROUP is invalid for Replies"); \
   } while (0)
 #define GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
+    GASNETI_CHECK_INJECT_REPLY();                                                           \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                           \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                            \
     gasneti_assert_int(numargs ,>=, 0);                                                     \
@@ -375,6 +381,7 @@ gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
   if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {
     gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_PrepareRequest*() calls");
   }
+  GASNETI_CHECK_INJECT();
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
 #endif
@@ -395,6 +402,7 @@ gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
   if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {
     gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_PrepareReply*() calls");
   }
+  GASNETI_CHECK_INJECT_REPLY();
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
 #endif
