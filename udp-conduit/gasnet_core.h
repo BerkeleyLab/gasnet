@@ -31,6 +31,9 @@ GASNETI_NORETURNP(gasnetc_exit)
 /* Some conduits permit gasnet_init(NULL,NULL).
    Define to 1 if this conduit supports this extension, or to 0 otherwise.  */
 #define GASNET_NULL_ARGV_OK 1
+
+// convenience declaration
+extern void AMUDP_SPMDSetProc(int);
 /* ------------------------------------------------------------------------------------ */
 extern int gasnetc_Client_Init(
                 gex_Client_t           *_client_p,
