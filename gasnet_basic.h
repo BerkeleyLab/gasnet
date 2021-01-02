@@ -370,14 +370,20 @@
 #endif
 
 /* magic numbers for identifying/protecting types
- * WARNING: GASNETI_{CHECK,IMPORT}_MAGIC() may evaluate the pointer argument more than once!
+ * WARNING: GASNETI_{CHECK,IMPORT}_MAGIC() may evaluate the arguments more than once!
  */
 #define GASNETI_MAKE_MAGIC(c0,c1,c2,c3) GASNETI_SIGNATURE8('g','e','x',':',c0,c1,c2,c3)
 #define GASNETI_MAKE_BAD_MAGIC(c0,c1,c2,c3) GASNETI_SIGNATURE8('B','A','D',':',c0,c1,c2,c3)
 typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #if GASNET_DEBUG
   #define GASNETI_INIT_MAGIC(p,m)  ((void)((p)->_magic._u = (m)))
-  #define GASNETI_CHECK_MAGIC(p,m) do { if (p) gasneti_assert_uint((p)->_magic._u ,==, (m)); } while (0)
+  #define GASNETI_CHECK_MAGIC(p,m) do { \
+      if ((p) && ((p)->_magic._u != (m))) {                                             \
+        char buf1[GASNETI_MAX_MAGICSZ]; gasneti_format_magic(buf1, (p)->_magic._u);     \
+        char buf2[GASNETI_MAX_MAGICSZ]; gasneti_format_magic(buf2, (m));                \
+        gasneti_fatalerror("Found magic %s when expecting %s, aka %s", buf1, buf2, #m); \
+      }                                                                                 \
+    } while (0)
   #define GASNETI_IMPORT_MAGIC(p,type) do { \
       if ((p) && ((p)->_magic._u == GASNETI_##type##_BAD_MAGIC)) {              \
         gasneti_fatalerror("Likely use-after-free error for " #type " object"); \
