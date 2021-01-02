@@ -83,4 +83,14 @@ typedef struct gasneti_mk_impl_s gasneti_mk_impl_t;
 GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 
+#if GASNET_HAVE_MK_CLASS_HIP
+  // HIP platform was determined at GASNet-EX configure time.
+  // If these conflict with client code, then this is not the right GASNet-EX build
+  #if GASNETI_HIP_PLATFORM_NVCC
+    #define __HIP_PLATFORM_NVCC__
+  #else
+    #define __HIP_PLATFORM_HCC__
+  #endif
+#endif
+
 #endif

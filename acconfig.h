@@ -225,6 +225,10 @@
 #undef GASNETI_MK_CLASS_CUDA_UVA_ENABLED
 #undef GASNETI_MK_CLASS_HIP_ENABLED
 
+/* HIP platform */
+#undef GASNETI_HIP_PLATFORM_HCC
+#undef GASNETI_HIP_PLATFORM_NVCC
+
 /* has clock_gettime() */
 #undef HAVE_CLOCK_GETTIME
 

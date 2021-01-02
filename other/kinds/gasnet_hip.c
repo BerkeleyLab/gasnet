@@ -10,7 +10,6 @@
 
 #if GASNET_HAVE_MK_CLASS_HIP // Else empty
 
-#define __HIP_PLATFORM_HCC__
 #include <hip/hip_runtime_api.h>
 
 GASNETI_IDENT(gasneti_IdentString_MKClassHIP, "$GASNetMKClassHIP: 1 $");
@@ -61,8 +60,14 @@ int gasneti_MK_Create_hip(
   }
 
 #if PLATFORM_OS_LINUX && GASNET_CONDUIT_IBV
-  // Look for GDR support (AMD Kernel Fusion Driver == amdkfd).
-  if (access("/sys/kernel/mm/memory_peers/amdkfd/version", F_OK)) {
+ #if GASNETI_HIP_PLATFORM_NVCC
+  // Look for NVIDIA GDR support
+  const char *filename = "/sys/kernel/mm/memory_peers/nv_mem/version";
+ #else
+  // Look for AMD GDR support (AMD Kernel Fusion Driver == amdkfd).
+  const char *filename = "/sys/kernel/mm/memory_peers/amdkfd/version";
+ #endif
+  if (access(filename, F_OK)) {
     // TODO: gracefully fall back to "reference implementation",
     // once one is available, rather than failing.
     GASNETI_RETURN_ERRR(BAD_ARG,"GEX_MK_CLASS_HIP: kernel lacks GPUDirect RDMA support");
