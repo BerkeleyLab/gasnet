@@ -489,25 +489,27 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,rank,client_buf,least_payload,most_payload,flags,nargs);
+
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+
+    // Ensure at least one poll upon Request injection (exactly one if possible)
+#if GASNETC_REQUESTV_POLLS // Conduit's Request{Medium,Long}V will AMPoll in Commit
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) GASNETC_IMMEDIATE_MAYBE_POLL(flags);
+#else
+    GASNETC_IMMEDIATE_MAYBE_POLL(flags);
+#endif
+
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
-    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-
     if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
-        GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
         sd = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
                                                client_buf, least_payload, most_payload,
                                                NULL, lc_opt, flags, nargs);
     } else {
-        // Ensure at least one poll upon Request injection (exactly one if possible)
-        #if GASNETC_REQUESTV_POLLS
-            // Conduit's Request{Medium,Long}V will AMPoll in Commit
-        #else
-            GASNETC_IMMEDIATE_MAYBE_POLL(flags);
-        #endif
         size_t limit = gex_AM_MaxRequestMedium(tm, rank, lc_opt, flags, nargs);
         size_t size = MIN(most_payload, limit);
         sd->_tofree = gasneti_prepare_request_common(sd, tm, rank, client_buf, size, lc_opt, flags, nargs);
@@ -529,6 +531,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Flags_t        flags,
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REPLYMEDIUM(token,client_buf,least_payload,most_payload,flags,nargs);
+
     gasneti_AM_SrcDesc_t sd;
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
@@ -565,25 +569,26 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REQUESTLONG(tm,rank,client_buf,least_payload,most_payload,dest_addr,flags,nargs);
+
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    // Ensure at least one poll upon Request injection (exactly one if possible)
+#if GASNETC_REQUESTV_POLLS // Conduit's Request{Medium,Long}V will AMPoll in Commit
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) GASNETC_IMMEDIATE_MAYBE_POLL(flags);
+#else
+    GASNETC_IMMEDIATE_MAYBE_POLL(flags);
+#endif
+
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
 
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
-    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-
     if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
-        GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
         sd = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Long, jobrank,
                                                client_buf, least_payload, most_payload,
                                                dest_addr, lc_opt, flags, nargs);
     } else {
-        // Ensure at least one poll upon Request injection (exactly one if possible)
-        #if GASNETC_REQUESTV_POLLS
-            // Conduit's Request{Medium,Long}V will AMPoll in Commit
-        #else
-            GASNETC_IMMEDIATE_MAYBE_POLL(flags);
-        #endif
         size_t limit = gex_AM_MaxRequestLong(tm, rank, lc_opt, flags, nargs);
         size_t size = MIN(most_payload, limit);
         sd->_tofree = gasneti_prepare_request_common(sd, tm, rank, client_buf, size, lc_opt, flags, nargs);
@@ -607,6 +612,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
                        gex_Flags_t        flags,
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REPLYLONG(token,client_buf,least_payload,most_payload,dest_addr,flags,nargs);
+
     gasneti_AM_SrcDesc_t sd;
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
