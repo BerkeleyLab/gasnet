@@ -26,11 +26,18 @@ GASNet-EX ChangeLog
     option `--with-aries-max-medium` now sets the default value.
     See details, including supported values, in the conduit README.
 
+* Portable UDP support (udp-conduit)
+  - udp-conduit now defaults to grouping co-located processes into
+    contiguous rank ids. 
+  - New interfaces have been added for explicit control over rank
+    assignment (see udp-conduit README)
+
 * GASNet tools (spec v1.17)
   - Add GASNETT_UNUSED_ARGS*() family of macros
 
 * Notable bugs fixed in this release:
   - bug4159: AM max-payload queries do not evaluate arguments
+  - bug2036: Teach AMUDP to respect externally-imposed node ids
 
 ----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.10.0 Release
