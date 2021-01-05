@@ -1024,10 +1024,10 @@ pollentry:
     if (AMUDP_SPMDMYPROC == AMUDP_PROCID_NEXT) { 
       // WORKER_RANK is *deliberately* not propagated or fetched from the master environment,
       // because it must be set non-collectively by each worker process
-      const char *rank_str = AMUDP_getenv_prefixed_withdefault("WORKER_RANK", _STRINGIFY(AMUDP_PROCID_NEXT));
+      const char *rank_str = AMUDP_getenv_prefixed_withdefault("WORKER_RANK", AMX_STRINGIFY(AMUDP_PROCID_NEXT));
       if (rank_str[0] >= 'A') { // indirect envvar load
         rank_str = getenv(rank_str);
-        if (!rank_str) rank_str = _STRINGIFY(AMUDP_PROCID_NEXT);
+        if (!rank_str) rank_str = AMX_STRINGIFY(AMUDP_PROCID_NEXT);
       }
       int forced_rank = atoi( rank_str );
       if (forced_rank != AMUDP_PROCID_NEXT) {
