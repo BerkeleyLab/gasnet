@@ -622,7 +622,14 @@ extern int gex_Client_Init(
 //
 // NOTE: *currently* gex_Segment_Attach() is the only way to create a segment
 // suitable for use as the bound segment of a primordial endpoint (one created
-// by gex_Client_Init).
+// by gex_Client_Init).  In particular, the current release does not *yet*
+// support use of the APIs gex_Segment_Create(), gex_EP_BindSegment() and
+// gex_EP_PublishBoundSegment() as an alternative to Attach.  However, support
+// for that usage is anticipated in a future release.
+//
+// See also in [PROPOSED] section:
+//    gex_Segment_Create()
+//    gex_EP_BindSegment()
 //
 
 // Query owning client
@@ -881,6 +888,76 @@ gex_Segment_t gex_EP_QuerySegment(gex_EP_t ep);
 // [PROPOSED]
 gex_EP_Index_t gex_EP_QueryIndex(gex_EP_t ep);
 
+// Publish of EP's Bound Segment "RMA Credentials"
+//
+// Description:
+//   Some conduits require "credentials" to initiate communication targeting
+//   the bound segment of a remote endpoint.  This call performs any
+//   communication and setup necessary to ensure that after successful return
+//   the local process may safely initiate such communication with any
+//   endpoint named in this call which had a bound segment at the time of
+//   this call.
+//
+// Semantics:
+// + On success, returns GASNET_OK.
+// + Non-fatal failures return a documented error code.
+// + Lack of sufficient resources to satisfy the given request will yield a
+//   return of GASNET_ERR_RESOURCE.
+// + This call is collective over tm, which identifies a team used for
+//   underlying communication.
+// + The eps argument is an array of length num_eps (possibly zero) of valid
+//   endpoints.
+// + The num_eps argument may vary by caller (it is not required to be
+//   single-valued).
+// + This call publishes the bound segments, if any, of the endpoints named
+//   by the eps argument.
+// + The endpoint associated with tm is not implicitly Published, but it may
+//   be explicitly included in eps if Publication is desired.
+// + The concatenation of eps arrays must name distinct endpoints.
+//   Duplication is prohibited both within a given eps array, and across eps
+//   arrays passed by multiple tm (from the same team) within a given
+//   process.  This restriction may be relaxed in a future release.
+// + Upon successful return, the local process may safely initiate
+//   communication targeting the bound segment of any endpoint named by the
+//   eps arguments which had a bound segment prior to the corresponding entry
+//   to this collective call.
+// + It is permitted for eps to contain endpoints without a bound segment, in
+//   which case no credential will be published for such endpoints.
+// + It is permitted for the same endpoint to be the subject of multiple
+//   successive Publish operations and any bound segment will replace a prior
+//   Publish in which an endpoint had no bound segment.
+// + The allowance for multiple Publish operations includes the one implicit
+//   in gex_Segment_Attach().
+// + The endpoints named by eps must be idle for the duration of this operation.
+//   - No communication operations may be in-flight on any named endpoint
+//     when this operation starts.
+//   - No communication operations may be initiated on any named endpoint
+//     concurrent with this operation.
+//   - No AM Request may target any named endpoint for the duration of this
+//     operation.
+//   - As an exception to the restrictions above, inclusion of the endpoint
+//     associated with tm in eps is explicitly permitted.
+//   - A named endpoint may not be the subject of concurrent gex_Segment_*
+//     operations including (but not limited to) gex_Segment_QueryBound,
+//     gex_EP_BindSegment, and gex_EP_PublishBoundSegment.
+// + The publication of credentials is per local process and remote endpoint,
+//   independent of the specific team used to perform this operation.  This
+//   means that upon return, initiation of communication is permitted using
+//   any (tm_x, rank) pair from a participating process naming a participating
+//   remote endpoint, including initiation using a gex_TM_t created using
+//   gex_TM_Pair().  Additionally, this persists beyond destruction of the
+//   team used to Publish.
+// + The flags argument is reserved for future use and must currently be
+//   zero.
+// + This call is permitted but not required to incur barrier synchronization
+//   across the team.
+
+extern int gex_EP_PublishBoundSegment(
+                gex_TM_t               tm,
+                gex_EP_t               *eps,    // IN
+                size_t                 num_eps,
+                gex_Flags_t            flags);
+
 
 // Minimum permitted fixed index for AM handler registration.
 // Applies to both gasnet_attach() and gex_EP_RegisterHandlers().
@@ -1002,42 +1079,57 @@ unsigned int gex_AM_MaxArgs(void);
 //   named local and remote endpoint and the same 'lc_opt', numargs' and 'flags'
 //   arguments.
 //
-// 1. When (other_rank != GEX_RANK_INVALID)
+// 1. If 'tm' names a local endpoint which is not AM-capable, then the call
+//    is erroneous.  Here "AM-capable endpoint" is defined as any primordial
+//    endpoint or a non-primordial endpoint which was created with
+//    GEX_EP_CAPABILITY_AM.
+// 2. When (other_rank != GEX_RANK_INVALID)
 //    a. The result of each query is a function of the 'numargs', 'lc_opt' and
 //       'flags' arguments, and the two endpoints (one local and one remote)
 //       named by the tuple consisting of the 'tm' and 'other_rank' arguments.
 //    b. The result is independent of *how* the endpoints are named, such as by
-//       distinct 'tm' values with overlapping membership.
-// 2. When (other_rank == GEX_RANK_INVALID)
-//    a. The result of each query is a min-of-maxes over all remote
+//       distinct 'tm' values with overlapping membership or use of a TM-pair.
+//    c. If the remote endpoint named by the '(tm,other_rank)' tuple is not
+//       AM-capable or does not exist (only possible with a TM-pair), then the
+//       call is erroneous.
+// 3. When (other_rank == GEX_RANK_INVALID)
+//    a. The result of each query is a min-of-maxes over all AM-capable remote
 //       endpoints that are addressable with the given 'tm' when 'other_rank'
 //       is varied over its valid range, with the given 'numargs', 'lc_opt' and
 //       'flags' arguments.
-// 3. The result of each query function is guaranteed to be symmetric with
+//    b. This valid range excludes any endpoints which are not AM-capable.
+//    c. In the case that 'tm' is a TM-pair, the valid range also excludes
+//       jobranks which do not have an endpoint at the associated remote
+//       endpoint index.
+//    d. If valid range defined above is empty (no AM-capable endpoints are
+//       addressable), then the call is erroneous.
+// 4. The result of each query function is guaranteed to be symmetric with
 //    respect to exchanging the local and remote endpoints.  Two calls, by
 //    appropriate processes, that reverse the local and remote endpoint roles
 //    while keeping all other input arguments equal, are guaranteed to return
 //    the same value.  Note this does NOT imply any relationship between the
 //    results of different query functions (eg MaxRequestMedium versus
 //    MaxReplyMedium).
-// 4. When (other_rank == GEX_RANK_INVALID) all callers providing a 'tm' naming
+// 5. When (other_rank == GEX_RANK_INVALID) all callers providing a 'tm' naming
 //    the same set of participating endpoints are guaranteed to get the same
-//    result when given the same values for the other input arguments.
-// 5. Due to the symmetry properties described above, 'other_rank' can (and
+//    result when given the same values for the other input arguments.  Due to
+//    the symmetry noted above, this includes two calls using TM-pairs to
+//    identify the same two endpoints.
+// 6. Due to the symmetry properties described above, 'other_rank' can (and
 //    therefore should) always name the other party in the communication,
 //    regardless of whether that rank or the caller is to be the sender or the
 //    receiver.
-// 6. 'numargs' must be between 0 and gex_AM_MaxArgs(), inclusive.  It is
+// 7. 'numargs' must be between 0 and gex_AM_MaxArgs(), inclusive.  It is
 //    guaranteed that increasing 'numargs' will produce monotonically non-
 //    increasing results when all other parameters are held fixed.
-// 7. 'lc_opt' indicates the payload local completion option to be used for
+// 8. 'lc_opt' indicates the payload local completion option to be used for
 //    the AM injection or prepare call in question.  The predefined constants
 //    GEX_EVENT_NOW and GEX_EVENT_GROUP should be used directly, while a
 //    pointer to any variable of type gex_Event_t (or a NULL pointer) may be
 //    used interchangeably to indicate that the injection or prepare call
 //    passes any such value (without requiring that the same pointer value be
 //    passed).
-// 8. 'flags' indicates the flags that will be provided to the corresponding
+// 9. 'flags' indicates the flags that will be provided to the corresponding
 //    AM injection or prepare function (and should not to be confused with the
 //    handler registration flags).  The result of the query is only guaranteed
 //    to be correct for an injection of prepare call with exactly the same
@@ -3178,6 +3270,40 @@ int gex_TM_Destroy(
             gex_Flags_t   flags);
       // Valid flags:
       //   GEX_FLAG_GLOBALLY_QUIESCED
+
+// NOTE: gex_Segment_Create() takes a `client` argument which was
+// *not* included in the 2020.6.1 API proposal
+// NOTE: the `gex_MemKind_t` type has been renamed to `gex_MK_t`, and
+//       the `GEX_MEMKIND_HOST` constant has been renamed to `GEX_MK_HOST`.
+int gex_Segment_Create(
+            gex_Segment_t   *segment_p,  // OUT
+            gex_Client_t    client,
+            gex_Addr_t      address,
+            uintptr_t       length,
+            gex_MK_t        kind,
+            gex_Flags_t     flags);
+      // Valid flags:
+      //   NONE - zero is currently required
+
+// NOTE: this is a renamed and argument-permuted replacement for the
+// gex_Segment_EP_Bind() appearing in the 2020.6.1 API proposal
+void gex_EP_BindSegment(
+            gex_EP_t        ep,
+            gex_Segment_t   segment,
+            gex_Flags_t     flags);
+      // Valid flags:
+      //   NONE - zero is currently required
+
+gex_TM_t gex_TM_Pair(
+            gex_EP_t        local_ep,
+            gex_EP_Index_t  remote_ep_index);
+      // Valid flags:
+      //   N/A
+
+typedef [some integer type] gex_EP_Capabilities_t;
+#define GEX_EP_CAPABILITY{RMA,AM,VIS,COLL,AD,ALL} ???
+
+#define GEX_FLAG_HINT_ACCEL_{AD,COLL,ALL} ???
 
 //----------------------------------------------------------------------
 
