@@ -32,6 +32,12 @@ GASNet-EX ChangeLog
   - New interfaces have been added for explicit control over rank
     assignment (see udp-conduit README)
 
+* GASNet-EX Spec v0.11:
+  - Deprecate GEX_FLAG_TM_SCRATCH_SIZE_MIN flag and remove the corresponding
+    GASNET_COLL_MIN_SCRATCH_SIZE environment variable.
+  - Add GEX_FLAG_TM_NO_SCRATCH support in gex_TM_{Split,Create}(), eliminating
+    the requirement that a client always provide a collectives scratch space.
+
 * GASNet tools (spec v1.17)
   - Add GASNETT_UNUSED_ARGS*() family of macros
 
@@ -95,12 +101,6 @@ GASNet-EX ChangeLog
 
 * GASNet-EX Spec v0.10:
   - Add gex_TM_Destroy() and associated GEX_FLAG_GLOBALLY_QUIESCED flag.
-
-* GASNet-EX Spec v0.11:
-  - Deprecate GEX_FLAG_TM_SCRATCH_SIZE_MIN flag and remove the corresponding
-    GASNET_COLL_MIN_SCRATCH_SIZE environment variable.
-  - Add GEX_FLAG_TM_NO_SCRATCH support in gex_TM_{Split,Create}(), eliminating
-    the requirement that a client always provide a collectives scratch space.
 
 * GASNet tools (spec v1.16)
   - Add gasnett_fatalerror_nopos
