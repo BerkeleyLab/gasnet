@@ -121,13 +121,10 @@ typedef struct {
 #define gex_AM_MaxArgs() ((unsigned int)GASNETC_MAX_ARGS)
 
 #define GASNETC_LUB_LONG          0x800000
-#define GASNETC_LUB_MEDIUM        ((size_t)GASNETC_GNI_MAX_MEDIUM)
 
-#if GASNETC_GNI_MAX_MEDIUM == 65472 // Cannot use all 65536 bytes of buffer (bug 4042)
-#define GASNETC_MAX_MEDIUM(nargs) (GASNETC_LUB_MEDIUM+8*((GASNETC_MAX_ARGS-(MAX(nargs,1)))/2))
-#else
-#define GASNETC_MAX_MEDIUM(nargs) (GASNETC_LUB_MEDIUM+8*((GASNETC_MAX_ARGS-(nargs))/2))
-#endif
+extern size_t gasnetc_gni_lub_medium;
+#define GASNETC_LUB_MEDIUM        ((size_t)gasnetc_gni_lub_medium) // Cast prevents assignment
+#define GASNETC_MAX_MEDIUM(nargs) (GASNETC_LUB_MEDIUM+8*((GASNETC_MAX_ARGS-(nargs))>>1))
 
 #define gex_AM_LUBRequestMedium() ((size_t)GASNETC_LUB_MEDIUM)
 #define gex_AM_LUBReplyMedium()   ((size_t)GASNETC_LUB_MEDIUM)
@@ -136,17 +133,17 @@ typedef struct {
 
   // TODO-EX: Medium sizes can be improved upon for PSHM case
 #define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),GASNETC_MAX_MEDIUM(nargs))
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),GASNETC_MAX_MEDIUM(nargs))
 #define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),GASNETC_MAX_MEDIUM(nargs))
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),GASNETC_MAX_MEDIUM(nargs))
 #define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)GASNETC_LUB_LONG)
+        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)GASNETC_LUB_LONG)
 #define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)GASNETC_LUB_LONG)
+        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)GASNETC_LUB_LONG)
 #define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   \
-        ((void)(token),(void)(lc_opt),(void)(flags),GASNETC_MAX_MEDIUM(nargs))
+        (GASNETI_UNUSED_ARGS3(token,lc_opt,flags),GASNETC_MAX_MEDIUM(nargs))
 #define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     \
-        ((void)(token),(void)(lc_opt),(void)(flags),(void)(nargs),(size_t)GASNETC_LUB_LONG)
+        (GASNETI_UNUSED_ARGS4(token,lc_opt,flags,nargs),(size_t)GASNETC_LUB_LONG)
 
 /* ------------------------------------------------------------------------------------ */
 /*

@@ -31,6 +31,9 @@ GASNETI_NORETURNP(gasnetc_exit)
 /* Some conduits permit gasnet_init(NULL,NULL).
    Define to 1 if this conduit supports this extension, or to 0 otherwise.  */
 #define GASNET_NULL_ARGV_OK 1
+
+// convenience declaration
+extern void AMUDP_SPMDSetProc(int);
 /* ------------------------------------------------------------------------------------ */
 extern int gasnetc_Client_Init(
                 gex_Client_t           *_client_p,
@@ -130,17 +133,17 @@ typedef struct {
 
   // TODO-EX: Can these be improved upon, at least for PSHM case
 #define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),gex_AM_LUBRequestMedium())
+        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),gex_AM_LUBRequestMedium())
 #define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),gex_AM_LUBReplyMedium())
+        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),gex_AM_LUBReplyMedium())
 #define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),gex_AM_LUBRequestLong())
+        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),gex_AM_LUBRequestLong())
 #define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      \
-        ((void)(tm),(void)(rank),(void)(lc_opt),(void)(flags),(void)(nargs),gex_AM_LUBReplyLong())
+        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),gex_AM_LUBReplyLong())
 #define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   \
-        ((void)(token),(void)(lc_opt),(void)(flags),(void)(nargs),gex_AM_LUBReplyMedium())
+        (GASNETI_UNUSED_ARGS4(token,lc_opt,flags,nargs),gex_AM_LUBReplyMedium())
 #define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     \
-        ((void)(token),(void)(lc_opt),(void)(flags),(void)(nargs),gex_AM_LUBReplyLong())
+        (GASNETI_UNUSED_ARGS4(token,lc_opt,flags,nargs),gex_AM_LUBReplyLong())
 
 /* ------------------------------------------------------------------------------------ */
 /*
