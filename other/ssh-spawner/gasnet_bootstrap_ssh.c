@@ -229,33 +229,6 @@ static void do_verbose(const char *fmt, ...)) {
 }
 #define BOOTSTRAP_VERBOSE(ARGS)		if_pf (is_verbose) do_verbose ARGS
 
-GASNETI_FORMAT_PRINTF(sappendf,2,3,
-static char *sappendf(char *s, const char *fmt, ...)) {
-  va_list args;
-  int old_len, add_len;
-
-  /* compute length of thing to append */
-  va_start(args, fmt);
-  add_len = vsnprintf(NULL, 0, fmt, args);
-  va_end(args);
-
-  /* grow the string, including space for '\0': */
-  if (s) {
-    old_len = strlen(s);
-    s = gasneti_realloc(s, old_len + add_len + 1);
-  } else {
-    old_len = 0;
-    s = gasneti_malloc(add_len + 1);
-  }
-
-  /* append */
-  va_start(args, fmt);
-  vsprintf((s+old_len), fmt, args);
-  va_end(args);
-
-  return s;
-}
-
 /* Add single quotes around a string, taking care of any existing quotes */
 static char *quote_arg(const char *arg) {
   char *p, *q, *tmp;
@@ -265,10 +238,10 @@ static char *quote_arg(const char *arg) {
   p = tmp = gasneti_strdup(arg);
   while ((q = strchr(p, '\'')) != NULL) {
     *q = '\0';
-    result = sappendf(result, "%s'\\''", p);
+    result = gasneti_sappendf(result, "%s'\\''", p);
     p = q + 1;
   }
-  result = sappendf(result, "%s'", p);
+  result = gasneti_sappendf(result, "%s'", p);
   gasneti_free(tmp);
   return result;
 }
@@ -936,7 +909,7 @@ static void configure_ssh(void) {
 
   /* Check for OpenSSH */
   {
-    char *cmd = sappendf(NULL, "%s -V 2>&1 | grep OpenSSH >/dev/null 2>/dev/null", ssh_argv0);
+    char *cmd = gasneti_sappendf(NULL, "%s -V 2>&1 | grep OpenSSH >/dev/null 2>/dev/null", ssh_argv0);
     is_openssh = (0 == system(cmd));
     gasneti_free(cmd);
     BOOTSTRAP_VERBOSE(("Configuring for OpenSSH\n"));
@@ -1532,8 +1505,9 @@ static void spawn_one_control(gex_Rank_t child_id, const char *cmdline, const ch
   if (pid < 0) {
     gasneti_fatalerror("fork() failed");
   } else if (pid == 0) {
-    char *cmd;
-    cmd = sappendf(NULL, "cd %s; exec %s %s " ENV_PREFIX "SPAWN_CONTROL=ssh "
+    char *cmd =
+        gasneti_sappendf(NULL,
+                         "cd %s; exec %s %s " ENV_PREFIX "SPAWN_CONTROL=ssh "
                                               ENV_PREFIX "SPAWN_ARGS='%c%s%c%d%c%d%c%s' "
                                               "%s",
                                       quote_arg(cwd),
@@ -1690,7 +1664,7 @@ static void spawn_ctrl(int argc, char **argv) {
   if (null_init) {
     for (j = 1; j < argc; ++j) {
       char *tmp = quote_arg(argv[j]);
-      cmdline = sappendf(cmdline, " %s", tmp);
+      cmdline = gasneti_sappendf(cmdline, " %s", tmp);
       gasneti_free(tmp);
     }
   }
