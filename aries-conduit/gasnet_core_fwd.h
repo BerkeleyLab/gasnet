@@ -97,10 +97,48 @@
    */
 /* #define GASNETC_REQUESTV_POLLS 1 */
 
+  // uncomment if conduit provides a gasnetc-prefixed override
+  // TODO: this should be a hook rather than an override
+#define GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT 1
+
+  /* If your conduit uses conduit-specific extensions to the basic object
+     types, then define the corresponding SIZEOF macros below to return
+     the total length of the conduit-specific object, including the prefix
+     portion which must be the matching GASNETI_[OBJECT]_COMMON fields.
+     Similarly, *_HOOK macros should be defined as callbacks to perform
+     conduit-specific initialization and finalization tasks, if any.
+     If a given SIZEOF macro is defined, but the corresponding INIT_HOOK is
+     not, then space beyond the COMMON fields will be zero-initialized.
+     In all cases, GASNETC_[OBJECT]_EXTRA_DECLS provides the place to
+     provide necessary declarations (since this file is included very early).
+    */
+
+//#define GASNETC_CLIENT_EXTRA_DECLS (###)
+//#define GASNETC_CLIENT_INIT_HOOK(i_client) (###)
+//#define GASNETC_CLIENT_FINI_HOOK(i_client) (###)
+//#define GASNETC_SIZEOF_CLIENT_T() (###)
+
+#define GASNETC_SEGMENT_EXTRA_DECLS \
+  extern size_t gasnetc_sizeof_segment_t(void);
+//#define GASNETC_SEGMENT_INIT_HOOK(i_segment) (###)
+//#define GASNETC_SEGMENT_FINI_HOOK(i_segment) (###)
+#define GASNETC_SIZEOF_SEGMENT_T() \
+  gasnetc_sizeof_segment_t()
+
+//#define GASNETC_TM_EXTRA_DECLS (###)
+//#define GASNETC_TM_INIT_HOOK(i_tm) (###)
+//#define GASNETC_TM_FINI_HOOK(i_tm) (###)
+//#define GASNETC_SIZEOF_TM_T() (###)
+
+//#define GASNETC_EP_EXTRA_DECLS (###)
+//#define GASNETC_EP_INIT_HOOK(i_ep) (###)
+//#define GASNETC_EP_FINI_HOOK(i_ep) (###)
+//#define GASNETC_SIZEOF_EP_T() (###)
+
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
 /* Need to hook pthread create to ensure collective creation of domains */
 typedef int (gasnetc_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
-extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) ;
+extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *_create_fn, pthread_t *_thread, const pthread_attr_t *_attr, void * (*_fn)(void *), void * _arg) ;
 #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
    gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
 #endif
@@ -129,7 +167,7 @@ extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthrea
         CNT(C, AMPOLL_INS, late notifies) \
         /* blank */
 
-extern void gasnetc_fatalsignal_callback(int sig);
+extern void gasnetc_fatalsignal_callback(int _sig);
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 
 extern void gasnetc_trace_finish(void);

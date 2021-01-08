@@ -18,6 +18,34 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+20XX.YY.ZZ: PENDING
+
+* Cray XC uGNI (aries-conduit)
+  - A new environment variable GASNET_GNI_MAX_MEDIUM enables selecting the
+    size of AM Medium buffers at job launch, and the existing configure
+    option `--with-aries-max-medium` now sets the default value.
+    See details, including supported values, in the conduit README.
+
+* Portable UDP support (udp-conduit)
+  - udp-conduit now defaults to grouping co-located processes into
+    contiguous rank ids. 
+  - New interfaces have been added for explicit control over rank
+    assignment (see udp-conduit README)
+
+* GASNet-EX Spec v0.11:
+  - Deprecate GEX_FLAG_TM_SCRATCH_SIZE_MIN flag and remove the corresponding
+    GASNET_COLL_MIN_SCRATCH_SIZE environment variable.
+  - Add GEX_FLAG_TM_NO_SCRATCH support in gex_TM_{Split,Create}(), eliminating
+    the requirement that a client always provide a collectives scratch space.
+
+* GASNet tools (spec v1.17)
+  - Add GASNETT_UNUSED_ARGS*() family of macros
+
+* Notable bugs fixed in this release:
+  - bug4159: AM max-payload queries do not evaluate arguments
+  - bug2036: Teach AMUDP to respect externally-imposed node ids
+
+----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.10.0 Release
 
 * General and Misc.

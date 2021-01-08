@@ -110,6 +110,56 @@
    */
 /* #define GASNETC_REQUESTV_POLLS 1 */
 
+#if defined(GASNET_SEGMENT_FAST)
+  #define GASNETC_PIN_SEGMENT 1
+#else
+  #define GASNETC_PIN_SEGMENT 0
+#endif
+
+  // uncomment if conduit provides a gasnetc-prefixed override
+  // TODO: this should be a hook rather than an override
+#if GASNETC_PIN_SEGMENT
+  #define GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT 1
+#endif
+
+  /* If your conduit uses conduit-specific extensions to the basic object
+     types, then define the corresponding SIZEOF macros below to return
+     the total length of the conduit-specific object, including the prefix
+     portion which must be the matching GASNETI_[OBJECT]_COMMON fields.
+     Similarly, *_HOOK macros should be defined as callbacks to perform
+     conduit-specific initialization and finalization tasks, if any.
+     If a given SIZEOF macro is defined, but the corresponding INIT_HOOK is
+     not, then space beyond the COMMON fields will be zero-initialized.
+     In all cases, GASNETC_[OBJECT]_EXTRA_DECLS provides the place to
+     provide necessary declarations (since this file is included very early).
+    */
+
+//#define GASNETC_CLIENT_EXTRA_DECLS (###)
+//#define GASNETC_CLIENT_INIT_HOOK(i_client) (###)
+//#define GASNETC_CLIENT_FINI_HOOK(i_client) (###)
+//#define GASNETC_SIZEOF_CLIENT_T() (###)
+
+#define GASNETC_SEGMENT_EXTRA_DECLS \
+  extern size_t gasnetc_sizeof_segment_t(void);
+//#define GASNETC_SEGMENT_INIT_HOOK(i_segment) (###)
+//#define GASNETC_SEGMENT_FINI_HOOK(i_segment) (###)
+#define GASNETC_SIZEOF_SEGMENT_T() \
+  gasnetc_sizeof_segment_t()
+
+//#define GASNETC_TM_EXTRA_DECLS (###)
+//#define GASNETC_TM_INIT_HOOK(i_tm) (###)
+//#define GASNETC_TM_FINI_HOOK(i_tm) (###)
+//#define GASNETC_SIZEOF_TM_T() (###)
+
+#define GASNETC_EP_EXTRA_DECLS \
+  extern size_t gasnetc_sizeof_ep_t(void); \
+  extern int gasnetc_ep_init_hook(gasneti_EP_t);
+#define GASNETC_EP_INIT_HOOK(i_ep) \
+    gasnetc_ep_init_hook(i_ep)
+//#define GASNETC_EP_FINI_HOOK(i_ep) (###)
+#define GASNETC_SIZEOF_EP_T() \
+  gasnetc_sizeof_ep_t()
+
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)       \
@@ -160,11 +210,11 @@
 	VAL(C, FIREHOSE_UNPIN, pages)
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
-	extern void gasnetc_fatalsignal_callback(int sig);
+	extern void gasnetc_fatalsignal_callback(int _sig);
 
 #if GASNETC_IBV_ODP
   #define GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig) gasnetc_fatalsignal_cleanup_callback(sig)
-  extern void gasnetc_fatalsignal_cleanup_callback(int sig);
+  extern void gasnetc_fatalsignal_cleanup_callback(int _sig);
 #endif
 
 #if PLATFORM_OS_DARWIN && !GASNET_SEQ

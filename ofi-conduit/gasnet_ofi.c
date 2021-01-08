@@ -29,7 +29,6 @@ struct fid_domain*    gasnetc_ofi_domainfd;
 struct fid_av*        gasnetc_ofi_avfd;
 struct fid_cq*        gasnetc_ofi_tx_cqfd; /* CQ for both AM and RDMA tx ops */
 struct fid_ep*        gasnetc_ofi_rdma_epfd;
-struct fid_mr*        gasnetc_ofi_rdma_mrfd;
 struct fid_ep*        gasnetc_ofi_request_epfd;
 struct fid_ep*        gasnetc_ofi_reply_epfd;
 struct fid_cq*        gasnetc_ofi_request_cqfd;
@@ -768,9 +767,15 @@ void gasnetc_ofi_exit(void)
     gasneti_fatalerror("close rdma epfd failed\n");
   }
 
-  if(fi_close(&gasnetc_ofi_rdma_mrfd->fid)!=FI_SUCCESS) {
-    gasneti_fatalerror("close mrfd failed\n");
-  }
+  GASNETI_SEGTBL_LOCK();
+    gasneti_Segment_t seg;
+    GASNETI_SEGTBL_FOR_EACH(seg) {
+      struct fid_mr* mrfd = ((gasnetc_Segment_t)seg)->mrfd;
+      if(mrfd && (fi_close(&mrfd->fid)!=FI_SUCCESS)) {
+        gasneti_fatalerror("close mrfd failed\n");
+      }
+    }
+  GASNETI_SEGTBL_UNLOCK();
 
   if(fi_close(&gasnetc_ofi_tx_cqfd->fid)!=FI_SUCCESS) {
     gasneti_fatalerror("close am scqfd failed\n");
@@ -974,33 +979,76 @@ void gasnetc_ofi_handle_bounce_rdma(void *buf)
 /*------------------------------------------------
  * Pre-post or pin-down memory
  * ----------------------------------------------*/
-void gasnetc_ofi_attach(void *segbase, uintptr_t segsize)
-{
-	int ret = FI_SUCCESS;
-    uint64_t local_mr_key;
 
-	/* Pin-down Memory Region */
+// Local registration of segment memory
+int gasnetc_segment_register(gasnetc_Segment_t segment)
+{
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-	ret = fi_mr_reg(gasnetc_ofi_domainfd, segbase, segsize, FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL, &gasnetc_ofi_rdma_mrfd, NULL);
+    void *segbase = segment->_addr;
+    uintptr_t segsize = segment->_size;
 #else
-	ret = fi_mr_reg(gasnetc_ofi_domainfd, (void *)0, UINT64_MAX, FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL, &gasnetc_ofi_rdma_mrfd, NULL);
+    void *segbase = (void *)0;
+    uintptr_t segsize = UINT64_MAX;
     if (!GASNETC_OFI_HAS_MR_SCALABLE) {
         gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING is not supported when using FI_MR_BASIC.\n"
                            "Pick an OFI provider that supports FI_MR_SCALABLE if EVERYTHING\n"
                            "is needed.\n");
     }
 #endif
-	if (FI_SUCCESS != ret) gasneti_fatalerror("fi_mr_reg for rdma failed: %d\n", ret);
+    int ret = fi_mr_reg(gasnetc_ofi_domainfd, segbase, segsize,
+                        FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL,
+                        &segment->mrfd, NULL);
+    if (FI_SUCCESS != ret) gasneti_fatalerror("fi_mr_reg for rdma failed: %d\n", ret);
 
-    /* Exchange memory keys with other nodes.*/
-    if (!GASNETC_OFI_HAS_MR_SCALABLE) {
-        local_mr_key = fi_mr_key(gasnetc_ofi_rdma_mrfd);
-        gasneti_bootstrapExchange(&local_mr_key, sizeof(uint64_t),
-                gasnetc_ofi_target_keys);
-    }
-
+    return GASNET_OK;
 }
 
+// Exchange memory keys with other nodes.
+void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
+{
+  if (GASNETC_OFI_HAS_MR_SCALABLE) return;
+
+  // Exchange a 64-bit mr key
+  struct exchg_data {
+    gex_EP_Location_t loc;
+    uint64_t mr_key;
+  } *local, *global, *p;
+
+  size_t elem_sz = sizeof(struct exchg_data);
+  local = gasneti_malloc(num_eps * elem_sz);
+
+  // Pack
+  p = local;
+  for (gex_Rank_t i = 0; i < num_eps; ++i) {
+    gex_EP_t ep = eps[i];
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep(ep)->_segment;
+    if (! segment) continue;
+    p->loc.gex_rank = gasneti_mynode;
+    p->loc.gex_ep_index = gex_EP_QueryIndex(ep);
+    p->mr_key = fi_mr_key(segment->mrfd);
+    ++p;
+  }
+
+  size_t local_bytes = elem_sz * (p - local);
+  size_t total_bytes = gasneti_blockingRotatedExchangeV(tm, local, local_bytes, (void**)&global, NULL);
+  size_t total_eps = total_bytes / elem_sz;
+  gasneti_free(local);
+
+  // Unpack
+  p = global;
+  for (size_t i = 0; i < total_eps; ++i, ++p) {
+    gex_Rank_t jobrank = p->loc.gex_rank;
+    if (! p->loc.gex_ep_index ) { // Primordial EP (includes loopback)
+      gasneti_assert(!gasnetc_ofi_target_keys[jobrank] ||
+                     gasnetc_ofi_target_keys[jobrank] == p->mr_key);
+      gasnetc_ofi_target_keys[jobrank] = p->mr_key;
+    } else {
+      // Non-primordial
+      gasneti_unreachable_error(("gex_EP_PublishBoundSegment does not yet handle non-primordial EPs"));
+    }
+  }
+  gasneti_free(global);
+}
 
 /*------------------------------------------------
  * OFI conduit network poll function

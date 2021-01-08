@@ -218,6 +218,94 @@ void test_libgasnet_tools(void) {
     gasnett_getheapstats(&hs);
   }
   #endif
+  {
+    static int c1,c2,c3,c4,c5,c6,c7,c8; // zero-initialized counters
+
+    #define MACRO8A(a1,a2,a3,a4,a5,a6,a7,a8)  \
+            (GASNETT_UNUSED_ARGS8(a1,a2,a3,a4,a5,a6,a7,a8),8)
+    #define MACRO7A(a1,a2,a3,a4,a5,a6,a7) \
+            (GASNETT_UNUSED_ARGS7(a1,a2,a3,a4,a5,a6,a7),7)
+    #define MACRO6A(a1,a2,a3,a4,a5,a6) \
+            (GASNETT_UNUSED_ARGS6(a1,a2,a3,a4,a5,a6),6)
+    #define MACRO5A(a1,a2,a3,a4,a5) \
+            (GASNETT_UNUSED_ARGS5(a1,a2,a3,a4,a5),5)
+    #define MACRO4A(a1,a2,a3,a4) \
+            (GASNETT_UNUSED_ARGS4(a1,a2,a3,a4),4)
+    #define MACRO3A(a1,a2,a3) \
+            (GASNETT_UNUSED_ARGS3(a1,a2,a3),3)
+    #define MACRO2A(a1,a2) \
+            (GASNETT_UNUSED_ARGS2(a1,a2),2)
+    #define MACRO1A(a1) \
+            (GASNETT_UNUSED_ARGS1(a1),1)
+    int x;
+    x = MACRO8A(++c8,++c7,++c6,++c5,++c4,++c3,++c2,++c1);
+    x = MACRO7A(++c8,++c7,++c6,++c5,++c4,++c3,++c2);
+    x = MACRO6A(++c8,++c7,++c6,++c5,++c4,++c3);
+    x = MACRO5A(++c8,++c7,++c6,++c5,++c4);
+    x = MACRO4A(++c8,++c7,++c6,++c5);
+    x = MACRO3A(++c8,++c7,++c6);
+    x = MACRO2A(++c8,++c7);
+    x = MACRO1A(++c8);
+    assert_always(c1 == 1);
+    assert_always(c2 == 2);
+    assert_always(c3 == 3);
+    assert_always(c4 == 4);
+    assert_always(c5 == 5);
+    assert_always(c6 == 6);
+    assert_always(c7 == 7);
+    assert_always(c8 == 8);
+    assert_always(x == 1);
+
+    #define MACRO8B(a0,a1,a2,a3,a4,a5,a6,a7,a8) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS8(a1,a2,a3,a4,a5,a6,a7,a8);\
+            } while (0)
+    #define MACRO7B(a0,a1,a2,a3,a4,a5,a6,a7) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS7(a1,a2,a3,a4,a5,a6,a7);\
+            } while (0)
+    #define MACRO6B(a0,a1,a2,a3,a4,a5,a6) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS6(a1,a2,a3,a4,a5,a6);\
+            } while (0)
+    #define MACRO5B(a0,a1,a2,a3,a4,a5) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS5(a1,a2,a3,a4,a5);\
+            } while (0)
+    #define MACRO4B(a0,a1,a2,a3,a4) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS4(a1,a2,a3,a4);\
+            } while (0)
+    #define MACRO3B(a0,a1,a2,a3) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS3(a1,a2,a3);\
+            } while (0)
+    #define MACRO2B(a0,a1,a2) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS2(a1,a2);\
+            } while (0)
+    #define MACRO1B(a0,a1) do {\
+              x += (a0);\
+              GASNETT_UNUSED_ARGS1(a1);\
+            } while (0)
+    MACRO8B(8,++c8,++c7,++c6,++c5,++c4,++c3,++c2,++c1);
+    MACRO7B(7,++c8,++c7,++c6,++c5,++c4,++c3,++c2);
+    MACRO6B(6,++c8,++c7,++c6,++c5,++c4,++c3);
+    MACRO5B(5,++c8,++c7,++c6,++c5,++c4);
+    MACRO4B(4,++c8,++c7,++c6,++c5);
+    MACRO3B(3,++c8,++c7,++c6);
+    MACRO2B(2,++c8,++c7);
+    MACRO1B(1,++c8);
+    assert_always(c1 == 1*2);
+    assert_always(c2 == 2*2);
+    assert_always(c3 == 3*2);
+    assert_always(c4 == 4*2);
+    assert_always(c5 == 5*2);
+    assert_always(c6 == 6*2);
+    assert_always(c7 == 7*2);
+    assert_always(c8 == 8*2);
+    assert_always(x == 37);
+  }
   #if GASNET_PAR
     num_threads = test_thread_limit(num_threads);
     test_createandjoin_pthreads(num_threads, &test_libgasnetpar_tools, NULL, 0);
@@ -372,6 +460,17 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
   } // lc
   #undef CHECK_MAX
   gex_AM_ReplyShort0(token, sizecheck_handlers[1].gex_index, 0);
+
+  // verify that payload queries evalute their args exactly once
+  #define CHECK_TOKEN_MAX_EVAL(cat) \
+    do { \
+      int a = 0, b = 0, c = 0, d = 0; \
+      (void) gex_Token_MaxReply##cat((a++,token),(b++,GEX_EVENT_NOW),(c++,0),(d++,0)); \
+      assert_always(a==1); assert_always(b==1); assert_always(c==1); assert_always(d==1); \
+    } while (0)
+  CHECK_TOKEN_MAX_EVAL(Medium);
+  CHECK_TOKEN_MAX_EVAL(Long);
+  #undef CHECK_TOKEN_MAX_EVAL
 }
 gasnett_atomic_t sizecheck_ack = gasnett_atomic_init(0);
 GASNETT_EXTERNC void sizecheck_reph(gex_Token_t token) {
@@ -697,6 +796,19 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_AM_LUBRequestLong() >= 512);
   assert_always(gex_AM_LUBReplyLong() >= 512);
 
+  // verify that payload queries evalute their args exactly once
+  #define CHECK_AM_MAX_EVAL(name) \
+    do { \
+      int a = 0, b = 0, c = 0, d = 0, e = 0; \
+      (void) gex_AM_Max##name((a++,myteam),(b++,GEX_RANK_INVALID),(c++,GEX_EVENT_NOW),(d++,0),(e++,0)); \
+      assert_always(a==1); assert_always(b==1); assert_always(c==1); assert_always(d==1); assert_always(e==1); \
+    } while (0)
+  CHECK_AM_MAX_EVAL(RequestMedium);
+  CHECK_AM_MAX_EVAL(RequestLong);
+  CHECK_AM_MAX_EVAL(ReplyMedium);
+  CHECK_AM_MAX_EVAL(ReplyLong);
+  #undef CHECK_AM_MAX_EVAL
+
   static int firsttime = 1;
   if (firsttime) {
     size_t numhand = sizeof(sizecheck_handlers)/sizeof(gex_AM_Entry_t);
@@ -861,7 +973,7 @@ void doit0(int partner, int *partnerseg) {
 
     GEX_FLAG_ENABLE_LEAF_LC,
 
-    GEX_FLAG_TM_SCRATCH_SIZE_MIN,
+    GEX_FLAG_TM_SCRATCH_SIZE_MIN, // DEPRECATED since spec 0.11 but still valid
     GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED,
     GEX_FLAG_TM_GLOBAL_SCRATCH,
     GEX_FLAG_TM_LOCAL_SCRATCH,
@@ -872,6 +984,10 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_GLOBALLY_QUIESCED,
 
     GEX_FLAG_RANK_IS_JOBRANK,
+
+    GEX_FLAG_HINT_ACCEL_AD,
+    GEX_FLAG_HINT_ACCEL_COLL,
+    GEX_FLAG_HINT_ACCEL_ALL,
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
@@ -920,7 +1036,7 @@ void doit0(int partner, int *partnerseg) {
   };
   assert_arr_unaliased(gex_Flags_t, flags_vis);
   static gex_Flags_t const flags_tm[] = { // gex_TM_Split, Create, etc.
-    GEX_FLAG_TM_SCRATCH_SIZE_MIN,
+    GEX_FLAG_TM_SCRATCH_SIZE_MIN, // DEPRECATED since spec 0.11 but still valid
     GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED,
     GEX_FLAG_TM_GLOBAL_SCRATCH,
     GEX_FLAG_TM_LOCAL_SCRATCH,
@@ -929,6 +1045,13 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_SCRATCH_SEG_OFFSET,
   };
   assert_arr_unaliased(gex_Flags_t, flags_tm);
+  static gex_Flags_t const flags_ep[] = { // gex_EP_Create, excludes ALL
+    GEX_FLAG_HINT_ACCEL_AD,
+    GEX_FLAG_HINT_ACCEL_COLL,
+  };
+  assert_arr_nonzero(gex_Flags_t, flags_ep); // No zero values
+  // Not yet specified: assert_arr_unaliased(gex_Flags_t, flags_ep);
+  assert_arr_all_val(gex_EP_Capabilities_t, flags_ep, GEX_FLAG_HINT_ACCEL_ALL); // ALL includes them all
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
@@ -949,6 +1072,19 @@ void doit0(int partner, int *partnerseg) {
   assert_arr_unaliased(gex_TI_t, ti_arr);
   assert_arr_all_val(gex_TI_t, ti_arr, ti_all); // ALL includes them all
   test_format(gex_TI_t, ti_arr, gasnett_format_ti);
+
+  assert_inttype(gex_EP_Capabilities_t);
+  static gex_EP_Capabilities_t const ep_cap_all = GEX_EP_CAPABILITY_ALL;
+  static gex_EP_Capabilities_t const ep_cap_arr[] = { // all flags but _ALL
+          GEX_EP_CAPABILITY_RMA,
+          GEX_EP_CAPABILITY_AM,
+          GEX_EP_CAPABILITY_VIS,
+          GEX_EP_CAPABILITY_COLL,
+          GEX_EP_CAPABILITY_AD
+      };
+  assert_arr_nonzero(gex_EP_Capabilities_t, ep_cap_arr); // No zero values
+  // Not yet specified: assert_arr_unaliased(gex_EP_Capabilities_t, ep_cap_arr);
+  assert_arr_all_val(gex_EP_Capabilities_t, ep_cap_arr, ep_cap_all); // ALL includes them all
 
   gex_RMA_Value_t val = 0; test_mark_used(val);
   test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);

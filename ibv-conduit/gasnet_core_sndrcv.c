@@ -2388,7 +2388,7 @@ extern int gasnetc_sndrcv_limits(void) {
   } else {
     gasnetc_am_oust_limit = MIN(gasnetc_am_oust_limit, gasnetc_op_oust_limit);
     if (gasnetc_am_oust_limit > gasnetc_num_qps * gasnetc_am_rqst_per_qp) {
-      GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDIT_{PP,TOTAL} exceed HCA capabilities");
+      GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDITS_{PP,TOTAL} exceed HCA capabilities");
     }
   }
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_AM_CREDITS_TOTAL = %d", gasnetc_am_oust_limit));
@@ -3089,7 +3089,7 @@ extern int gasnetc_rdma_put(
                 GASNETI_THREAD_FARG)
 {
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasnetc_EP_t ep = (gasnetc_EP_t) gasneti_import_tm(tm)->_ep;
+  gasnetc_EP_t ep = (gasnetc_EP_t) gasneti_e_tm_to_i_ep(tm);
   GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG);
 
   // TODO-EX:
@@ -3230,7 +3230,7 @@ extern int gasnetc_rdma_get(
                 GASNETI_THREAD_FARG)
 {
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasnetc_EP_t ep = (gasnetc_EP_t) gasneti_import_tm(tm)->_ep;
+  gasnetc_EP_t ep = (gasnetc_EP_t) gasneti_e_tm_to_i_ep(tm);
   GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG);
 
   // TODO-EX:
@@ -3277,7 +3277,7 @@ extern int gasnetc_rdma_put(
                 GASNETI_THREAD_FARG)
 {
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasnetc_EP_t ep = (gasnetc_EP_t) gasneti_import_tm(tm)->_ep;
+  gasnetc_EP_t ep = (gasnetc_EP_t) gasneti_e_tm_to_i_ep(tm);
 
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;
@@ -3390,7 +3390,7 @@ extern int gasnetc_rdma_get(
                 GASNETI_THREAD_FARG)
 {
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasnetc_EP_t ep = (gasnetc_EP_t) gasneti_import_tm(tm)->_ep;
+  gasnetc_EP_t ep = (gasnetc_EP_t) gasneti_e_tm_to_i_ep(tm);
 
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;

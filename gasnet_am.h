@@ -254,10 +254,11 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
       gex_Flags_t tmp_flags = flags | (cbuf ? GEX_FLAG_AM_PREPARE_LEAST_CLIENT             \
                                             : GEX_FLAG_AM_PREPARE_LEAST_ALLOC);            \
       size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt,tmp_flags,nargs);               \
-      if (dest >= gex_TM_QuerySize(tm))                                                    \
+      gex_Rank_t tm_size = gasneti_e_tm_size(tm);                                          \
+      if (dest >= tm_size)                                                                 \
         gasneti_fatalerror("gex_AM_PrepareRequest" _STRINGIFY(cat) ": "                    \
                            "destination rank out-of-range (%lu >= %lu)",                   \
-                           (unsigned long)dest, (unsigned long)gex_TM_QuerySize(tm));      \
+                           (unsigned long)dest, (unsigned long)tm_size);                   \
       _GASNETI_CHECK_PREPARE(cbuf,least_pl,most_pl,limit,lc_opt,nargs,1,cat);              \
     } while(0)
   #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) \
@@ -578,11 +579,12 @@ extern int gasnetc_AMReplyLongV(
         gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
         if_pf (! mythread->loopback_requestBuf) {
             // Allocate both buffers, ensuring GASNETI_MEDBUF_ALIGNMENT (dflt 8-byte) alignment of each
-            size_t sz = GASNETI_ALIGNUP(GASNETC_MAX_MEDIUM_NBRHD,8) + GASNETC_MAX_MEDIUM_NBRHD;
+            size_t padded_max_med = GASNETI_ALIGNUP(GASNETC_MAX_MEDIUM_NBRHD, GASNETI_MEDBUF_ALIGNMENT);
+            size_t sz = padded_max_med + GASNETC_MAX_MEDIUM_NBRHD;
             uint8_t *buf = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT, sz);
             gasneti_leak_aligned(buf);
             mythread->loopback_requestBuf = buf;
-            mythread->loopback_replyBuf =   buf + GASNETI_ALIGNUP(GASNETC_MAX_MEDIUM_NBRHD,8);
+            mythread->loopback_replyBuf =   buf + padded_max_med;
             gasnete_register_threadcleanup(gasneti_loopback_cleanup_threaddata, buf);
         }
         return isReq ? mythread->loopback_requestBuf : mythread->loopback_replyBuf;

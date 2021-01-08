@@ -377,7 +377,8 @@ size_t gex_AM_Max##reqrep##cat(                                            \
   const char *fname = "gex_AM_Max" #reqrep #cat;                           \
   gasneti_TM_t real_tm = gasneti_import_tm(tm);                            \
   /* TODO-EX: remove allowance for real_tm == NULL */                      \
-  if (real_tm && (rank != GEX_RANK_INVALID) && (rank >= real_tm->_size)) { \
+  gex_Rank_t tm_size = gasneti_i_tm_size(real_tm);                         \
+  if (real_tm && (rank != GEX_RANK_INVALID) && (rank >= tm_size)) {        \
     gasneti_fatalerror("Call to %s() with invalid rank=%i",                \
                        fname, (int)rank);                                  \
   }                                                                        \
