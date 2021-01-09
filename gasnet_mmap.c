@@ -2312,6 +2312,8 @@ int gasneti_Segment_QueryBound(
                         void **localaddr_p,
                         uintptr_t *size_p)
 {
+  GASNETI_CHECK_INJECT();
+
   // Trivial implementation using legacy data structures and assumptions.
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
 
