@@ -148,6 +148,14 @@
 #define GASNET_ERR_NOT_READY            (_GASNET_ERR_BASE+4)
 #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
 
+// If conduit supports GASNET_MAXEPS!=1, set default and (optional) max values here.
+// Leaving GASNETC_MAXEPS_DFLT unset will result in GASNET_MAXEPS=1, independent
+// of all other settings (appropriate for conduits without multi-ep support).
+// If set, GASNETC_MAXEPS_MAX it is used to limit a user's --with-maxeps (and a
+// global default limit is used otherwise).
+//#define GASNETC_MAXEPS_DFLT ### // default num endpoints this conduit supports, undef means no multi-ep support
+//#define GASNETC_MAXEPS_MAX ### // leave unset for default
+
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
