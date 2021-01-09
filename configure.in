@@ -3780,13 +3780,11 @@ if test "$enabled_ibv" = yes; then
           1024|2048|4096|8192|16384|32768|65536|131072|262144)
              ibv_max_medium="$withval";;
           *)
-             GASNET_ERR_SAVE()
              AC_MSG_ERROR([--with-ibv-max-medium="$withval" is not legal.  Value must be a power-of-two between 1024 and 262144, inclusive.])
              ;;
         esac
        ],
-       [GASNET_ERR_SAVE()
-        AC_MSG_ERROR([--with-ibv-max-medium must be a power-of-two between 1024 and 262144, inclusive.])],
+       [AC_MSG_ERROR([--with-ibv-max-medium must be a power-of-two between 1024 and 262144, inclusive.])],
        [ibv_max_medium=65536])
     AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_MEDIUM, [$ibv_max_medium])
   fi
@@ -3929,7 +3927,6 @@ if test "$enabled_aries" = yes; then
         GNI_CFLAGS="$GNI_CFLAGS $CRAY_UDREG_INCLUDE_OPTS"
       ],[
         if test "$gni_udreg" = yes; then
-          GASNET_ERR_SAVE()
           AC_MSG_ERROR([--enable-aries-udreg was passed but udreg_pub.h header was not found])
         fi
       ])
@@ -3945,12 +3942,10 @@ if test "$enabled_aries" = yes; then
          expr "$tmpval" '<=' 65408  >/dev/null 2>&1 ; then
         gni_max_medium="$withval"
       else
-        GASNET_ERR_SAVE()
         AC_MSG_ERROR([--with-aries-max-medium="$withval" is invalid.  Value must be a multiple of 64, between 512 and 65408, inclusive. Unless prefixed with '+', the value will be rounded-down to the next recommended value. See the aries-conduit README for additional details.])
       fi
      ],
-     [GASNET_ERR_SAVE()
-      AC_MSG_ERROR([--with-aries-max-medium must be a multiple of 64 and no smaller than 512])],
+     [AC_MSG_ERROR([--with-aries-max-medium must be a multiple of 64 and no smaller than 512])],
      [gni_max_medium=4032])
   AC_DEFINE_UNQUOTED(GASNETC_GNI_MAX_MEDIUM_DFLT, ["$gni_max_medium"])
 
