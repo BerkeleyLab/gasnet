@@ -2358,6 +2358,15 @@ GASNET_IF_ENABLED(loopback-memsync, Force memory barriers for GASNet local (loop
   [AC_DEFINE(GASNETI_MEMSYNC_ON_LOOPBACK)])
 GASNET_IF_ENABLED(throttle-poll, throttle polling threads in multi-threaded configurations to reduce contention (experimental, only implemented in some conduits),
   [AC_DEFINE(GASNETI_THROTTLE_FEATURE_ENABLED)])
+
+GASNET_WITH(maxeps,
+       [Maximum number of endpoints per-process, subject to per-conduit limits (default is conduit-dependent)],
+       [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
+          AC_DEFINE_UNQUOTED(GASNETI_MAXEPS_CONFIGURE, $withval)
+        else
+          AC_MSG_ERROR([--with-maxeps requires a positive integer argument])
+        fi],
+       [AC_MSG_ERROR([--with-maxeps requires a positive integer argument])])
 dnl GASNET_TOOLSONLY_FALSE_END
 
 # FORCED non-default implementations - used mainly for debugging
