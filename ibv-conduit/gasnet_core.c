@@ -2765,6 +2765,7 @@ static void gasnetc_install_np_rkeys(
             gex_EP_Index_t idx,
             const uint32_t *new_rkeys)
 {
+  gasneti_assume(idx < GASNET_MAXEPS);
   uint32_t *rkey_array = gasnetc_np_rkeys[idx];
 
   if_pf (!rkey_array) {
