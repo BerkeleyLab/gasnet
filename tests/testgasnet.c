@@ -18,6 +18,7 @@
 #define TEST_GASNETEX 1
 #define SHORT_REQ_BASE GEX_AM_INDEX_BASE
 test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
+static void *test_myseg;
 #include <testam.h>
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
@@ -1518,6 +1519,7 @@ void doit5(int partner, int *partnerseg) {
 void doit6(int partner, int *partnerseg) {
 #endif
 
+  test_myseg = TEST_MYSEG();
   BARRIER();
 
   { /* all ams test */
