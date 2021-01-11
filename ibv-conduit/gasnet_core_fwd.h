@@ -163,9 +163,14 @@
 #define GASNETC_SIZEOF_EP_T() \
   gasnetc_sizeof_ep_t()
 
-#if GASNETC_PIN_SEGMENT
-  // Initial (limited) multi-EP support
-  #define GASNET_MAXEPS 33
+#if GASNETC_PIN_SEGMENT // multi-EP NOT supported with remote firehose
+// If conduit supports GASNET_MAXEPS!=1, set default and (optional) max values here.
+// Leaving GASNETC_MAXEPS_DFLT unset will result in GASNET_MAXEPS=1, independent
+// of all other settings (appropriate for conduits without multi-ep support).
+// If set, GASNETC_MAXEPS_MAX it is used to limit a user's --with-maxeps (and a
+// global default limit is used otherwise).
+#define GASNETC_MAXEPS_DFLT 33 // Initial (limited) multi-EP support
+//#define GASNETC_MAXEPS_MAX ### // leave unset for default
 #endif
 
   /* this can be used to add conduit-specific 
