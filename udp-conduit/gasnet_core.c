@@ -1121,6 +1121,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
         break;
       default: gasneti_unreachable_error(("Unknown handler type in gasnetc_enteringHandler_hook(): 0x%x",(int)cat));
     }
+    GASNETI_HANDLER_ENTER(isReq);
   }
   extern void gasnetc_leavingHandler_hook(amudp_category_t cat, int isReq) {
     switch (cat) {
@@ -1135,6 +1136,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
         break;
       default: gasneti_unreachable_error(("Unknown handler type in gasnetc_leavingHandler_hook(): 0x%x",(int)cat));
     }
+    GASNETI_HANDLER_LEAVE(isReq);
   }
 #endif
 

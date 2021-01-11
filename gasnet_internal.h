@@ -835,6 +835,9 @@ typedef struct _gasneti_threaddata_t {
   #define GASNETI_NEED_INIT_SRCDESC 1
   int sd_is_init;
 #endif
+#if GASNET_DEBUG
+  int request_handler_active, reply_handler_active;
+#endif
   struct gasneti_AM_SrcDesc request_sd, reply_sd;
   void *loopback_requestBuf, *loopback_replyBuf;
 

@@ -368,10 +368,17 @@ void gasneti_check_inject(int for_reply GASNETI_THREAD_FARG) {
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   if (!mythread) return; // Some conduits communicate very early
 
+  if (mythread->reply_handler_active) {
+    gasneti_fatalerror("Invalid GASNet call (communication injection or poll) while executing a Reply handler");
+  }
+  if (mythread->request_handler_active && !for_reply) {
+    gasneti_fatalerror("Invalid GASNet call (communication injection or poll) while executing a Request handler");
+  }
+
+  // NPAM checks are distinct to allow that entire subsytem to be overridden
   gasneti_checknpam(for_reply GASNETI_THREAD_PASS);
 
-  // TODO:
-  //  Checking for restricted contexts (hsl, handler, reply-handler)
+  // TODO: check for HSL context
 }
 #endif
 
