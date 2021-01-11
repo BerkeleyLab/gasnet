@@ -1020,9 +1020,9 @@ extern int gasnete_maxthreadidx;
 // TODO: should be expanded to check handler and HSL contexts as well (not just NPAM)
 
 #if GASNET_DEBUG
-  extern void gasneti_checknpam(int _for_reply GASNETI_THREAD_FARG);
-  #define GASNETI_CHECK_INJECT()        gasneti_checknpam(0 GASNETI_THREAD_GET)
-  #define GASNETI_CHECK_INJECT_REPLY()  gasneti_checknpam(1 GASNETI_THREAD_GET)
+  extern void gasneti_check_inject(int _for_reply GASNETI_THREAD_FARG);
+  #define GASNETI_CHECK_INJECT()        gasneti_check_inject(0 GASNETI_THREAD_GET)
+  #define GASNETI_CHECK_INJECT_REPLY()  gasneti_check_inject(1 GASNETI_THREAD_GET)
 #else
   #define GASNETI_CHECK_INJECT(x)       ((void)0)
   #define GASNETI_CHECK_INJECT_REPLY(x) ((void)0)

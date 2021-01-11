@@ -361,6 +361,21 @@ extern void gasneti_check_config_postattach(void) {
 }
 
 /* ------------------------------------------------------------------------------------ */
+// Helpers for debug checks
+
+#if GASNET_DEBUG
+void gasneti_check_inject(int for_reply GASNETI_THREAD_FARG) {
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  if (!mythread) return; // Some conduits communicate very early
+
+  gasneti_checknpam(for_reply GASNETI_THREAD_PASS);
+
+  // TODO:
+  //  Checking for restricted contexts (hsl, handler, reply-handler)
+}
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 #ifndef _GASNET_ERRORNAME
 extern const char *gasnet_ErrorName(int errval) {
   switch (errval) {

@@ -785,6 +785,13 @@ extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
     gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0)
 
 /* ------------------------------------------------------------------------------------ */
+// Helpers for debug checks
+
+#if GASNET_DEBUG
+void gasneti_checknpam(int for_reply GASNETI_THREAD_FARG);
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 
 #include <gasnet_handler_internal.h>
 
