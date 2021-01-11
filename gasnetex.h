@@ -251,7 +251,32 @@ GASNETI_BEGIN_NOWARN
 #ifndef GASNET_MAXEPS
   //  an integer representing the max supported number of endpoints per process
   //  should be kept _STRINGIFY()-friendly (e.g. `4095` not `((1<<12)-1)`)
-  #define GASNET_MAXEPS 1 // TODO: raise once multi-ep support becomes "the norm"
+
+  // Defaults and sanity checks
+  #define GASNETI_MAXEPS_LIMIT 4096 // Maximum due to 12-bit field in TM-pair
+  #ifndef GASNETC_MAXEPS_MAX
+    #define GASNETC_MAXEPS_MAX GASNETI_MAXEPS_LIMIT
+  #elif (GASNETC_MAXEPS_MAX > GASNETI_MAXEPS_LIMIT)
+    #error GASNETC_MAXEPS_MAX exceeds GASNETI_MAXEPS_LIMIT
+  #endif
+  #if (GASNETC_MAXEPS_DFLT > GASNETI_MAXEPS_LIMIT)
+    #error GASNETC_MAXEPS_DFLT exceeds GASNETI_MAXEPS_LIMIT
+  #endif
+
+  #if !defined(GASNETC_MAXEPS_DFLT)
+    // Conduit lacks multi-ep support
+    #define GASNET_MAXEPS 1
+  #elif !defined(GASNETI_MAXEPS_CONFIGURE)
+    // No configure-time value provided - use conduit-specific default
+    #define GASNET_MAXEPS GASNETC_MAXEPS_DFLT
+  #else
+    // Take MIN of user's --with-maxeps setting and the maximum
+    #if (GASNETI_MAXEPS_CONFIGURE <= GASNETC_MAXEPS_MAX)
+      #define GASNET_MAXEPS GASNETI_MAXEPS_CONFIGURE
+    #else
+      #define GASNET_MAXEPS GASNETC_MAXEPS_MAX
+    #endif
+  #endif
 #endif
 
 #if !defined(GASNET_ALIGNED_SEGMENTS) || \

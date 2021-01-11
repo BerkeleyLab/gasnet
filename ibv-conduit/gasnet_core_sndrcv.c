@@ -344,7 +344,7 @@ gasnetc_create_cq(struct ibv_context * hca_hndl, int req_size,
     } else if (idx < 0) {
       return cep->hca->aux_rkeys[gasnetc_epid2node(cep->epid)];
     } else {
-      gasneti_assert(idx < GASNET_MAXEPS);
+      gasneti_assume(idx < GASNET_MAXEPS);
       gasneti_assert(gasnetc_np_rkeys[idx]);
       size_t offset = gasnetc_num_hcas * gasnetc_epid2node(cep->epid) + GASNETC_HCA_IDX(cep);
       return gasnetc_np_rkeys[idx][offset];
