@@ -639,7 +639,7 @@ done:
   fi_freeinfo(hints);
 
   if (!GASNETC_OFI_HAS_MR_SCALABLE) {
-      gasnetc_ofi_target_keys = gasneti_malloc(sizeof(uint64_t)*gasneti_nodes);
+      gasnetc_ofi_target_keys = gasneti_calloc(gasneti_nodes, sizeof(uint64_t));
       gasneti_assert(gasnetc_ofi_target_keys);
   }
 
