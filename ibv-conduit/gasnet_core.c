@@ -1827,7 +1827,7 @@ static void gasneti_odp_init(void) {
       //  + This can be identified because this caps bit was not set
       //  + Implicit ODP emulation had 128MB limit
       //  + Implicit ODP was valid for local only (invalid rkey)
-    } else if (gasnetc_use_xrc) {
+    } else {
       uint32_t odp_caps = gasnetc_use_xrc ? attr.odp_caps.per_transport_caps.xrc_odp_caps
                                           : attr.odp_caps.per_transport_caps.rc_odp_caps;
       if (! (odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
