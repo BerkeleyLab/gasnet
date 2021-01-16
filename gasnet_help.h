@@ -1026,8 +1026,8 @@ extern int gasnete_maxthreadidx;
   extern void gasneti_check_inject_reset(GASNETI_THREAD_FARG_ALONE);
   #define GASNETI_CHECK_INJECT_RESET()  gasneti_check_inject_reset(GASNETI_THREAD_GET_ALONE)
 #else
-  #define GASNETI_CHECK_INJECT(x)        ((void)0)
-  #define GASNETI_CHECK_INJECT_REPLY(x)  ((void)0)
+  #define GASNETI_CHECK_INJECT()        ((void)0)
+  #define GASNETI_CHECK_INJECT_REPLY()  ((void)0)
   #define GASNETI_CHECK_INJECT_RESET()  ((void)0)
 #endif
 
