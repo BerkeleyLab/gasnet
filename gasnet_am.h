@@ -89,6 +89,36 @@
 /* ------------------------------------------------------------------------------------ */
 /* utility macros for dispatching AM handlers */
 
+#if GASNET_DEBUG
+// Note: use of GASNETI_MYTHREAD_GET_OR_LOOKUP is necessary here
+// to ensure we do not require FARG/POST'd context in callers.
+#define GASNETI_HANDLER_ENTER(isReq) \
+  do {                                                        \
+    gasneti_threaddata_t * const mythread =                   \
+                              GASNETI_MYTHREAD_GET_OR_LOOKUP; \
+    if (mythread) { /* some conduits use AMs very early */    \
+      int *cntr_p = isReq ? &mythread->request_handler_active \
+                          : &mythread->reply_handler_active;  \
+      gasneti_assert_int(*cntr_p ,==, 0); /* No recursion */  \
+      *cntr_p = 1;                                            \
+    }                                                         \
+  } while (0)
+#define GASNETI_HANDLER_LEAVE(isReq) \
+  do {                                                        \
+    gasneti_threaddata_t * const mythread =                   \
+                              GASNETI_MYTHREAD_GET_OR_LOOKUP; \
+    if (mythread) { /* some conduits use AMs very early */    \
+      int *cntr_p = isReq ? &mythread->request_handler_active \
+                          : &mythread->reply_handler_active;  \
+      gasneti_assert_int(*cntr_p ,==, 1);                     \
+      *cntr_p = 0;                                            \
+    }                                                         \
+  } while (0)
+#else
+  #define GASNETI_HANDLER_ENTER(isReq) ((void)0)
+  #define GASNETI_HANDLER_LEAVE(isReq) ((void)0)
+#endif
+  
 #define _gasneti_harg(a,b,c) ,gex_AM_Arg_t
 #define _gasneti_harg_pass(Nm1,N,Np1) ,_pArgs[Nm1]
 
@@ -108,10 +138,12 @@ GASNETI_META_ASC16(_gasneti_Short_handlerfn_typedefN,_gasneti_Short_handlerfn_ty
   else       GASNETI_TRACE_AMSHORT_REPHANDLER(hid, _token, _numargs, _pArgs);   \
   gasneti_assert(_phandlerfn); gasneti_assert(_token);                          \
   gasneti_assert(_pArgs || !_numargs);                                          \
+  GASNETI_HANDLER_ENTER(isReq);                                                 \
   switch (_numargs) {                                                           \
     GASNETI_META_DES16(_gasneti_Short_RunCaseN,_gasneti_Short_RunCaseN)         \
     default: gasneti_unreachable_error(("Invalid numargs=%i",_numargs));        \
   }                                                                             \
+  GASNETI_HANDLER_LEAVE(isReq);                                                 \
   GASNETI_TRACE_PRINTF(A,("AM%s_SHORT_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
 } while (0)
 
@@ -135,10 +167,12 @@ GASNETI_META_ASC16(_gasneti_MedLong_handlerfn_typedefN,_gasneti_MedLong_handlerf
   gasneti_assert(_pArgs || !_numargs);                                          \
   gasneti_assert(_pData || !_datalen);                                          \
   extrachecks;                                                                  \
+  GASNETI_HANDLER_ENTER(isReq);                                                 \
   switch (_numargs) {                                                           \
     GASNETI_META_DES16(_gasneti_MedLong_RunCaseN,_gasneti_MedLong_RunCaseN)     \
     default: gasneti_unreachable_error(("Invalid numargs=%i",_numargs));        \
   }                                                                             \
+  GASNETI_HANDLER_LEAVE(isReq);                                                 \
 } while (0)
 
 // by default, we guarantee double-word alignment for data payload of medium xfers

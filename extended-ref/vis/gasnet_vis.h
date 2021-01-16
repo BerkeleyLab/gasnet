@@ -247,7 +247,6 @@ int _gasnete_vis_havepc(const void * const _ti) {
   gasnete_vis_pcinfo_t const * const _vis_ti = ((gasnete_vis_pcinfo_t const * const *)_ti)[2];
   return _vis_ti && _vis_ti->_handler;
 }
-// TODO-EX: comment out GASNETI_MYTHREAD_GET_OR_LOOKUP defn once we remove this sole use
 #define GASNETE_VIS_HAVEPC() _gasnete_vis_havepc(GASNETI_MYTHREAD_GET_OR_LOOKUP)
 #define _GASNETE_VIS_PCWRAP(tm,rank,flags,fnbase,syncmode,opargs) (                      \
     GASNETE_VIS_HAVEPC() ?                                                               \

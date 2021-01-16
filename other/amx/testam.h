@@ -28,7 +28,7 @@
   #define NUMHANDLERS_PER_TYPE     (gasnet_AMMaxArgs()+1)
   #define MYPROC                   (gasnet_mynode())
   #define NUMPROCS                 (gasnet_nodes())
-  #define MYSEG                    (TEST_MYSEG())
+  #define MYSEG                    (test_myseg)
   #define ENDPOINT
   #define GETPARTNER(token)  gasnet_node_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
   #define EXTRA_S
@@ -98,7 +98,7 @@
   #define NUMHANDLERS_PER_TYPE     (gex_AM_MaxArgs()+1)
   #define MYPROC                   (gex_System_QueryJobRank())
   #define NUMPROCS                 (gex_System_QueryJobSize())
-  #define MYSEG                    (TEST_MYSEG())
+  #define MYSEG                    (test_myseg)
   #define GETPARTNER(token) gex_Rank_t partner; \
                             do { gex_Token_Info_t info; \
                                  gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK); \
@@ -142,9 +142,10 @@
   #define ALLAM_DONE(iters) ((int)NUMREP() == (int)(NUMHANDLERS_PER_TYPE*3*(iters)))
 #endif
 
-typedef struct {
+typedef struct testam_payload_s {
   double doublevar;
   uint64_t int64var;
+  struct testam_payload_s* partnerseg;
   int idx;
 } testam_payload_t;
 #define TESTAM_DOUBLEVAR_VAL  (2.5f)
@@ -422,7 +423,7 @@ typedef struct {
     ReplyLong(num,(token, (NUMHANDLERS_PER_TYPE+num)*sizeof(testam_payload_t),                \
                    LONG_##num##REP_HANDLER, &mybuf, nbytes aa##num),                          \
                   (token, LONG_##num##REP_HANDLER, &mybuf, nbytes,                            \
-                   ((testam_payload_t*)TEST_SEG(partner))+NUMHANDLERS_PER_TYPE+num            \
+                   payload->partnerseg+NUMHANDLERS_PER_TYPE+num                               \
                    EXTRA_ML aa##num));                                                        \
     memset(&mybuf, 0xBB, sizeof(testam_payload_t));                                           \
   }                                                                                           \
@@ -540,6 +541,7 @@ HANDLERS(16)
   static testam_payload_t medbuf, longbuf;                                                         \
   asyncbuf.doublevar = TESTAM_DOUBLEVAR_VAL;                                                       \
   asyncbuf.int64var = TESTAM_INT64VAR_VAL;                                                         \
+  asyncbuf.partnerseg = (testam_payload_t*)MYSEG;                                                  \
   asyncbuf.idx = num;                                                                              \
   RequestShort(num,(ENDPOINT partner,  SHORT_##num##REQ_HANDLER EXTRA_S AA##num));                 \
   memcpy(&medbuf, &asyncbuf, sizeof(testam_payload_t));                                            \

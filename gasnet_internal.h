@@ -224,13 +224,6 @@ GASNETI_MALLOCP(_gasneti_calloc)
 #endif
 #define gasneti_thunk_segment  gasneti_thunk_error
 
-#if 0 // this safety belt must be disabled until the cleanup in PR #126 fixes internal inclusion of public headers
-#ifdef GASNETI_MYTHREAD_GET_OR_LOOKUP
-#undef GASNETI_MYTHREAD_GET_OR_LOOKUP
-#endif
-#define GASNETI_MYTHREAD_GET_OR_LOOKUP ERROR__GASNet_conduit_code_should_use_GASNETI_MYTHREAD
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /* Version of strdup() which is compatible w/ gasneti_free(), instead of plain free() */
 GASNETI_INLINE(_gasneti_strdup) GASNETI_MALLOC
@@ -792,6 +785,13 @@ extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
     gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0)
 
 /* ------------------------------------------------------------------------------------ */
+// Helpers for debug checks
+
+#if GASNET_DEBUG
+void gasneti_checknpam(int for_reply GASNETI_THREAD_FARG);
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 
 #include <gasnet_handler_internal.h>
 
@@ -834,6 +834,9 @@ typedef struct _gasneti_threaddata_t {
 #if GASNET_DEBUG || GASNETI_THREADINFO_OPT
   #define GASNETI_NEED_INIT_SRCDESC 1
   int sd_is_init;
+#endif
+#if GASNET_DEBUG
+  int request_handler_active, reply_handler_active;
 #endif
   struct gasneti_AM_SrcDesc request_sd, reply_sd;
   void *loopback_requestBuf, *loopback_replyBuf;

@@ -479,7 +479,7 @@ void gasneti_init_srcdesc(GASNETI_THREAD_FARG_ALONE)
 #if GASNET_DEBUG
 void gasneti_checknpam(int for_reply GASNETI_THREAD_FARG) {
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
-  if (mythread && mythread->sd_is_init) {
+  if (mythread->sd_is_init) {
     // Never valid to communicate between Prepare/Commit of Reply
     if (mythread->reply_sd._magic._u == GASNETI_AM_SRCDESC_MAGIC) {
       gasneti_fatalerror("Invalid GASNet call (communication injection or poll) between gex_AM_PrepareReply() and the corresponding Commit on this thread");
