@@ -42,11 +42,6 @@ extern int gasnetc_Client_Init(
                 gex_Flags_t            _flags);
 // gasnetex.h handles name-shifting of gex_Client_Init()
 
-extern int gasnetc_EP_RegisterHandlers(
-                gex_EP_t                _ep,
-                gex_AM_Entry_t          *_table,
-                size_t                  _numentries);
-#define gex_EP_RegisterHandlers gasnetc_EP_RegisterHandlers
 /* ------------------------------------------------------------------------------------ */
 /*
   Handler-safe locks

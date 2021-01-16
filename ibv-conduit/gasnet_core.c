@@ -3103,11 +3103,6 @@ int gasnetc_ep_init_hook(gasneti_EP_t i_ep)
   return GASNET_OK;
 }
 
-extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
-                                       gex_AM_Entry_t          *table,
-                                       size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
-}
 /* ------------------------------------------------------------------------------------ */
 /* Shutdown code - not always used */
 

@@ -640,6 +640,11 @@ extern int gex_EP_Create(
             gex_EP_Capabilities_t  _capabilities,
             gex_Flags_t            _flags);
 
+extern int gex_EP_RegisterHandlers(
+            gex_EP_t       _ep,
+            gex_AM_Entry_t *_table,
+            size_t         _numentries);
+
 extern void gex_EP_BindSegment(
             gex_EP_t       _ep,
             gex_Segment_t  _segment,

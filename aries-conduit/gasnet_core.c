@@ -960,12 +960,6 @@ extern int gasnetc_EP_PublishBoundSegment(
 
   return GASNET_OK;
 }
-
-extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
-                                       gex_AM_Entry_t          *table,
-                                       size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
-}
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_exit_in_signal = 0;  /* to avoid certain things in signal context */
 extern void gasnetc_fatalsignal_callback(int sig) {

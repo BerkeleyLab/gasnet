@@ -506,12 +506,6 @@ extern int gasnetc_Client_Init(
 
   return GASNET_OK;
 }
-
-extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
-                                       gex_AM_Entry_t          *table,
-                                       size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
-}
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_exitcalled = 0;
 static void gasnetc_traceoutput(int exitcode) {

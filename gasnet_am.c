@@ -270,6 +270,17 @@ extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+extern int gex_EP_RegisterHandlers(
+                gex_EP_t                ep,
+                gex_AM_Entry_t          *table,
+                size_t                  numentries)
+{
+  GASNETI_TRACE_PRINTF(O,("gex_EP_RegisterHandlers: ep=%p table=%p numentries=%"PRIuSZ,
+                          ep, table, numentries));
+  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
+}
+
+/* ------------------------------------------------------------------------------------ */
 #if GASNET_DEBUG
 // Post processing of gex_Token_Info() results
 extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *info, gex_TI_t mask) {
