@@ -870,7 +870,12 @@ void gasneti_leaf_finish(gex_Event_t *_opt_val) {
   // GASNETI_MYTHREAD_GET_OR_LOOKUP: force retrieve my (gasneti_threaddata_t *) from one of:
   //     a prior GASNET_POST_THREADINFO, an FARG to the enclosing function, or dynamic lookup
   //  This is essentially GASNETI_MYTHREAD without requiring FARG/POST'd context (allows lookup)
-  //  Only valid known use is macros that expand threaddata field access directly into client code
+  //  Only valid known use is macros that expand threaddata field access directly into an
+  //  "unknown" context, such as in client code or certain cases of internal code with callers
+  //  in multiple conduits and/or subsystems.
+  //  This is NOT suitable for internal code in which the macro definition and its callers fall
+  //  within a single conduit or subsystem.  Such cases should instead establish FARG/POST'd
+  //  context and use GASNETI_MYTHREAD.
   #define GASNETI_MYTHREAD_GET_OR_LOOKUP ((struct _gasneti_threaddata_t *)GASNET_GET_THREADINFO())
 
 #else

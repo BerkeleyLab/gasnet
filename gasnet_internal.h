@@ -224,13 +224,6 @@ GASNETI_MALLOCP(_gasneti_calloc)
 #endif
 #define gasneti_thunk_segment  gasneti_thunk_error
 
-#if 0 // this safety belt must be disabled until the cleanup in PR #126 fixes internal inclusion of public headers
-#ifdef GASNETI_MYTHREAD_GET_OR_LOOKUP
-#undef GASNETI_MYTHREAD_GET_OR_LOOKUP
-#endif
-#define GASNETI_MYTHREAD_GET_OR_LOOKUP ERROR__GASNet_conduit_code_should_use_GASNETI_MYTHREAD
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /* Version of strdup() which is compatible w/ gasneti_free(), instead of plain free() */
 GASNETI_INLINE(_gasneti_strdup) GASNETI_MALLOC
