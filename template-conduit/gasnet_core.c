@@ -166,6 +166,18 @@ static int gasnetc_attach_primary(void) {
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+int gasnetc_segment_create_hook(gex_Segment_t e_segment)
+{
+  // (###) If needed, implement conduit-specific "create" of the given segment,
+  // and define GASNETC_SEGMENT_CREATE_HOOK in gasnet_core_fwd.h
+  // Otherwise, this function may be removed.
+
+  // Register/pin the segment
+  (###)
+
+  return GASNET_OK;
+}
+
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 {
   // (###) If needed, implement conduit-specific "attach" of the given segment
@@ -174,6 +186,7 @@ int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 
 #if !GASNET_SEGMENT_EVERYTHING
   // Register/pin the segment
+  // recommended:  gasneti_assert_zeroret( gasnetc_segment_create_hook(e_segment) );
   (###)
 
   // Exchange registration info
@@ -289,27 +302,6 @@ extern int gasnetc_Client_Init(
   }
 
   return GASNET_OK;
-}
-
-extern int gasnetc_Segment_Create(
-                gex_Segment_t           *segment_p,
-                gex_Client_t            client,
-                gex_Addr_t              address,
-                uintptr_t               length,
-                gex_MK_t                kind,
-                gex_Flags_t             flags)
-{
-  gasneti_assert(segment_p);
-
-  // Create the Segment object, allocating memory if appropriate
-  gasneti_Client_t i_client = gasneti_import_client(client);
-  int rc = gasneti_segmentCreate(segment_p, i_client, address, length, kind, flags);
-
-  if (rc == GASNET_OK) {
-    // (###) add code for any conduit-specific registration or similar
-  }
-
-  return rc;
 }
 
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,

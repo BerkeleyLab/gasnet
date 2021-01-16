@@ -168,9 +168,11 @@
 #define GASNETC_SIZEOF_EP_T() \
   gasnetc_sizeof_ep_t()
 
-  // Uncomment if conduit provides this hook:
+  // Uncomment if conduit provides, respectively, these hooks:
   //   int gasnetc_segment_attach_hook(e_segment, e_tm);
+  //   int gasnetc_segment_create_hook(e_segment);
 #define GASNETC_SEGMENT_ATTACH_HOOK 1
+#define GASNETC_SEGMENT_CREATE_HOOK 1
 
 #if GASNETC_PIN_SEGMENT // multi-EP NOT supported with remote firehose
 // If conduit supports GASNET_MAXEPS!=1, set default and (optional) max values here.

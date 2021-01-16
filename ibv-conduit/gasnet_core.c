@@ -2892,16 +2892,28 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   return GASNET_OK;
 }
 
+/* ------------------------------------------------------------------------------------ */
+int gasnetc_segment_create_hook(gex_Segment_t e_segment)
+{
+#if GASNETC_PIN_SEGMENT
+  // Register the segment
+  gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
+  if (GASNET_OK != gasnetc_segment_register(segment, 0)) {
+    gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
+  }
+#endif
+  return GASNET_OK;
+}
+
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 {
-  #if GASNETC_PIN_SEGMENT
-    // pin the segment 
-    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
-    int rc = gasnetc_segment_register(segment, 1);
-    if (rc) {
-      gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
-    }
-  #endif
+#if GASNETC_PIN_SEGMENT
+  // Register the segment
+  gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
+  if (GASNET_OK != gasnetc_segment_register(segment, 1)) {
+    gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
+  }
+#endif
 
   // Exchange registration info
   gex_EP_t e_ep = gex_TM_QueryEP(e_tm);
@@ -2909,6 +2921,7 @@ int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 
   return GASNET_OK;
 }
+
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
 extern int gasnetc_attach( gex_TM_t               _tm,
@@ -3017,32 +3030,6 @@ extern int gasnetc_Client_Init(
   }
 
   return GASNET_OK;
-}
-
-extern int gasnetc_Segment_Create(
-                gex_Segment_t           *segment_p,
-                gex_Client_t            client,
-                gex_Addr_t              address,
-                uintptr_t               length,
-                gex_MK_t                kind,
-                gex_Flags_t             flags)
-{
-  gasneti_assert(segment_p);
-
-  // Create the Segment object, allocating memory if appropriate
-  gasneti_Client_t i_client = gasneti_import_client(client);
-  int rc = gasneti_segmentCreate(segment_p, i_client, address, length, kind, flags);
-
-  if (rc == GASNET_OK) {
-    // Register the segment
-    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
-    rc = gasnetc_segment_register(segment, 0);
-    if ((GASNET_OK != rc) && (GASNET_ERR_RESOURCE != rc)) {
-      gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
-    }
-  }
-
-  return rc;
 }
 
 #if GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT

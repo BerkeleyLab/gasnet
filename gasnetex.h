@@ -677,6 +677,14 @@ extern int gex_Segment_Attach(
             gex_TM_t       _tm,
             uintptr_t      _length);
 
+extern int gex_Segment_Create(
+            gex_Segment_t  *_segment_p,
+            gex_Client_t   _client,
+            gex_Addr_t     _address,
+            uintptr_t      _length,
+            gex_MK_t       _kind,
+            gex_Flags_t    _flags);
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 

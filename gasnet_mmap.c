@@ -2116,23 +2116,12 @@ int gasneti_segmentCreate(
                 gex_MK_t                kind,
                 gex_Flags_t             flags)
 {
-  GASNETI_TRACE_PRINTF(O,("gex_Segment_Create: addr="GASNETI_LADDRFMT" len=%"PRIuPTR" flags=%d",
-                          GASNETI_LADDRSTR(address), length, flags));
-
-  if (!segment_p) {
-    gasneti_fatalerror("Invalid call to gex_Segment_Create() with NULL segment_p");
-  }
-  if (flags) {
-    gasneti_fatalerror("Invalid call to gex_Segment_Create() with non-zero flags");
-  }
-  if (! length) {
-    gasneti_fatalerror("Invalid call to gex_Segment_Create() with zero length");
-  }
-  if (kind == GEX_MK_INVALID) {
-    gasneti_fatalerror("Invalid call to gex_Segment_Create() with kind = GEX_MK_INVALID");
-  }
-
   gasneti_Segment_t segment = gasneti_import_segment(GEX_SEGMENT_INVALID);
+
+  gasneti_assert(segment_p);
+  gasneti_assert(! flags);
+  gasneti_assert(length);
+  gasneti_assert(kind != GEX_MK_INVALID);
 
   if (kind == GEX_MK_HOST) {
     if (address) {

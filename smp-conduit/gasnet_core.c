@@ -760,23 +760,6 @@ extern int gasnetc_Client_Init(
   return GASNET_OK;
 }
 
-extern int gasnetc_Segment_Create(
-                gex_Segment_t           *segment_p,
-                gex_Client_t            client,
-                gex_Addr_t              address,
-                uintptr_t               length,
-                gex_MK_t                kind,
-                gex_Flags_t             flags)
-{
-  gasneti_assert(segment_p);
-
-  // Create the Segment object, allocating memory if appropriate
-  gasneti_Client_t i_client = gasneti_import_client(client);
-  int rc = gasneti_segmentCreate(segment_p, i_client, address, length, kind, flags);
-
-  return rc;
-}
-
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
                                        size_t                  numentries) {

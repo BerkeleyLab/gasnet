@@ -41,15 +41,6 @@ extern int gasnetc_Client_Init(
                 gex_Flags_t            _flags);
 // gasnetex.h handles name-shifting of gex_Client_Init()
 
-extern int gasnetc_Segment_Create(
-                gex_Segment_t          *_segment_p,
-                gex_Client_t           _client,
-                gex_Addr_t             _address,
-                uintptr_t              _length,
-                gex_MK_t               _kind,
-                gex_Flags_t            _flags);
-#define gex_Segment_Create gasnetc_Segment_Create
-
 extern int gasnetc_EP_RegisterHandlers(
                 gex_EP_t                _ep,
                 gex_AM_Entry_t          *_table,

@@ -756,12 +756,23 @@ static int gasnetc_attach_primary(void) {
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
+int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 {
 #if GASNETC_PIN_SEGMENT
-  /* pin the segment and exchange the RKeys */
+  // Register the segment
   gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
   segment->mem_info = gasnetc_segment_register(segment->_addr, segment->_size);
+#endif
+  return GASNET_OK;
+}
+
+int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
+{
+  gasneti_assert_zeroret( gasnetc_segment_create_hook(e_segment) );
+
+#if GASNETC_PIN_SEGMENT
+  // Exchange the RKeys
+  gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
   gasnetc_segment_exchange(segment->mem_info, e_tm);
 #endif
 
@@ -873,31 +884,6 @@ extern int gasnetc_Client_Init(
   }
 
   return GASNET_OK;
-}
-
-extern int gasnetc_Segment_Create(
-                gex_Segment_t           *segment_p,
-                gex_Client_t            client,
-                gex_Addr_t              address,
-                uintptr_t               length,
-                gex_MK_t                kind,
-                gex_Flags_t             flags)
-{
-  gasneti_assert(segment_p);
-
-  // Create the Segment object, allocating memory if appropriate
-  gasneti_Client_t i_client = gasneti_import_client(client);
-  int rc = gasneti_segmentCreate(segment_p, i_client, address, length, kind, flags);
-
-#if GASNETC_PIN_SEGMENT
-  if (rc == GASNET_OK) {
-    // Register the segment
-    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
-    segment->mem_info = gasnetc_segment_register(segment->_addr, segment->_size);
-  }
-#endif
-
-  return rc;
 }
 
 extern int gasnetc_EP_PublishBoundSegment(

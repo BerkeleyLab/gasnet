@@ -138,9 +138,11 @@
 //#define GASNETC_EP_FINI_HOOK(i_ep) (###)
 //#define GASNETC_SIZEOF_EP_T() (###)
 
-  // Uncomment if conduit provides this hook:
+  // Uncomment if conduit provides, respectively, these hooks:
   //   int gasnetc_segment_attach_hook(e_segment, e_tm);
+  //   int gasnetc_segment_create_hook(e_segment);
 #define GASNETC_SEGMENT_ATTACH_HOOK 1
+#define GASNETC_SEGMENT_CREATE_HOOK 1
 
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
 /* Need to hook pthread create to ensure collective creation of domains */

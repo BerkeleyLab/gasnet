@@ -612,6 +612,53 @@ extern int gex_Segment_Attach(
   return GASNET_OK;
 }
 
+#if GASNETC_SEGMENT_CREATE_HOOK
+extern int gasnetc_segment_create_hook(gex_Segment_t);
+#endif
+
+extern int gex_Segment_Create(
+                gex_Segment_t           *segment_p,
+                gex_Client_t            e_client,
+                gex_Addr_t              address,
+                uintptr_t               length,
+                gex_MK_t                kind,
+                gex_Flags_t             flags)
+{
+  gasneti_Client_t i_client = gasneti_import_client(e_client);
+
+  // TODO: tracing of "kind"
+  GASNETI_TRACE_PRINTF(O,("gex_Segment_Create: client='%s' address=%p length=%"PRIuPTR" flags=%d",
+                          i_client ? i_client->_name : "(NULL)", address, length, flags));
+  GASNETI_CHECK_INJECT();
+
+  if (! segment_p) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with NULL segment_p");
+  }
+  if (! i_client) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with NULL client");
+  }
+  if (flags) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with non-zero flags");
+  }
+  if (! length) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with zero length");
+  }
+  if (kind == GEX_MK_INVALID) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with kind = GEX_MK_INVALID");
+  }
+
+  // Create the Segment object, allocating memory if appropriate
+  int rc = gasneti_segmentCreate(segment_p, i_client, address, length, kind, flags);
+
+  #if GASNETC_SEGMENT_CREATE_HOOK
+    if (rc == GASNET_OK) {
+      rc = gasnetc_segment_create_hook(*segment_p);
+    }
+  #endif
+
+  return rc;
+}
+
 /* ------------------------------------------------------------------------------------ */
 // Endpoint management
 
