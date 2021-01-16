@@ -2892,20 +2892,11 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   return GASNET_OK;
 }
 
-static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
-                                  gex_TM_t                      tm,
-                                  uintptr_t                     segsize,
-                                  gex_Flags_t                   flags) {
-  /* ------------------------------------------------------------------------------------ */
-  /*  register client segment  */
-
-  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, tm, segsize, flags);
-
-  // Register client segment with NIC
-
+int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
+{
   #if GASNETC_PIN_SEGMENT
     // pin the segment 
-    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
     int rc = gasnetc_segment_register(segment, 1);
     if (rc) {
       gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
@@ -2913,8 +2904,8 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   #endif
 
   // Exchange registration info
-  gex_EP_t ep = gex_TM_QueryEP(tm);
-  gasnetc_segment_exchange(tm, &ep, 1);
+  gex_EP_t e_ep = gex_TM_QueryEP(e_tm);
+  gasnetc_segment_exchange(e_tm, &e_ep, 1);
 
   return GASNET_OK;
 }
@@ -2952,8 +2943,10 @@ extern int gasnetc_attach( gex_TM_t               _tm,
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
     gex_Segment_t seg; // g2ex segment is automatically saved by a hook
-    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, GASNETI_FLAG_INIT_LEGACY))
+    if (GASNET_OK != gasneti_segmentAttach(&seg, _tm, segsize, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
+    if (GASNET_OK != gasnetc_segment_attach_hook(seg, _tm))
+      GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment (conduit hook)");
   #endif
 
   /*  register client handlers */
@@ -3022,33 +3015,6 @@ extern int gasnetc_Client_Init(
     /* ensure everything is initialized across all nodes */
     gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
   }
-
-  return GASNET_OK;
-}
-
-extern int gasnetc_Segment_Attach(
-                gex_Segment_t          *segment_p,
-                gex_TM_t               tm,
-                uintptr_t              length)
-{
-  gasneti_assert(segment_p);
-
-  // TODO-EX: remove when this limitation is removed
-  static int once = 1;
-  if (once) once = 0;
-  else gasneti_fatalerror("gex_Segment_Attach: current implementation can be called at most once");
-
-  #if GASNET_SEGMENT_EVERYTHING
-    *segment_p = GEX_SEGMENT_INVALID;
-    gex_Event_Wait(gex_Coll_BarrierNB(tm, 0));
-    return GASNET_OK; 
-  #endif
-
-  /* create a segment collectively */
-  // TODO-EX: this implementation only works *once*
-  // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
-  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, 0))
-    GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   return GASNET_OK;
 }

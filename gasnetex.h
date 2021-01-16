@@ -672,6 +672,11 @@ extern gex_Event_t gex_EP_QueryBoundSegmentNB(
             uintptr_t      *_size_p,
             gex_Flags_t    _flags) GASNETI_WARN_UNUSED_RESULT;
 
+extern int gex_Segment_Attach(
+            gex_Segment_t  *_segment_p,
+            gex_TM_t       _tm,
+            uintptr_t      _length);
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 

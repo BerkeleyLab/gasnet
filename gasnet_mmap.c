@@ -2055,7 +2055,7 @@ extern int gasneti_EP_PublishBoundSegment(
 }
 
 /* ------------------------------------------------------------------------------------ */
-gasnet_seginfo_t gasneti_segmentAttach(
+int gasneti_segmentAttach(
                 gex_Segment_t                 *segment_p,
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
@@ -2100,9 +2100,10 @@ gasnet_seginfo_t gasneti_segmentAttach(
   gasneti_assert_ptr(gasneti_seginfo[gasneti_mynode].addr ,==, segbase);
   gasneti_assert_uint(gasneti_seginfo[gasneti_mynode].size ,==, segsize);
 
-  // Two "outputs":
+  // output:
   *segment_p = gasneti_export_segment(i_segment);
-  return myseg;
+
+  return GASNET_OK;
 }
 
 /* ------------------------------------------------------------------------------------ */

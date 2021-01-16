@@ -563,6 +563,55 @@ void gasneti_free_segment(gasneti_Segment_t segment)
 }
 #endif // _GEX_SEGMENT_T
 
+#if GASNETC_SEGMENT_ATTACH_HOOK
+extern int gasnetc_segment_attach_hook(gex_Segment_t, gex_TM_t);
+#endif
+
+extern int gex_Segment_Attach(
+                gex_Segment_t          *segment_p,
+                gex_TM_t               e_tm,
+                uintptr_t              length)
+{
+  gasneti_TM_t i_tm = gasneti_import_tm_nonpair(e_tm);
+
+  GASNETI_TRACE_PRINTF(O,("gex_Segment_Attach: segment_p=%p tm="GASNETI_TMSELFFMT" length=%"PRIuPTR,
+                          segment_p, GASNETI_TMSELFSTR(e_tm), length));
+  GASNETI_CHECK_INJECT();
+
+  if (! segment_p) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Attach with NULL segment_p");
+  }
+
+  if (! e_tm) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Attach with NULL e_tm");
+  }
+
+  // TODO-EX: remove if/when this limitation is removed
+  static int once = 1;
+  if (once) once = 0;
+  else gasneti_fatalerror("gex_Segment_Attach: current implementation can be called at most once");
+
+  #if GASNET_SEGMENT_EVERYTHING
+    *segment_p = GEX_SEGMENT_INVALID;
+    gex_Event_Wait(gex_Coll_BarrierNB(e_tm, 0));
+  #else
+    /* create a segment collectively */
+    // TODO-EX: this implementation only works *once*
+    // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
+    if (GASNET_OK != gasneti_segmentAttach(segment_p, e_tm, length, 0)) {
+      GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
+    }
+  #endif
+
+  #if GASNETC_SEGMENT_ATTACH_HOOK
+    if (GASNET_OK != gasnetc_segment_attach_hook(*segment_p, e_tm)) {
+      GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment (conduit hook)");
+    }
+  #endif
+
+  return GASNET_OK;
+}
+
 /* ------------------------------------------------------------------------------------ */
 // Endpoint management
 

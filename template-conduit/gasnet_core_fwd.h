@@ -128,6 +128,10 @@
 //#define GASNETC_EP_FINI_HOOK(i_ep) (###)
 //#define GASNETC_SIZEOF_EP_T() (###)
 
+  // Uncomment if conduit provides this hook:
+  //   int gasnetc_segment_attach_hook(e_segment, e_tm);
+//#define GASNETC_SEGMENT_ATTACH_HOOK 1
+
 // If conduit supports GASNET_MAXEPS!=1, set default and (optional) max values here.
 // Leaving GASNETC_MAXEPS_DFLT unset will result in GASNET_MAXEPS=1, independent
 // of all other settings (appropriate for conduits without multi-ep support).

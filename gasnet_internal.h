@@ -485,7 +485,7 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn,
                          gex_Flags_t flags);
-gasnet_seginfo_t gasneti_segmentAttach(
+int gasneti_segmentAttach(
                 gex_Segment_t                 *segment_p,
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
