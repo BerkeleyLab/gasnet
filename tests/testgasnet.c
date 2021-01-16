@@ -142,6 +142,16 @@ void test_threadinfo(int threadid, int numthreads) {
     gasnet_threadinfo_t ti = GASNET_GET_THREADINFO();
     assert_always(ti == my_ti);
   }
+  { GASNET_BEGIN_FUNCTION();
+    { GASNET_BEGIN_FUNCTION();
+      gasnet_threadinfo_t ti = GASNET_GET_THREADINFO();
+      assert_always(ti == my_ti);
+    }
+    { GASNET_POST_THREADINFO(GASNET_GET_THREADINFO());
+      gasnet_threadinfo_t ti = GASNET_GET_THREADINFO();
+      assert_always(ti == my_ti);
+    }
+  }
   assert(threadid < numthreads && numthreads <= MAX_THREADS);
   all_ti[threadid] = my_ti;
   PTHREAD_LOCALBARRIER(numthreads);
