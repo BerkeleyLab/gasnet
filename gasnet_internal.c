@@ -380,6 +380,18 @@ void gasneti_check_inject(int for_reply GASNETI_THREAD_FARG) {
 
   // TODO: check for HSL context
 }
+
+// Resets all state indicative of restricted context.
+// This is intended for use within `gasnet-exit()` which *is* valid from
+// handler context, and is known to run with HSLs held on error paths.
+// There is currently no other known-valid reason to use this call.
+void gasneti_check_inject_reset(GASNETI_THREAD_FARG_ALONE) {
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  if (!mythread) return; // Some conduits communicate very early
+  mythread->reply_handler_active = 0;
+  mythread->request_handler_active = 0;
+  // TODO: reset HSL context
+}
 #endif
 
 /* ------------------------------------------------------------------------------------ */

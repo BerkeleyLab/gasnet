@@ -3576,6 +3576,9 @@ static void gasnetc_exit_body(void) {
   /* Disable processing of AMs, except core-specific ones */
   gasnetc_disable_AMs();
 
+  // prevent possible GASNETI_CHECK_INJECT() failures when we communicate
+  GASNETI_CHECK_INJECT_RESET();
+
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* Timed MAX(exitcode) reduction to clearly distinguish collective exit */

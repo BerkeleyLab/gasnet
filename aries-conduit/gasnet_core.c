@@ -1077,6 +1077,9 @@ extern void gasnetc_exit(int exitcode) {
 
   gasnetc_disable_AMs();
 
+  // prevent possible GASNETI_CHECK_INJECT() failures when we communicate
+  GASNETI_CHECK_INJECT_RESET();
+
   /* HACK borrowed from elan-conduit: release locks we might have held
      If we are exiting from a signal hander, we might already hold some locks.
      In a debug build we want to avoid the resulting assertions, and in all

@@ -454,6 +454,9 @@ static int gasnetc_exit_coordinate(int exitcode) {
     gasnetc_handler[i].gex_fnptr = (gex_AM_Fn_t)&gasnetc_noop;
   }
 
+  // prevent possible GASNETI_CHECK_INJECT() failures when we communicate
+  GASNETI_CHECK_INJECT_RESET();
+
   /* Coordinate using dissemination-pattern, with timeout.
    * lg(N) rounds each of which sends and recvs 1 AM
    */
