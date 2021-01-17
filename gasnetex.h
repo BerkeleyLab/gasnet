@@ -650,11 +650,6 @@ extern void gex_EP_BindSegment(
             gex_Segment_t  _segment,
             gex_Flags_t    _flags);
 
-#if GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT
-  #define gex_EP_PublishBoundSegment gasnetc_EP_PublishBoundSegment
-#else
-  #define gex_EP_PublishBoundSegment gasneti_EP_PublishBoundSegment
-#endif
 extern int gex_EP_PublishBoundSegment(
             gex_TM_t       _tm,
             gex_EP_t       *_eps,

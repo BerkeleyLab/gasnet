@@ -1982,7 +1982,15 @@ extern void gex_EP_BindSegment(
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasneti_EP_PublishBoundSegment(
+#if GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK
+int gasnetc_ep_publishboundsegment_hook(
+                gex_TM_t               tm,
+                gex_EP_t               *eps,
+                size_t                 num_eps,
+                gex_Flags_t            flags);
+#endif
+
+extern int gex_EP_PublishBoundSegment(
                 gex_TM_t               tm,
                 gex_EP_t               *eps,
                 size_t                 num_eps,
@@ -2051,7 +2059,13 @@ extern int gasneti_EP_PublishBoundSegment(
   //     reasons).
 #endif
 
+#if GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK
+  // TODO: this should be at least two distict hooks for pack and unpack
+  // of data in the exchange operation above, instead of a distinct exchange.
+  return gasnetc_ep_publishboundsegment_hook(tm, eps, num_eps, flags);
+#else
   return GASNET_OK;
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */

@@ -3032,17 +3032,12 @@ extern int gasnetc_Client_Init(
   return GASNET_OK;
 }
 
-#if GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT
-extern int gasnetc_EP_PublishBoundSegment(
+extern int gasnetc_ep_publishboundsegment_hook(
                 gex_TM_t               tm,
                 gex_EP_t               *eps,
                 size_t                 num_eps,
                 gex_Flags_t            flags)
 {
-  // Conduit-independent parts
-  int rc = gasneti_EP_PublishBoundSegment(tm, eps, num_eps, flags);
-  if (GASNET_OK != rc) return rc;
-
   // Conduit-dependent parts
   // TODO: merge comms into gasneti_EP_PublishBoundSegment().
   gasnetc_segment_exchange(tm, eps, num_eps);
@@ -3053,7 +3048,6 @@ extern int gasnetc_EP_PublishBoundSegment(
 
   return GASNET_OK;
 }
-#endif
 
 // Conduit-specififc hook to run at end of gex_EP_Create()
 int gasnetc_ep_init_hook(gasneti_EP_t i_ep)

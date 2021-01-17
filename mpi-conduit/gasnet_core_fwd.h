@@ -91,10 +91,6 @@
    */
 #define GASNETC_REQUESTV_POLLS 1
 
-  // uncomment if conduit provides a gasnetc-prefixed override
-  // TODO: this should be a hook rather than an override
-//#define GASNETC_HAVE_EP_PUBLISHBOUNDSEGMENT 1
-
   /* If your conduit uses conduit-specific extensions to the basic object
      types, then define the corresponding SIZEOF macros below to return
      the total length of the conduit-specific object, including the prefix
@@ -130,8 +126,10 @@
   // Uncomment if conduit provides, respectively, these hooks:
   //   int gasnetc_segment_attach_hook(e_segment, e_tm);
   //   int gasnetc_segment_create_hook(e_segment);
+  //   int gasnetc_ep_publishboundsegment_hook(e_tm, *eps, num_eps, flags);
 //#define GASNETC_SEGMENT_ATTACH_HOOK 1
 //#define GASNETC_SEGMENT_CREATE_HOOK 1
+//#define GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK 1
 
 /* mpi-conduit supports top-level poll throttling */
 #define GASNETC_USING_SUSPEND_RESUME 1
