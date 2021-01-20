@@ -90,6 +90,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   is equivalent to '--with-ibv-max-hcas=1', overridding any explicit
   '--with-ibv-max-hcas=N' options.
 
+  The use of specific HCA ports is controlled at run time by the environment
+  variable GASNET_IBV_PORTS, described below.  The default value of this
+  variable can be set at configure time using '--with-ibv-ports=...'.
+
   When using dynamic connections (see GASNET_CONNECT_DYNAMIC env var,
   below) there is an extra thread spawned to block for the arrival of
   connection requests.  If needed, this can be disabled at configure
@@ -248,7 +252,8 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     how to enumerate available HCAs and the status of their ports.
     In most IBV distributions the 'ibv_devinfo' utility is also
     available to list the HCAs and the status of their ports.
-    The default is no filter.
+    The default can be set at configure time using '--with-ibv-ports=...',
+    and is empty (no filter) in the absence of that configure option.
 
   + GASNET_IBV_LIST_PORTS
     The value is a boolean: "0" to disable or "1" to enable the reporting of

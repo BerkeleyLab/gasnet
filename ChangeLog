@@ -65,6 +65,10 @@ GASNet-EX ChangeLog
     of (at least) efficient Split-like operations with computable membership,
     using less communication than gex_TM_Split.
 
+* InfiniBand Verbs (ibv-conduit)
+  - NEW: configure option --with-ibv-ports=... can be used to set a default
+    value for the GASNET_IBV_PORTS environment variable.
+
 * Cray XC uGNI (aries-conduit)
   - The parameter GASNET_NETWORKDEPTH is now honored for both the Eager and
     RVous AM algorithms, resulting in GASNET_NETWORKDEPTH_SPACE now being

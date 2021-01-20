@@ -61,7 +61,11 @@ size_t gasnetc_sizeof_ep_t(void) {
 */
 
 /* Default is to open one physical port per HCA */
-#define GASNETC_DEFAULT_IBV_PORTS		""
+#ifdef GASNETC_IBV_PORTS_CONFIGURE
+  #define GASNETC_DEFAULT_IBV_PORTS GASNETC_IBV_PORTS_CONFIGURE
+#else
+  #define GASNETC_DEFAULT_IBV_PORTS ""
+#endif
 
 /* Limits on in-flight (queued but not reaped) RDMA Ops */
 #define GASNETC_DEFAULT_NETWORKDEPTH_TOTAL	255	/* Max ops (RDMA + AM) outstanding at source */

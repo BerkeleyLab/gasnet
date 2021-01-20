@@ -3711,6 +3711,15 @@ if test "$enabled_ibv" = yes; then
       AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_HCAS, $gasnetc_ibv_max_hcas)
     fi
 
+    # Default GASNET_IBV_PORTS
+    GASNET_WITH(ibv-ports,
+        [Default value of GASNET_IBV_PORTS environment variable (default is empty)],
+        [if test "$withval" = 'yes'; then
+             AC_MSG_ERROR([--with-ibv-ports requires an argument])
+         else
+             AC_DEFINE_UNQUOTED(GASNETC_IBV_PORTS_CONFIGURE, "$withval")
+         fi])
+
     CONDUIT_PHYSMEM("2/3")
 
     GASNET_IF_DISABLED([ibv-srq],
