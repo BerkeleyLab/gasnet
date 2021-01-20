@@ -1465,17 +1465,6 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #endif
 extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 
-// TODO-EX: override?
-#if 1
-  extern int gasneti_Segment_QueryBound( gex_TM_t _tm,
-                                         gex_Rank_t _rank,
-                                         void **_owneraddr_p,
-                                         void **_localaddr_p,
-                                         uintptr_t *_size_p);
-  #define gex_Segment_QueryBound(tm,rank,o_p,l_p,s_p) \
-          gasneti_Segment_QueryBound(tm,rank,o_p,l_p,s_p)
-#endif
-
 #ifdef GASNETI_RECORD_DYNAMIC_THREADLOOKUP
   GASNETI_INLINE(gasneti_record_dynamic_threadlookup)
   void gasneti_record_dynamic_threadlookup(void) {
