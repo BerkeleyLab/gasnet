@@ -123,6 +123,7 @@ static char *run_hwloc_cmd(const char *cmd, size_t *len_p)
 // Look for any "_N"-suffixed env vars.
 // Returns gasneti_malloc'ed string with first matched variable name, if any.
 // TODO: could be more efficient if given an interface to iterate over the environment keys.
+static
 char *check_suffixed(const char *keyname)
 {
   size_t keylen = strlen(keyname);
