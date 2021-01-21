@@ -84,6 +84,10 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
 #define gasneti_strndup(ptr,sz)      _gasneti_strndup((ptr),(sz) GASNETI_CURLOCAARG)
 /* corresponding gasneti_memcheck fns are in gasnet_help.h */
 
+// String append with safe-memory dynamic allocation
+GASNETI_FORMAT_PRINTF(gasneti_sappendf,2,3,
+extern char *gasneti_sappendf(char *s, const char *fmt, ...));
+
 #if GASNET_DEBUGMALLOC
   extern void *_gasneti_malloc(size_t nbytes, const char *curloc) GASNETI_MALLOC;
   extern void *_gasneti_malloc_allowfail(size_t nbytes, const char *curloc) GASNETI_MALLOC;

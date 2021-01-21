@@ -2600,6 +2600,27 @@ extern char *_gasneti_extern_strndup(const char *s, size_t n GASNETI_CURLOCFARG)
   return _gasneti_strndup(s,n GASNETI_CURLOCPARG);
 }
 
+// append to a string with dynamic memory allocation
+// not high-performance, but concise
+char *gasneti_sappendf(char *s, const char *fmt, ...) {
+  // compute length of thing to append
+  va_list args;
+  va_start(args, fmt);
+  int add_len = vsnprintf(NULL, 0, fmt, args);
+  va_end(args);
+
+  // grow (or allocate) the string, including space for '\0'
+  int old_len = s ? strlen(s) : 0;
+  s = gasneti_realloc(s, old_len + add_len + 1);
+
+  // append
+  va_start(args, fmt);
+  vsprintf((s+old_len), fmt, args);
+  va_end(args);
+
+  return s;
+}
+
 #if GASNET_DEBUGMALLOC
   extern void *(*gasnett_debug_malloc_fn)(size_t sz, const char *curloc);
   extern void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc);

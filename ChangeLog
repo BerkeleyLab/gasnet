@@ -30,6 +30,12 @@ GASNet-EX ChangeLog
     option `--with-aries-max-medium` now sets the default value.
     See details, including supported values, in the conduit README.
 
+* InfiniBand Verbs (ibv-conduit)
+  - A new family of `GASNET_IBV_PORTS_*` environment variables provides more
+    control over which InfiniBand ports are used by which processes.
+    Support is conditional on configure finding hwloc, which is optional.
+    See details in the conduit README.
+
 * Portable UDP support (udp-conduit)
   - udp-conduit now defaults to grouping co-located processes into
     contiguous rank ids. 
