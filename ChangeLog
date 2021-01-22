@@ -54,6 +54,7 @@ GASNet-EX ChangeLog
 * Notable bugs fixed in this release:
   - bug4159: AM max-payload queries do not evaluate arguments
   - bug2036: Teach AMUDP to respect externally-imposed node ids
+  - bug4141: SRQ-specific test failures
   - bug4145: Vector/Indexed incorrect with non-primordial teams and loopback/PSHM
 
 ----------------------------------------------------------------------
