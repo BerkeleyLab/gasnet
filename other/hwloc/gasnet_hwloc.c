@@ -26,6 +26,8 @@
     #define hwloc_bitmap_free hwloc_cpuset_free
   #endif
 #elif GASNETI_HAVE_HWLOC_UTILS
+  #include <sys/types.h>
+  #include <sys/wait.h>
   #undef HWLOC_API_VERSION
   #define USE_HWLOC_UTILS 1
   typedef const char *gasneti_hwloc_obj_type_t;
