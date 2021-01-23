@@ -26,6 +26,11 @@
   for((_cep) = (_conn_info)->cep, (_qpi) = 0; \
       (_qpi) < gasnetc_alloc_qps; ++(_cep), ++(_qpi))
 
+// AMs need at most 2 scatter-gather entries when using gather-send for Medium
+// or packed-Long, while Puts and Long payloads need as many as GASNETC_SND_SG.
+// All Send Queues need to be able to  accomodate either.
+#define GASNETC_MAX_SEND_SGE MAX(2, GASNETC_SND_SG)
+
 /* ------------------------------------------------------------------------------------ */
 /* Global data */
 
@@ -430,7 +435,7 @@ gasnetc_setup_ports(gasnetc_conn_info_t *conn_info)
 
 /* Create and destroy QPs to determine the inline data limit */
 static void
-gasnetc_check_inline_limit(int port_num, int send_wr, int send_sge)
+gasnetc_check_inline_limit(int port_num, int send_wr)
 {
   const gasnetc_port_info_t *port = &gasnetc_port_tbl[port_num];
   gasnetc_hca_t *hca = &gasnetc_hca[port->hca_index];
@@ -445,7 +450,7 @@ gasnetc_check_inline_limit(int port_num, int send_wr, int send_sge)
 
     qp_init_attr.cap.max_send_wr     = send_wr;
     qp_init_attr.cap.max_recv_wr     = gasnetc_use_srq ? 0 : gasnetc_am_oust_pp * 2;
-    qp_init_attr.cap.max_send_sge    = send_sge;
+    qp_init_attr.cap.max_send_sge    = GASNETC_MAX_SEND_SGE;
     qp_init_attr.cap.max_recv_sge    = 1;
     qp_init_attr.qp_context          = NULL; /* XXX: Can/should we use this? */
   #if GASNETC_IBV_XRC_OFED
@@ -526,7 +531,7 @@ gasnetc_qp_create(gasnetc_conn_info_t *conn_info)
     qp_init_attr.cap.max_inline_data = gasnetc_inline_limit;
     qp_init_attr.cap.max_send_wr     = max_send_wr;
     qp_init_attr.cap.max_recv_wr     = max_recv_wr;
-    qp_init_attr.cap.max_send_sge    = GASNETC_SND_SG;
+    qp_init_attr.cap.max_send_sge    = GASNETC_MAX_SEND_SGE;
     qp_init_attr.cap.max_recv_sge    = 1;
     qp_init_attr.qp_context          = NULL; /* XXX: Can/should we use this? */
   #if GASNETC_IBV_XRC_OFED
@@ -562,11 +567,11 @@ gasnetc_qp_create(gasnetc_conn_info_t *conn_info)
         if (GASNETC_QPI_IS_REQ(qpi)) {
           qp_init_attr.srq = hca->rqst_srq;
           qp_init_attr.cap.max_send_wr = gasnetc_am_oust_pp;
-          qp_init_attr.cap.max_send_sge = 1; /* only AMs on this QP */
+          qp_init_attr.cap.max_send_sge = GASNETC_MAX_SEND_SGE;
         } else {
           qp_init_attr.srq = hca->repl_srq;
           qp_init_attr.cap.max_send_wr = gasnetc_op_oust_pp;
-          qp_init_attr.cap.max_send_sge = GASNETC_SND_SG;
+          qp_init_attr.cap.max_send_sge = GASNETC_MAX_SEND_SGE;
         }
         cep->srq = qp_init_attr.srq;
         max_send_wr = qp_init_attr.cap.max_send_wr;
@@ -2367,10 +2372,10 @@ gasnetc_connect_init(gasnetc_EP_t ep0)
     int i;
  
     for (i = 0; i < gasnetc_num_ports; ++i) {
-      gasnetc_check_inline_limit(i, gasnetc_op_oust_pp, GASNETC_SND_SG);
+      gasnetc_check_inline_limit(i, gasnetc_op_oust_pp);
       if (gasnetc_use_srq) {
         /* Corresponds to a Request QP */
-        gasnetc_check_inline_limit(i, gasnetc_am_oust_pp, 1);
+        gasnetc_check_inline_limit(i, gasnetc_am_oust_pp);
       }
     }
 
