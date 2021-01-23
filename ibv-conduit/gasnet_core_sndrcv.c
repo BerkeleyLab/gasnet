@@ -544,8 +544,8 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
       }                                \
     } while(0)
   #define GASNETC_COLLECT_FHS() do {                    \
-      gasneti_assert(sreq->fh_count >= 0);              \
-      gasneti_assert(sreq->fh_count <= GASNETC_MAX_FH); \
+      gasneti_assert_int(sreq->fh_count ,>=, 0);        \
+      gasneti_assert_int(sreq->fh_count ,<=, GASNETC_MAX_FH); \
       for (i=0; i<sreq->fh_count; ++i, ++fh_num) {      \
 	fh_ptrs[fh_num] = sreq->fh_ptr[i];              \
       }                                                 \
@@ -565,9 +565,9 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     } while(0)
   #define GASNETC_FREE_BBUFS()	do {} while (0)
   #define GASNETC_COLLECT_FHS() do {                      \
-      gasneti_assert(sreq->fh_count >= 0);                \
+      gasneti_assert_int(sreq->fh_count ,>=, 0);          \
       if (sreq->fh_count > 0) {                           \
-        gasneti_assert(sreq->fh_count <= GASNETC_MAX_FH); \
+        gasneti_assert_int(sreq->fh_count ,<=, GASNETC_MAX_FH); \
         firehose_release(sreq->fh_ptr, sreq->fh_count);   \
       }                                                   \
     } while(0)
@@ -729,7 +729,7 @@ static int gasnetc_snd_reap(int limit) {
               sreq->comp.cb(sreq->comp.data);
             }
             #if GASNETC_PIN_SEGMENT
-	    gasneti_assert(sreq->fh_count == 0);
+	    gasneti_assert_int(sreq->fh_count ,==, 0);
 	    #else
 	    GASNETC_COLLECT_FHS();
 	    #endif
@@ -1599,7 +1599,7 @@ size_t gasnetc_zerocp_common(
       /* We hold a local firehose already, we can only 'try' or risk deadlock */
       fh_loc = gasnetc_fh_try_local_pin(loc_addr, 1);
     }
-    gasneti_assert(sreq->fh_count > 0);
+    gasneti_assert_int(sreq->fh_count ,>, 0);
     sr_desc->num_sge = sreq->fh_count;
     cep = gasnetc_bind_cep(ep, epid, sreq);
     for (seg = 0; seg < sr_desc->num_sge; ++seg) {
@@ -1927,8 +1927,8 @@ void gasnetc_fh_post(gasnetc_sreq_t *sreq, enum ibv_wr_opcode op GASNETI_THREAD_
   size_t remain;
   int i;
 
-  gasneti_assert(sreq->fh_count >= 2);
-  gasneti_assert(sreq->fh_count <= GASNETC_MAX_FH);
+  gasneti_assert_int(sreq->fh_count ,>=, 2);
+  gasneti_assert_int(sreq->fh_count ,<=, GASNETC_MAX_FH);
   gasneti_assert(sreq->fh_ptr[0] != NULL);
   gasneti_assert(sreq->fh_ptr[1] != NULL);
 
@@ -1975,7 +1975,7 @@ static void gasnetc_fh_do_put(gasnetc_sreq_t *sreq GASNETI_THREAD_FARG) {
       if (sreq->comp.cb != NULL) {
         sreq->comp.cb(sreq->comp.data);
       }
-      gasneti_assert(sreq->fh_count > 0);
+      gasneti_assert_int(sreq->fh_count ,>, 0);
       firehose_release(sreq->fh_ptr, sreq->fh_count);
       sreq->opcode = GASNETC_OP_FREE;
       break;
@@ -2007,7 +2007,7 @@ static void gasnetc_fh_do_put(gasnetc_sreq_t *sreq GASNETI_THREAD_FARG) {
 }
 
 #define gasnetc_sreq_is_ready(sreq) \
-  gasnetc_atomic_decrement_and_test(&((sreq)->fh_ready), GASNETI_ATOMIC_REL)
+  gasnetc_atomic_decrement_and_test(&((sreq)->fh_ready), GASNETI_ATOMIC_REL|GASNETI_ATOMIC_ACQ)
 
 static void gasnetc_fh_put_cb(void *context, const firehose_request_t *fh_rem, int allLocalHit) {
   gasnetc_sreq_t *sreq = context;
