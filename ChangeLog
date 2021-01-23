@@ -27,18 +27,18 @@ GASNet-EX ChangeLog
 * InfiniBand Verbs (ibv-conduit)
   - Now support the ODP APIs from the Linux "RDMA Core" distribution, where
     previously only the Mellanox variant was supported (bug 4122).
+  - NEW: configure option --with-ibv-ports=... can be used to set a default
+    value for the GASNET_IBV_PORTS environment variable.
+  - A new family of `GASNET_IBV_PORTS_*` environment variables provides more
+    control over which InfiniBand ports are used by which processes.
+    Support is conditional on configure finding hwloc, which is optional.
+    See details in the conduit README.
 
 * Cray XC uGNI (aries-conduit)
   - A new environment variable GASNET_GNI_MAX_MEDIUM enables selecting the
     size of AM Medium buffers at job launch, and the existing configure
     option `--with-aries-max-medium` now sets the default value.
     See details, including supported values, in the conduit README.
-
-* InfiniBand Verbs (ibv-conduit)
-  - A new family of `GASNET_IBV_PORTS_*` environment variables provides more
-    control over which InfiniBand ports are used by which processes.
-    Support is conditional on configure finding hwloc, which is optional.
-    See details in the conduit README.
 
 * Portable UDP support (udp-conduit)
   - udp-conduit now defaults to grouping co-located processes into
@@ -76,10 +76,6 @@ GASNet-EX ChangeLog
   - Initial implementation of gex_TM_Create() sufficient for implementation
     of (at least) efficient Split-like operations with computable membership,
     using less communication than gex_TM_Split.
-
-* InfiniBand Verbs (ibv-conduit)
-  - NEW: configure option --with-ibv-ports=... can be used to set a default
-    value for the GASNET_IBV_PORTS environment variable.
 
 * Cray XC uGNI (aries-conduit)
   - The parameter GASNET_NETWORKDEPTH is now honored for both the Eager and
