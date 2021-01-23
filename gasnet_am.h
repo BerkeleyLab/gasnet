@@ -444,7 +444,9 @@ gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
   return sd;
 }
 
-// Return a thread-specfic SD to its "inactive" state
+// Return a thread-specific SD to its "inactive" state
+// Must remain non-destructive (other than manipulating _magic)
+// so this can occur in a Commit prior to use of the data.
 GASNETI_INLINE(gasneti_reset_srcdesc)
 void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
 {
@@ -456,6 +458,26 @@ void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
 #endif
+}
+
+// Combined import and reset
+//
+// This is used in the reference implementation of Commit to "close" the
+// Prepare/Commit interval immediately upon entry, rather than via a call to
+// gasneti_reset_srcdesc() just prior to return (which is "best practice" as
+// shown in template-conduit).  This difference allows for the underlying
+// conduit to use, as necessary, calls prohibited in a Prepare/Commit interval
+// without concern over GASNETI_CHECK_INJECT() as seen in Bug 4174 prior to
+// addition of this "consume" API.  This is safe because such communication
+// cannot deadlock on a limited resource given that the reference implementation
+// holds (at most) a malloc'ed buffer.  The same is not true in general of a
+// native NPAM implementation.
+GASNETI_INLINE(gasneti_consume_srcdesc)
+gasneti_AM_SrcDesc_t gasneti_consume_srcdesc(gex_AM_SrcDesc_t e_sd)
+{
+  gasneti_AM_SrcDesc_t i_sd = gasneti_import_srcdesc(e_sd);
+  gasneti_reset_srcdesc(i_sd);
+  return i_sd;
 }
 
 GASNETI_INLINE(gasneti_prepare_common) GASNETI_WARN_UNUSED_RESULT
