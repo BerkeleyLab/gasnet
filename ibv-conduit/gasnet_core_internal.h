@@ -10,7 +10,12 @@
 #include <gasnet_internal.h>
 #include <firehose.h>
 
-#if GASNETC_IBV_ODP
+// This establishes precedence in one central place
+#if GASNETC_IBV_ODP_MLNX && GASNETC_IBV_ODP_CORE
+  #undef GASNETC_IBV_ODP_MLNX
+#endif
+
+#if GASNETC_IBV_ODP_MLNX
   #define GASNETI_NEED_VERBS_EXP_H 1
 #endif
 

@@ -30,9 +30,19 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #endif
 #if GASNETC_IBV_XRC
   GASNETI_IDENT(gasnetc_IdentString_XRC, "$GASNetIbvXRC: 1 $");
+  #if GASNETC_IBV_XRC_MLNX
+    GASNETI_IDENT(gasnetc_IdentString_XRCAPI, "$GASNetIbvXRCAPI: Mellanox $");
+  #else
+    GASNETI_IDENT(gasnetc_IdentString_XRCAPI, "$GASNetIbvXRCAPI: rdma-core $");
+  #endif
 #endif
 #if GASNETC_IBV_ODP
   GASNETI_IDENT(gasnetc_IdentString_ODP, "$GASNetIbvODP: 1 $");
+  #if GASNETC_IBV_ODP_MLNX
+    GASNETI_IDENT(gasnetc_IdentString_ODPAPI, "$GASNetIbvODPAPI: Mellanox $");
+  #else
+    GASNETI_IDENT(gasnetc_IdentString_ODPAPI, "$GASNetIbvODPAPI: rdma-core $");
+  #endif
 #endif
 GASNETI_IDENT(gasneti_IdentString_AMMaxMedium,  "$GASNetAMMaxMedium: " _STRINGIFY(GASNETC_IBV_MAX_MEDIUM) " $");
 GASNETI_IDENT(gasneti_IdentString_MaxHCAs, "$GASNetIbvMaxHCAs: " _STRINGIFY(GASNETC_IB_MAX_HCAS) " $");
@@ -1814,25 +1824,45 @@ static void gasneti_odp_init(void) {
   gasnetc_hca_t	*hca;
   GASNETC_FOR_ALL_HCA(hca) {
     enum gasneti_odp_missing missing = missing_none;
+  #if GASNETC_IBV_ODP_CORE
+    struct ibv_query_device_ex_input input;
+    input.comp_mask = 0;
+    struct ibv_device_attr_ex attr;
+    memset(&attr, 0, sizeof(attr));
+    int ret = ibv_query_device_ex(hca->handle, &input, &attr);
+    int no_odp_general = !(attr.odp_caps.general_caps & IBV_ODP_SUPPORT);
+    int no_odp_implicit = !(attr.odp_caps.general_caps & IBV_ODP_SUPPORT_IMPLICIT);
+    uint32_t odp_caps = gasnetc_use_xrc ? attr.xrc_odp_caps
+                                        : attr.odp_caps.per_transport_caps.rc_odp_caps;
+    int no_odp_read = !(odp_caps & IBV_ODP_SUPPORT_READ);
+    int no_odp_write = !(odp_caps & IBV_ODP_SUPPORT_WRITE);
+  #elif GASNETC_IBV_ODP_MLNX
     struct ibv_exp_device_attr attr;
     memset(&attr, 0, sizeof(attr));
     attr.comp_mask = IBV_EXP_DEVICE_ATTR_ODP | IBV_EXP_DEVICE_ATTR_EXP_CAP_FLAGS;
     int ret = ibv_exp_query_device(hca->handle, &attr);
-    if (! (attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP)) {
+    int no_odp_general = !(attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP);
+    int no_odp_implicit = !(attr.odp_caps.general_odp_caps & IBV_EXP_ODP_SUPPORT_IMPLICIT);
+    uint32_t odp_caps = gasnetc_use_xrc ? attr.odp_caps.per_transport_caps.xrc_odp_caps
+                                        : attr.odp_caps.per_transport_caps.rc_odp_caps;
+    int no_odp_read = !(odp_caps & IBV_EXP_ODP_SUPPORT_READ);
+    int no_odp_write = !(odp_caps & IBV_EXP_ODP_SUPPORT_WRITE);
+  #else
+    #error Unknown ODP API variant
+  #endif
+    if (no_odp_general) {
       missing = missing_general;
-    } else if (! (attr.odp_caps.general_odp_caps & IBV_EXP_ODP_SUPPORT_IMPLICIT)) {
+    } else if (no_odp_implicit) {
       missing = missing_implicit;
       // TODO-EX: maybe support older systems lacking this bit?
       // Prior to ConnectX-4, implicit ODP was done in s/w and
       //  + This can be identified because this caps bit was not set
       //  + Implicit ODP emulation had 128MB limit
       //  + Implicit ODP was valid for local only (invalid rkey)
-    } else if (gasnetc_use_xrc) {
-      uint32_t odp_caps = gasnetc_use_xrc ? attr.odp_caps.per_transport_caps.xrc_odp_caps
-                                          : attr.odp_caps.per_transport_caps.rc_odp_caps;
-      if (! (odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
+    } else {
+      if (no_odp_read) {
         missing = gasnetc_use_xrc? missing_xrc_read : missing_rc_read;
-      } else if (! (odp_caps & IBV_EXP_ODP_SUPPORT_WRITE)) {
+      } else if (no_odp_write) {
         missing = gasnetc_use_xrc? missing_xrc_write : missing_rc_write;
       }
     }
@@ -1847,8 +1877,14 @@ static void gasneti_odp_init(void) {
     my_odp_support[hca->hca_index].missing = missing;
   }
   if (gasnetc_use_odp) {
+    GASNETI_TRACE_PRINTF(I, ("Implicit ODP enabled"));
     // Create implict ODP registrations (currently only used locally)
     GASNETC_FOR_ALL_HCA(hca) {
+    #if GASNETC_IBV_ODP_CORE
+      unsigned int access_flags = (unsigned int)IBV_ACCESS_ON_DEMAND |
+                                  (unsigned int)IBV_ACCESS_LOCAL_WRITE;
+      hca->implicit_odp.handle = ibv_reg_mr(hca->pd, 0, SIZE_MAX, access_flags);
+    #else
       struct ibv_exp_reg_mr_in in;
       memset(&in, 0, sizeof(in));
       in.pd = hca->pd;
@@ -1856,7 +1892,8 @@ static void gasneti_odp_init(void) {
                                                    IBV_EXP_ACCESS_LOCAL_WRITE );
       in.length = IBV_EXP_IMPLICIT_MR_SIZE;
       hca->implicit_odp.handle = ibv_exp_reg_mr(&in);
-      GASNETC_IBV_CHECK_PTR(hca->implicit_odp.handle, "from ibv_exp_reg_mr(implicit)");
+    #endif
+      GASNETC_IBV_CHECK_PTR(hca->implicit_odp.handle, "from ibv_reg_mr(implicit)");
       hca->implicit_odp.lkey = hca->implicit_odp.handle->lkey; // flatten for quick access
     }
   }

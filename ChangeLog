@@ -24,6 +24,10 @@ GASNet-EX ChangeLog
   - Additional debug checks for use of calls which are prohibited in an
     AM handler context, and in the NPAM Prepare/Commit interval.
 
+* InfiniBand Verbs (ibv-conduit)
+  - Now support the ODP APIs from the Linux "RDMA Core" distribution, where
+    previously only the Mellanox variant was supported (bug 4122).
+
 * Cray XC uGNI (aries-conduit)
   - A new environment variable GASNET_GNI_MAX_MEDIUM enables selecting the
     size of AM Medium buffers at job launch, and the existing configure
@@ -56,6 +60,7 @@ GASNet-EX ChangeLog
   - bug2036: Teach AMUDP to respect externally-imposed node ids
   - bug4141: SRQ-specific test failures
   - bug4145: Vector/Indexed incorrect with non-primordial teams and loopback/PSHM
+  - bug4122: ODP support broken with recent libibverbs releases
 
 ----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.10.0 Release
