@@ -61,6 +61,7 @@ GASNet-EX ChangeLog
   - bug4141: SRQ-specific test failures
   - bug4145: Vector/Indexed incorrect with non-primordial teams and loopback/PSHM
   - bug4122: ODP support broken with recent libibverbs releases
+  - bug4173: ibv: race in firehose on powerpc
 
 ----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.10.0 Release
