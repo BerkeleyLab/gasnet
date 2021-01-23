@@ -398,8 +398,11 @@ GASNETI_IDENT(gasnett_IdentString_SystemName,
 GASNETI_IDENT(gasnett_IdentString_CompilerID, 
              "$GASNetCompilerID: " PLATFORM_COMPILER_IDSTR " $");
 
-GASNETI_IDENT(gasnett_IdentString_GitHash, 
-             "$GASNetGitHash: no-version-control-info $");
+#ifndef GASNETI_GIT_HASH
+  #define GASNETI_GIT_HASH no-version-control-info
+#endif
+GASNETI_IDENT(gasnett_IdentString_GitHash,
+             "$GASNetGitHash: " _STRINGIFY(GASNETI_GIT_HASH) " $");
 
 int GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR)) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR)) = 1;

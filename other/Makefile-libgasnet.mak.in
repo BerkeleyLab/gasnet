@@ -123,10 +123,21 @@ do-libgasnet: $(CONDUIT_SPECIAL_OBJS)
 	@libgasnet_objects="$(libgasnet_objects)" ; libgasnet_objects=`echo $$libgasnet_objects` ; \
 	pwd=`@PWD_PROG@`; keeptmps='$(KEEPTMPS)'; \
 	if test -z '$(KEEPTMPS)'; then rmcmd="&& rm -f $$libgasnet_objects"; fi; \
+	unset GASNET_DESC; \
+	if test -d $(top_srcdir)/.git ; then \
+	  GASNET_DESC=`( cd $(top_srcdir) && $${GIT=git} describe --long --dirty --always ) 2>/dev/null | head -n 1`; \
+	fi; \
+	if test -z "$$GASNET_DESC" && test -f $(top_srcdir)/version.git ; then  \
+	  GASNET_DESC=`cat $(top_srcdir)/version.git` || exit $$? ; \
+	fi; \
+	unset DESCFLAG; \
+	if test -n "$$GASNET_DESC"; then \
+	  DESCFLAG="-DGASNETI_GIT_HASH='$$GASNET_DESC'"; \
+	fi; \
 	if test -n '$(SEPARATE_CC)' ; then \
-	  compcmd="for file in $(libgasnet_sources) ; do $(CC) $(LIBCFLAGS) -c "'$$file'" || exit "'$$?'" ; done" ; \
+	  compcmd="for file in $(libgasnet_sources) ; do $(CC) $(LIBCFLAGS) $$DESCFLAG -c "'$$file'" || exit "'$$?'" ; done" ; \
 	else \
-	  compcmd="$(CC) $(LIBCFLAGS) -c $(libgasnet_sources)" ; \
+	  compcmd="$(CC) $(LIBCFLAGS) $$DESCFLAG -c $(libgasnet_sources)" ; \
 	fi ; \
 	cmd="$$compcmd && \
 	$(AR) cru $$pwd/$(LIBGASNET_NAME)-$(THREAD_MODEL_LC).a $$libgasnet_objects && \
