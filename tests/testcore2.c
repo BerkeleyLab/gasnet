@@ -32,10 +32,14 @@ int numprocs;
 int iters = 0;
 size_t maxmed;
 size_t maxlong;
-size_t least_payload_req_med;
-size_t least_payload_rep_med;
-size_t least_payload_req_long;
-size_t least_payload_rep_long;
+size_t least_payload_req_med_client;
+size_t least_payload_req_med_alloc;
+size_t least_payload_rep_med_client;
+size_t least_payload_rep_med_alloc;
+size_t least_payload_req_long_client;
+size_t least_payload_req_long_alloc;
+size_t least_payload_rep_long_client;
+size_t least_payload_rep_long_alloc;
 size_t *all_sizes;
 volatile int done = 0;
 int allowretry = 1;
@@ -131,10 +135,14 @@ void ping_medhandler(gex_Token_t token, void *buf, size_t nbytes,
   int imm = 0;
   gex_Flags_t flags = TEST_RAND_ONEIN(5) ? GEX_FLAG_IMMEDIATE : 0;
   size_t most_payload = TEST_RAND(nbytes, 2*nbytes);
-  size_t least_payload = TEST_RAND(nbytes - nbytes/2, MIN(most_payload, least_payload_rep_med));
+  int injmode = INJMODE(iter); // [0..2]
+  size_t max_least_payload = (injmode == 1) ? least_payload_rep_med_client
+                                            : least_payload_rep_med_alloc;
+  size_t least_payload = TEST_RAND(MIN(nbytes - nbytes/2, max_least_payload),
+                                   MIN(most_payload, max_least_payload));
   size_t len = TEST_RAND(nbytes - nbytes/2, nbytes);
 retry:
-  switch (INJMODE(iter)) { // [0..2]
+  switch (injmode) { // [0..2]
     case 0: // Fixed-payload
       imm = gex_AM_ReplyMedium2(token, hidx_pong_medhandler, buf, len, GEX_EVENT_NOW, flags, iter, arg1);
       break;
@@ -192,10 +200,14 @@ void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes,
   gex_Flags_t flags = TEST_RAND_ONEIN(5) ? GEX_FLAG_IMMEDIATE : 0;
   void * maybe_dest = TEST_RAND_ONEIN(2) ? dstbuf : NULL; // Passing dest_addr to Prepare is optional
   size_t most_payload = TEST_RAND(nbytes, 2*nbytes);
-  size_t least_payload = TEST_RAND(nbytes, MIN(most_payload, least_payload_rep_long));
+  int injmode = INJMODE(iter); // [0..2]
+  size_t max_least_payload = (injmode == 1) ? least_payload_rep_long_client
+                                            : least_payload_rep_long_alloc;
+  size_t least_payload = TEST_RAND(MIN(nbytes, max_least_payload),
+                                   MIN(most_payload, max_least_payload));
   size_t len = TEST_RAND(nbytes - nbytes/2, nbytes);
 retry:
-  switch (INJMODE(iter)) { // [0..2]
+  switch (injmode) { // [0..2]
     case 0: // Fixed-payload
       if (srcbuf != buf) memcpy(srcbuf, buf, len);
       imm = gex_AM_ReplyLong2(token, hidx_pong_longhandler, srcbuf, len, dstbuf, GEX_EVENT_NOW, flags, iter, arg1);
@@ -305,7 +317,7 @@ int main(int argc, char **argv) {
   if (!depth) depth = 16;
   depth = MIN(depth, (1<<CHUNK_BITS)-1);
 
-  /* round down to largest payload AM allows with 2 arguments */
+  /* limit max_payload to largest allowed with 2 arguments */
   maxmed  = MIN4(gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2),
                  gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,GEX_FLAG_IMMEDIATE,2),
                  gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2),
@@ -322,33 +334,30 @@ int main(int argc, char **argv) {
   /* largest least_payload values */
   gex_Flags_t f1 = GEX_FLAG_AM_PREPARE_LEAST_CLIENT;
   gex_Flags_t f2 = GEX_FLAG_AM_PREPARE_LEAST_ALLOC;
-  least_payload_req_med = MIN4(
+  least_payload_req_med_client = MIN(
                  gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1,2),
-                 gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1|GEX_FLAG_IMMEDIATE,2),
+                 gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1|GEX_FLAG_IMMEDIATE,2));
+  least_payload_req_med_alloc = MIN(
                  gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f2,2),
                  gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f2|GEX_FLAG_IMMEDIATE,2));
-  least_payload_rep_med = MIN4(
+  least_payload_rep_med_client = MIN(
                  gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1,2),
-                 gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1|GEX_FLAG_IMMEDIATE,2),
+                 gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1|GEX_FLAG_IMMEDIATE,2));
+  least_payload_rep_med_alloc = MIN(
                  gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f2,2),
                  gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f2|GEX_FLAG_IMMEDIATE,2));
-  least_payload_req_long = MIN4(
+  least_payload_req_long_client = MIN(
                  gex_AM_MaxRequestLong  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1,2),
-                 gex_AM_MaxRequestLong  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1|GEX_FLAG_IMMEDIATE,2),
+                 gex_AM_MaxRequestLong  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1|GEX_FLAG_IMMEDIATE,2));
+  least_payload_req_long_alloc = MIN(
                  gex_AM_MaxRequestLong  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f2,2),
                  gex_AM_MaxRequestLong  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f2|GEX_FLAG_IMMEDIATE,2));
-  least_payload_rep_long = MIN4(
+  least_payload_rep_long_client = MIN(
                  gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1,2),
-                 gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1|GEX_FLAG_IMMEDIATE,2),
+                 gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f1|GEX_FLAG_IMMEDIATE,2));
+  least_payload_rep_long_alloc = MIN(
                  gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f2,2),
                  gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,f2|GEX_FLAG_IMMEDIATE,2));
-
-  // TODO:
-  // Once conduits begin returning values for the least_payload_* which are less than
-  // the respective FP maximums, there are TEST_RAND() call that may end up with bad
-  // (lo > hi) ranges.  For instance:
-  //   least_payload = TEST_RAND(sz - sz/2, MIN(most_payload, least_payload_req_med))
-  // could have lo=maxmed/2, which could be larger than hi=least_payload_req_med.
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
@@ -486,10 +495,14 @@ void *doit(void *id) {
             int imm = 0;
             gex_Flags_t flags = TEST_RAND_ONEIN(5) ? GEX_FLAG_IMMEDIATE : 0;
             size_t most_payload = TEST_RAND(sz, 2*sz);
-            size_t least_payload = TEST_RAND(sz - sz/2, MIN(most_payload, least_payload_req_med));
+            int injmode = INJMODE(iter); // [0..2]
+            size_t max_least_payload = (injmode == 1) ? least_payload_req_med_client
+                                                      : least_payload_req_med_alloc;
+            size_t least_payload = TEST_RAND(MIN(sz - sz/2, max_least_payload),
+                                             MIN(most_payload, max_least_payload));
             size_t len = TEST_RAND(sz - sz/2, sz);
           retry_med:
-            switch (INJMODE(iter)) { // [0..2]
+            switch (injmode) { // [0..2]
               case 0: // Fixed-payload
                 imm = gex_AM_RequestMedium2(myteam, peerproc, hidx_ping_medhandler, srcbuf,
                                             len, GEX_EVENT_NOW, flags, iter, arg1);
@@ -553,10 +566,14 @@ void *doit(void *id) {
             gex_Flags_t flags = TEST_RAND_ONEIN(5) ? GEX_FLAG_IMMEDIATE : 0;
             void * maybe_dest = TEST_RAND_ONEIN(2) ? dstbuf : NULL; // Passing dest_addr to Prepare is optional
             size_t most_payload = TEST_RAND(sz, 2*sz);
-            size_t least_payload = TEST_RAND(sz - sz/2, MIN(most_payload, least_payload_req_long));
+            int injmode = INJMODE(iter); // [0..2]
+            size_t max_least_payload = (injmode == 1) ? least_payload_req_long_client
+                                                      : least_payload_req_long_alloc;
+            size_t least_payload = TEST_RAND(MIN(sz - sz/2, max_least_payload),
+                                             MIN(most_payload, max_least_payload));
             size_t len = TEST_RAND(sz - sz/2, sz);
           retry_long:
-            switch (INJMODE(iter)) { // [0..2]
+            switch (injmode) { // [0..2]
               case 0: // Fixed-payload
                 imm = gex_AM_RequestLong2(myteam, peerproc, hidx_ping_longhandler, srcbuf, len,
                                           dstbuf, GEX_EVENT_NOW, flags, iter, arg1);
@@ -577,7 +594,7 @@ void *doit(void *id) {
                 assert(gex_AM_SrcDescSize(sd) >= least_payload);
                 assert(gex_AM_SrcDescSize(sd) <= most_payload);
                 assert(gex_AM_SrcDescAddr(sd) == srcbuf);
-                len = MIN(len, sz);
+                len = MIN(len, gex_AM_SrcDescSize(sd));
                 gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, len, dstbuf, iter, arg1);
                 if (lc_opt == GEX_EVENT_GROUP) {
                   gex_NBI_Wait(GEX_EC_AM,0);
@@ -593,7 +610,7 @@ void *doit(void *id) {
                 if (imm) break;
                 assert(gex_AM_SrcDescSize(sd) >= least_payload);
                 assert(gex_AM_SrcDescSize(sd) <= most_payload);
-                len = MIN(len, sz);
+                len = MIN(len, gex_AM_SrcDescSize(sd));
                 memcpy(gex_AM_SrcDescAddr(sd), srcbuf, len);
                 gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, len, dstbuf, iter, arg1);
                 break;
