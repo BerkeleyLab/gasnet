@@ -370,8 +370,12 @@ dist-hook:
            exit 1 ; \
         fi
 	if test -d $(srcdir)/.git ; then \
-	  GASNET_DESC=`$${GIT=git} --git-dir=$(srcdir)/.git describe` || exit $$? ; \
-	  $(PERL) -pi -e "s:no-version-control-info:$$GASNET_DESC:;" -- $(distdir)/configure $(distdir)/gasnet_tools.c || exit $$? ; \
+	  GASNET_DESC=`( cd $(srcdir) && $${GIT=git} describe --long --dirty --always ) 2>/dev/null | head -n 1`; \
+	  if test -z "$$GASNET_DESC"; then \
+	    echo 'Use of git describe failed even though .git exists' 1>&2; \
+	    exit 1;                        \
+	  fi;                              \
+	  $(PERL) -pi -e "s:no-version-control-info:$$GASNET_DESC:;" -- $(distdir)/configure || exit $$? ; \
 	  echo $$GASNET_DESC > $(distdir)/version.git || exit $$? ; \
 	fi
 	if test -f $(distdir)/docs/Makefile ; then \
