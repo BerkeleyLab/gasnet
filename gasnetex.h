@@ -759,13 +759,13 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     void *               _void_p; // PSHM and conduit-independent pointer
     gex_Event_t *        _lc_opt;
     gex_Flags_t          _flags;
-    int                  _nargs;
-    int                  _is_nbrhd;
+    int8_t               _nargs;
+    int8_t               _is_nbrhd;
   #if GASNET_PSHM
     struct {
       gex_Rank_t           _pshmrank; // should be gasneti_pshm_rank_t
       gex_Rank_t           _jobrank;
-      int                  _loopback;
+      int8_t               _loopback;
     }                    _pshm;
   #endif
   #ifdef GASNETI_AM_SRCDESC_EXTRA

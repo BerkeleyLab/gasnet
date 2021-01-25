@@ -26,6 +26,9 @@ GASNet-EX ChangeLog
   - The GASNetGitHash ident string is now available in most development builds,
     and `pkg-config --modversion` installed from a development build should
     include the GASNet git hash.
+  - Performance improvement for NPAM Long with GASNet-allocated buffer over
+    shared-memory (PSHM) and the reference implementation of NPAM (Medium and
+    Long) used by ucx, udp and mpi conduits.
 
 * InfiniBand Verbs (ibv-conduit)
   - Now support the ODP APIs from the Linux "RDMA Core" distribution, where

@@ -1312,7 +1312,7 @@ int gex_AM_ReplyShort[M](
            [,arg0, ... ,argM-1]);
 
 //
-// Negotiated-payload AM APIs
+// Negotiated-payload AM APIs (aka "NPAM")
 //
 
 // The fixed-payload APIs for Active Message Mediums and Longs (brought
