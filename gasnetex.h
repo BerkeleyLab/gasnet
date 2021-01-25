@@ -869,6 +869,10 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
   #define GASNETC_MAX_LONG_NBRHD MAX(gex_AM_LUBRequestLong(),gex_AM_LUBReplyLong())
 #endif
 
+// NPAM GASNet-allocated buffer can use per-thread buffers up to a limit
+// This provides conduits and PSHM with an intuitive name
+#define GASNETC_REF_NPAM_MAX_ALLOC GASNETC_MAX_MEDIUM_NBRHD
+
 /* ------------------------------------------------------------------------------------ */
 
 extern void (*gasnet_client_attach_hook)(void *, uintptr_t);

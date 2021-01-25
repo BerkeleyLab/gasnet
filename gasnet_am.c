@@ -543,7 +543,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                                                client_buf, least_payload, most_payload,
                                                NULL, lc_opt, flags, nargs);
     } else {
-        size_t limit = gex_AM_MaxRequestMedium(tm, rank, lc_opt, flags, nargs);
+        // In reference implementation, GEX_FLAG_AM_PREPARE_LEAST_ALLOC is also the MAX we allocate
+        gex_Flags_t limit_flags = client_buf ? flags : (flags | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+        size_t limit = gex_AM_MaxRequestMedium(tm, rank, lc_opt, limit_flags, nargs);
         size_t size = MIN(most_payload, limit);
         sd->_tofree = gasneti_prepare_request_common(sd, tm, rank, client_buf, size, lc_opt, flags, nargs);
         gasneti_init_sd_poison(sd);
@@ -578,7 +580,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
         sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
         GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
-        size_t limit = gex_Token_MaxReplyMedium(token, lc_opt, flags, nargs);
+        // In reference implementation, GEX_FLAG_AM_PREPARE_LEAST_ALLOC is also the MAX we allocate
+        gex_Flags_t limit_flags = client_buf ? flags : (flags | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+        size_t limit = gex_Token_MaxReplyMedium(token, lc_opt, limit_flags, nargs);
         size_t size = MIN(most_payload, limit);
         sd->_tofree = gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
         gasneti_init_sd_poison(sd);
@@ -622,7 +626,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                                                client_buf, least_payload, most_payload,
                                                dest_addr, lc_opt, flags, nargs);
     } else {
-        size_t limit = gex_AM_MaxRequestLong(tm, rank, lc_opt, flags, nargs);
+        // In reference implementation, GEX_FLAG_AM_PREPARE_LEAST_ALLOC is also the MAX we allocate
+        gex_Flags_t limit_flags = client_buf ? flags : (flags | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+        size_t limit = gex_AM_MaxRequestLong(tm, rank, lc_opt, limit_flags, nargs);
         size_t size = MIN(most_payload, limit);
         sd->_tofree = gasneti_prepare_request_common(sd, tm, rank, client_buf, size, lc_opt, flags, nargs);
         sd->_dest_addr = dest_addr;
@@ -659,7 +665,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
         sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
         GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
 
-        size_t limit = gex_Token_MaxReplyLong(token, lc_opt, flags, nargs);
+        // In reference implementation, GEX_FLAG_AM_PREPARE_LEAST_ALLOC is also the MAX we allocate
+        gex_Flags_t limit_flags = client_buf ? flags : (flags | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+        size_t limit = gex_Token_MaxReplyLong(token, lc_opt, limit_flags, nargs);
         size_t size = MIN(most_payload, limit);
         sd->_tofree = gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
         sd->_dest_addr = dest_addr;

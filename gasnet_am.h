@@ -449,28 +449,13 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
 
 #ifndef _GEX_AM_SRCDESC_T
 
-// NPAM GASNet-allocated buffer can use per-thread buffers up to a limit
-#define GASNETI_NPAM_USING_PERTHREAD(sd) ((sd)->_size <= GASNETC_MAX_MEDIUM_NBRHD)
-
 // Allocate a buffer (use IFF client_buf is NULL)
 GASNETI_INLINE(gasneti_alloc_npam_buffer)
 void *gasneti_alloc_npam_buffer(gasneti_AM_SrcDesc_t sd, int isReq)
 {
-    void *result;
-
-    // Prefer use of per-thread buffer over malloc/free
-    if (GASNETI_NPAM_USING_PERTHREAD(sd)) {
-        GASNET_POST_THREADINFO(sd->_thread);
-        result = gasneti_alloc_perthread_medium_buffer(isReq GASNETI_THREAD_PASS);
-    } else {
-        size_t size = sd->_size;
-    #if GASNET_DEBUG
-        // Allocate at least one byte because zero-byte allocation
-        // returns NULL which then leads to ambiguity in argument checking.
-        if (!size) size = 1;
-    #endif
-        result = gasneti_malloc(size);
-    }
+    gasneti_assert_uint(sd->_size ,<=, GASNETC_REF_NPAM_MAX_ALLOC);
+    GASNET_POST_THREADINFO(sd->_thread);
+    void *result = gasneti_alloc_perthread_medium_buffer(isReq GASNETI_THREAD_PASS);
     return (sd->_gex_buf = sd->_addr = result);
 }
 
@@ -478,12 +463,8 @@ GASNETI_INLINE(gasneti_free_npam_buffer)
 void gasneti_free_npam_buffer(gasneti_AM_SrcDesc_t sd)
 {
     gasneti_assert(sd->_tofree);
-    if (GASNETI_NPAM_USING_PERTHREAD(sd)) {
-        GASNET_POST_THREADINFO(sd->_thread);
-        gasneti_free_perthread_medium_buffer(sd->_tofree, sd->_isreq GASNETI_THREAD_PASS);
-    } else {
-        gasneti_free(sd->_tofree);
-    }
+    GASNET_POST_THREADINFO(sd->_thread);
+    gasneti_free_perthread_medium_buffer(sd->_tofree, sd->_isreq GASNETI_THREAD_PASS);
     sd->_tofree = NULL;
 }
 
@@ -785,18 +766,18 @@ int gasnetc_loopback_prepare_inner(
   if (isFixed) {
     sd->_addr = (/*non-const*/void *)client_buf;
   } else {
-    const size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_NBRHD : GASNETC_MAX_MEDIUM_NBRHD;
-    const size_t size = MIN(limit, most_payload);
-    sd->_size = size;
-
     if (client_buf) {
+      size_t limit = (category == gasneti_Medium) ? GASNETC_REF_NPAM_MAX_ALLOC : GASNETC_MAX_LONG_NBRHD;
+      sd->_size = MIN(limit, most_payload);
       sd->_addr = (/*non-const*/void *)client_buf;
       gasneti_leaf_finish(lc_opt);
     } else if (category == gasneti_Medium) {
       // NPAM Medium with GASNet-allocated buffer
+      sd->_size = MIN(GASNETC_REF_NPAM_MAX_ALLOC, most_payload);
       sd->_addr = sd->_gex_buf = sd->_void_p;
     } else {
       // NPAM Long with GASNet-allocated buffer
+      sd->_size = MIN(GASNETC_REF_NPAM_MAX_ALLOC, most_payload);
       sd->_tofree = gasneti_alloc_npam_buffer(sd, isReq);
     }
   }

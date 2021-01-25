@@ -134,8 +134,12 @@ typedef struct {
                 GASNETI_ALIGNUP_NOASSERT(GASNETC_MEDIUM_HDRSZ + 4*(GASNETC_MAX_ARGS_EXTRA+(nargs)), \
                                          8))
 #define GASNETC_MAX_MEDIUM	GASNETC_MAX_MEDIUM_(GASNETC_MAX_ARGS_USER)
+
 #define GASNETC_MAX_LONG_REQ	(0x7fffffff)
-#define GASNETC_MAX_PACKEDLONG	(GASNETC_BUFSZ - GASNETC_LONG_HDRSZ - 4*GASNETC_MAX_ARGS)
+#define GASNETC_MAX_PACKEDLONG_(nargs) \
+               (GASNETC_BUFSZ - (GASNETC_LONG_HDRSZ + 4*(GASNETC_MAX_ARGS_EXTRA+(nargs))))
+#define GASNETC_MAX_PACKEDLONG  GASNETC_MAX_PACKEDLONG_(GASNETC_MAX_ARGS_USER)
+
 #if GASNETC_PIN_SEGMENT
   #define GASNETC_MAX_LONG_REP	GASNETC_MAX_LONG_REQ
 #else
@@ -153,14 +157,24 @@ typedef struct {
         (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),(size_t)GASNETC_MAX_MEDIUM_(nargs))
 #define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    \
         (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,flags),(size_t)GASNETC_MAX_MEDIUM_(nargs))
-#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    \
-        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)GASNETC_MAX_LONG_REQ)
-#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      \
-        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)GASNETC_MAX_LONG_REP)
 #define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   \
         (GASNETI_UNUSED_ARGS3(token,lc_opt,flags),(size_t)GASNETC_MAX_MEDIUM_(nargs))
+
+#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    \
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,nargs), \
+         ((flags) & GEX_FLAG_AM_PREPARE_LEAST_ALLOC  \
+                  ? GASNETC_REF_NPAM_MAX_ALLOC       \
+                  : gex_AM_LUBRequestLong()))
+#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      \
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,nargs), \
+         ((flags) & GEX_FLAG_AM_PREPARE_LEAST_ALLOC  \
+                  ? GASNETC_REF_NPAM_MAX_ALLOC       \
+                  : gex_AM_LUBReplyLong()))
 #define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     \
-        (GASNETI_UNUSED_ARGS4(token,lc_opt,flags,nargs),(size_t)GASNETC_MAX_LONG_REP)
+        (GASNETI_UNUSED_ARGS3(token,lc_opt,nargs),   \
+         ((flags) & GEX_FLAG_AM_PREPARE_LEAST_ALLOC  \
+                  ? GASNETC_REF_NPAM_MAX_ALLOC       \
+                  : gex_AM_LUBReplyLong()))
 
 /* ------------------------------------------------------------------------------------ */
 /*
