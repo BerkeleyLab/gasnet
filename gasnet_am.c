@@ -665,7 +665,9 @@ void gasnetc_AM_CommitRequestMediumM(
                      #endif
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
-    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+    // Conduit authors are cautioned against use of gasneti_consume_srcdesc() in native
+    // NPAM implementations.  See the comment preceding its definition in gasnet_am.h.
+    gasneti_AM_SrcDesc_t sd = gasneti_consume_srcdesc(sd_arg);
 
     GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
@@ -692,8 +694,6 @@ void gasnetc_AM_CommitRequestMediumM(
         }
     }
     va_end(argptr);
-
-    gasneti_reset_srcdesc(sd);
 }
 #endif // GASNETC_HAVE_NP_REQ_MEDIUM
 
@@ -706,7 +706,9 @@ void gasnetc_AM_CommitReplyMediumM(
                      #endif
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
-    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+    // Conduit authors are cautioned against use of gasneti_consume_srcdesc() in native
+    // NPAM implementations.  See the comment preceding its definition in gasnet_am.h.
+    gasneti_AM_SrcDesc_t sd = gasneti_consume_srcdesc(sd_arg);
 
     GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
@@ -732,8 +734,6 @@ void gasnetc_AM_CommitReplyMediumM(
         }
     }
     va_end(argptr);
-
-    gasneti_reset_srcdesc(sd);
 }
 #endif // GASNETC_HAVE_NP_REP_MEDIUM
 
@@ -748,7 +748,9 @@ void gasnetc_AM_CommitRequestLongM(
                      #endif
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
-    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+    // Conduit authors are cautioned against use of gasneti_consume_srcdesc() in native
+    // NPAM implementations.  See the comment preceding its definition in gasnet_am.h.
+    gasneti_AM_SrcDesc_t sd = gasneti_consume_srcdesc(sd_arg);
 
     GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
@@ -775,8 +777,6 @@ void gasnetc_AM_CommitRequestLongM(
         }
     }
     va_end(argptr);
-
-    gasneti_reset_srcdesc(sd);
 }
 #endif // GASNETC_HAVE_NP_REQ_LONG
 
@@ -790,7 +790,9 @@ void gasnetc_AM_CommitReplyLongM(
                      #endif
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
-    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+    // Conduit authors are cautioned against use of gasneti_consume_srcdesc() in native
+    // NPAM implementations.  See the comment preceding its definition in gasnet_am.h.
+    gasneti_AM_SrcDesc_t sd = gasneti_consume_srcdesc(sd_arg);
 
     GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
@@ -816,8 +818,6 @@ void gasnetc_AM_CommitReplyLongM(
         }
     }
     va_end(argptr);
-
-    gasneti_reset_srcdesc(sd);
 }
 #endif // GASNETC_HAVE_NP_REP_LONG
 
