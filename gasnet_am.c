@@ -840,7 +840,7 @@ void gasnetc_AM_CommitReplyLongM(
 /* ------------------------------------------------------------------------------------ */
 
 // gasneti_free_aligned() is a macro, preventing direct registration as a cleanupfn
-void gasneti_loopback_cleanup_threaddata(void *buf) {
+void gasneti_medium_buffer_cleanup_threaddata(void *buf) {
   gasneti_free_aligned(buf);
 }
 

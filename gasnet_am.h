@@ -619,29 +619,55 @@ extern int gasnetc_AMReplyLongV(
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-// Buffer management for loopback (same-process) Medium AMs
+// Management of per-thread MaxMedium-sized buffers, one each for Request and Reply.
+// These are used for "loopback" (same process) AM Mediums.
+// However, they are also useful for NPAM (so long as Commit provides synchronous LC).
 
 #include <gasnet_core_internal.h> /* for gasnetc_handler[] */
 
-#ifndef gasneti_loopback_alloc_medium_buffer // allows conduit-specifc overrides
-    extern void gasneti_loopback_cleanup_threaddata(void *buf);
-    GASNETI_INLINE(gasneti_loopback_alloc_medium_buffer)
-    void *gasneti_loopback_alloc_medium_buffer(int isReq GASNETI_THREAD_FARG) {
+#ifndef gasneti_alloc_perthread_medium_buffer // allows conduit-specifc overrides
+    extern void gasneti_medium_buffer_cleanup_threaddata(void *buf);
+    GASNETI_INLINE(gasneti_alloc_perthread_medium_buffer)
+    void *gasneti_alloc_perthread_medium_buffer(int isReq GASNETI_THREAD_FARG) {
         gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
-        if_pf (! mythread->loopback_requestBuf) {
+        if_pf (! mythread->requestBuf) {
             // Allocate both buffers, ensuring GASNETI_MEDBUF_ALIGNMENT (dflt 8-byte) alignment of each
             size_t padded_max_med = GASNETI_ALIGNUP(GASNETC_MAX_MEDIUM_NBRHD, GASNETI_MEDBUF_ALIGNMENT);
             size_t sz = padded_max_med + GASNETC_MAX_MEDIUM_NBRHD;
             uint8_t *buf = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT, sz);
             gasneti_leak_aligned(buf);
-            mythread->loopback_requestBuf = buf;
-            mythread->loopback_replyBuf =   buf + padded_max_med;
-            gasnete_register_threadcleanup(gasneti_loopback_cleanup_threaddata, buf);
+            mythread->requestBuf = buf;
+            mythread->replyBuf =   buf + padded_max_med;
+            gasnete_register_threadcleanup(gasneti_medium_buffer_cleanup_threaddata, buf);
         }
-        return isReq ? mythread->loopback_requestBuf : mythread->loopback_replyBuf;
+      #if GASNET_DEBUG
+        if (isReq) {
+            gasneti_assert(! mythread->requestBuf_live);
+            mythread->requestBuf_live = 1;
+        } else {
+            gasneti_assert(! mythread->replyBuf_live);
+            mythread->replyBuf_live = 1;
+        }
+      #endif
+        return isReq ? mythread->requestBuf : mythread->replyBuf;
     }
 
-    #define gasneti_loopback_free_medium_buffer(buf, isReq_and_TI) ((void)0)
+  #if GASNET_DEBUG
+    static void gasneti_free_perthread_medium_buffer(void *buf, int isReq GASNETI_THREAD_FARG) {
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+        if (isReq) {
+            gasneti_assert(buf == mythread->requestBuf);
+            gasneti_assert(mythread->requestBuf_live);
+            mythread->requestBuf_live = 0;
+        } else {
+            gasneti_assert(buf == mythread->replyBuf);
+            gasneti_assert(mythread->replyBuf_live);
+            mythread->replyBuf_live = 0;
+        }
+    }
+  #else
+    #define gasneti_free_perthread_medium_buffer(buf, isReq_and_TI) ((void)0)
+  #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -750,7 +776,7 @@ int gasnetc_loopback_prepare_inner(
 {
   sd->_nargs = nargs;
   if (category == gasneti_Medium) {
-    sd->_void_p = gasneti_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
+    sd->_void_p = gasneti_alloc_perthread_medium_buffer(isReq GASNETI_THREAD_PASS);
   }
 
   gasneti_assert(sd->_tofree == NULL);
@@ -768,7 +794,7 @@ int gasnetc_loopback_prepare_inner(
       sd->_addr = sd->_gex_buf = sd->_void_p;
     } else if (size <= GASNETC_MAX_MEDIUM_NBRHD) {
       // Long can use medium buffer at less cost than calling malloc
-      sd->_addr = sd->_gex_buf = gasneti_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
+      sd->_addr = sd->_gex_buf = gasneti_alloc_perthread_medium_buffer(isReq GASNETI_THREAD_PASS);
     } else {
       sd->_tofree = gasneti_prepare_alloc_buffer(sd);
     }
@@ -846,10 +872,10 @@ void gasnetc_loopback_commit_inner(
   #endif
 
   if (category == gasneti_Medium) {
-    gasneti_loopback_free_medium_buffer(buf, isReq GASNETI_THREAD_PASS);
+    gasneti_free_perthread_medium_buffer(buf, isReq GASNETI_THREAD_PASS);
   } else if(!isFixed && sd->_gex_buf && (sd->_size <= GASNETC_MAX_MEDIUM_NBRHD)) {
     gasneti_assert(category == gasneti_Long);
-    gasneti_loopback_free_medium_buffer(sd->_gex_buf, isReq GASNETI_THREAD_PASS);
+    gasneti_free_perthread_medium_buffer(sd->_gex_buf, isReq GASNETI_THREAD_PASS);
   } else if (sd->_tofree) { // Branch to avoid free(NULL) library call overhead for NPAM/cb
     gasneti_free(sd->_tofree);
     sd->_tofree = NULL;
