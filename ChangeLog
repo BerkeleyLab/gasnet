@@ -33,6 +33,9 @@ GASNet-EX ChangeLog
     control over which InfiniBand ports are used by which processes.
     Support is conditional on configure finding hwloc, which is optional.
     See details in the conduit README.
+  - GASNET_DISABLE_MUNMAP=1 is now the default on 64-bit platforms, regardless
+    of whether ODP is enabled or not.  Previously, enabling ODP would change
+    the default to 0.
 
 * Cray XC uGNI (aries-conduit)
   - A new environment variable GASNET_GNI_MAX_MEDIUM enables selecting the
