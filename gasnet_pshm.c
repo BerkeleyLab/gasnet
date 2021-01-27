@@ -1372,7 +1372,7 @@ int ampshm_prepare_inner(
 
 // After sd, next 3 params (isFixed, isReq, category) will be manifest constants
 // which should lead to specialization of the code upon inlining.
-GASNETI_INLINE(ampshm_comit_inner)
+GASNETI_INLINE(ampshm_commit_inner)
 void ampshm_commit_inner(
                    gasneti_AM_SrcDesc_t sd, const int isFixed,
                    const int isReq, const int category,
@@ -1485,7 +1485,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
 
 // After sd, next 2 params (isReq, category) will be manifest constants
 // which should lead to specialization of the code upon inlining.
-GASNETI_INLINE(ampshm_comit)
+GASNETI_INLINE(ampshm_commit)
 void ampshm_commit(gasneti_AM_SrcDesc_t sd,
                    const int isReq, const gasneti_category_t category,
                    gex_AM_Index_t handler, size_t nbytes,
