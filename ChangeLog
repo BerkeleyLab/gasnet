@@ -23,6 +23,9 @@ GASNet-EX ChangeLog
 * General and Misc.
   - Additional debug checks for use of calls which are prohibited in an
     AM handler context, and in the NPAM Prepare/Commit interval.
+  - The GASNetGitHash ident string is now available in most development builds,
+    and `pkg-config --modversion` installed from a development build should
+    include the GASNet git hash.
 
 * InfiniBand Verbs (ibv-conduit)
   - Now support the ODP APIs from the Linux "RDMA Core" distribution, where
