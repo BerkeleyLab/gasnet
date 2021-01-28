@@ -133,6 +133,10 @@ GASNet-EX ChangeLog
     if it is to be linked with a PARSYNC conduit library, due to changes in
     how PARSYNC libraries are built.
 
+* GASNet-1 legacy API
+  - Calls to the legacy gasnet_attach() requesting a zero-length segment are
+    now silently rounded up to one page.
+
 * Notable bugs fixed in this release:
   - bug3806: workaround xpmem startup failures while profiling (eg CrayPat)
   - bug4060: tools atomics using constructs deprecated in C++20
