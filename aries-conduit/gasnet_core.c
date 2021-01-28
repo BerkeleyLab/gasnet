@@ -768,7 +768,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
 }
 
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_primary(void) {
+extern int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
@@ -823,55 +823,6 @@ int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
   // Exchange registration info
   gex_EP_t ep = gex_TM_QueryEP(e_tm);
   gasnetc_segment_exchange(e_tm, &ep, 1);
-
-  return GASNET_OK;
-}
-/* ------------------------------------------------------------------------------------ */
-// TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
-extern int gasnetc_attach( gex_TM_t               _tm,
-                           gasnet_handlerentry_t  *table,
-                           int                    numentries,
-                           uintptr_t              segsize)
-{
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
-                          numentries, segsize));
-  gasneti_TM_t tm = gasneti_import_tm_nonpair(_tm);
-  gasneti_EP_t ep = tm->_ep;
-
-  if (!gasneti_init_done) 
-    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
-  if (gasneti_attach_done) 
-    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already attached");
-
-  /*  check argument sanity */
-  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    if ((segsize % GASNET_PAGESIZE) != 0) 
-      GASNETI_RETURN_ERRR(BAD_ARG, "segsize not page-aligned");
-    if (segsize > gasneti_MaxLocalSegmentSize) 
-      GASNETI_RETURN_ERRR(BAD_ARG, "segsize too large");
-  #else
-    segsize = 0;
-  #endif
-
-  /*  primary attach  */
-  if (GASNET_OK != gasnetc_attach_primary())
-    GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
-
-  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    /*  register client segment  */
-    gex_Segment_t seg; // g2ex segment is automatically saved by a hook
-    if (GASNET_OK != gasneti_segmentAttach(&seg, _tm, segsize, GASNETI_FLAG_INIT_LEGACY))
-      GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
-    if (GASNET_OK != gasnetc_segment_attach_hook(seg, _tm))
-      GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment (conduit hook)");
-  #endif
-
-  /*  register client handlers */
-  if (table && gasneti_amregister_legacy(ep, table, numentries) != GASNET_OK)
-    GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
-
-  /* ensure everything is initialized across all nodes */
-  gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
 
   return GASNET_OK;
 }
