@@ -78,7 +78,8 @@ static void gasneti_am_validate(
 #endif
 
 // Register handlers in the range [lowlimit,highlimit)
-extern int gasneti_amregister( gex_AM_Entry_t *output,
+// Thread-safety is the caller's responsibility
+extern int gasneti_amregister( gasneti_EP_t i_ep,
                                gex_AM_Entry_t *input, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered) {
@@ -86,6 +87,8 @@ extern int gasneti_amregister( gex_AM_Entry_t *output,
   *numregistered = 0;
 
   gasneti_am_validate(input, numentries);
+
+  gex_AM_Entry_t *output = i_ep->_amtbl;
 
   for (i = 0; i < numentries; i++) {
     int newindex;
@@ -136,8 +139,13 @@ extern int gasneti_amregister( gex_AM_Entry_t *output,
 }
 
 // Register client handlers
+// This function backs gex_EP_RegisterHandlers() and gasnet_attach()
+// and provides per-EP serialization of such calls.
+// Internal calls occuring within gex_Client_Init() and gex_Client_Create()
+// do not participate in this serialization, since they operated exclusively
+// on an EP prior to returning it to the client.
 extern int gasneti_amregister_client(
-                        gex_AM_Entry_t *output,
+                        gasneti_EP_t i_ep,
                         gex_AM_Entry_t *input,
                         size_t numentries)
 {
@@ -147,21 +155,27 @@ extern int gasneti_amregister_client(
   if_pf (input == NULL)
       GASNETI_RETURN_ERRR(BAD_ARG,"Invalid AM handler table");
 
+  gasneti_mutex_lock(&i_ep->_amtbl_lock);
+
   /*  first pass - assign all fixed-index handlers */
   int numreg1 = 0;
-  if (gasneti_amregister(output, input, numentries,
+  if (gasneti_amregister(i_ep, input, numentries,
                          GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
                          0, &numreg1) != GASNET_OK) {
+      gasneti_mutex_unlock(&i_ep->_amtbl_lock);
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
   }
 
   /*  second pass - fill in dontcare-index handlers */
   int numreg2 = 0;
-  if (gasneti_amregister(output, input, numentries,
+  if (gasneti_amregister(i_ep, input, numentries,
                          GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
                          1, &numreg2) != GASNET_OK) {
+      gasneti_mutex_unlock(&i_ep->_amtbl_lock);
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering variable-index client handlers");
   }
+
+  gasneti_mutex_unlock(&i_ep->_amtbl_lock);
 
   gasneti_assert_uint(numreg1 + numreg2 ,==, numentries);
 
@@ -171,7 +185,7 @@ extern int gasneti_amregister_client(
 // Wrapper to provide continued support for GASNet-1 legacy handler tables,
 // such as through gasnet_attach().  Only supports the clients's index range.
 // TODO-EX: should be absorbed into an eventual conduit-indep gasnet_attach()
-extern int gasneti_amregister_legacy( gex_AM_Entry_t *output,
+extern int gasneti_amregister_legacy( gasneti_EP_t i_ep,
                                       gasnet_handlerentry_t *table, int numentries) {
 
   if_pf (numentries == 0) return GASNET_OK;
@@ -192,7 +206,7 @@ extern int gasneti_amregister_legacy( gex_AM_Entry_t *output,
   }
 
   /* register */
-  if (gasneti_amregister_client(output, extable, numentries) != GASNET_OK) {
+  if (gasneti_amregister_client(i_ep, extable, numentries) != GASNET_OK) {
       gasneti_free(extable);
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering client handlers");
   }
@@ -206,8 +220,9 @@ extern int gasneti_amregister_legacy( gex_AM_Entry_t *output,
   return GASNET_OK;
 }
 
-// Initialize a caller-allocated handler table
-extern int gasneti_amtbl_init(gex_AM_Entry_t *output) {
+// Initialize handler table in a given EP
+extern int gasneti_amtbl_init(gasneti_EP_t i_ep) {
+  gex_AM_Entry_t *output = i_ep->_amtbl;
   static const char *fnname = "gasneti_defaultAMHandler";
   for (int i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) {
     output[i].gex_index = 0; // marks an unused entry
@@ -217,6 +232,7 @@ extern int gasneti_amtbl_init(gex_AM_Entry_t *output) {
     output[i].gex_cdata = NULL;
     output[i].gex_name  = fnname;
   }
+  gasneti_mutex_init(&i_ep->_amtbl_lock);
   return GASNET_OK;
 }
 

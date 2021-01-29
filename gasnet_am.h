@@ -205,14 +205,14 @@ typedef enum {
 GASNETI_COLD
 extern void gasneti_defaultAMHandler(gex_Token_t token);
 
-extern int gasneti_amtbl_init(gex_AM_Entry_t *output);
-extern int gasneti_amregister( gex_AM_Entry_t *output,
+extern int gasneti_amtbl_init(gasneti_EP_t i_ep);
+extern int gasneti_amregister( gasneti_EP_t i_ep,
                                gex_AM_Entry_t *input, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered);
-extern int gasneti_amregister_client(gex_AM_Entry_t *output,
+extern int gasneti_amregister_client(gasneti_EP_t i_ep,
                                      gex_AM_Entry_t *input, size_t numentries);
-extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
+extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
                                      gasnet_handlerentry_t *input, int numentries);
 
 #if GASNET_DEBUG
