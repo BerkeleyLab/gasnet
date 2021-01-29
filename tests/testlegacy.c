@@ -13,7 +13,6 @@
 
 #define TEST_GASNET 1
 #define SHORT_REQ_BASE 128
-static void *test_myseg;
 #include <testam.h>
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
@@ -814,7 +813,6 @@ void doit5(int partner, int *partnerseg) {
 void doit6(int partner, int *partnerseg) {
 #endif
 
-  test_myseg = TEST_MYSEG();
   BARRIER();
 
   { /* all ams test */

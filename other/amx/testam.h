@@ -28,7 +28,7 @@
   #define NUMHANDLERS_PER_TYPE     (gasnet_AMMaxArgs()+1)
   #define MYPROC                   (gasnet_mynode())
   #define NUMPROCS                 (gasnet_nodes())
-  #define MYSEG                    (test_myseg)
+  #define MYSEG                    (TEST_MYSEG())
   #define ENDPOINT
   #define GETPARTNER(token)  gasnet_node_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
   #define EXTRA_S
@@ -98,7 +98,7 @@
   #define NUMHANDLERS_PER_TYPE     (gex_AM_MaxArgs()+1)
   #define MYPROC                   (gex_System_QueryJobRank())
   #define NUMPROCS                 (gex_System_QueryJobSize())
-  #define MYSEG                    (test_myseg)
+  #define MYSEG                    (TEST_MYSEG())
   #define GETPARTNER(token) gex_Rank_t partner; \
                             do { gex_Token_Info_t info; \
                                  gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK); \
