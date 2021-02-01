@@ -4732,19 +4732,25 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 GASNET_HELP_OUTPUT([
 Memory-kinds options:])
 
+GASNET_IF_ENABLED(memory-kinds,
+        [Prototype support for memory kinds (transfers to/from device memory).  Enables default auto-detection of all device type applicable to the target platform.  Individual --enable-kind-* options have precedence.],
+        [enable_mk_default=probe], [enable_mk_default=no])
+
 # Concatenation of libs for all configured kinds:
 GASNET_KINDS_LDFLAGS=''
 GASNET_KINDS_LIBS=''
 
 # GEX_MK_CLASS_CUDA_UVA
 GASNET_IF_ENABLED_WITH_AUTO(kind-cuda-uva,
-        [support for memory kinds on UVA-capable CUDA devices (auto-detect)],
+        [Support for memory kinds on UVA-capable CUDA devices (auto-detected with --enable-memory-kinds, otherwise disabled)],
         [enable_mk_cuda_uva="yes"; force_mk_cuda_uva="yes"],
         [enable_mk_cuda_uva="no"], [
-         if test "$GASNETI_PTR_BITS" = 32; then
+         if test "x$enable_kind_cuda_uva" = 'xprobe'; then
+           enable_mk_cuda_uva="probe"
+         elif test "$GASNETI_PTR_BITS" = 32; then
            enable_mk_cuda_uva="no"
          else
-           enable_mk_cuda_uva="probe"
+           enable_mk_cuda_uva="$enable_mk_default"
          fi
         ])
 unset have_mk_cuda_uva

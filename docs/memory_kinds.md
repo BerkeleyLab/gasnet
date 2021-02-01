@@ -36,10 +36,21 @@ For brevity, this will be referenced as simply "the API Proposal".
 
 # General Usage
 
-By default, the `configure` script in this branch probes for the necessary CUDA
-headers and libraries and enable the prototype implementation of memory kinds if
-such support is found.  Use of configure new option `--enable-kind-cuda-uva`
-will make failure of that probe fatal.
+By default, the `configure` script in this branch does not enable support for
+any non-host memory kinds.  Use of new configure option `--enable-memory-kinds`
+enables probes for the necessary headers and libraries for all available device
+"kinds" (presently only "CUDA_UVA") and enables the prototype implementation of
+memory kinds if such support is found.  This is the recommended mechanism to
+enable memory kinds support, since it will enable additional kinds as they are
+added.  For more detailed control for a given kind (such as "cuda-uva") the
+following take precedence over `--(en|dis)able-memory-kinds`:
+
+  + `--disable-kind-[name]` disables probing for support for the named kind.
+  + `--enable-kind-[name]` probes for support for the named kind, with failure
+    of the probe being a fatal `configure` error.
+  + `--enable-kind-[name]=probe` probes for support for the named kind, with
+    failure of the probe being non-fatal (the same behavior requested for all
+    kinds by using `--enable-memory-kinds`).
 
 On our main development platforms, the logic in `configure` is sufficient to
 locate the required headers and libraries with no additional options.  However,
