@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testsegment.c $
+/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testtmpair.c $
  * Copyright (c) 2020, The Regents of the University of California
  *
  * Description: Test of gex_TM_Pair() for communication initiation
