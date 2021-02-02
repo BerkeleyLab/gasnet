@@ -55,6 +55,14 @@ Generally, it is sufficient to provide the installation prefix of the CUDA
 toolkit using either `--with-cuda-home=...` or `CUDA_HOME`, since the others
 all have sensible defaults once the installation prefix is known.
 
+Clients can use the preprocessor identifier `GASNET_HAVE_MK_CLASS_CUDA_UVA`
+(defined to `1` or undefined) to determine if support for the CUDA_UVA memory
+kind was detected at configure time.
+
+The preprocessor identifier `GASNET_HAVE_MK_CLASS_MULTIPLE` is more general,
+providing the client with an indication if configure detected support for *any*
+memory kinds other than host memory.
+
 # Supported Configurations
 
 All current memory kinds implementation work is limited to devices with the
@@ -279,6 +287,11 @@ prototype.
 This section describes the known limitations of each of the APIs introduced
 recently in order to support memory kinds.  Due to interaction among
 APIs, it is impossible to completely avoid forward references.
+
+## Additions:
+
+The preprocessor identifier `GASNET_HAVE_MK_CLASS_MULTIPLE` is defined to `1` if
+support has been compiled in for any memory kinds other than host memory.
 
 ## Renames:
 
