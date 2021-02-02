@@ -535,7 +535,7 @@ typedef ... gex_EP_t;
 #define GEX_EP_INVALID ((gex_EP_t)0)
 
 // gex_EP_Index_t is an unsigned integer type.
-// [PROPOSED]
+//
 // Every EP within a given gex_Client_t can be uniquely identified by
 // the jobrank of a process and an endpoint index.
 // The primordial endpoint, created by gex_Client_Init(), will always have
@@ -551,7 +551,6 @@ typedef ... gex_EP_Index_t;
 #define GASNET_MAXEPS ...
 
 // gex_EP_Location_t is a (rank, ep_index) tuple.
-// [PROPOSED]
 typedef struct {
   gex_Rank_t     gex_rank;
   gex_EP_Index_t gex_ep_index;
@@ -911,7 +910,6 @@ gex_Rank_t gex_TM_TranslateRankToJobrank(gex_TM_t tm, gex_Rank_t rank);
 gex_Rank_t gex_TM_TranslateJobrankToRank(gex_TM_t tm, gex_Rank_t jobrank);
 
 // Translation from (tm,rank) to gex_EP_Location_t
-// [PROPOSED]
 //
 // This function provides translation from a (tm,rank) pair to a
 // gex_EP_Location_t, which is a (jobrank,epidx) pair.
@@ -950,7 +948,6 @@ gex_Flags_t   gex_EP_QueryFlags(gex_EP_t ep);
 gex_Segment_t gex_EP_QuerySegment(gex_EP_t ep);
 
 // Query the endpoint index
-// [PROPOSED]
 gex_EP_Index_t gex_EP_QueryIndex(gex_EP_t ep);
 
 // Publish of EP's Bound Segment "RMA Credentials"
