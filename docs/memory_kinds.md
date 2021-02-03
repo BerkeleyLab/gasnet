@@ -417,10 +417,6 @@ non-primordial endpoints must currently utilize a `gex_TM_t` returned by
 
 Not implemented.
 
-## `gex_TM_Destroy()`
-
-Fully implemented.
-
 ## `gex_MK_Create()`
 
 This API is implemented as described in the API Proposal (with some renames
