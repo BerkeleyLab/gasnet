@@ -900,13 +900,12 @@ void gasnetc_loopback_commit_inner(
   #endif
 
   if (category == gasneti_Medium) {
+    // All Mediums
     gasneti_free_perthread_medium_buffer(buf, isReq GASNETI_THREAD_PASS);
-  } else if(!isFixed && sd->_gex_buf && (sd->_size <= GASNETC_MAX_MEDIUM_NBRHD)) {
+  } else if(!isFixed && sd->_gex_buf) {
+    // NPAM Long with GASNet-allocated buffer
     gasneti_assert(category == gasneti_Long);
-    gasneti_free_perthread_medium_buffer(sd->_gex_buf, isReq GASNETI_THREAD_PASS);
-  } else if (sd->_tofree) { // Branch to avoid free(NULL) library call overhead for NPAM/cb
-    gasneti_free(sd->_tofree);
-    sd->_tofree = NULL;
+    gasneti_free_npam_buffer(sd);
   }
 }
 
@@ -1083,10 +1082,7 @@ gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareRequest(
                                   dest_addr, lc_opt, flags, nargs);
 #endif
   if (imm) {
-    if (sd->_tofree) { // Branch to avoid free(NULL) library call overhead for NPAM/cb
-      gasneti_free(sd->_tofree);
-      sd->_tofree = NULL;
-    }
+    gasneti_assert(! sd->_tofree);
     gasneti_reset_srcdesc(sd);
     sd = NULL; // GEX_AM_SRCDESC_NO_OP
   } else {
@@ -1157,10 +1153,7 @@ gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareReply(
 #endif
   gasnetc_token_post_reply_checks(token, imm);
   if (imm) {
-    if (sd->_tofree) { // Branch to avoid free(NULL) library call overhead for NPAM/cb
-      gasneti_free(sd->_tofree);
-      sd->_tofree = NULL;
-    }
+    gasneti_assert(! sd->_tofree);
     gasneti_reset_srcdesc(sd);
     sd = NULL; // GEX_AM_SRCDESC_NO_OP
   } else {
