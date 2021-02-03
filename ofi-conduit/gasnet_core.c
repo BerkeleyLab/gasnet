@@ -221,7 +221,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
   #endif
 
   /*  register client handlers */
-  if (table && gasneti_amregister_legacy(ep->_amtbl, table, numentries) != GASNET_OK)
+  if (table && gasneti_amregister_legacy(ep, table, numentries) != GASNET_OK)
     GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
 
   /* ensure everything is initialized across all nodes */
@@ -363,7 +363,7 @@ extern int gasnetc_EP_PublishBoundSegment(
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
                                        size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
+  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
 int gasnetc_exit_in_progress = 0;

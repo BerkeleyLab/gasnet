@@ -413,7 +413,8 @@ struct gasneti_endpoint_internal_s;
     gasneti_Segment_t  _segment;       \
     gex_EP_Capabilities_t _caps, _orig_caps; \
     gex_Rank_t         _index;         \
-    gex_AM_Entry_t     _amtbl[GASNETC_MAX_NUMHANDLERS];
+    gex_AM_Entry_t     _amtbl[GASNETC_MAX_NUMHANDLERS]; \
+    gasneti_mutex_t    _amtbl_lock;
   #ifdef __cplusplus  // ensure this struct is anonymous to prevent C++ linkage issues
     #define gasneti_endpoint_internal_s
   #endif

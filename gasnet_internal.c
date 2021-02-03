@@ -608,7 +608,7 @@ static gasneti_EP_t gasneti_alloc_ep(
   }
   gasneti_assert(! client->_ep_tbl[endpoint->_index]);
   client->_ep_tbl[endpoint->_index] = endpoint;
-  gasneti_amtbl_init(endpoint->_amtbl);
+  gasneti_amtbl_init(endpoint);
 #ifndef GASNETC_EP_INIT_HOOK
   size_t extra = alloc_size - sizeof(*endpoint);
   if (extra) memset(endpoint + 1, 0, extra);
@@ -670,7 +670,7 @@ extern int gex_EP_Create(
     int numreg = 0;
     gasneti_assert(ctable);
     while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, ctable, len,
+    if (gasneti_amregister(ep, ctable, len,
                            GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE,
                            0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
@@ -684,7 +684,7 @@ extern int gex_EP_Create(
     int numreg = 0;
     gasneti_assert(etable);
     while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, etable, len,
+    if (gasneti_amregister(ep, etable, len,
                            GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE,
                            0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");

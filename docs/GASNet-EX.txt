@@ -961,7 +961,11 @@ typedef struct {
 // unspecified (only promising that it is deterministic) this specification
 // guarantees that entries with gex_index==0 are processed in the same order
 // they appear in 'table' and are assigned the highest-numbered index which is
-// then still unallocated (where 255 is the highest possible).
+// then still unallocated (where 255 is the highest possible).  However, in
+// the case of concurrent calls to gex_EP_RegisterHandlers() and/or
+// gasnet_attach() on the same endpoint with gex_index==0, the order in which
+// such entries are processed is unspecified and may be non-deterministic.
+//
 // Updating of gex_index fields that were passed as 0 upon input is the only
 // modification this function will perform upon the contents of 'table'
 // (whose elements are otherwise treated as if const-qualified by this call).
