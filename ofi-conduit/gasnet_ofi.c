@@ -33,6 +33,7 @@ struct fid_ep*        gasnetc_ofi_request_epfd;
 struct fid_ep*        gasnetc_ofi_reply_epfd;
 struct fid_cq*        gasnetc_ofi_request_cqfd;
 struct fid_cq*        gasnetc_ofi_reply_cqfd;
+struct fid_mr*        gasnetc_segment_mrfd = NULL;
 struct fid_mr*        gasnetc_auxseg_mrfd = NULL;
 size_t gasnetc_ofi_bbuf_threshold;
 
@@ -784,6 +785,7 @@ void gasnetc_ofi_exit(void)
     gasneti_fatalerror("close rdma epfd failed\n");
   }
 
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   GASNETI_SEGTBL_LOCK();
     gasneti_Segment_t seg;
     GASNETI_SEGTBL_FOR_EACH(seg) {
@@ -793,6 +795,11 @@ void gasnetc_ofi_exit(void)
       }
     }
   GASNETI_SEGTBL_UNLOCK();
+#else
+  if(gasnetc_segment_mrfd && (fi_close(&gasnetc_segment_mrfd->fid)!=FI_SUCCESS)) {
+    gasneti_fatalerror("close mrfd failed\n");
+  }
+#endif
 
   if (gasnetc_auxseg_mrfd && (fi_close(&gasnetc_auxseg_mrfd->fid) != FI_SUCCESS)) {
     gasneti_fatalerror("close auxseg mrfd failed\n");
@@ -1007,9 +1014,11 @@ int gasnetc_segment_register(gasnetc_Segment_t segment)
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     void *segbase = segment->_addr;
     uintptr_t segsize = segment->_size;
+    struct fid_mr** mrfd_p = &segment->mrfd;
 #else
     void *segbase = (void *)0;
     uintptr_t segsize = UINT64_MAX;
+    struct fid_mr** mrfd_p = &gasnetc_segment_mrfd;
     if (!GASNETC_OFI_HAS_MR_SCALABLE) {
         gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING is not supported when using FI_MR_BASIC.\n"
                            "Pick an OFI provider that supports FI_MR_SCALABLE if EVERYTHING\n"
@@ -1018,7 +1027,7 @@ int gasnetc_segment_register(gasnetc_Segment_t segment)
 #endif
     int ret = fi_mr_reg(gasnetc_ofi_domainfd, segbase, segsize,
                         FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL,
-                        &segment->mrfd, NULL);
+                        mrfd_p, NULL);
     if (FI_SUCCESS != ret) {
       gasneti_fatalerror("fi_mr_reg for rdma failed: %d(%s)\n", ret, fi_strerror(-ret));
     }

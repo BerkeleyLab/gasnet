@@ -157,6 +157,10 @@ static int gasnetc_attach_primary(void) {
    */
   gasneti_spawner->Cleanup();
 
+#if GASNET_SEGMENT_EVERYTHING
+  GASNETI_SAFE_PROPAGATE( gasnetc_segment_register(NULL) );
+#endif
+
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
