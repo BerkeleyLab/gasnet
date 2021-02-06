@@ -4736,10 +4736,6 @@ GASNET_IF_ENABLED(memory-kinds,
         [Prototype support for memory kinds (transfers to/from device memory).  Enables default auto-detection of all device type applicable to the target platform.  Individual --enable-kind-* options have precedence.],
         [enable_mk_default=probe], [enable_mk_default=no])
 
-# Concatenation of libs for all configured kinds:
-GASNET_KINDS_LDFLAGS=''
-GASNET_KINDS_LIBS=''
-
 # GEX_MK_CLASS_CUDA_UVA
 GASNET_IF_ENABLED_WITH_AUTO(kind-cuda-uva,
         [Support for memory kinds on UVA-capable CUDA devices (auto-detected with --enable-memory-kinds, otherwise disabled)],
@@ -4823,18 +4819,21 @@ Otherwise, you can disable this message with --disable-kind-cuda-uva.])
 
   if test "$have_mk_cuda_uva" = "yes"; then
     AC_DEFINE(GASNETI_MK_CLASS_CUDA_UVA_ENABLED)
-    AC_SUBST(CUDA_CFLAGS)
-    GASNET_KINDS_LDFLAGS="$GASNET_KINDS_LDFLAGS $CUDA_LDFLAGS"
-    GASNET_KINDS_LIBS="$GASNET_KINDS_LIBS $CUDA_LIBS"
+    CUDA_UVA_CFLAGS="$CUDA_CFLAGS"
+    CUDA_UVA_LDFLAGS="$CUDA_LDFLAGS"
+    CUDA_UVA_LIBS="$CUDA_LIBS"
   elif test "$force_mk_cuda_uva" = "yes"; then
     GASNET_MSG_ERROR([CUDA UVA memory kinds support was requested with --enable-kind-cuda-uva but is not available])
+  else
+    unset CUDA_UVA_CFLAGS
+    unset CUDA_UVA_LDFLAGS
+    unset CUDA_UVA_LIBS
   fi
 fi
+AC_SUBST(CUDA_UVA_CFLAGS)
+AC_SUBST(CUDA_UVA_LDFLAGS)
+AC_SUBST(CUDA_UVA_LIBS)
 AM_CONDITIONAL(HAVE_MK_CLASS_CUDA_UVA, test "$have_mk_cuda_uva" = "yes")
-
-# Concatenation of libs for all configured kinds
-AC_SUBST(GASNET_KINDS_LDFLAGS)
-AC_SUBST(GASNET_KINDS_LIBS)
 
 dnl GASNET_TOOLSONLY_FALSE_END
 ########################################################################
