@@ -358,7 +358,7 @@ do-pkgconfig-conduit: force
 	if test -z "$$GASNET_DESC" && test -f $(top_srcdir)/version.git ; then \
 	  GASNET_DESC=`cat $(top_srcdir)/version.git` || exit $$? ; \
 	fi; \
-	if expr "x$$GASNET_DESC" : 'xgex-$(VERSION)-0-' 2>/dev/null; then unset GASNET_DESC; fi; \
+	if expr "x$$GASNET_DESC" : 'xgex-$(VERSION)-0-' >/dev/null 2>&1; then unset GASNET_DESC; fi; \
 	cat $(pkgconfig_conduit) | \
 	sed -e 's@#conduit_name#@$(CONDUIT_NAME)@g'  \
 	    -e 's@#thread_model#@$(thread_model)@g'  \
