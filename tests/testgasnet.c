@@ -6,6 +6,7 @@
 
 #include <gasnetex.h>
 #include <gasnet_ratomic.h>
+#include <gasnet_mk.h>
 #include <gasnet_tools.h>
 
 /* limit segsz to prevent stack overflows for seg_everything tests */
@@ -44,6 +45,7 @@ void doit3(int partner, int *partnerseg);
 void doit5(int partner, int *partnerseg);
 void doit6(int partner, int *partnerseg);
 void doit7(int partner, int *partnerseg);
+void doit8(int partner, int *partnerseg);
 
 static gex_Client_t      myclient;
 static gex_EP_t    myep;
@@ -1610,5 +1612,37 @@ void doit7(int partner, int *partnerseg) {
    * moved to gasnet_diagnostic.c (run from testinternal).
    */
   
+#ifndef TESTGASNET_NO_SPLIT
+  doit8(partner, partnerseg);
+}
+void doit8(int partner, int *partnerseg) {
+#endif
+  BARRIER();
+
+  // Checks for graceful degradation where support is missing or limited.
+  // As features become widely support these should be removed in favor
+  // of complete tests (and conduit-specific KnownFailures if needed).
+
+  // Suspend verbose errors since some of these test are expected to fail
+  gex_System_SetVerboseErrors(0);
+
+
+  // Sane GASNET_MAXEPS and graceful failure of EP_Create
+  if (GASNET_MAXEPS < 1) {
+    MSG("*** ERROR - INVALID MAXEPS SETTING!!!!!");
+  } else if (GASNET_MAXEPS == 1) {
+    gex_EP_t ep;
+    int rc = gex_EP_Create(&ep, myclient, GEX_EP_CAPABILITY_RMA, 0);
+    if (rc != GASNET_ERR_RESOURCE) {
+      MSG("*** ERROR - EXCESS EP_CREATE DID NOT FAIL AS EXPECTED!!!!!");
+    }
+  } else {
+    // testtmpair covers creation of multiple EPs where implemented
+  }
+
+
+  // Restore verbose errors
+  gex_System_SetVerboseErrors(1);
+
   BARRIER();
 }
