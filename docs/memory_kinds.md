@@ -5,17 +5,16 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 
-  This is the "memory_kinds" feature branch of GASNet-EX, intended only
-  for use by developers with a specific interest in this feature.
-  Other client developers should consider use of the "stable" branch.
-  GASNet conduit developers not working specifically on memory kinds
-  should be targeting the "develop" branch for any pull requests.
+  This file documents the "Memory Kinds" feature of GASNet-EX, intended
+  only for use by developers with a specific interest in this feature.
+  Other client developers should limit themselves to the interfaces and
+  behaviors given in docs/GASNet-EX.txt and the GASNet-1 specification.
 
-  While it is intended that features and capabilities introduced in this
-  branch will make their way into a full release of GASNet-EX, this is
-  only a prototype. All aspects of the APIs and capabilities first
-  introduced on this branch are subject to non-trivial changes before
-  the prototype stage ends.
+  While it is intended that features and capabilities described here will
+  make their way into the GASNet-EX specification, the APIs in this file
+  and their implementation are only a prototype. All aspects of the APIs
+  and capabilities first introduced in this file are subject to
+  non-trivial changes before the prototype stage ends.
 
 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
@@ -36,7 +35,7 @@ For brevity, this will be referenced as simply "the API Proposal".
 
 # General Usage
 
-By default, the `configure` script in this branch does not enable support for
+By default, the `configure` script does not enable support for
 any non-host memory kinds.  Use of new configure option `--enable-memory-kinds`
 enables probes for the necessary headers and libraries for all available device
 "kinds" (presently only "CUDA_UVA") and enables the prototype implementation of
@@ -92,7 +91,7 @@ Furthermore, only `GASNET_SEGMENT_FAST` segment mode is supported.  This is the
 default segment mode, but can be specified explicitly at configure time using
 the `--enable-segment-fast` option.  To be clear: `--enable-segment-large` and
 `--enable-segment-everything` configurations of ibv-conduit do not support
-the memory kinds work in this branch.
+the memory kinds work in the current implementation.
 
 To the best of our knowledge, Mellanox currently disclaims support for GPUDirect
 RDMA on aarch64 (aka ARM64 or ARMv8) and NVIDIA does not support UVA on ILP32
@@ -360,11 +359,11 @@ This API, along with all types and constants required to specify its arguments,
 are defined and will link in any conduit.  However, it is useful only when
 multi-EP support exists, as described in the following paragraphs.
 
-Any build of GASNet-EX from this branch will define a preprocessor macro
+Current builds of GASNet-EX will define a preprocessor macro
 `GASNET_MAXEPS` which advertises the optimistic maximum number of endpoints per
 process, inclusive of the primordial endpoint created by `gex_Client_Init()`.
-Any call to `gex_EP_Create()` which would exceed this limit results in a fatal
-error.  
+Any call to `gex_EP_Create()` which would exceed this limit will fail with
+a return of GASNET_ERR_RESOURCE.
 
 Currently, only ibv-conduit in FAST segment mode has a value of `GASNET_MAXEPS`
 larger than 1 (it is currently 33).  Additionally, ibv-conduit only supports the
