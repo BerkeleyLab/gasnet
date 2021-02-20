@@ -5178,8 +5178,9 @@ case "$target_os" in
     LDFLAGS="$LDFLAGS ${dash_Wl}-multiply_defined,suppress"
 
     # Darwin 11 (MacOSX Lion) and newer use address-space randomization by default
+    # But -no_pie is ignored (with a warning) on aarch64
     tmp_ver=`expr "$target_os" : 'darwin\([[0-9]]*\)' 2>/dev/null`
-    if expr $tmp_ver \>= 11 >/dev/null; then
+    if test $target_cpu != aarch64 && expr $tmp_ver \>= 11 >/dev/null; then
       NOASLR_LDFLAGS="${dash_Wl}-no_pie"
     fi
   ;;
