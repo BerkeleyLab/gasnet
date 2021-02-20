@@ -290,6 +290,13 @@ wrap_test: upcxx-install
 	@set -x ; $(DO_ENV) && \
 	$(UPCXX_INSTDIR)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
 
+# Build a single test using the dev-tests target in the UPC++ Makefile (only valid for in-repo tests)
+make_test: upcxx-install
+	@set -x ; $(DO_ENV) && \
+	$(MAKE) -C $(UPCXX_BLDDIR) $(UPCXX_MAKE_J) dev-tests-$(GASNET_CODEMODE) NETWORKS=$(UPCXX_CONDUIT) \
+	           TESTS=^test-$(TEST_EXE) EXTRAFLAGS="$(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)"
+	@mv $(UPCXX_BLDDIR)/test-$(TEST_EXE)-$(GASNET_CODEMODE)-$(UPCXX_CONDUIT) $(TEST_EXE)
+
 IGNORE_TESTS_PAT=neg-.+|getenv|promise_multiple_results|promise_reused|quiescence_failure|issue105
 check-testsuite:
 	$(MAKE) -C $(UPCXX_BLDDIR) $(UPCXX_MAKE_J) dev-tests-$(GASNET_CODEMODE) UPCXX_DRY_RUN=1 NETWORKS=$(UPCXX_CONDUIT) > check-testsuite.log
@@ -322,6 +329,8 @@ VPATH = \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
 	elif test "$$UPCXX_TESTMODE" = "wrap" ; then set -x ; \
 	  $(MAKE) wrap_test TEST_PATH=$< TEST_EXE=$@ ; \
+	elif test "$$UPCXX_TESTMODE" = "make" ; then set -x ; \
+	  $(MAKE) make_test TEST_EXE=$@ ; \
 	else \
 	  echo "Unrecognized UPCXX_TESTMODE=$$UPCXX_TESTMODE" ; exit 100; \
 	fi 
