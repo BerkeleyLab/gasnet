@@ -62,6 +62,9 @@ test_static_assert_file((CHUNK_BITS + SZ_BITS) <= 32);
 
 // Test three injection modes
 #define INJMODE(iter) ((iter)%3)
+#define INJ_FP    0
+#define INJ_NP_CB 1
+#define INJ_NP_GB 2
 
 GASNETT_THREADKEY_DECLARE(mythread);
 GASNETT_THREADKEY_DEFINE(mythread);
@@ -143,11 +146,11 @@ void ping_medhandler(gex_Token_t token, void *buf, size_t nbytes,
   size_t len = TEST_RAND(nbytes - nbytes/2, nbytes);
 retry:
   switch (injmode) { // [0..2]
-    case 0: // Fixed-payload
+    case INJ_FP: // Fixed-payload
       imm = gex_AM_ReplyMedium2(token, hidx_pong_medhandler, buf, len, GEX_EVENT_NOW, flags, iter, arg1);
       break;
 
-    case 1: // Negotiated-payload with client-provided buffer
+    case INJ_NP_CB: // Negotiated-payload with client-provided buffer
       // TODO: (lc_opt = &event) is legal, but we lack logic to test/wait outside handler context
       //       additionally, we could not safely send buf with async LC
       sd = gex_AM_PrepareReplyMedium(token, buf, least_payload, most_payload, GEX_EVENT_NOW, flags, 2);
@@ -160,7 +163,7 @@ retry:
       gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, len, iter, arg1);
       break;
 
-    case 2: // Negotiated-payload without client-provided buffer
+    case INJ_NP_GB: // Negotiated-payload without client-provided buffer
       sd = gex_AM_PrepareReplyMedium(token, NULL, least_payload, most_payload, NULL, flags, 2);
       imm = (sd == GEX_AM_SRCDESC_NO_OP); // IMMEDIATE was NO OP
       if (imm) break;
@@ -176,7 +179,11 @@ retry:
     flags &= ~GEX_FLAG_IMMEDIATE;
     goto retry;
   }
-  validate_chunk("Medium Request (post-reply)", buf, nbytes, iter, arg1);
+  if ((injmode != INJ_NP_GB) && TEST_RAND_ONEIN(5)) {
+    memset(buf, 0xaa, len);
+  } else {
+    validate_chunk("Medium Request (post-reply)", buf, nbytes, iter, arg1);
+  }
 }
 
 void pong_medhandler(gex_Token_t token, void *buf, size_t nbytes,
@@ -208,12 +215,12 @@ void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes,
   size_t len = TEST_RAND(nbytes - nbytes/2, nbytes);
 retry:
   switch (injmode) { // [0..2]
-    case 0: // Fixed-payload
+    case INJ_FP: // Fixed-payload
       if (srcbuf != buf) memcpy(srcbuf, buf, len);
       imm = gex_AM_ReplyLong2(token, hidx_pong_longhandler, srcbuf, len, dstbuf, GEX_EVENT_NOW, flags, iter, arg1);
       break;
 
-    case 1: // Negotiated-payload with client-provided buffer
+    case INJ_NP_CB: // Negotiated-payload with client-provided buffer
       // TODO: (lc_opt = &event) is legal, but we lack logic to test/wait outside handler context
       //       additionally, we could not safely send buf with async LC
       sd = gex_AM_PrepareReplyLong(token, srcbuf, least_payload, most_payload, maybe_dest, GEX_EVENT_NOW, flags, 2);
@@ -227,7 +234,7 @@ retry:
       gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, len, dstbuf, iter, arg1);
       break;
 
-    case 2: // Negotiated-payload without client-provided buffer
+    case INJ_NP_GB: // Negotiated-payload without client-provided buffer
       sd = gex_AM_PrepareReplyLong(token, NULL, least_payload, most_payload, maybe_dest, NULL, flags, 2);
       imm = (sd == GEX_AM_SRCDESC_NO_OP); // IMMEDIATE was NO OP
       if (imm) break;
@@ -242,6 +249,9 @@ retry:
     assert(flags & GEX_FLAG_IMMEDIATE);
     flags &= ~GEX_FLAG_IMMEDIATE;
     goto retry;
+  }
+  if ((injmode != INJ_NP_GB) && TEST_RAND_ONEIN(5)) {
+    memset(buf, 0x55, len);
   }
 }
 
@@ -472,6 +482,7 @@ void *doit(void *id) {
   }
   assert_always(num_sz < (1<<SZ_BITS));
 
+  uint8_t *tmpbuf = test_malloc(max_payload);
   for (int sz_idx = 0; sz_idx < num_sz; ++sz_idx) {
       size_t sz = all_sizes[sz_idx];
       if (dosizesync) BARRIER(); /* optional barrier, to synchronize tests at each payload size across nodes */
@@ -496,19 +507,25 @@ void *doit(void *id) {
             gex_Flags_t flags = TEST_RAND_ONEIN(5) ? GEX_FLAG_IMMEDIATE : 0;
             size_t most_payload = TEST_RAND(sz, 2*sz);
             int injmode = INJMODE(iter); // [0..2]
-            size_t max_least_payload = (injmode == 1) ? least_payload_req_med_client
+            size_t max_least_payload = (injmode == INJ_NP_CB)
+                                                      ? least_payload_req_med_client
                                                       : least_payload_req_med_alloc;
             size_t least_payload = TEST_RAND(MIN(sz - sz/2, max_least_payload),
                                              MIN(most_payload, max_least_payload));
             size_t len = TEST_RAND(sz - sz/2, sz);
+            uint8_t *src = srcbuf;
+            if ((injmode != INJ_NP_GB) && TEST_RAND_ONEIN(5)) {
+              memcpy(tmpbuf, srcbuf, len);
+              src = tmpbuf;
+            }
           retry_med:
             switch (injmode) { // [0..2]
-              case 0: // Fixed-payload
-                imm = gex_AM_RequestMedium2(myteam, peerproc, hidx_ping_medhandler, srcbuf,
+              case INJ_FP: // Fixed-payload
+                imm = gex_AM_RequestMedium2(myteam, peerproc, hidx_ping_medhandler, src,
                                             len, GEX_EVENT_NOW, flags, iter, arg1);
                 break;
 
-              case 1: // Negotiated-payload with client-provided buffer
+              case INJ_NP_CB: // Negotiated-payload with client-provided buffer
               {
                 gex_Event_t lc = GEX_EVENT_NO_OP;
                 gex_Event_t *lc_opt = NULL;
@@ -517,12 +534,12 @@ void *doit(void *id) {
                   case 1: lc_opt = GEX_EVENT_NOW;   break;
                   case 2: lc_opt = GEX_EVENT_GROUP; break;
                 }
-                sd = gex_AM_PrepareRequestMedium(myteam, peerproc, srcbuf, least_payload, most_payload, lc_opt, flags, 2);
+                sd = gex_AM_PrepareRequestMedium(myteam, peerproc, src, least_payload, most_payload, lc_opt, flags, 2);
                 imm = (sd == GEX_AM_SRCDESC_NO_OP); // IMMEDIATE was NO OP
                 if (imm) break;
                 assert(gex_AM_SrcDescSize(sd) >= least_payload);
                 assert(gex_AM_SrcDescSize(sd) <= most_payload);
-                assert(gex_AM_SrcDescAddr(sd) == srcbuf);
+                assert(gex_AM_SrcDescAddr(sd) == src);
                 len = MIN(len, gex_AM_SrcDescSize(sd));
                 gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, len, iter, arg1);
                 if (lc_opt == GEX_EVENT_GROUP) {
@@ -533,7 +550,7 @@ void *doit(void *id) {
                 break;
               }
 
-              case 2: // Negotiated-payload without client-provided buffer
+              case INJ_NP_GB: // Negotiated-payload without client-provided buffer
                 sd = gex_AM_PrepareRequestMedium(myteam, peerproc, NULL, least_payload, most_payload, NULL, flags, 2);
                 imm = (sd == GEX_AM_SRCDESC_NO_OP); // IMMEDIATE was NO OP
                 if (imm) break;
@@ -549,6 +566,7 @@ void *doit(void *id) {
               flags &= ~GEX_FLAG_IMMEDIATE;
               goto retry_med;
             }
+            if (src == tmpbuf) memset(tmpbuf, 0xa5, len); // overwrite source
           }
           /* wait for completion */
           GASNET_BLOCKUNTIL(gasnett_atomic_read(&pong_recvd,0) == depth);
@@ -567,19 +585,25 @@ void *doit(void *id) {
             void * maybe_dest = TEST_RAND_ONEIN(2) ? dstbuf : NULL; // Passing dest_addr to Prepare is optional
             size_t most_payload = TEST_RAND(sz, 2*sz);
             int injmode = INJMODE(iter); // [0..2]
-            size_t max_least_payload = (injmode == 1) ? least_payload_req_long_client
+            size_t max_least_payload = (injmode == INJ_NP_CB)
+                                                      ? least_payload_req_long_client
                                                       : least_payload_req_long_alloc;
             size_t least_payload = TEST_RAND(MIN(sz - sz/2, max_least_payload),
                                              MIN(most_payload, max_least_payload));
             size_t len = TEST_RAND(sz - sz/2, sz);
+            uint8_t *src = srcbuf;
+            if ((injmode != INJ_NP_GB) && TEST_RAND_ONEIN(5)) {
+              memcpy(tmpbuf, srcbuf, len);
+              src = tmpbuf;
+            }
           retry_long:
             switch (injmode) { // [0..2]
-              case 0: // Fixed-payload
-                imm = gex_AM_RequestLong2(myteam, peerproc, hidx_ping_longhandler, srcbuf, len,
+              case INJ_FP: // Fixed-payload
+                imm = gex_AM_RequestLong2(myteam, peerproc, hidx_ping_longhandler, src, len,
                                           dstbuf, GEX_EVENT_NOW, flags, iter, arg1);
                 break;
 
-              case 1: // Negotiated-payload with client-provided buffer
+              case INJ_NP_CB: // Negotiated-payload with client-provided buffer
               {
                 gex_Event_t lc = GEX_EVENT_NO_OP;
                 gex_Event_t *lc_opt = NULL;
@@ -588,12 +612,12 @@ void *doit(void *id) {
                   case 1: lc_opt = GEX_EVENT_NOW;   break;
                   case 2: lc_opt = GEX_EVENT_GROUP; break;
                 }
-                sd = gex_AM_PrepareRequestLong(myteam, peerproc, srcbuf, least_payload, most_payload, maybe_dest, lc_opt, flags, 2);
+                sd = gex_AM_PrepareRequestLong(myteam, peerproc, src, least_payload, most_payload, maybe_dest, lc_opt, flags, 2);
                 imm = (sd == GEX_AM_SRCDESC_NO_OP); // IMMEDIATE was NO OP
                 if (imm) break;
                 assert(gex_AM_SrcDescSize(sd) >= least_payload);
                 assert(gex_AM_SrcDescSize(sd) <= most_payload);
-                assert(gex_AM_SrcDescAddr(sd) == srcbuf);
+                assert(gex_AM_SrcDescAddr(sd) == src);
                 len = MIN(len, gex_AM_SrcDescSize(sd));
                 gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, len, dstbuf, iter, arg1);
                 if (lc_opt == GEX_EVENT_GROUP) {
@@ -604,7 +628,7 @@ void *doit(void *id) {
                 break;
               }
 
-              case 2: // Negotiated-payload without client-provided buffer
+              case INJ_NP_GB: // Negotiated-payload without client-provided buffer
                 sd = gex_AM_PrepareRequestLong(myteam, peerproc, NULL, least_payload, most_payload, maybe_dest, NULL, flags, 2);
                 imm = (sd == GEX_AM_SRCDESC_NO_OP); // IMMEDIATE was NO OP
                 if (imm) break;
@@ -620,6 +644,7 @@ void *doit(void *id) {
               flags &= ~GEX_FLAG_IMMEDIATE;
               goto retry_long;
             }
+            if (src == tmpbuf) memset(tmpbuf, 0x5a, len); // overwrite source
           }
           /* wait for completion */
           GASNET_BLOCKUNTIL(gasnett_atomic_read(&pong_recvd,0) == depth);
@@ -627,6 +652,7 @@ void *doit(void *id) {
         }
       }
   }
+  test_free(tmpbuf);
 
   BARRIER();
   done = 1;
