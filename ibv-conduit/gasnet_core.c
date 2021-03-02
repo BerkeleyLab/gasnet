@@ -1266,7 +1266,7 @@ static int gasnetc_load_settings(void) {
   if_pf (gasnetc_packedlong_limit > GASNETC_MAX_PACKEDLONG) {
     fprintf(stderr,
             "WARNING: GASNET_PACKEDLONG_LIMIT reduced from %u to %u\n",
-            (unsigned int)gasnetc_packedlong_limit, GASNETC_MAX_PACKEDLONG);
+            (unsigned int)gasnetc_packedlong_limit, (unsigned int)GASNETC_MAX_PACKEDLONG);
     gasnetc_packedlong_limit = GASNETC_MAX_PACKEDLONG;
   }
 
