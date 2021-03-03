@@ -126,10 +126,7 @@ size_t gasnetc_AMHeaderSize(void);
 
 #define GASNETC_MAX_ARGS            16
 #define GASNETC_UCX_HDR_SIZE        gasnetc_AMHeaderSize()
-#define GASNETC_MAX_MED             4096
 #define GASNETC_MAX_LONG            INT_MAX
-
-#define GASNETC_MAX_MEDIUM_NBRHD    GASNETC_MAX_MED
 
 #define GASNETC_ARGS_SIZE(numargs) (sizeof(gex_AM_Arg_t) * (numargs))
 

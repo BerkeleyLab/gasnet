@@ -20,6 +20,9 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_UCX 1
 
+#define GASNETC_MAX_MED             4096
+#define GASNETC_MAX_MEDIUM_NBRHD    GASNETC_MAX_MED
+
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
 #define GASNET_PSHM 1
