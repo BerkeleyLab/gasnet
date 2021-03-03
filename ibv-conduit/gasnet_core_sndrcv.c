@@ -38,6 +38,7 @@ size_t					gasnetc_fh_align_mask;
 size_t                                  gasnetc_inline_limit;
 size_t                   		gasnetc_nonbulk_bounce_limit;
 size_t					gasnetc_packedlong_limit; // TODO-EX: adjust w/ nargs?
+size_t					gasnetc_packedlong_alloc_limit; // TODO-EX: adjust w/ nargs?
 size_t                                  gasnetc_put_stripe_sz, gasnetc_put_stripe_split;
 size_t                                  gasnetc_get_stripe_sz, gasnetc_get_stripe_split;
 #if !GASNETC_PIN_SEGMENT
@@ -1007,6 +1008,12 @@ void gasnetc_snd_reap_one(struct ibv_wc *comp_p, gasnetc_hca_t *hca GASNETC_COLL
         GASNETC_COLLECT_FHS(collect, sreq);
         #endif
         break;
+
+      #if GASNET_NATIVE_NP_ALLOC_REQ_LONG || GASNET_NATIVE_NP_ALLOC_REP_LONG
+      case GASNETC_OP_LONG_BUFFERED:  // Zero-copy Long payload with source in the header buffer
+        gasneti_assert(sreq->comp.cb == NULL);
+        break;
+      #endif
 
       case GASNETC_OP_PUT_ZEROCP:  // Zero-copy PUT
       case GASNETC_OP_LONG_ZEROCP: // Zero-copy Long payload
@@ -3853,6 +3860,43 @@ extern int gasnetc_rdma_long_put(
 
   return 0;
 }
+
+#if GASNET_NATIVE_NP_ALLOC_REQ_LONG || GASNET_NATIVE_NP_ALLOC_REP_LONG
+// Put specialized for needs of NPAM Long payload
+// * caller needs to control the qpi (via cep)
+// * never has local callbacks
+// * never has remote callbacks
+// * source lies within the buffer containing the AM header
+// * assumed never small enough for inline send (would be packed instead)
+extern int gasnetc_rdma_npam_long_put(
+                gasnetc_EP_t ep, gasnetc_cep_t *cep,
+                void *src_ptr, void *dst_ptr,
+                size_t nbytes,
+                gex_Flags_t flags
+                GASNETI_THREAD_FARG)
+{
+  gasnetc_epid_t epid = cep->epid;
+  GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG);
+  gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_LONG_BUFFERED GASNETI_THREAD_PASS);
+
+  gasneti_assert(nbytes != 0);
+
+  // TODO-EX:
+  //     All uses of rem_auxseg are a temporary hack
+  //     This will be replaced by general multi-registration support later
+  const int rem_auxseg = gasneti_in_auxsegment(gasnetc_epid2node(epid), dst_ptr, nbytes);
+
+  sr_desc->wr.rdma.remote_addr = (uintptr_t)dst_ptr;
+  sr_desc_sg_lst[0].addr = (uintptr_t)src_ptr;
+  sreq->bb_buff = src_ptr;
+
+  GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_BUFFERED, nbytes);
+
+  gasnetc_bounce_common(ep, epid, rem_auxseg, sr_desc, nbytes, sreq, IBV_WR_RDMA_WRITE GASNETI_THREAD_PASS);
+
+  return 0;
+}
+#endif
 
 /* Perform an RDMA get
  *

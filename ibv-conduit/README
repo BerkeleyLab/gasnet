@@ -803,7 +803,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The default value is the maximum that, together with the maximum sized
     header, fits into a 4KiB transfer (currently 4012).
     A value of zero ensures the payload and header always travel separately.
-    
+
+  + GASNET_PACKEDLONG_ALLOC_LIMIT
+    As for GASNET_PACKEDLONG_LIMIT, above, but for the case of Negotiated-
+    Payload AMLong with GASNet-allocated buffer.
+    The default is to take on the value of GASNET_PACKEDLONG_LIMIT.
+
   + GASNET_NONBULKPUT_BOUNCE_LIMIT
     This parameter sets the limit on the use of bounce buffers to achieve
     local completion of "non-bulk" PUT and AMLong payload transfers.  When
