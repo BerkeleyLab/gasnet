@@ -55,6 +55,10 @@ GASNet-EX ChangeLog
   - New interfaces have been added for explicit control over rank
     assignment (see udp-conduit README)
 
+* Platform support/portability
+  - This release adds support for macOS on AARCH64 (aka ARM64, "Apple M1" and
+    "Apple Silicon").
+
 * GASNet-EX Spec v0.11:
   - Deprecate GEX_FLAG_TM_SCRATCH_SIZE_MIN flag and remove the corresponding
     GASNET_COLL_MIN_SCRATCH_SIZE environment variable.

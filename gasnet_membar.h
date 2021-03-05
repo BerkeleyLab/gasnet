@@ -189,7 +189,7 @@
    #define GASNETI_RMB_IS_MB
    #define GASNETI_WMB_IS_MB
 /* ------------------------------------------------------------------------------------ */
-#elif PLATFORM_ARCH_AARCH64 && PLATFORM_OS_LINUX
+#elif PLATFORM_ARCH_AARCH64
  #if GASNETI_HAVE_GCC_ASM
    #define gasneti_local_wmb() GASNETI_ASM("dmb ishst")
    #define gasneti_local_rmb() GASNETI_ASM("dmb ishld")
