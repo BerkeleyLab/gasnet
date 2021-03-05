@@ -73,6 +73,10 @@ GASNet-EX ChangeLog
   - bug4173: ibv: race in firehose on powerpc
   - bug4175: thread-safety of gex_EP_RegisterHandlers()
 
+* Removal of unmaintained platform support
+  - This release no longer supports the following platforms:
+    + IA-64 (aka Itanium)
+
 ----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.10.0 Release
 

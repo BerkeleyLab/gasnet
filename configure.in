@@ -731,7 +731,6 @@ case "$CC_FAMILY" in
     case "$target_cpu" in
       sparc) GASNET_GET_ULTRASPARC_FLAGS(C,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
       rs6000|powerpc*) GASNET_GET_PPC64_FLAGS(C,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
-      ia64) GASNET_TRY_CFLAG([-mtls-size=64], [MISC_CFLAGS="$MISC_CFLAGS -mtls-size=64"]);;
     esac
     case "$target_os" in
       darwin*) 
@@ -1725,7 +1724,6 @@ case "$target_cpu" in # when chip revs differ, we should err on the larger size
   aarch64)  cache_line_guess=64 ;;
   rs6000)   cache_line_guess=32 ;;  # https://www.csee.umbc.edu/portal/help/architecture/rs6000_arch.ps
   powerpc*) cache_line_guess=128 ;; # https://www.7-cpu.com/cpu/Power8.html
-  ia64)     cache_line_guess=128 ;; # https://www.7-cpu.com/cpu/Itanium2.html
   sparc)    cache_line_guess=128 ;; # https://en.wikipedia.org/wiki/SPARC64_V
   *)        cache_line_guess=128 ;; # the default when we have no other info
 esac
@@ -2112,53 +2110,6 @@ if test "$target_cpu" = "aarch64" ; then
     return !tick || !freq; /* Fail if either register is zero */
   ], [AC_DEFINE(GASNETI_HAVE_AARCH64_CNTVCT_EL0)])
 fi
-
-## Do toolchain and CPU support ia64 "cmp8xchg16"?
-GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_portable_platform.h
-AC_MSG_CHECKING(for ia64 cmp8xchg16 support)
-AC_TRY_RUN([
-  #include "gasnet_portable_platform.h" /* For PLATFORM_{ARCH,COMPILER}_* */
-
-  #if !PLATFORM_ARCH_IA64
-    #error wrong CPU architecture
-  #elif PLATFORM_COMPILER_INTEL
-    #include <ia64intrin.h>
-    int cmp8xchg16(void volatile *ptr, unsigned long oldlo, unsigned long newlo, unsigned long newhi) {
-      return oldlo == _InterlockedCompare64Exchange128_acq(ptr, newhi, newlo, oldlo);
-    }
-  #elif PLATFORM_COMPILER_GNU
-    int cmp8xchg16(void volatile *ptr, unsigned long oldlo, unsigned long newlo, unsigned long newhi) {
-      register unsigned long tmp = newlo;
-      __asm__ __volatile__ (
-	"mov		ar.ccv=%1			\n\t"
-	"mov		ar.csd=%2;;			\n\t"
-	"cmp8xchg16.acq	%0=[%3],%0,ar.csd,ar.ccv	\n"
-	: "+r"(tmp) : "rO"(oldlo), "rO"(newhi), "r"(ptr) : "memory" );
-      return tmp == oldlo;
-    }
-  #else
-    #error compiler is unsupported
-  #endif
-
-  int main(void) {
-	unsigned long *array[3];
-	unsigned long *p = (void *)(((unsigned long)array + 15) & ~(unsigned long)15);
-	int swapped;
-
-	p[0] = 1234;
-	p[1] = 0;
-
-	swapped = cmp8xchg16(p, 1234, 5678, 0xabcdef);
-
-	/* Want SUCCESS and changed X */
-	return (!swapped || (p[0] != 5678) || (p[1] != 0xabcdef));
-  }
-], [AC_DEFINE(GASNETI_HAVE_IA64_CMP8XCHG16)
-    AC_MSG_RESULT(yes)
-], [AC_MSG_RESULT(no)
-], [ : # For now we assume "NO" when cross compiling
-    AC_MSG_RESULT(no)])
-GASNET_POPVAR(CPPFLAGS)
 
 ## Do CC/gas and CPU support "cmpxchg16b"?
 if test "$cross_compiling" = "yes" ; then
@@ -2971,7 +2922,6 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
        case "$target_cpu" in
          sparc) GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
          rs6000|powerpc*) GASNET_GET_PPC64_FLAGS(CXX,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
-         ia64) GASNET_TRY_CXXFLAG([-mtls-size=64], [MISC_CXXFLAGS="$MISC_CXXFLAGS -mtls-size=64"]);;
        esac
        # set CXXDEBUGFLAGS
        GASNET_PUSHVAR(CXXFLAGS,"${gxx_flag_prefix}-g3")
