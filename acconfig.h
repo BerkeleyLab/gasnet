@@ -345,9 +345,6 @@
 /* has x86 EBX register (not reserved for GOT) */
 #undef GASNETI_HAVE_X86_EBX
 
-/* has support (toolchain and cpu) for ia64 cmp8xchg16 instruction */
-#undef GASNETI_HAVE_IA64_CMP8XCHG16
-
 /* has support (toolchain and cpu) for x86_64 cmpxchg16b instruction */
 #undef GASNETI_HAVE_X86_CMPXCHG16B
 

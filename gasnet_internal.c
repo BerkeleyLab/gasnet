@@ -1375,10 +1375,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         const char *desc;
         int hwid;
       } known_devs[] = {
-        #if PLATFORM_OS_LINUX && PLATFORM_ARCH_IA64 && GASNET_SEQ
-          { "/dev/hw/cpunum",      S_IFDIR, "SGI Altix", 0 },
-          { "/dev/xpmem",          S_IFCHR, "SGI Altix", 0 },
-        #endif
         { "/dev/infiniband/uverbs0",     S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
         { "/dev/infiniband/ofs/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* Solaris */
         #if !GASNET_SEGMENT_EVERYTHING

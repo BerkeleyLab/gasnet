@@ -76,7 +76,7 @@ typedef struct {
   /* Thread-local list of sreq's. */
   gasnetc_sreq_t	*sreqs;
   
-  /* Nothing else yet, but lockfree algorithms for x84_64 and ia64 will also need
+  /* Nothing else yet, but lockfree algorithms for (at least) x84_64 will also need
    * some thread-local data if they are ever implemented. */
 } gasnetc_per_thread_t;
 
