@@ -5,17 +5,16 @@ NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 
-  This is the "memory_kinds" feature branch of GASNet-EX, intended only
-  for use by developers with a specific interest in this feature.
-  Other client developers should consider use of the "stable" branch.
-  GASNet conduit developers not working specifically on memory kinds
-  should be targeting the "develop" branch for any pull requests.
+  This file documents the "Memory Kinds" feature of GASNet-EX, intended
+  only for use by developers with a specific interest in this feature.
+  Other client developers should limit themselves to the interfaces and
+  behaviors given in docs/GASNet-EX.txt and the GASNet-1 specification.
 
-  While it is intended that features and capabilities introduced in this
-  branch will make their way into a full release of GASNet-EX, this is
-  only a prototype. All aspects of the APIs and capabilities first
-  introduced on this branch are subject to non-trivial changes before
-  the prototype stage ends.
+  While it is intended that features and capabilities described here will
+  make their way into the GASNet-EX specification, the APIs in this file
+  and their implementation are only a prototype. All aspects of the APIs
+  and capabilities first introduced in this file are subject to
+  non-trivial changes before the prototype stage ends.
 
 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
@@ -36,10 +35,21 @@ For brevity, this will be referenced as simply "the API Proposal".
 
 # General Usage
 
-By default, the `configure` script in this branch probes for the necessary CUDA
-headers and libraries and enable the prototype implementation of memory kinds if
-such support is found.  Use of configure new option `--enable-kind-cuda-uva`
-will make failure of that probe fatal.
+By default, the `configure` script does not enable support for
+any non-host memory kinds.  Use of new configure option `--enable-memory-kinds`
+enables probes for the necessary headers and libraries for all available device
+"kinds" (presently only "CUDA_UVA") and enables the prototype implementation of
+memory kinds if such support is found.  This is the recommended mechanism to
+enable memory kinds support, since it will enable additional kinds as they are
+added.  For more detailed control for a given kind (such as "cuda-uva") the
+following take precedence over `--(en|dis)able-memory-kinds`:
+
+  + `--disable-kind-[name]` disables probing for support for the named kind.
+  + `--enable-kind-[name]` probes for support for the named kind, with failure
+    of the probe being a fatal `configure` error.
+  + `--enable-kind-[name]=probe` probes for support for the named kind, with
+    failure of the probe being non-fatal (the same behavior requested for all
+    kinds by using `--enable-memory-kinds`).
 
 On our main development platforms, the logic in `configure` is sufficient to
 locate the required headers and libraries with no additional options.  However,
@@ -54,6 +64,14 @@ probe if needed:
 Generally, it is sufficient to provide the installation prefix of the CUDA
 toolkit using either `--with-cuda-home=...` or `CUDA_HOME`, since the others
 all have sensible defaults once the installation prefix is known.
+
+Clients can use the preprocessor identifier `GASNET_HAVE_MK_CLASS_CUDA_UVA`
+(defined to `1` or undefined) to determine if support for the CUDA_UVA memory
+kind was detected at configure time.
+
+The preprocessor identifier `GASNET_HAVE_MK_CLASS_MULTIPLE` is more general,
+providing the client with an indication if configure detected support for *any*
+memory kinds other than host memory.
 
 # Supported Configurations
 
@@ -73,7 +91,7 @@ Furthermore, only `GASNET_SEGMENT_FAST` segment mode is supported.  This is the
 default segment mode, but can be specified explicitly at configure time using
 the `--enable-segment-fast` option.  To be clear: `--enable-segment-large` and
 `--enable-segment-everything` configurations of ibv-conduit do not support
-the memory kinds work in this branch.
+the memory kinds work in the current implementation.
 
 To the best of our knowledge, Mellanox currently disclaims support for GPUDirect
 RDMA on aarch64 (aka ARM64 or ARMv8) and NVIDIA does not support UVA on ILP32
@@ -280,6 +298,11 @@ This section describes the known limitations of each of the APIs introduced
 recently in order to support memory kinds.  Due to interaction among
 APIs, it is impossible to completely avoid forward references.
 
+## Additions:
+
+The preprocessor identifier `GASNET_HAVE_MK_CLASS_MULTIPLE` is defined to `1` if
+support has been compiled in for any memory kinds other than host memory.
+
 ## Renames:
 
 Some types, constants and functions have been renamed relative to their first
@@ -336,11 +359,11 @@ This API, along with all types and constants required to specify its arguments,
 are defined and will link in any conduit.  However, it is useful only when
 multi-EP support exists, as described in the following paragraphs.
 
-Any build of GASNet-EX from this branch will define a preprocessor macro
+Current builds of GASNet-EX will define a preprocessor macro
 `GASNET_MAXEPS` which advertises the optimistic maximum number of endpoints per
 process, inclusive of the primordial endpoint created by `gex_Client_Init()`.
-Any call to `gex_EP_Create()` which would exceed this limit results in a fatal
-error.  
+Any call to `gex_EP_Create()` which would exceed this limit will fail with
+a return of GASNET_ERR_RESOURCE.
 
 Currently, only ibv-conduit in FAST segment mode has a value of `GASNET_MAXEPS`
 larger than 1 (it is currently 33).  Additionally, ibv-conduit only supports the
@@ -392,10 +415,6 @@ non-primordial endpoints must currently utilize a `gex_TM_t` returned by
 ## `gex_TM_Dup()`
 
 Not implemented.
-
-## `gex_TM_Destroy()`
-
-Fully implemented.
 
 ## `gex_MK_Create()`
 

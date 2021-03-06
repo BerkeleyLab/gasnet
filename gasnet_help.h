@@ -1506,10 +1506,10 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 #endif
 
 #if GASNET_HAVE_MK_CLASS_CUDA_UVA // || GASNET_HAVE_MK_CLASS_[FOO]
-  #define GASNETI_HAVE_NON_HOST_MK 1
+  #define GASNET_HAVE_MK_CLASS_MULTIPLE 1
 #endif
 
-#if GASNETI_HAVE_NON_HOST_MK
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
   GASNETI_INLINE(gasneti_i_segment_kind_is_host)
   int gasneti_i_segment_kind_is_host(gasneti_Segment_t _segment) {
     // Either NULL (such as for no bound segment, which is just fine for
@@ -1628,7 +1628,7 @@ gex_Rank_t gasneti_pshm_jobrank_if_eligible(gex_TM_t _e_tm, gex_Rank_t _rank) {
   // If we've made it this far, the (tm,rank) is eligible only and only if
   // the local ep is host memory (which can take some work to determine).
   gex_Rank_t _jobrank = _loc.gex_rank;
-#if !GASNETI_HAVE_NON_HOST_MK
+#if !GASNET_HAVE_MK_CLASS_MULTIPLE
   return _jobrank; // Trivial host memory when no device kinds are supported
 #else
   gasneti_Segment_t _segment;

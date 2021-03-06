@@ -47,6 +47,9 @@ PENDING GASNet-EX "memory_kinds" feature branch
     GASNET_ERR_RESOURCE rather than aborting.
   - NEW: configure option `--with-maxeps=N` permits setting GASNET_MAXEPS,
     subject to per-conduit limits.
+  - New preprocessor identifer 'GASNET_HAVE_MK_CLASS_MULTIPLE' (undefined or
+    defined to '1') indicates kinds support for anything other than host
+    memory has been compiled-in.
 
 * GASNet-EX Spec v0.13: (work-in-progress)
   - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
