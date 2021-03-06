@@ -119,6 +119,7 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 // gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*(), gex_TM_Pair(),
 // gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(),
 // gex_System_GetVerboseErrors(), gex_System_SetVerboseErrors(),
+// gex_System_QueryMaxThreads()
 // 
 // The following are conditionally permitted in handler context, the condition being the 
 // caller must be within an AMRequest handler and not holding a handler-safe lock:
@@ -221,6 +222,28 @@ int gex_System_GetVerboseErrors();
 // Enable (1) or disable (0) console messages for certain non-fatal errors.
 // Values other than 0 and 1 are currently reserved.
 void  gex_System_SetVerboseErrors(int enable);
+
+// Threads
+
+// The maximum number of live client threads permitted to enter GASNet.
+//
+// In threaded (non-SEQ) builds of GASNet, client threads making GASNet calls may
+// implicitly become associated with thread-specific state managed by the GASNet
+// library. When such a thread exits, a thread destructor registered by the library
+// cleans up any associated thread-specific state. The library is permitted to limit
+// the number of live client threads that may concurrently be implicitly associated
+// with GASNet-managed state.
+//
+// + The limit is per-process and the value returned is for the calling process.
+// + The limit is process-wide, independent of gex_Client_t.
+// + Threads internal to GASNet, if any, do not count against this limit.
+// + Client threads which have not yet entered GASNet do not count against
+//   this limit.
+// + Client threads which exit after having entered GASNet cease to count
+//   against this limit.
+//
+// In a SEQ build of GASNet, this query always returns 1.
+uint64_t gex_System_QueryMaxThreads(void);
 
 // Events
 

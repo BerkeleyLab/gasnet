@@ -1004,6 +1004,19 @@ void gasneti_leaf_finish(gex_Event_t *_opt_val) {
 #endif
 /* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
 extern uint64_t gasneti_max_threads(void);
+// same as above, except reduced by conduit-internal threads, if any
+#if GASNET_SEQ
+  #define gex_System_QueryMaxThreads() ((uint64_t)1)
+#elif GASNETE_CONDUIT_THREADS_USING_TD
+  GASNETI_INLINE(gex_System_QueryMaxThreads)
+  uint64_t gex_System_QueryMaxThreads(void) {
+    // This is conservative.
+    // A conduit may spawn _up to_ GASNETE_CONDUIT_THREADS_USING_TD, but could spawn fewer.
+    return gasneti_max_threads() - GASNETE_CONDUIT_THREADS_USING_TD;
+  }
+#else
+  #define gex_System_QueryMaxThreads() gasneti_max_threads()
+#endif
 extern void gasneti_fatal_threadoverflow(const char *_subsystem);
 
 #ifndef _GASNETI_MYTHREAD_SLOW

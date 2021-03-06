@@ -812,6 +812,14 @@ void doit(int partner, int *partnerseg) {
   assert_always(myrank < numranks);
   assert_always(numranks < GEX_RANK_INVALID);
 
+  /* max thread query */
+#if GASNET_SEQ
+  assert_always(gex_System_QueryMaxThreads() == 1);
+#else
+  // Not a spec requirement, but a reasonable assumption for any implementation
+  assert_always(gex_System_QueryMaxThreads() > 1);
+#endif
+
   /* ep_index/ep_location tests */
   assert_unsigned(gex_EP_Index_t);
   for (gex_Rank_t i = 0; i < numranks; ++i) {
