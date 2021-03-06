@@ -2082,6 +2082,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* Now enable tracing of all the following steps */
   gasneti_trace_init(argc, argv);
 
+  // Ensure work-arounds like MLX5_SCATTER_TO_CQE are propogated
+  gasneti_propagate_env("MLX5_", GASNETI_PROPAGATE_ENV_PREFIX);
+
   /* bootstrapInit may set gasneti_nodes==0 if would overflow 16-bit field */
   if (!gasneti_nodes || (gasneti_nodes > GASNET_MAXNODES)) {
     GASNETI_RETURN_ERRR(RESOURCE, "job size exceeds ibv-conduit capabilities");
