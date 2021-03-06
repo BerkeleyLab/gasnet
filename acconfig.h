@@ -218,6 +218,12 @@
 /* --with-max-threads value (if given) */
 #undef GASNETI_MAX_THREADS_CONFIGURE
 
+/* --with-maxeps value (if given) */
+#undef GASNETI_MAXEPS_CONFIGURE
+
+/* memory kinds support */
+#undef GASNETI_MK_CLASS_CUDA_UVA_ENABLED
+
 /* has clock_gettime() */
 #undef HAVE_CLOCK_GETTIME
 

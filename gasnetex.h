@@ -250,7 +250,33 @@ GASNETI_BEGIN_NOWARN
 
 #ifndef GASNET_MAXEPS
   //  an integer representing the max supported number of endpoints per process
-  #define GASNET_MAXEPS 1 // TODO: raise once multi-ep support becomes "the norm"
+  //  should be kept _STRINGIFY()-friendly (e.g. `4095` not `((1<<12)-1)`)
+
+  // Defaults and sanity checks
+  #define GASNETI_MAXEPS_LIMIT 4096 // Maximum due to 12-bit field in TM-pair
+  #ifndef GASNETC_MAXEPS_MAX
+    #define GASNETC_MAXEPS_MAX GASNETI_MAXEPS_LIMIT
+  #elif (GASNETC_MAXEPS_MAX > GASNETI_MAXEPS_LIMIT)
+    #error GASNETC_MAXEPS_MAX exceeds GASNETI_MAXEPS_LIMIT
+  #endif
+  #if (GASNETC_MAXEPS_DFLT > GASNETI_MAXEPS_LIMIT)
+    #error GASNETC_MAXEPS_DFLT exceeds GASNETI_MAXEPS_LIMIT
+  #endif
+
+  #if !defined(GASNETC_MAXEPS_DFLT)
+    // Conduit lacks multi-ep support
+    #define GASNET_MAXEPS 1
+  #elif !defined(GASNETI_MAXEPS_CONFIGURE)
+    // No configure-time value provided - use conduit-specific default
+    #define GASNET_MAXEPS GASNETC_MAXEPS_DFLT
+  #else
+    // Take MIN of user's --with-maxeps setting and the maximum
+    #if (GASNETI_MAXEPS_CONFIGURE <= GASNETC_MAXEPS_MAX)
+      #define GASNET_MAXEPS GASNETI_MAXEPS_CONFIGURE
+    #else
+      #define GASNET_MAXEPS GASNETC_MAXEPS_MAX
+    #endif
+  #endif
 #endif
 
 #if !defined(GASNET_ALIGNED_SEGMENTS) || \
@@ -319,9 +345,11 @@ typedef struct gasneti_team_member_s *gex_TM_t;
 
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;
+#define GEX_CLIENT_INVALID ((gex_Client_t)(uintptr_t)0)
 
 struct gasneti_endpoint_s;
 typedef struct gasneti_endpoint_s *gex_EP_t;
+#define GEX_EP_INVALID ((gex_EP_t)(uintptr_t)0)
 
 struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
@@ -329,7 +357,8 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 
 struct gasneti_memkind_s;
 typedef struct gasneti_memkind_s *gex_MK_t;
-#define GEX_MK_HOST ((gex_MK_t)(uintptr_t)0)
+#define GEX_MK_INVALID ((gex_MK_t)(uintptr_t)0)
+#define GEX_MK_HOST ((gex_MK_t)(uintptr_t)1)
 
 typedef void (*gex_AM_Fn_t)();
 
@@ -389,6 +418,7 @@ struct gasneti_endpoint_internal_s;
     void *             _ub;            \
     uintptr_t          _size;          \
     gex_MK_t           _kind;          \
+    void *             _opaque_mk_use; \
     unsigned int       _opaque_container_use;
   typedef struct { GASNETI_SEGMENT_COMMON } *gasneti_Segment_t;
   #if GASNET_DEBUG
@@ -912,6 +942,7 @@ extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_MK_CLASS_CUDA_UVA_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(HIDDEN_AM_CONCUR_,GASNET_HIDDEN_AM_CONCURRENCY_LEVEL));
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CACHE_LINE_BYTES_,GASNETI_CACHE_LINE_BYTES));
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(GASNETI_TM0_ALIGN_,GASNETI_TM0_ALIGN));
@@ -946,6 +977,7 @@ static int *gasneti_linkconfig_idiotcheck(void) {
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_MK_CLASS_CUDA_UVA_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(HIDDEN_AM_CONCUR_,GASNET_HIDDEN_AM_CONCURRENCY_LEVEL))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CACHE_LINE_BYTES_,GASNETI_CACHE_LINE_BYTES))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(GASNETI_TM0_ALIGN_,GASNETI_TM0_ALIGN))

@@ -153,7 +153,16 @@ extern gex_Rank_t gasneti_mynode;
 extern gex_Rank_t gasneti_nodes;
 #define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
 
+/* ------------------------------------------------------------------------------------ */
+extern int gasneti_VerboseErrors;
+#define gex_System_GetVerboseErrors() ((int)gasneti_VerboseErrors)
+GASNETI_INLINE(gex_System_SetVerboseErrors)
+void gex_System_SetVerboseErrors(int _enable) {
+  gasneti_assert(_enable == 1 || _enable == 0);
+  gasneti_VerboseErrors = _enable;
+}
 
+/* ------------------------------------------------------------------------------------ */
 #if GASNETI_TM0_ALIGN
 // We can detect TM0 by its better alignment than other tm's
 GASNETI_INLINE(gasneti_is_tm0)
@@ -226,6 +235,7 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 // transparent support for both encodings and may be sufficient to keep much
 // code independent of TM-pairness:
 //   + gasneti_[ei]_tm_rank_to_jobrank()
+//   + gasneti_[ei]_tm_rank_to_ep_index()
 //   + gasneti_[ei]_tm_rank_to_location()
 //   + gasneti_[ei]_tm_jobrank_to_rank()
 //   + gasneti_[ei]_tm_size()
@@ -239,9 +249,18 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 //        `gex_TM_QueryEP(e_tm)`
 //        `gasneti_import_tm(e_tm)->_ep`
 //        `i_tm->_ep`
+//   + gasneti_[ei]_tm_to_ep_index()
+//     More efficient replacement for `gasneti_[ei]_tm_to_i_ep()->_index`,
+//     replacing multiple alternatives which do not accept a TM-pair
 //   + gasneti_boundscheck()
 //   + gasneti_boundscheck_allowoutseg()
 //   + gasneti_formattm()
+//   + gasneti_pshm_local_rank()
+//   + gasneti_pshm_in_supernode()
+//   + gasneti_pshm_addr2local()
+//   + GASNETI_NBRHD_LOCAL()
+//   + GASNETI_NBRHD_LOCAL_ADDR()
+//   + GASNETI_NBRHD_LOCAL_ADDR_OR_NULL()
 
 #if GASNET_DEBUG
   GASNETI_INLINE(gasneti_assertvalid_tm_pair)
@@ -310,6 +329,19 @@ gex_Rank_t gasneti_i_tm_size(gasneti_TM_t _i_tm) {
   return gasneti_i_tm_is_pair(_i_tm) ? gex_System_QueryJobSize() : _i_tm->_size;
 }
 
+GASNETI_INLINE(gasneti_i_tm_to_ep_index)
+gex_Rank_t gasneti_i_tm_to_ep_index(gasneti_TM_t _i_tm) {
+  gasneti_assert(_i_tm);
+  if (gasneti_is_tm0(_i_tm)) {
+    return 0; // fast path
+  } else if (gasneti_i_tm_is_pair(_i_tm)) {
+    return gasneti_tm_pair_loc_idx(gasneti_i_tm_to_pair(_i_tm));
+  } else {
+    return _i_tm->_ep->_index;
+  }
+}
+#define gasneti_e_tm_to_ep_index(_e_tm) gasneti_i_tm_to_ep_index(gasneti_import_tm(_e_tm))
+
 #if GASNET_DEBUG
   #define gasneti_check_jobrank(jobrank) \
     gasneti_assert_uint(jobrank ,<, gex_System_QueryJobSize());
@@ -344,6 +376,27 @@ gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
 }
 #define gasneti_e_tm_rank_to_jobrank(e_tm,rank) \
         gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
+
+GASNETI_INLINE(gasneti_i_tm_rank_to_ep_index)
+gex_Rank_t gasneti_i_tm_rank_to_ep_index(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
+  gasneti_check_i_tm_rank(_i_tm, _rank);
+  gex_EP_Index_t _result;
+  if (gasneti_is_tm0(_i_tm)) {
+    _result = 0;
+  } else if (gasneti_i_tm_is_pair(_i_tm)) {
+    _result = gasneti_tm_pair_rem_idx(gasneti_i_tm_to_pair(_i_tm));
+  } else if (!GASNETI_ALLOW_SPARSE_TEAMREP || _i_tm->_rank_map) {
+    // NULL _index_map indicates all members of TM are primordial EPs (idx==0)
+    _result = _i_tm->_index_map ? _i_tm->_index_map[_rank] : 0;
+  } else {
+    gex_EP_Location_t _loc = gasneti_tm_fwd_location(_i_tm, _rank, 0);
+    _result = _loc.gex_ep_index;
+  }
+  gasneti_assert(_result < GASNET_MAXEPS);
+  return _result;
+}
+#define gasneti_e_tm_rank_to_ep_index(e_tm,rank) \
+        gasneti_i_tm_rank_to_ep_index(gasneti_import_tm(e_tm),rank)
 
 GASNETI_INLINE(gasneti_i_tm_rank_to_location)
 gex_EP_Location_t gasneti_i_tm_rank_to_location(gasneti_TM_t _i_tm, gex_Rank_t _rank, gex_Flags_t _flags) {
@@ -380,12 +433,17 @@ gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank)
 
 extern gasnet_seginfo_t *gasneti_seginfo;
 extern gasnet_seginfo_t *gasneti_seginfo_aux;
+extern gasnet_seginfo_t *gasneti_seginfo_tbl[GASNET_MAXEPS];
 
-// TODO: generalize for multi-{EP,segment} support
 // TODO: work towards dropping non-scalable seginfo tables
 GASNETI_INLINE(gasneti_client_seginfo)
 const gasnet_seginfo_t *gasneti_client_seginfo(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  return gasneti_seginfo + gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
+  gex_EP_Location_t _loc = gasneti_e_tm_rank_to_location(_e_tm, _rank, 0);
+  gex_Rank_t _jobrank = _loc.gex_rank;
+  gex_EP_Index_t _idx = _loc.gex_ep_index;
+  gasnet_seginfo_t *_si_array = gasneti_seginfo_tbl[_idx];
+  gasneti_assert(_si_array);
+  return _si_array + _jobrank;
 }
 GASNETI_INLINE(gasneti_aux_seginfo)
 const gasnet_seginfo_t *gasneti_aux_seginfo(gex_Rank_t _jobrank) {
@@ -946,6 +1004,19 @@ void gasneti_leaf_finish(gex_Event_t *_opt_val) {
 #endif
 /* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
 extern uint64_t gasneti_max_threads(void);
+// same as above, except reduced by conduit-internal threads, if any
+#if GASNET_SEQ
+  #define gex_System_QueryMaxThreads() ((uint64_t)1)
+#elif GASNETE_CONDUIT_THREADS_USING_TD
+  GASNETI_INLINE(gex_System_QueryMaxThreads)
+  uint64_t gex_System_QueryMaxThreads(void) {
+    // This is conservative.
+    // A conduit may spawn _up to_ GASNETE_CONDUIT_THREADS_USING_TD, but could spawn fewer.
+    return gasneti_max_threads() - GASNETE_CONDUIT_THREADS_USING_TD;
+  }
+#else
+  #define gex_System_QueryMaxThreads() gasneti_max_threads()
+#endif
 extern void gasneti_fatal_threadoverflow(const char *_subsystem);
 
 #ifndef _GASNETI_MYTHREAD_SLOW
@@ -1432,6 +1503,40 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Memory Kinds
+
+// The following GASNET_HAVE_MK_CLASS_* identifiers are either `1` or unset
+
+#define GASNET_HAVE_MK_CLASS_HOST 1 // For consistency - always available
+
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA
+  #undef GASNET_HAVE_MK_CLASS_CUDA_UVA
+  #define GASNET_HAVE_MK_CLASS_CUDA_UVA 1
+  #define GASNETI_MK_CLASS_CUDA_UVA_CONFIG mk_class_cuda_uva
+#else
+  #undef GASNET_HAVE_MK_CLASS_CUDA_UVA
+  #define GASNETI_MK_CLASS_CUDA_UVA_CONFIG nomk_class_cuda_uva
+#endif
+
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA // || GASNET_HAVE_MK_CLASS_[FOO]
+  #define GASNET_HAVE_MK_CLASS_MULTIPLE 1
+#endif
+
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+  GASNETI_INLINE(gasneti_i_segment_kind_is_host)
+  int gasneti_i_segment_kind_is_host(gasneti_Segment_t _segment) {
+    // Either NULL (such as for no bound segment, which is just fine for
+    // out-of-segment or in-aux-seg local addrs) OR the kind is GEX_MK_HOST.
+    return !_segment || (_segment->_kind == GEX_MK_HOST);
+  }
+  #define gasneti_e_segment_kind_is_host(segment) \
+          gasneti_i_segment_kind_is_host(gasneti_import_segment(segment))
+#else
+  #define gasneti_i_segment_kind_is_host(segment) 1
+  #define gasneti_e_segment_kind_is_host(segment) 1
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* PSHM support */
 #if GASNET_PSHM
 
@@ -1513,19 +1618,64 @@ void *gasneti_pshm_jobrank_addr2local(gex_Rank_t _jobrank, const void *_addr) {
 } 
 GASNETI_PUREP(gasneti_pshm_jobrank_addr2local)
 
+// Helper for what follows
+// Returns a jobrank or GEX_RANK_INVALID depending on whether the local and
+// remote endpoints named by (tm,rank) are both "eligible" for PSHM, exclusive
+// of the check on the jobrank being in-nbrhd.  The eligibility criteria are:
+//   1. Remote endpoint must be primordial (have EP index 0)
+//   2. Local endpoint must be host memory
+// However, checking these efficiently is not as simple as it sounds.
+extern gasneti_Segment_t gasneti_tm_pair_to_segment(gasneti_TM_Pair_t _tm_pair);
+GASNETI_INLINE(gasneti_pshm_jobrank_if_eligible) GASNETI_PURE
+gex_Rank_t gasneti_pshm_jobrank_if_eligible(gex_TM_t _e_tm, gex_Rank_t _rank) {
+  gasneti_TM_t _i_tm = gasneti_import_tm(_e_tm);
+  if (gasneti_is_tm0(_i_tm)) {
+    // fast path for TM0
+    return _rank;
+  }
+  gex_EP_Location_t _loc = gasneti_i_tm_rank_to_location(_i_tm, _rank, 0);
+  if (_loc.gex_ep_index) {
+    // not eligible due to non-primordial remote EP
+    return GEX_RANK_INVALID;
+  }
+  // If we've made it this far, the (tm,rank) is eligible only and only if
+  // the local ep is host memory (which can take some work to determine).
+  gex_Rank_t _jobrank = _loc.gex_rank;
+#if !GASNET_HAVE_MK_CLASS_MULTIPLE
+  return _jobrank; // Trivial host memory when no device kinds are supported
+#else
+  gasneti_Segment_t _segment;
+  if (! gasneti_i_tm_is_pair(_i_tm)) {
+    // Full TM object - can check objects directly
+    gasneti_EP_t _ep = _i_tm->_ep;
+    if (_ep->_index == 0) return _jobrank; // EP index 0 is primordial
+    _segment = _i_tm->_ep->_segment;
+  } else {
+    gasneti_TM_Pair_t _tm_pair = gasneti_i_tm_to_pair(_i_tm);
+    gex_EP_Index_t _idx = gasneti_tm_pair_loc_idx(_tm_pair);
+    if (_idx == 0) return _jobrank; // EP index 0 is primordial
+    _segment = gasneti_tm_pair_to_segment(_tm_pair);
+  }
+  return gasneti_i_segment_kind_is_host(_segment) ? _jobrank : GEX_RANK_INVALID;
+#endif
+}
+
 // Same as the three functions above, but taking (tm,rank) in place of jobrank
+// All are TM-pair aware, and the first two are multi-EP aware
 
 GASNETI_INLINE(gasneti_pshm_local_rank) GASNETI_PURE
 unsigned int gasneti_pshm_local_rank(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  gex_Rank_t _jobrank = gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
-  return gasneti_pshm_jobrank_to_local_rank(_jobrank);
+  gex_Rank_t _jobrank = gasneti_pshm_jobrank_if_eligible(_e_tm, _rank);
+  return (_jobrank == GEX_RANK_INVALID)
+         ? (unsigned int)(-1)
+         : gasneti_pshm_jobrank_to_local_rank(_jobrank);
 }
 GASNETI_PUREP(gasneti_pshm_local_rank)
 
 GASNETI_INLINE(gasneti_pshm_in_supernode) GASNETI_PURE
 int gasneti_pshm_in_supernode(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  gex_Rank_t _jobrank = gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
-  return gasneti_pshm_jobrank_in_supernode(_jobrank);
+  gex_Rank_t _jobrank = gasneti_pshm_jobrank_if_eligible(_e_tm, _rank);
+  return (_jobrank != GEX_RANK_INVALID) && gasneti_pshm_jobrank_in_supernode(_jobrank);
 }
 GASNETI_PUREP(gasneti_pshm_in_supernode)
 

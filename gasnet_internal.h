@@ -27,6 +27,10 @@
 #include <gasnet_ratomic.h>
 #endif
 
+#if GASNETI_NEED_GASNET_MK_H
+#include <gasnet_mk.h>
+#endif
+
 #if GASNETI_COMPILER_IS_UNKNOWN
   #error "Invalid attempt to build GASNet with a compiler other than the one probed at configure time"
 #endif
@@ -624,6 +628,17 @@ gasneti_iop_t *gasneti_iop_register_rmw(unsigned int noperations GASNETI_THREAD_
 
 /* marks in-flight remote atomic operation(s) as complete ... */
 void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations);
+
+/* ------------------------------------------------------------------------------------ */
+// memory kinds hooks
+
+int gasneti_MK_Segment_Create(
+            gasneti_Segment_t *i_segment_p,
+            gasneti_Client_t  i_client,
+            void              *address,
+            uintptr_t         length,
+            gex_MK_t          e_kind,
+            gex_Flags_t       flags);
 
 /* ------------------------------------------------------------------------------------ */
 /* macros for returning errors that allow verbose error tracking */

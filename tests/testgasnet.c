@@ -6,6 +6,7 @@
 
 #include <gasnetex.h>
 #include <gasnet_ratomic.h>
+#include <gasnet_mk.h>
 #include <gasnet_tools.h>
 
 /* limit segsz to prevent stack overflows for seg_everything tests */
@@ -44,6 +45,7 @@ void doit3(int partner, int *partnerseg);
 void doit5(int partner, int *partnerseg);
 void doit6(int partner, int *partnerseg);
 void doit7(int partner, int *partnerseg);
+void doit8(int partner, int *partnerseg);
 
 static gex_Client_t      myclient;
 static gex_EP_t    myep;
@@ -505,6 +507,19 @@ void doit(int partner, int *partnerseg) {
     assert_always(!memcmp(&v,&vz,sizeof(type)));   \
   } while (0)
   CHECK_ZERO_CONSTANT(gex_Segment_t, GEX_SEGMENT_INVALID);
+  CHECK_ZERO_CONSTANT(gex_TM_t,      GEX_TM_INVALID);
+  CHECK_ZERO_CONSTANT(gex_Client_t,  GEX_CLIENT_INVALID);
+  CHECK_ZERO_CONSTANT(gex_EP_t,      GEX_EP_INVALID);
+  CHECK_ZERO_CONSTANT(gex_MK_t,      GEX_MK_INVALID);
+
+  #define CHECK_NONZERO_CONSTANT(type, constant) do { \
+    static type vz;                                \
+    type v = constant;                             \
+    test_static_assert(sizeof(constant) == sizeof(type));  \
+    assert_always(sizeof(constant) == sizeof(v));  \
+    assert_always(memcmp(&v,&vz,sizeof(type)));    \
+  } while (0)
+  CHECK_NONZERO_CONSTANT(gex_MK_t,   GEX_MK_HOST);
 
   if (strcmp(clientname, gex_Client_QueryName(myclient))) {
     MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");
@@ -681,6 +696,12 @@ void doit(int partner, int *partnerseg) {
     assert_always(n_proc >= n_size && n_size >= h_size);
   }
 
+  assert_always(gex_System_GetVerboseErrors());
+  gex_System_SetVerboseErrors(0);
+  assert_always(!gex_System_GetVerboseErrors());
+  gex_System_SetVerboseErrors(1);
+  assert_always(gex_System_GetVerboseErrors());
+
   /* width-independent computation of an integer variable with unknown unsigned type */
   #if PLATFORM_ARCH_LITTLE_ENDIAN
     #define compute_uint_val(lval_u64,var) do {          \
@@ -790,6 +811,14 @@ void doit(int partner, int *partnerseg) {
   assert_always(numranks == gex_System_QueryJobSize());
   assert_always(myrank < numranks);
   assert_always(numranks < GEX_RANK_INVALID);
+
+  /* max thread query */
+#if GASNET_SEQ
+  assert_always(gex_System_QueryMaxThreads() == 1);
+#else
+  // Not a spec requirement, but a reasonable assumption for any implementation
+  assert_always(gex_System_QueryMaxThreads() > 1);
+#endif
 
   /* ep_index/ep_location tests */
   assert_unsigned(gex_EP_Index_t);
@@ -1591,5 +1620,37 @@ void doit7(int partner, int *partnerseg) {
    * moved to gasnet_diagnostic.c (run from testinternal).
    */
   
+#ifndef TESTGASNET_NO_SPLIT
+  doit8(partner, partnerseg);
+}
+void doit8(int partner, int *partnerseg) {
+#endif
+  BARRIER();
+
+  // Checks for graceful degradation where support is missing or limited.
+  // As features become widely support these should be removed in favor
+  // of complete tests (and conduit-specific KnownFailures if needed).
+
+  // Suspend verbose errors since some of these test are expected to fail
+  gex_System_SetVerboseErrors(0);
+
+
+  // Sane GASNET_MAXEPS and graceful failure of EP_Create
+  if (GASNET_MAXEPS < 1) {
+    MSG("*** ERROR - INVALID MAXEPS SETTING!!!!!");
+  } else if (GASNET_MAXEPS == 1) {
+    gex_EP_t ep;
+    int rc = gex_EP_Create(&ep, myclient, GEX_EP_CAPABILITY_RMA, 0);
+    if (rc != GASNET_ERR_RESOURCE) {
+      MSG("*** ERROR - EXCESS EP_CREATE DID NOT FAIL AS EXPECTED!!!!!");
+    }
+  } else {
+    // testtmpair covers creation of multiple EPs where implemented
+  }
+
+
+  // Restore verbose errors
+  gex_System_SetVerboseErrors(1);
+
   BARRIER();
 }

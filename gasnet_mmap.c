@@ -1534,6 +1534,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 
   // Initialize global data
   gasneti_leak(gasneti_seginfo    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
+  gasneti_seginfo_tbl[0] = gasneti_seginfo;
   for (gex_Rank_t i = 0; i < gasneti_nodes; i++) {
     gasneti_seginfo[i].addr = NULL;
     gasneti_seginfo[i].size = (uintptr_t)-1;
@@ -1546,6 +1547,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   // PART 0: allocate (and zero-initialize) global data
 
   gasneti_leak(gasneti_seginfo    = gasneti_calloc(gasneti_nodes, sizeof(gasnet_seginfo_t)));
+  gasneti_seginfo_tbl[0] = gasneti_seginfo;
 
   // PART I: allocate "pre-segment"
 
@@ -1911,6 +1913,45 @@ gasneti_do_attach_segment(
 
 /* ------------------------------------------------------------------------------------ */
 
+
+static void gasneti_record_seginfo(
+                gex_Rank_t          jobrank,
+                gex_EP_Index_t      ep_index,
+                void               *addr,
+		uintptr_t           size)
+{
+  gasneti_assert(jobrank < gasneti_nodes);
+  gasneti_assert(ep_index < GASNET_MAXEPS);
+
+  gasnet_seginfo_t *si_tbl = gasneti_seginfo_tbl[ep_index];
+
+  if_pf (!si_tbl) {
+    gasneti_assert(ep_index); // Never NULL for primordial EP
+    static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+    gasneti_mutex_lock(&lock);
+    si_tbl = gasneti_seginfo_tbl[ep_index];
+    if (!si_tbl) {
+      si_tbl = gasneti_calloc(gasneti_nodes, sizeof(gasnet_seginfo_t));
+      gasneti_seginfo_tbl[ep_index] = si_tbl;
+    }
+    gasneti_mutex_unlock(&lock);
+  }
+
+  gasnet_seginfo_t *si = si_tbl + jobrank;
+
+  // Assert that we never overwrite a valid segment with new values
+#if GASNET_SEGMENT_EVERYTHING
+  const uintptr_t dflt = ep_index ? 0 : ~(uintptr_t)0;
+#else
+  const uintptr_t dflt = 0;
+#endif
+  gasneti_assert((si->size == dflt) || si->size == size);
+  gasneti_assert((si->addr == NULL) || si->addr == addr);
+
+  si->addr = addr;
+  si->size = size;
+}
+
 extern void gex_EP_BindSegment(
                 gex_EP_t            ep,
                 gex_Segment_t       segment,
@@ -1935,12 +1976,7 @@ extern void gex_EP_BindSegment(
   }
 
   i_ep->_segment = i_segment;
-  if (! i_ep->_index) {
-    gasneti_seginfo[gasneti_mynode].addr = i_segment->_addr;
-    gasneti_seginfo[gasneti_mynode].size = i_segment->_size;
-  } else {
-    gasneti_unreachable_error(("gex_EP_BindSegment() does not yet handle non-primordial EPs"));
-  }
+  gasneti_record_seginfo(gasneti_mynode, i_ep->_index, i_segment->_addr, i_segment->_size);
 
   gasneti_legacy_segment_attach_hook(i_ep);
 }
@@ -2000,25 +2036,7 @@ extern int gasneti_EP_PublishBoundSegment(
   // Unpack
   p = global;
   for (size_t i = 0; i < total_eps; ++i, ++p) {
-    gex_Rank_t jobrank = p->loc.gex_rank;
-    if (jobrank == gasneti_mynode) {
-      // Local:
-      continue;
-    } else if (! p->loc.gex_ep_index) {
-      // Remote + primordial:
-      gasnet_seginfo_t *si = gasneti_seginfo + jobrank;
-      gasneti_assert(!si->addr || si->addr == p->addr);
-    #if GASNET_SEGMENT_EVERYTHING
-      gasneti_assert(!(~si->size) || si->size == p->size);
-    #else
-      gasneti_assert(!si->size || si->size == p->size);
-    #endif
-      si->addr = p->addr;
-      si->size = p->size;
-    } else {
-      // Remote + non-primordial:
-      gasneti_unreachable_error(("gex_EP_PublishBoundSegment does not yet handle non-primordial EPs"));
-    }
+    gasneti_record_seginfo(p->loc.gex_rank, p->loc.gex_ep_index, p->addr, p->size);
   }
   gasneti_free(global);
 
@@ -2097,17 +2115,23 @@ int gasneti_segmentCreate(
                 gex_MK_t                kind,
                 gex_Flags_t             flags)
 {
-  gasneti_assert(segment_p);
-
   GASNETI_TRACE_PRINTF(O,("gex_Segment_Create: addr="GASNETI_LADDRFMT" len=%"PRIuPTR" flags=%d",
                           GASNETI_LADDRSTR(address), length, flags));
 
+  if (!segment_p) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with NULL segment_p");
+  }
   if (flags) {
     gasneti_fatalerror("Invalid call to gex_Segment_Create() with non-zero flags");
   }
   if (! length) {
     gasneti_fatalerror("Invalid call to gex_Segment_Create() with zero length");
   }
+  if (kind == GEX_MK_INVALID) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Create() with kind = GEX_MK_INVALID");
+  }
+
+  gasneti_Segment_t segment = gasneti_import_segment(GEX_SEGMENT_INVALID);
 
   if (kind == GEX_MK_HOST) {
     if (address) {
@@ -2128,12 +2152,18 @@ int gasneti_segmentCreate(
       address = seginfo.addr;
       length  = seginfo.size;
     }
+
+    // Create the Segment object
+    segment = gasneti_alloc_segment(client, address, length, kind, flags);
   } else {
-    gasneti_fatalerror("Invalid call to gex_Segment_Create() with unknown kind");
+    int rc = gasneti_MK_Segment_Create(&segment, client, address, length, kind, flags);
+    if (rc) return rc;
   }
 
-  // Create the Segment object
-  gasneti_Segment_t segment = gasneti_alloc_segment(client, address, length, kind, flags);
+  gasneti_assert(segment != NULL);
+  gasneti_assert(segment->_client == client);
+  gasneti_assert(segment->_kind == kind);
+
   gasneti_segtbl_add(segment);
 
   *segment_p = gasneti_export_segment(segment);
@@ -2314,23 +2344,28 @@ int gasneti_Segment_QueryBound(
 {
   GASNETI_CHECK_INJECT();
 
-  // Trivial implementation using legacy data structures and assumptions.
-  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  gex_EP_Location_t loc = gasneti_e_tm_rank_to_location(tm, rank, 0);
+  gex_Rank_t jobrank = loc.gex_rank;
+  gex_EP_Index_t idx = loc.gex_ep_index;
 
-  // TODO-EX: cannot yet tell no segment from zero-length segment
-  gasneti_assert(gasneti_seginfo);
-  if (!gasneti_seginfo[jobrank].addr) return 1; // No (bound) segment
+  // TODO-EX: Scalable storage
+  gasnet_seginfo_t *si_array = gasneti_seginfo_tbl[idx];
+  if (!idx) gasneti_assert(si_array == gasneti_seginfo);
+
+  // TODO-EX: cannot always tell no segment from zero-length segment
+  if (!si_array || !si_array[jobrank].addr) return 1; // No bound segment
 
   if (owneraddr_p) {
-    *owneraddr_p = gasneti_seginfo[jobrank].addr;
+    *owneraddr_p = si_array[jobrank].addr;
   }
 
   if (size_p){
-    *size_p = gasneti_seginfo[jobrank].size;
+    *size_p = si_array[jobrank].size;
   }
 
   if (localaddr_p) {
-    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    // TODO-EX: this depends on legacy assumptions about cross-mapping
+    if (!idx && GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     #if GASNET_PSHM
       gasneti_assert(gasneti_nodeinfo);
       *localaddr_p = (void*)((uintptr_t)gasneti_seginfo[jobrank].addr + gasneti_nodeinfo[jobrank].offset);

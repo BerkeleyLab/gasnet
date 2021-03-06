@@ -10,11 +10,11 @@ define([cv_prefix],[gasnet_cv_])
 
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2020])
-define([GASNET_RELEASE_VERSION_MINOR_D],[10])
+define([GASNET_RELEASE_VERSION_MINOR_D],[11])
 define([GASNET_RELEASE_VERSION_PATCH_D],[5])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
-define([GASNETEX_SPEC_VERSION_MINOR_D],[11])
+define([GASNETEX_SPEC_VERSION_MINOR_D],[12])
 dnl GASNet-1 spec version:
 define([GASNET_SPEC_VERSION_MAJOR_D],[1])
 define([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -2308,6 +2308,15 @@ GASNET_IF_ENABLED(loopback-memsync, Force memory barriers for GASNet local (loop
   [AC_DEFINE(GASNETI_MEMSYNC_ON_LOOPBACK)])
 GASNET_IF_ENABLED(throttle-poll, throttle polling threads in multi-threaded configurations to reduce contention (experimental, only implemented in some conduits),
   [AC_DEFINE(GASNETI_THROTTLE_FEATURE_ENABLED)])
+
+GASNET_WITH(maxeps,
+       [Maximum number of endpoints per-process, subject to per-conduit limits (default is conduit-dependent)],
+       [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
+          AC_DEFINE_UNQUOTED(GASNETI_MAXEPS_CONFIGURE, $withval)
+        else
+          AC_MSG_ERROR([--with-maxeps requires a positive integer argument])
+        fi],
+       [AC_MSG_ERROR([--with-maxeps requires a positive integer argument])])
 dnl GASNET_TOOLSONLY_FALSE_END
 
 # FORCED non-default implementations - used mainly for debugging
@@ -4666,6 +4675,117 @@ if test "$use_printstack" != no; then
     AC_MSG_ERROR(User requested --enable-backtrace-printstack but printstack support was not found.)
   fi
 fi
+
+########################################################################
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
+GASNET_HELP_OUTPUT([
+Memory-kinds options:])
+
+GASNET_IF_ENABLED(memory-kinds,
+        [Prototype support for memory kinds (transfers to/from device memory).  Enables default auto-detection of all device type applicable to the target platform.  Individual --enable-kind-* options have precedence.],
+        [enable_mk_default=probe], [enable_mk_default=no])
+
+# GEX_MK_CLASS_CUDA_UVA
+GASNET_IF_ENABLED_WITH_AUTO(kind-cuda-uva,
+        [Support for memory kinds on UVA-capable CUDA devices (auto-detected with --enable-memory-kinds, otherwise disabled)],
+        [enable_mk_cuda_uva="yes"; force_mk_cuda_uva="yes"],
+        [enable_mk_cuda_uva="no"], [
+         if test "x$enable_kind_cuda_uva" = 'xprobe'; then
+           enable_mk_cuda_uva="probe"
+         elif test "$GASNETI_PTR_BITS" = 32; then
+           enable_mk_cuda_uva="no"
+         else
+           enable_mk_cuda_uva="$enable_mk_default"
+         fi
+        ])
+unset have_mk_cuda_uva
+if test "$enable_mk_cuda_uva" != "no"; then
+  AC_MSG_CHECKING(for target having CUDA UVA memory kinds support)
+  if test "$GASNETI_PTR_BITS" = 32; then
+    AC_MSG_RESULT([no (ILP32 targets are not supported)])
+    have_mk_cuda_uva=no
+  else
+    have_mk_cuda_uva=no
+    case "$target_cpu:$target_os" in
+      x86_64:linux*)    have_mk_cuda_uva='yes';;
+      powerpc*:linux*)  if test "$WORDS_BIGENDIAN" = '0'; then have_mk_cuda_uva='yes'; fi;;
+      aarch64:linux*)   have_mk_cuda_uva='maybe';;
+    esac
+    if test "$have_mk_cuda_uva" = 'no'; then
+      AC_MSG_RESULT([no (unsupported or unrecognized target $target)])
+    else
+      AC_MSG_RESULT([$have_mk_cuda_uva])
+    fi
+  fi
+
+  if test "$have_mk_cuda_uva" != "no"; then
+    # TODO: Can/should we scrape nvcc as UPC++ does?
+    GASNET_PACKAGE_HOME(CUDA, [CUDA toolkit], [nvcc], [/usr/local/cuda], [include/cuda.h])
+    GASNET_PACKAGE_CFLAGS(CUDA)
+    GASNET_ENV_DEFAULT(CUDA_LIBS, -lcuda)
+    GASNET_PACKAGE_LDFLAGS(CUDA, cuda)
+    GASNET_SPLIT_LINKER_OPTS(CUDA_LDFLAGS,CUDA_LIBS)
+
+    # Try to compile and link a basic program using the CUDA Driver API
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $CUDA_CFLAGS")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $CUDA_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS $CUDA_LIBS")
+
+    GASNET_TRY_CACHE_LINK(for working CUDA configuration, libcuda_works, [
+      #include <cuda.h>
+    ], [
+      cuInit(0);
+      CUdevice dev = 0;
+      CUcontext ctx;
+      CUresult res = cuDevicePrimaryCtxRetain(&ctx, dev);
+      int isUVA;
+      cuDeviceGetAttribute(&isUVA, CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING, dev);
+      CUpointer_attribute attrs[[3]] = { CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                       CU_POINTER_ATTRIBUTE_IS_MANAGED,
+                                       CU_POINTER_ATTRIBUTE_CONTEXT };
+    ], [ : ], [ have_mk_cuda_uva=no; GASNET_ERR_SAVE() ])
+
+    GASNET_POPVAR(LIBS)
+    GASNET_POPVAR(LDFLAGS)
+    GASNET_POPVAR(CFLAGS)
+  fi
+
+  # If the probe(s) above passed on a target identified as "maybe" having
+  # support, then either upgrade to "yes" if enabled explicitly, or downgrade
+  # to "no" if just probing.  Either way, we issue a warning.
+  if test "$have_mk_cuda_uva" = "maybe"; then
+    if test "$enable_mk_cuda_uva" = "yes"; then
+      have_mk_cuda_uva=yes
+      GASNET_MSG_WARN([CUDA UVA memory kinds support enabled for $target, which may not be officially supported])
+    else
+      have_mk_cuda_uva=no
+      GASNET_MSG_WARN([It appears your system has the software required for CUDA UVA memory kinds support.
+However, $target may not be officially supported.
+You can enable an unsupported build of this feature with --enable-kind-cuda-uva.
+Otherwise, you can disable this message with --disable-kind-cuda-uva.])
+    fi
+  fi
+
+  if test "$have_mk_cuda_uva" = "yes"; then
+    AC_DEFINE(GASNETI_MK_CLASS_CUDA_UVA_ENABLED)
+    CUDA_UVA_CFLAGS="$CUDA_CFLAGS"
+    CUDA_UVA_LDFLAGS="$CUDA_LDFLAGS"
+    CUDA_UVA_LIBS="$CUDA_LIBS"
+  elif test "$force_mk_cuda_uva" = "yes"; then
+    GASNET_MSG_ERROR([CUDA UVA memory kinds support was requested with --enable-kind-cuda-uva but is not available])
+  else
+    unset CUDA_UVA_CFLAGS
+    unset CUDA_UVA_LDFLAGS
+    unset CUDA_UVA_LIBS
+  fi
+fi
+AC_SUBST(CUDA_UVA_CFLAGS)
+AC_SUBST(CUDA_UVA_LDFLAGS)
+AC_SUBST(CUDA_UVA_LIBS)
+AM_CONDITIONAL(HAVE_MK_CLASS_CUDA_UVA, test "$have_mk_cuda_uva" = "yes")
+
+dnl GASNET_TOOLSONLY_FALSE_END
+########################################################################
 
 GASNET_HELP_OUTPUT([
 Misc options:])
