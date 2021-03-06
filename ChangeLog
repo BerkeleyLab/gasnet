@@ -18,7 +18,7 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-PENDING GASNet-EX "memory_kinds" feature branch
+20XX.YY.ZZ: PENDING
 
 * General and Misc.
   - Calls to gex_EP_Create() which would exceed GASNET_MAXEPS now return
@@ -28,16 +28,6 @@ PENDING GASNet-EX "memory_kinds" feature branch
   - New preprocessor identifer 'GASNET_HAVE_MK_CLASS_MULTIPLE' (undefined or
     defined to '1') indicates kinds support for anything other than host
     memory has been compiled-in.
-
-* GASNet-EX Spec v0.13: (work-in-progress)
-  - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
-  - Add gex_System_{Get,Set}VerboseErrors()
-  - Add gex_System_QueryMaxThreads()
-
-----------------------------------------------------------------------
-20XX.YY.ZZ: PENDING
-
-* General and Misc.
   - Additional debug checks for use of calls which are prohibited in an
     AM handler context, and in the NPAM Prepare/Commit interval.
   - The GASNetGitHash ident string is now available in most development builds,
@@ -76,11 +66,10 @@ PENDING GASNet-EX "memory_kinds" feature branch
   - This release adds support for macOS on AARCH64 (aka ARM64, "Apple M1" and
     "Apple Silicon").
 
-* GASNet-EX Spec v0.11:
-  - Deprecate GEX_FLAG_TM_SCRATCH_SIZE_MIN flag and remove the corresponding
-    GASNET_COLL_MIN_SCRATCH_SIZE environment variable.
-  - Add GEX_FLAG_TM_NO_SCRATCH support in gex_TM_{Split,Create}(), eliminating
-    the requirement that a client always provide a collectives scratch space.
+* GASNet-EX Spec v0.13: (work-in-progress)
+  - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
+  - Add gex_System_{Get,Set}VerboseErrors()
+  - Add gex_System_QueryMaxThreads()
 
 * GASNet tools (spec v1.17)
   - Add GASNETT_UNUSED_ARGS*() family of macros
