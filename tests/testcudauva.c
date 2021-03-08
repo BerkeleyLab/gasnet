@@ -91,6 +91,12 @@ int main(int argc, char **argv)
   nranks = gex_TM_QuerySize(myteam);
   gex_Rank_t peer = (myrank + 1) % nranks;
 
+  if (nranks == 1) {
+    // TODO: remove once loopback kinds works correctly
+    MSG0("WARNING: This test requires a minimum of two nodes. Test skipped.\n");
+    gasnet_exit(0); // prevents false negatives, such as from test harnesses for smp-conduit
+  }
+
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
   MSG0("Running CUDA UVA non-local xfer tests with size %lu, PRNG seed %d, and %s-allocated GPU segment",
