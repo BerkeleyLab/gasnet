@@ -126,6 +126,11 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 //
 // gex_AM_Reply*() gex_AM_{Prepare,Commit}Reply*(), gex_AM_SrcDesc*()
 //
+// The following are conditionally permitted in handler context, the condition
+// being that the 'flags' argument must include GEX_FLAG_IMMEDIATE:
+//
+// gex_EP_QueryBoundSegmentNB()
+//
 // All other functions are prohibited to be called from a thread within the 
 // dynamic context of an AM handler, or while holding a handler-safe lock.
 // This prohibition notably prohibits all communication initiation (aside from Reply 
@@ -713,64 +718,6 @@ void *       gex_Segment_QueryAddr(gex_Segment_t seg);
 // Query length of a segment
 uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 
-// Query addresses and length of a (possibly remote) bound segment
-//
-// This query takes a gex_TM_t and gex_Rank_t, which together name an endpoint.
-// The remaining arguments are pointers to locations for outputs, each of which
-// may be NULL if the caller does not need a particular value.
-//
-// If the endpoint named by (tm, rank) has a bound segment *and* one or more of
-// the following are true, then the call returns 0 and writes the corresponding
-// segment properties to each of the non-NULL output locations as described in
-// "Segment properties and output locations", below.
-//   + The endpoint resides in the calling process
-//   + The endpoint has a segment that was bound via gex_Segment_Attach()
-//   + The endpoint had the bound segment at the time it was the subject of a
-//     preceding call to gex_EP_PublishBoundSegment() in which the calling
-//     process was a participant.
-//
-// If the endpoint named by (tm, rank) does not satisfy the conditions above,
-// then the call returns non-zero and the output locations are unmodified.
-// This notably includes the case of a remote endpoint with a bound segment
-// which has not been published to the calling process.  However, the behavior
-// for this case is subject to possible change in a future release.
-//
-// Segment properties and output locations:
-//   owneraddr_p: receives the address of the segment in the address space
-//                of the process which owns the segment.
-//                For segments of kind GEX_MK_HOST, this is a host address
-//                while for all other kinds this is a device address.  In
-//                either case it is the address which would be returned by
-//                gex_Segment_QueryAddr() immediately after segment creation
-//                (via either gex_Segment_Attach() or gex_Segment_Create()).
-//   localaddr_p: receives the address of the segment in the address space
-//                of the calling process, *if* mapped, and NULL otherwise.
-//   size_p:      receives the length of the segment.
-//
-// Only segments of kind GEX_MK_HOST may report a non-NULL localaddr property,
-// and all other kinds will yield NULL.  The current release additionally
-// limits the reporting of non-NULL values to primordial segments (those
-// created by gex_Segment_Attach()).
-//
-// In this release the gex_Segment_Attach() and gex_EP_BindSegment() calls can
-// both bind a segment to an endpoint.  However, not all segments may be bound
-// to an endpoint and not all endpoints may have a segment bound to them.
-//
-// rank == GEX_RANK_INVALID is *not* permitted.
-// Use of a TM-pair for the 'tm' argument *is* permitted.
-// Passing a '(tm,rank)' tuple naming an endpoint residing on the calling
-// process *is* permitted.
-//
-// When passing a '(tm,rank)' tuple naming an endpoint not residing on the
-// calling process, this query MAY communicate.
-// This call is not legal in contexts which prohibit communication, including
-// (but not limited to) AM Handler context or when holding an HSL.
-int gex_Segment_QueryBound(
-                gex_TM_t    tm,
-                gex_Rank_t  rank,
-                void        **owneraddr_p,
-                void        **localaddr_p,
-                uintptr_t   *size_p);
 
 // Collective allocation and creation of Segments
 // Analogous to gasnet_attach (but see below)
@@ -1131,8 +1078,8 @@ int gex_TM_Destroy(
 //   argument (regardless of prefix).
 // + The result is valid for use in AM payload limit queries:
 //   gex_AM_Max{Request,Reply}{Medium,Long}()
-// + The result is valid for use in the bound segment query:
-//   gex_Segment_QueryBound()
+// + The result is valid for use in bound segment queries:
+//   gex_Segment_QueryBound() [DEPRECATED] and gex_EP_QueryBoundSegmentNB()
 // + The result is valid for use in point-to-point communication calls in the
 //   gex_RMA_*(), gex_VIS_*() and gex_AM_*() families when used in a manner
 //   similar to what is shown in examples below.
@@ -1215,6 +1162,126 @@ gex_Segment_t gex_EP_QuerySegment(gex_EP_t ep);
 // Query the endpoint index
 gex_EP_Index_t gex_EP_QueryIndex(gex_EP_t ep);
 
+// Query addresses and length of a (possibly remote) bound segment
+// [Since spec v0.13]
+//
+// This query takes a gex_TM_t and gex_Rank_t, which together name an endpoint.
+// Other than flags, the remaining arguments are pointers to locations for
+// outputs, each of which may be NULL if the caller does not need a particular
+// value.
+//
+// If the value of flags does NOT include GEX_FLAG_IMMEDIATE, then this API
+// behaves as follows:
+// + The return value is a root event which can be successfully synchronized
+//   (return from gex_Event_Wait*() or zero return from gex_Event_Test*())
+//   once the query results have been written to the output locations.
+//   It is permitted to be GEX_EVENT_INVALID (but not GEX_EVENT_NO_OP).
+// + Between entering this call and synchronizing the event it returns, the
+//   content of the output locations is undefined.
+// + A "successful" query is one in which the endpoint named by (tm, rank) has a
+//   bound segment *and* one or more of the following are true:
+//     + The endpoint resides in the calling process
+//     + The endpoint has a segment that was bound via gex_Segment_Attach()
+//     + The endpoint had the bound segment at the time it was the subject of a
+//       preceding call to gex_EP_PublishBoundSegment() in which the calling
+//       process was a participant.
+// + A successful query writes the corresponding segment's properties to each of
+//   the non-NULL output locations as described in "Segment properties and output
+//   locations", below.
+// + If the endpoint named by (tm, rank) does not satisfy the above conditions
+//   for a successful query, then the query may be "unsuccessful", whereby the
+//   size_p output (unless NULL) will receive the value 0 and the remaining
+//   outputs are undefined.  The implementation is thus permitted, but not
+//   required, to be successful for a non-primordial bound segment which has not
+//   yet been published to the calling process.
+// + Since a segment cannot have zero-length, a caller can reliably distinguish
+//   between a successful or unsuccessful query via the size_p output.
+// + The current definition of "unsuccessful" notably includes the case of a
+//   remote endpoint with a bound segment which has not been published to the
+//   calling process.  However, the behavior for this case is subject to
+//   possible change in a future release.
+//
+// In the case that flags DOES include GEX_FLAG_IMMEDIATE, then this API
+// behaves as follows:
+// + If the query can be resolved without communication, then the return value
+//   is GEX_EVENT_INVALID, with the behavior otherwise identical to the case
+//   without GEX_FLAG_IMMEDIATE.
+// + Queries which would require communication to resolve will return
+//   GEX_EVENT_NO_OP.
+// + All queries for which (tm, rank) names an endpoint which resides in the
+//   calling process are guaranteed to return GEX_EVENT_INVALID.
+// + Queries for which (tm, rank) names an endpoint which does not reside in the
+//   calling process may return either GEX_EVENT_INVALID or GEX_EVENT_NO_OP and
+//   the same query is not guaranteed to return the same value each time.
+//   This permits an implementation to cache information for remote endpoints.
+//
+// Segment properties and output locations:
+//   owneraddr_p: receives the address of the segment in the address space
+//                of the process which owns the segment.
+//                For segments of kind GEX_MK_HOST, this is a host address
+//                while for all other kinds this is a device address.  In
+//                either case it is the address which would be returned by
+//                gex_Segment_QueryAddr() immediately after segment creation
+//                (via either gex_Segment_Attach() or gex_Segment_Create()).
+//   localaddr_p: receives the address of the segment in the address space
+//                of the calling process, *if* mapped, and NULL otherwise.
+//   size_p:      receives the length of the segment.
+//
+// Only segments of kind GEX_MK_HOST may report a non-NULL localaddr property,
+// and all other kinds will yield NULL.  The current release additionally
+// limits the reporting of non-NULL values to primordial segments (those
+// created by gex_Segment_Attach()).
+//
+// Passing GEX_RANK_INVALID as the rank argument is *not* permitted.
+// Use of a TM-pair for the 'tm' argument *is* permitted.
+// Passing a '(tm,rank)' tuple naming an endpoint residing on the calling
+// process *is* permitted.
+//
+// When passing a '(tm,rank)' tuple naming an endpoint not residing on the
+// calling process, this query MAY communicate unless GEX_FLAG_IMMEDIATE is
+// included in flags.
+// If and only if GEX_FLAG_IMMEDIATE is included in flags, then this call is
+// permitted in contexts which prohibit communication (such as AM Handler
+// context or when holding an HSL).
+extern gex_Event_t gex_EP_QueryBoundSegmentNB(
+            gex_TM_t       tm,
+            gex_Rank_t     rank,
+            void           **owneraddr_p,
+            void           **localaddr_p,
+            uintptr_t      *size_p,
+            gex_Flags_t    flags);
+
+// Query addresses and length of a (possibly remote) bound segment
+// [DEPRECATED since spec v0.13 - see gex_EP_QueryBoundSegmentNB(), above]
+//
+// This query provides semantics similar to
+//   gex_Event_Wait( gex_EP_QueryBoundSegmentNB([...args...], 0) )
+// where "[...args...]" represent the five arguments to this query.
+//
+// The semantic differences are as follows:
+// + Success/failure
+//   - This call returns zero for a "successful" query, defined as one in which
+//     (tm, rank) names an endpoint with a bound segment (and, if remote, that
+//     segment is primordial or has been published to the caller).  Otherwise,
+//     a non-zero value is returned.
+//   - An successful query with gex_EP_QueryBoundSegmentNB() is distinguishable
+//     by a non-zero size output, while an unsuccessful query will write zero
+//     to the size output.
+// + Preservation of outputs on failure
+//   - This call guarantees that an unsuccessful query leaves the outputs
+//     unmodified.
+//   - An unsuccessful query with gex_EP_QueryBoundSegmentNB() writes zero to
+//     the size output and leaves the others undefined.
+//
+// This call is not legal in contexts which prohibit communication, including
+// (but not limited to) AM Handler context or when holding an HSL.
+int gex_Segment_QueryBound(
+                gex_TM_t    tm,
+                gex_Rank_t  rank,
+                void        **owneraddr_p,
+                void        **localaddr_p,
+                uintptr_t   *size_p);
+
 // Publish of EP's Bound Segment "RMA Credentials"
 //
 // Description:
@@ -1264,9 +1331,10 @@ gex_EP_Index_t gex_EP_QueryIndex(gex_EP_t ep);
 //     operation.
 //   - As an exception to the restrictions above, inclusion of the endpoint
 //     associated with tm in eps is explicitly permitted.
-//   - A named endpoint may not be the subject of concurrent gex_Segment_*
+//   - A named endpoint may not be the subject of concurrent segment
 //     operations including (but not limited to) gex_Segment_QueryBound,
-//     gex_EP_BindSegment, and gex_EP_PublishBoundSegment.
+//     gex_EP_BindSegment, gex_EP_PublishBoundSegment, and
+//     gex_EP_QueryBoundSegmentNB.
 // + The publication of credentials is per local process and remote endpoint,
 //   independent of the specific team used to perform this operation.  This
 //   means that upon return, initiation of communication is permitted using
@@ -2091,7 +2159,7 @@ extern void gex_AM_CommitReplyLong[M](
 //   Let "in the remote bound segment" mean that a given range of addresses
 //   lies entirely within the range of the segment as might be determined from
 //   the owneraddr and size properties obtained using gex_Segment_QueryBound()
-//   applied to the '(tm,rank)' tuple.
+//   or gex_EP_QueryBoundSegmentNB() applied to the '(tm,rank)' tuple.
 //
 //   The remote address (dest of a Put, src of a Get) is interpreted as
 //   follows:
