@@ -369,6 +369,14 @@ Currently, only ibv-conduit in FAST segment mode has a value of `GASNET_MAXEPS`
 larger than 1 (it is currently 33).  Additionally, ibv-conduit only supports the
 `GEX_EP_CAPABILITY_RMA` capability for non-primordial endpoints.
 
+Currently, only the (default) static connection mode of ibv-conduit supports
+multiple endpoints.  Applications using multiple endpoints which perform dynamic
+connection (such as due to setting environment variable
+`GASNET_CONNECT_STATIC=0`) may crash or hang when attempting to dynamically
+connect a non-primordial endpoint.
+For the most up-to-date information on this issue see
+[bug 4196](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4196)
+
 The `GEX_FLAG_HINT_ACCEL_*` values are currently defined, but ignored.
 
 ## `gex_EP_BindSegment()`
