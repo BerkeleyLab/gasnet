@@ -625,7 +625,7 @@ gasnetc_qp_create(gasnetc_conn_info_t *conn_info)
 
 /* Advance QP state from RESET to INIT */
 static int
-gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info)
+gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info, int active)
 {
     const gex_Rank_t node = conn_info->node;
     struct ibv_qp_attr qp_attr;
@@ -655,7 +655,7 @@ gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info)
       qp_attr.pkey_index = port->pkey_index;
 
     #if GASNETC_IBV_XRC
-      if (gasnetc_use_xrc) {
+      if (gasnetc_use_xrc && active) {
         rc = gasnetc_xrc_modify_qp(cep, &qp_attr, qp_mask);
         GASNETC_IBV_CHECK(rc, "from gasnetc_xrc_modify_qp(INIT)" GASNETC_XRC_HELP_MSG);
       }
@@ -677,7 +677,7 @@ gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info)
 
 /* Advance QP state from INIT to RTR */
 static int
-gasnetc_qp_init2rtr(gasnetc_conn_info_t *conn_info)
+gasnetc_qp_init2rtr(gasnetc_conn_info_t *conn_info, int active)
 {
     const gex_Rank_t node = conn_info->node;
     struct ibv_qp_attr qp_attr;
@@ -713,8 +713,10 @@ gasnetc_qp_init2rtr(gasnetc_conn_info_t *conn_info)
 
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
-        rc = gasnetc_xrc_modify_qp(cep, &qp_attr, qp_mask);
-        GASNETC_IBV_CHECK(rc, "from gasnetc_xrc_modify_qp(RTR)" GASNETC_XRC_HELP_MSG);
+        if (active) {
+          rc = gasnetc_xrc_modify_qp(cep, &qp_attr, qp_mask);
+          GASNETC_IBV_CHECK(rc, "from gasnetc_xrc_modify_qp(RTR)" GASNETC_XRC_HELP_MSG);
+        }
 
         /* The normal QP will connect, below, to the peer's XRC rcv QP */
         qp_attr.dest_qp_num = conn_info->remote_xrc_qpn[qpi];
@@ -1722,7 +1724,7 @@ gasnetc_connect_to(gasnetc_EP_t ep, gex_Rank_t node)
 
     conn_send_req(conn, GASNETC_CONN_IS_ORIG);
 
-    (void) gasnetc_qp_reset2init(&conn->info);
+    (void) gasnetc_qp_reset2init(&conn->info, 1);
     gasnetc_timed_conn_wait(conn, GASNETC_CONN_STATE_REQ_SENT, &conn_send_req);
 
     if ((conn->state == GASNETC_CONN_STATE_REP_SENT) ||
@@ -1733,7 +1735,7 @@ gasnetc_connect_to(gasnetc_EP_t ep, gex_Rank_t node)
     }
     gasneti_assert(conn->state == GASNETC_CONN_STATE_REP_RCVD);
 
-    (void) gasnetc_qp_init2rtr(&conn->info);
+    (void) gasnetc_qp_init2rtr(&conn->info, 1);
     gasneti_sync_writes(); /* "finalize" cep data */
     GASNETC_NODE2CEP(ep, node) = conn->info.cep;
     conn->state = GASNETC_CONN_STATE_RTU_SENT;
@@ -1905,9 +1907,9 @@ gasnetc_conn_rcv_wc(struct ibv_wc *comp)
 
       /* Advance QP state, overlapped w/ network round-trip (if any) and remote work: */
       if (conn->state == GASNETC_CONN_STATE_NONE) {
-        (void) gasnetc_qp_reset2init(&conn->info);
+        (void) gasnetc_qp_reset2init(&conn->info, 1);
       }
-      (void) gasnetc_qp_init2rtr(&conn->info);
+      (void) gasnetc_qp_init2rtr(&conn->info, 1);
       gasnetc_sndrcv_attach_peer(node, conn->info.cep);
       (void) gasnetc_qp_rtr2rts(&conn->info);
       (void) gasnetc_set_sq_sema(&conn->info);
@@ -2266,8 +2268,8 @@ gasnetc_connect_static(gasnetc_EP_t ep)
     conn_info[node].xrc_remote_srq_num = &xrc_remote_srq_num[i];
   #endif
 
-    (void)gasnetc_qp_reset2init(&conn_info[node]);
-    (void)gasnetc_qp_init2rtr(&conn_info[node]);
+    (void)gasnetc_qp_reset2init(&conn_info[node], !gasneti_pshm_mynode);
+    (void)gasnetc_qp_init2rtr(&conn_info[node], !gasneti_pshm_mynode);
   }
 
   /* QPs must reach RTS before we may continue

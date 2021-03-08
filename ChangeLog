@@ -40,6 +40,8 @@ GASNet-EX ChangeLog
 * InfiniBand Verbs (ibv-conduit)
   - Now support the ODP APIs from the Linux "RDMA Core" distribution, where
     previously only the Mellanox variant was supported (bug 4122).
+  - Improved startup times on jobs larger than a few tens of nodes with
+    multiple processes per-node (bug 4194).
   - NEW: configure option --with-ibv-ports=... can be used to set a default
     value for the GASNET_IBV_PORTS environment variable.
   - A new family of `GASNET_IBV_PORTS_*` environment variables provides more
@@ -82,6 +84,8 @@ GASNet-EX ChangeLog
   - bug4122: ODP support broken with recent libibverbs releases
   - bug4173: ibv: race in firehose on powerpc
   - bug4175: thread-safety of gex_EP_RegisterHandlers()
+  - bug4194: ibv: unnecessarily slow startup
+  - bug4195: ibv dynamic connection support broken
 
 * Removal of unmaintained platform support
   - This release no longer supports the following platforms:

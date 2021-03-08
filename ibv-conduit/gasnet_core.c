@@ -2833,10 +2833,7 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
       uint32_t *rkey = p->rkey;
       for (int j = 0; j < gasnetc_num_hcas; ++j) {
         gasnetc_hca_t *hca = gasnetc_hca + j;
-        if (!hca->rkeys) {
-          hca->rkeys = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
-          gasneti_leak(hca->rkeys);
-        }
+        gasneti_assert(hca->rkeys);
         gasneti_assert(!hca->rkeys[jobrank] || hca->rkeys[jobrank] == rkey[hca->hca_index]);
         hca->rkeys[jobrank] = rkey[hca->hca_index];
       }

@@ -2722,6 +2722,13 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
   }
  }
 
+  // Allocate rkey tables for primodial segments
+  // TODO: move primordial rkeys to shared (PSHM) storage
+  GASNETC_FOR_ALL_HCA(hca) {
+    hca->rkeys = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
+    gasneti_leak(hca->rkeys);
+  }
+
 #if GASNETC_IB_MAX_HCAS > 1
   // Speed critical path checks
   gasnetc_op_needs_fence_mask = gasnetc_use_fenced_puts ?  GASNETC_OP_NEEDS_FENCE : 0;
@@ -2797,6 +2804,7 @@ extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
 #if GASNETC_PIN_SEGMENT
   for (int i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
     gasnetc_hca_t *hca = cep->hca;
+    gasneti_assert(hca->rkeys);
     cep->rkey = hca->rkeys[node];
   }
 #else
