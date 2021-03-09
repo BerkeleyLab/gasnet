@@ -2722,12 +2722,14 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
   }
  }
 
+#if GASNETC_PIN_SEGMENT
   // Allocate rkey tables for primodial segments
   // TODO: move primordial rkeys to shared (PSHM) storage
   GASNETC_FOR_ALL_HCA(hca) {
     hca->rkeys = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
     gasneti_leak(hca->rkeys);
   }
+#endif
 
 #if GASNETC_IB_MAX_HCAS > 1
   // Speed critical path checks
