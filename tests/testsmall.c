@@ -564,7 +564,7 @@ int main(int argc, char **argv)
 
       // The "trick" to diverting RMA operation to the remote GPU memory
       myteam = gex_TM_Pair(myep, gex_EP_QueryIndex(gpu_ep));
-      GASNET_Safe( gex_Segment_QueryBound(myteam, peerproc, (void**)&tgtmem, NULL, NULL) );
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(myteam, peerproc, (void**)&tgtmem, NULL, NULL, 0) );
     }
 #endif
 

@@ -656,6 +656,22 @@ extern int gex_EP_PublishBoundSegment(
             size_t         _num_eps,
             gex_Flags_t    _flags);
 
+// DEPRECATED. Superseded by gex_EP_QueryBoundSegmentNB
+extern int gex_Segment_QueryBound(
+            gex_TM_t       _tm,
+            gex_Rank_t     _rank,
+            void           **_owneraddr_p,
+            void           **_localaddr_p,
+            uintptr_t      *_size_p);
+
+extern gex_Event_t gex_EP_QueryBoundSegmentNB(
+            gex_TM_t       _tm,
+            gex_Rank_t     _rank,
+            void           **_owneraddr_p,
+            void           **_localaddr_p,
+            uintptr_t      *_size_p,
+            gex_Flags_t    _flags) GASNETI_WARN_UNUSED_RESULT;
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 

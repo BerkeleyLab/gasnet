@@ -80,6 +80,7 @@ GASNet-EX ChangeLog
   - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
   - Add gex_System_{Get,Set}VerboseErrors()
   - Add gex_System_QueryMaxThreads()
+  - Add gex_EP_QueryBoundSegmentNB()
 
 * GASNet tools (spec v1.17)
   - Add GASNETT_UNUSED_ARGS*() family of macros

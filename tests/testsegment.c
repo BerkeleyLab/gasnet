@@ -196,7 +196,7 @@ int main(int argc, char **argv)
     {
       void *tmp_addr;
       size_t tmp_size;
-      GASNET_Safe(gex_Segment_QueryBound(myteam, myrank, &tmp_addr, NULL, &tmp_size));
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(myteam, myrank, &tmp_addr, NULL, &tmp_size, 0) );
       if ((seg != gex_EP_QuerySegment(myep)) ||
           (tmp_addr != seg_addr) ||
           (tmp_size != seg_size)) {
@@ -224,10 +224,10 @@ int main(int argc, char **argv)
     // Prepare for comms
     gex_Rank_t peer = (myrank + 1) % nranks;
     void *loc_base, *rem_base;
-    GASNET_Safe(gex_Segment_QueryBound(myteam, peer, &rem_base, NULL, NULL));
+    gex_Event_Wait( gex_EP_QueryBoundSegmentNB(myteam, peer, &rem_base, NULL, NULL, 0) );
     loc_base = seg_addr;
 
-    // TODO: validate gex_Segment_QueryBound() for some non-trivial set of
+    // TODO: validate gex_EP_QueryBoundSegmentNB() for some non-trivial set of
     // processes, not just self and the one peer chosen for communication.
 
     // TODO: fix PSHM support and remove this mess:

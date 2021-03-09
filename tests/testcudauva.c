@@ -132,7 +132,7 @@ int main(int argc, char **argv)
       MSG("GEX_MK_CLASS_CUDA_UVA: skipped - could not find a CUDA device");
       // If this lack of a device is NOT a collective property, then we want
       // to at least balance the collective operations (to avoid hanging).
-      // However, at least one peer will fail a gex_Segment_QueryBound().
+      // However, at least one peer will fail a gex_EP_QueryBoundSegmentNB().
       // For the case all ranks lack a GPU, this test *will* exit gracefully.
       GASNET_Safe( gex_EP_PublishBoundSegment(myteam, NULL, 0, 0) );
       for (int i = 0; i < 4; ++i) BARRIER(); // currently exactly one per case
@@ -168,9 +168,12 @@ int main(int argc, char **argv)
       gex_TM_t LG_RH = gex_TM_Pair(gpu_ep, host_epidx);
       gex_TM_t LG_RG = gex_TM_Pair(gpu_ep, gpu_epidx);
 
-// Case 1. Put - local host to remote gpu
       uint8_t *rem_gpu;
-      GASNET_Safe(gex_Segment_QueryBound(LH_RG, peer, (void**)&rem_gpu, NULL, NULL));
+      size_t queried_len;
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(LH_RG, peer, (void**)&rem_gpu, NULL, &queried_len, 0) );
+      assert_always(queried_len == TEST_SEGSZ_REQUEST);
+      
+// Case 1. Put - local host to remote gpu
       gex_RMA_PutBlocking(LH_RG, peer, rem_gpu, array1, len, 0);
       BARRIER();
       cuMemcpyDtoH(tmp, (CUdeviceptr)loc_gpu, len);

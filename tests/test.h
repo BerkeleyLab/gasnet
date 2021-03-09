@@ -1040,8 +1040,8 @@ static size_t test_num_am_handlers = 0;
       GASNET_Safe(gex_Segment_Attach(segment_p, tm, length));
       BARRIER();
       for (gex_Rank_t i=0; i < TEST_PROCS; i++) {
-        void *_addr;  uintptr_t _size;
-        GASNET_Safe(gex_Segment_QueryBound(tm, i, &_addr, NULL, &_size));
+        uintptr_t _size;
+        gex_Event_Wait( gex_EP_QueryBoundSegmentNB(tm, i, NULL, NULL, &_size, 0) );
         assert_always(_size >= TEST_SEGSZ);
         assert_always(((uintptr_t)_size) % PAGESZ == 0);
       }
@@ -1053,7 +1053,10 @@ static size_t test_num_am_handlers = 0;
 
   static void* _test_seg(gex_Rank_t rank) {
     void *addr;
-    GASNET_Safe(gex_Segment_QueryBound(_test_tm0, rank, &addr, NULL, NULL));
+    gex_Flags_t imm = (rank == TEST_MYPROC) ? GEX_FLAG_IMMEDIATE : 0;
+    gex_Event_t ev =  gex_EP_QueryBoundSegmentNB(_test_tm0, rank, &addr, NULL, NULL, imm);
+    if (!imm) gex_Event_Wait(ev);
+    else assert (ev == GEX_EVENT_INVALID);
     return addr;
   }
   #define TEST_SEG(rank)        _test_seg(rank)
@@ -1067,7 +1070,10 @@ static void *TEST_SEG_TM(gex_TM_t tm, gex_Rank_t rank) {
   return TEST_SEG(gex_TM_TranslateRankToJobrank(tm, rank));
 #else
   void *result;
-  GASNET_Safe(gex_Segment_QueryBound(tm, rank, &result, NULL, NULL));
+  gex_Flags_t imm = (rank == gex_TM_QueryRank(tm)) ? GEX_FLAG_IMMEDIATE : 0;
+  gex_Event_t ev = gex_EP_QueryBoundSegmentNB(tm, rank, &result, NULL, NULL, imm);
+  if (!imm) gex_Event_Wait(ev);
+  else assert (ev == GEX_EVENT_INVALID);
   return result;
 #endif
 }

@@ -284,7 +284,8 @@ prototype.
   // Query device addresses needed for RMA
   void *loc_dev0, *rem_dev0;
   loc_dev0 = gex_Segment_QueryAddr(dev0Segment);
-  gex_Segment_QueryBound(gex_TM_Pair(myEP,1), peer_rank, &rem_dev0, NULL, NULL);
+  gex_Event_t ev = gex_EP_QueryBoundSegmentNB(gex_TM_Pair(myEP,1), peer_rank, &rem_dev0, NULL, NULL, 0);
+  gex_Event_Wait(ev);
   
   // [ do something that places data in GPU memory ]
 

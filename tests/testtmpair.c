@@ -240,8 +240,8 @@ int main(int argc, char **argv)
       rem_seg = (struct test_segment *) TEST_SEG(next);
       prev_seg = (struct test_segment *) TEST_SEG(prev);
     } else {
-      GASNET_Safe(gex_Segment_QueryBound(pair, next, (void**)&rem_seg, NULL, NULL));
-      GASNET_Safe(gex_Segment_QueryBound(pair, prev, (void**)&prev_seg, NULL, NULL));
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(pair, next, (void**)&rem_seg, NULL, NULL, 0) );
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(pair, prev, (void**)&prev_seg, NULL, NULL, 0) );
     }
 
     loc_seg->get_src = myrank;
