@@ -153,6 +153,7 @@ typedef struct gasnetc_Segment_t_ {
   struct fid_mr*        mrfd;
 } *gasnetc_Segment_t;
 
+void gasnetc_auxseg_register(gasnet_seginfo_t si);
 int gasnetc_segment_register(gasnetc_Segment_t segment);
 void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps);
 

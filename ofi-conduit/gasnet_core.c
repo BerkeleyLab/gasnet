@@ -107,13 +107,11 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   #endif
 
   /* allocate and attach an aux segment */
-
-  gasneti_auxsegAttach((uintptr_t)-1, gasneti_spawner->Exchange);
+  gasnet_seginfo_t auxseg = gasneti_auxsegAttach((uintptr_t)-1, gasneti_spawner->Exchange);
+  gasnetc_auxseg_register(auxseg);
 
   /* determine Max{Local,GLobal}SegmentSize */
   gasneti_segmentInit(mmap_limit, gasneti_spawner->Exchange, flags);
-
-  // TODO-EX: MUST REGISTER THE AUXSEG AND UPDATE (AT LEAST) OFI_{WRITE,READ}()
 
   gasneti_init_done = 1;  
 
@@ -158,6 +156,10 @@ static int gasnetc_attach_primary(void) {
    * Safe even if spawner collectives are used after attach
    */
   gasneti_spawner->Cleanup();
+
+#if GASNET_SEGMENT_EVERYTHING
+  GASNETI_SAFE_PROPAGATE( gasnetc_segment_register(NULL) );
+#endif
 
   return GASNET_OK;
 }
