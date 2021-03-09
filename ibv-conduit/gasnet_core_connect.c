@@ -2260,6 +2260,12 @@ gasnetc_connect_static(gasnetc_EP_t ep)
   gasneti_bootstrapAlltoall(local_qpn, gasnetc_alloc_qps*sizeof(uint32_t), remote_qpn);
 
   /* Advance state RESET -> INIT -> RTR. */
+  // One active process per-nbrhd is sufficent (more just slow things down).
+#if GASNET_PSHM
+  const int active = !gasneti_pshm_mynode;
+#else
+  const int active = 1;
+#endif
   GASNETC_FOR_EACH_REMOTE_NODE(node) {
     i = node * gasnetc_alloc_qps;
     conn_info[node].remote_qpn     = &remote_qpn[i];
@@ -2268,8 +2274,8 @@ gasnetc_connect_static(gasnetc_EP_t ep)
     conn_info[node].xrc_remote_srq_num = &xrc_remote_srq_num[i];
   #endif
 
-    (void)gasnetc_qp_reset2init(&conn_info[node], !gasneti_pshm_mynode);
-    (void)gasnetc_qp_init2rtr(&conn_info[node], !gasneti_pshm_mynode);
+    (void)gasnetc_qp_reset2init(&conn_info[node], active);
+    (void)gasnetc_qp_init2rtr(&conn_info[node], active);
   }
 
   /* QPs must reach RTS before we may continue
