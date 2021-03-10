@@ -1381,7 +1381,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
         uintptr_t orig_M = param_M;
         uintptr_t orig_VM = param_VM;
 
-	if (param_RS == 0) {
+	if (dflt_RS) {
 		if ((fhi_InitFlags & FIREHOSE_INIT_FLAG_LOCAL_ONLY)) {
 			param_RS = max_region_size;
 		} else {
@@ -1405,9 +1405,21 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 	}
 	/* Round down to multiple of FH_BUCKET_SIZE for sanity */
 	param_RS &= ~FH_PAGE_MASK;
-	/* Ensure max size fits in available bits of fh_key_t */
-	param_RS = MIN(param_RS, ((FH_BUCKET_SIZE - 1) << FH_BUCKET_SHIFT));
-
+#if FH_KEY_PACKED
+        // Ensure max size fits in available bits of fh_key_t
+        uintptr_t RS_max = ((uintptr_t)(FH_BUCKET_SIZE - 1) << FH_BUCKET_SHIFT);
+        if (param_RS > RS_max) {
+                if (!gasneti_mynode) {
+                        char str0[24], str1[24];
+                        gasneti_console_message("WARNING",
+                                                "GASNET_FIREHOSE_MAXREGION_SIZE (%s) has been "
+                                                "reduced to the largest supported value (%s).",
+                                                gasneti_format_number(param_RS, str0, 24, 1),
+                                                gasneti_format_number(RS_max, str1, 24, 1));
+                }
+                param_RS = RS_max;
+        }
+#endif
 
 	/* Try to work it all out with the given RS
  	 * The goal is (currently) to honor the given region size and
