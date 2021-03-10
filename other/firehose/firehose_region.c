@@ -1378,6 +1378,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
                 }
 		param_VM = max_pinnable_memory - param_M;
         }
+        uintptr_t orig_M = param_M;
+        uintptr_t orig_VM = param_VM;
 
 	if (param_RS == 0) {
 		if ((fhi_InitFlags & FIREHOSE_INIT_FLAG_LOCAL_ONLY)) {
@@ -1412,6 +1414,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
          * reduce the number of available regions as needed.
 	 */
         const int avail_regions = max_regions - num_prepinned;
+        int rescaled = 0;
 	if (dflt_R && dflt_VR) {
 		if ((fhi_InitFlags & FIREHOSE_INIT_FLAG_LOCAL_ONLY)) {
 			param_R  = num_prepinned;
@@ -1428,6 +1431,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 			if (ratio < 1.) {
 				param_R  *= ratio;
 				param_VR *= ratio;
+                                rescaled = 1;
 			}
 		}
 	}
@@ -1455,6 +1459,23 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 	param_VR = MIN(param_VR, param_VM / param_RS);
 	param_M  = param_RS * (param_R - num_prepinned) + m_prepinned;
 	param_VM = param_RS * param_VR;
+
+        // If truncation occurred, report it
+        if (rescaled && !gasneti_mynode) {
+            char str0[24], str1[24], str2[24], str3[24], str4[24], str5[24];
+            uintptr_t max_space = param_RS * avail_regions;
+            gasneti_console_message("WARNING",
+                                    "GASNET_FIREHOSE_M (%s) and GASNET_FIREHOSE_MAXVICTIM_M (%s) together "
+                                    "are more than the %s addressable with %d firehose regions of length %s.  "
+                                    "M and MAXVICTIM_M have been reduced to %s and %s, respectively.",
+                                    gasneti_format_number(orig_M, str0, 24, 1),
+                                    gasneti_format_number(orig_VM, str1, 24, 1),
+                                    gasneti_format_number(max_space, str2, 24, 1),
+                                    avail_regions,
+                                    gasneti_format_number(param_RS, str3, 24, 1),
+                                    gasneti_format_number(param_M, str4, 24, 1),
+                                    gasneti_format_number(param_VM, str5, 24, 1));
+	}
 
 	/* Report final values */
 	GASNETI_TRACE_PRINTF(C, ("param_M=%"PRIuPTR" param_VM=%"PRIuPTR, param_M, param_VM));
