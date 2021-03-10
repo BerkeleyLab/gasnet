@@ -143,11 +143,12 @@ int gasnetc_qp_timeout, gasnetc_qp_retry_count;
 /* conduit-specific firehose region parameters
  * Note that these are kept to sane sizes rather than the HCA limit
  * 128kB is the peak of the bandwidth curve and thus a good size.
- * With 32k * 128k = 4G we can pin upto 4GB of physical memory with these.
- * We don't yet deal well with many small regions.
+ * We don't yet deal well with many small regions and some adapters have
+ * no limit on the number of regions supported (Omni-Path).
+ * With 16m * 128KB we can pin up to 2TB of physical memory per host.
  * Note that GASNET_FIREHOSE_* env vars can override these.
  */
-static unsigned int gasnetc_fh_maxregions = 32768;
+static unsigned int gasnetc_fh_maxregions = 16777216;
 static unsigned int gasnetc_fh_maxsize    = 131072;
 
 /* ------------------------------------------------------------------------------------ */
@@ -975,7 +976,10 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_pin_info.physmemsz = physmemsz;
   gasnetc_pin_info.memory    = ~((uintptr_t)0);
   gasnetc_pin_info.num_local = num_local;
-  gasnetc_pin_info.regions = gasnetc_fh_maxregions;
+
+  // How many pinnable regions per host?
+  // TODO: may want explicit knob(s) in addition to those for firehose
+  gasnetc_pin_info.regions = ~((uint32_t)0);
   GASNETC_FOR_ALL_HCA_INDEX(i) {
     if (! gasnetc_hca[i].hca_cap.max_mr) { // Treat zero as unbounded (e.g. Omni-Path)
       GASNETI_TRACE_PRINTF(I, ("HCA %d advertises hca_cap.max_mr == 0, treating as unbounded", i));
@@ -983,6 +987,10 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     }
     gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, gasnetc_hca[i].hca_cap.max_mr);
   }
+  // Heuristic: cap use at same fraction of HCA resources as of physical memory
+  gasnetc_pin_info.regions *= ((double)limit / physmemsz);
+  gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, gasnetc_fh_maxregions);
+  GASNETI_TRACE_PRINTF(I, ("Max pinnable regions per host: %u", (unsigned int)gasnetc_pin_info.regions));
 
   if (do_probe) {
     int did_warn = 0;
