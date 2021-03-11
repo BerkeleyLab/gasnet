@@ -64,6 +64,16 @@ GASNet-EX ChangeLog
   - GASNET_DISABLE_MUNMAP=1 is now the default on 64-bit platforms, regardless
     of whether ODP is enabled or not.  Previously, enabling ODP would change
     the default to 0.
+  - Improved handling of non-default parameter settings for the firehose
+    dynamic memory registration library.
+    Corner cases with default settings are also handled better.
+    See documentation for GASNET_FIREHOSE_* settings in the conduit README.
+  - Significantly increase the default firehose resources on modern InfiniBand
+    HCAs in all segment modes, leading to improved performance in various
+    circumstances.
+  - A new GASNET_PINNED_REGIONS_MAX environment variable allows control over
+    the number of pinned regions (a bounded HCA resource) which may be used by
+    ibv-conduit.
 
 * Cray XC uGNI (aries-conduit)
   - A new environment variable GASNET_GNI_MAX_MEDIUM enables selecting the
@@ -112,6 +122,7 @@ GASNet-EX ChangeLog
   - bug4166: ibv: debug-only crash at exit from an MPI hybrid application
   - bug4173: ibv: race in firehose on powerpc
   - bug4175: thread-safety of gex_EP_RegisterHandlers()
+  - bug4193: Firehose env var "misbehavior"
   - bug4194: ibv: unnecessarily slow startup
   - bug4195: ibv dynamic connection support broken
   - bug4203: Improve error message when passwordless ssh isn't set up
