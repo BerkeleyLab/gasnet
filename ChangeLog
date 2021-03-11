@@ -38,6 +38,15 @@ GASNet-EX ChangeLog
     shared-memory (PSHM) and the reference implementation of NPAM (Medium and
     Long) used by ucx, udp and mpi conduits.
 
+* Memory Kinds (support for non-host memory)
+  - This is the first "mainline" release to include "Memory Kinds", the GASNet
+    term for support for non-host memory (such as GPU memory).
+    See docs/memory_kinds.md for more information.
+  - Users of the "GASNet-2020.11.0-memory_kinds_prototype" release should be
+    aware that the behavior of configure in this release differs in that one
+    must enable memory kinds explicitly using '--enable-memory-kinds' or an
+    '--enable-kind-[...]' option for a specific kind.
+
 * InfiniBand Verbs (ibv-conduit)
   - Now support the ODP APIs from the Linux "RDMA Core" distribution, where
     previously only the Mellanox variant was supported (bug 4122).
