@@ -1327,16 +1327,11 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 	m_prepinned = FH_BUCKET_SIZE * b_prepinned;
 
 	/* Get limits from the environment */
-	param_M  = fh_getenv("GASNET_FIREHOSE_M", (1<<20));
-	dflt_M   = !param_M;
-	param_VM = fh_getenv("GASNET_FIREHOSE_MAXVICTIM_M", (1<<20));
-	dflt_VM  = !param_VM;
-	param_R  = fh_getenv("GASNET_FIREHOSE_R", 1);
-	dflt_R   = !param_R;
-	param_VR = fh_getenv("GASNET_FIREHOSE_MAXVICTIM_R", 1);
-	dflt_VR  = !param_VR;
-	param_RS = fh_getenv("GASNET_FIREHOSE_MAXREGION_SIZE", (1<<20));
-	dflt_RS  = !param_RS;
+	param_M  = fh_getenv("GASNET_FIREHOSE_M", (1<<20), &dflt_M);
+	param_VM = fh_getenv("GASNET_FIREHOSE_MAXVICTIM_M", (1<<20), &dflt_VM);
+	param_R  = fh_getenv("GASNET_FIREHOSE_R", 1, &dflt_R);
+	param_VR = fh_getenv("GASNET_FIREHOSE_MAXVICTIM_R", 1, &dflt_VR);
+	param_RS = fh_getenv("GASNET_FIREHOSE_MAXREGION_SIZE", (1<<20), &dflt_RS);
 	GASNETI_TRACE_PRINTF(C, 
 	    ("ENV: Firehose M=%"PRIuPTR", MAXVICTIM_M=%"PRIuPTR, param_M, param_VM));
 	GASNETI_TRACE_PRINTF(C, 
