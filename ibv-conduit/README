@@ -943,7 +943,11 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The maximum addressable size of the main and victim pools are limited by
     the product of this region size and the number of firehose regions
     allocated to each pool.
-    The current default is 128k.
+    If the value of this parameter is set to 0, then it will be automatically
+    adjusted to allow the main and victim pools to be addressed within the
+    available number of regions, if doing so is possible subject to a
+    system-dependent maximum (pagesize squared, or larger).
+    The default value of this parameter is 128KB.
 
   + GASNET_FIREHOSE_VERBOSE
     This gives a boolean: "0" to disable or "1" to enable the output of

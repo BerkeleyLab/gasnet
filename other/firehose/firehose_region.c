@@ -1279,7 +1279,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 	gex_Rank_t num_nodes = gasneti_nodes;
 	int dflt_M, dflt_VM;
 	int dflt_R, dflt_VR;
-	int dflt_RS;
+	int dflt_RS, auto_RS;
 
         // Minimum permissible values
         uintptr_t   M_min, VM_min;
@@ -1332,6 +1332,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 	param_R  = fh_getenv("GASNET_FIREHOSE_R", 1, &dflt_R);
 	param_VR = fh_getenv("GASNET_FIREHOSE_MAXVICTIM_R", 1, &dflt_VR);
 	param_RS = fh_getenv("GASNET_FIREHOSE_MAXREGION_SIZE", (1<<20), &dflt_RS);
+        auto_RS = !param_RS && !dflt_RS; // explicit zero
 	GASNETI_TRACE_PRINTF(C, 
 	    ("ENV: Firehose M=%"PRIuPTR", MAXVICTIM_M=%"PRIuPTR, param_M, param_VM));
 	GASNETI_TRACE_PRINTF(C, 
@@ -1376,7 +1377,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
         uintptr_t orig_M = param_M;
         uintptr_t orig_VM = param_VM;
 
-	if (dflt_RS) {
+	if (!param_RS) { // default or explicit zero for "auto"
 		if ((fhi_InitFlags & FIREHOSE_INIT_FLAG_LOCAL_ONLY)) {
 			param_RS = max_region_size;
 		} else {
@@ -1416,10 +1417,9 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
         }
 #endif
 
-	/* Try to work it all out with the given RS
- 	 * The goal is (currently) to honor the given region size and
-         * reduce the number of available regions as needed.
-	 */
+        // Try to "work it all out" to address the requested volume of memory.
+        // Normally we try to keep fixed RS, reducing the number of regions if needed.
+        // However, with "auto" RS, we first attempt to enlarge RS
         const int avail_regions = max_regions - num_prepinned;
         int rescaled = 0;
 	if (dflt_R && dflt_VR) {
@@ -1427,14 +1427,23 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 			param_R  = num_prepinned;
 			param_VR = max_regions - param_R;
 		} else {
-			double ratio;
-
 			/* try naively... */
 			param_R  = (param_M - m_prepinned)  / param_RS;
 			param_VR = param_VM / param_RS;
 			
-			/* then rescale if needed */
-			ratio = avail_regions / (double)(param_R + param_VR);
+                        // Two approaches to rescaling if needed:
+                        double ratio = avail_regions / (double)(param_R + param_VR);
+                        // 1. try to scale up region size IFF user-provided vaule was 0
+                        if (ratio < 1. && auto_RS) {
+                                param_RS = GASNETI_ALIGNUP(param_RS / ratio, FH_BUCKET_SIZE);
+                                #if FH_KEY_PACKED
+                                param_RS = MIN(param_RS, RS_max);
+                                #endif
+                                param_R  = (param_M - m_prepinned)  / param_RS;
+                                param_VR = param_VM / param_RS;
+                                ratio = avail_regions / (double)(param_R + param_VR);
+                        }
+                        // 2. reduce R parameters if neccessary (possibly after auto-scaling RS)
 			if (ratio < 1.) {
 				param_R  *= ratio;
 				param_VR *= ratio;
