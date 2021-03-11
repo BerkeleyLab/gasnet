@@ -112,7 +112,7 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 // Double payload at each iter, subject to max_step
 // but include max_payload which may not otherwise be visited
 #define ADVANCE(sz) do {                           \
-        int step = MIN(max_step, sz);              \
+        size_t step = MIN(max_step, sz);           \
         if (!sz) {                                 \
           sz = 1;                                  \
         } else if (sz < max_payload && sz+step > max_payload) { \
