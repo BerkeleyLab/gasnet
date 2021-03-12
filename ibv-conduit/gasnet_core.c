@@ -3796,7 +3796,6 @@ static void gasnetc_exit_body(void) {
   #if GASNETC_IBV_SHUTDOWN
     GASNETC_EXIT_STATE("ibv quiesce");
     alarm(30);
-    gasneti_bootstrapBarrier();
     gasnetc_sndrcv_quiesce();
   #endif
     if (gasnetc_did_firehose_init) {
