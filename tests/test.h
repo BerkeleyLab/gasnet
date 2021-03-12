@@ -1052,7 +1052,7 @@ static size_t test_num_am_handlers = 0;
   #define gex_Segment_Attach _test_Segment_Attach
 
   static void* _test_seg(gex_Rank_t rank) {
-    void *addr;
+    void *addr = NULL;
     gex_Flags_t imm = (rank == TEST_MYPROC) ? GEX_FLAG_IMMEDIATE : 0;
     gex_Event_t ev =  gex_EP_QueryBoundSegmentNB(_test_tm0, rank, &addr, NULL, NULL, imm);
     if (!imm) gex_Event_Wait(ev);
