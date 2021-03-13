@@ -1302,10 +1302,6 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
                 VR_min = 2;
         }
 
-        /* Initialize the Bucket tables */
-        fh_BucketTable1 = fh_hash_create(1<<16); /* 64k */
-        fh_BucketTable2 = fh_hash_create(1<<17); /* 128k */
-
 #if 0  /* UNUSED - see param_RS computation for explanation */
 	/* Count how many regions fit into an AM Medium payload */
         med_regions = (MIN(gex_AM_LUBRequestMedium(),
@@ -1608,8 +1604,21 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 						<= max_pinnable_memory);
 
 
-	/* Allocate hash table for region tracking */
-	i = 1.2 * (param_R + param_VR + num_prepinned);	/* factor 1.2 is arbitrary */
+        // Initialize hash tables for buckets (per-page mapping to regions)
+        // See "BUCKET TABLE HANDLING" for more onfo on these tables
+        {
+          i = b_prepinned + (param_R + param_VR) * (param_RS >> FH_BUCKET_SHIFT);
+          double scale = gasneti_getenv_dbl_withdefault("GASNET_FIREHOSE_TABLE_SCALE", 1.);
+          i *= (scale / 16.); // default to 16:1, subject to adjustment by env var
+          i = MAX(65536, i);  // subject to minimum of 64k
+        }
+        for (j = 1; j < i; j *= 2) { /* nothing */ } // next power of two
+        fh_BucketTable1 = fh_hash_create(j);
+        fh_BucketTable2 = fh_hash_create(j/2);
+
+        // Allocate hash table for region tracking
+        // TODO: replace the arbitrary factor 1.2 with an env var?
+	i = 1.2 * (param_R + param_VR + num_prepinned);
 	/* round 'i' up to a power of two: */
 	for (j = 1; j < i; j *= 2) { /* nothing */ }
        	fh_PrivTable = fh_hash_create(j);

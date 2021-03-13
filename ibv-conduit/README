@@ -961,6 +961,13 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     system-dependent maximum (pagesize squared, or larger).
     The default value of this parameter is 128KB.
 
+  + GASNET_FIREHOSE_TABLE_SCALE
+    This parameter gives a floating point factor, used to scale the size of
+    hash tables used in the firehose library relative to their default sizes.
+    Smaller values producer smaller tables, saving memory at the expense of
+    performance.
+    The default value is 1.
+
   + GASNET_FIREHOSE_VERBOSE
     This gives a boolean: "0" to disable or "1" to enable the output of
     internal information of use to the developers.  You may be asked
