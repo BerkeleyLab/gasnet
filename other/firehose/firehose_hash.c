@@ -61,42 +61,19 @@ struct fh_dummy_entry {
 }
 fh_dummy_entry_t;
 
-/*
-int 
-inthash(fh_key_t key)
-{
-	key += (key << 12);
-	key ^= (key >> 22);
-	key += (key << 4);
-	key ^= (key >> 9);
-	key += (key << 10);
-	key ^= (key >> 2);
-	key += (key << 7);
-	key ^= (key >> 12);
-	return key;
-}
-*/
-
-#if 1
 GASNETI_INLINE(inthash)
 int
 inthash(fh_key_t full_key)
 {
 	intptr_t key = FH_KEY2INT(full_key);
+#if PLATFORM_ARCH_32
 	key += ~(key << 15);
 	key ^=  (key >> 10);
 	key +=  (key << 3);
 	key ^=  (key >> 6);
 	key += ~(key << 11);
 	key ^=  (key >> 16);
-	return (int) key;
-}
 #else
-GASNETI_INLINE(inthash)
-int
-inthash(fh_key_t full_key)
-{
-	intptr_t key = FH_KEY2INT(full_key);
 	key += ~(key << 32);
 	key ^= (key >> 22);
 	key += ~(key << 13);
@@ -105,9 +82,9 @@ inthash(fh_key_t full_key)
 	key ^= (key >> 15);
 	key += ~(key << 27);
 	key ^= (key >> 31);
+#endif
 	return (int) key;
 }
-#endif
 
 /* fh_hash_create(keylen,entries)
  *
