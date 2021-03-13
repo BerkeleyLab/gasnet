@@ -1314,6 +1314,8 @@ extern void gasneti_stats_dump(int reset) {
   memcpy(statstypes_tmp, gasneti_statstypes, GASNETI_MAX_MASKBITS);
   memcpy(gasneti_statstypes, gasneti_statstypes_all, GASNETI_MAX_MASKBITS);
 
+  gasneti_tracestats_output("U","Generating statistical summary",1);
+
   if (gasnett_stats_callback && GASNETI_STATS_ENABLED(H)) {
     gasneti_stats_printf("--------------------------------------------------------------------------------");
     (*gasnett_stats_callback)(gasneti_stats_printf);
@@ -1358,6 +1360,7 @@ extern void gasneti_stats_dump(int reset) {
       gasneti_stats_printf(" %-25s %6"PRIu64,          \
             #name" "#desc":", *p);                     \
       AGGRNAME(ctr,type) += *p;                        \
+      if (reset) *p = clear_ctr;                       \
     }
   #define DUMP_INTVAL(type,name,desc)                           \
     if (GASNETI_STATS_ENABLED(type)) {                          \
@@ -1372,6 +1375,7 @@ extern void gasneti_stats_dump(int reset) {
               CALC_AVG(p->_sumval,p->_count),                   \
               p->_minval, p->_maxval, p->_sumval);              \
       ACCUM((&AGGRNAME(intval,type)), p);                       \
+      if (reset) *p = clear_intval;                             \
     }
   #define DUMP_TIMEVAL(type,name,desc)                                   \
     if (GASNETI_STATS_ENABLED(type)) {                                   \
@@ -1388,6 +1392,7 @@ extern void gasneti_stats_dump(int reset) {
               gasneti_ticks_to_ns(p->_maxval)/1000.0,                    \
               gasneti_ticks_to_ns(p->_sumval)/1000.0);                   \
       ACCUM((&AGGRNAME(timeval,type)), p);                               \
+      if (reset) *p = clear_timeval;                                     \
     }
 
   GASNETI_STAT_LOCK();
@@ -1439,6 +1444,8 @@ extern void gasneti_stats_dump(int reset) {
 
   GASNETC_STATS_DUMP(reset); /* allow for dump of conduit-core specific statistics */
   GASNETE_STATS_DUMP(reset); /* allow for dump of conduit-extended specific statistics */
+
+  if (reset) gasneti_tracestats_output("U","Stats have been RESET at client request.",1);
 
   fflush(NULL);
 

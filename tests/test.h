@@ -1332,6 +1332,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
   GASNETT_TRACE_SETMASK(GASNETT_TRACE_GETMASK());                                  \
   GASNETT_STATS_SETMASK(GASNETT_STATS_GETMASK());                                  \
   GASNETT_TRACE_SET_TRACELOCAL(GASNETT_TRACE_GET_TRACELOCAL());                    \
+  GASNETT_STATS_DUMP(/*reset=*/1);                                                 \
 } while (0)
 
 GASNETT_END_EXTERNC

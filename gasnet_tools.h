@@ -546,10 +546,13 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
     (gasnett_stats_callback = (callbackfn), GASNETI_STATS_ENABLED(H))
   #define GASNETT_STATS_GETMASK()     GASNETI_STATS_GETMASK()
   #define GASNETT_STATS_SETMASK(mask) GASNETI_STATS_SETMASK(mask)
+  #define GASNETT_STATS_DUMP(reset)   gasneti_stats_dump(reset)
+  extern void gasneti_stats_dump(int _reset);
 #else
   #define GASNETT_STATS_INIT(callbackfn) 0
   #define GASNETT_STATS_GETMASK()     ""
   #define GASNETT_STATS_SETMASK(mask) ((void)0)
+  #define GASNETT_STATS_DUMP(reset)   ((void)0)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
