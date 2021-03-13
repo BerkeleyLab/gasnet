@@ -50,13 +50,15 @@ extern volatile int gasnetc_AMLockYield;
 #else
   #define _AMLOCK_CAUTIOUS_HELPER() ((void)0)
 #endif
-#define AMLOCK_CAUTIOUS()    do {                         \
+#define AMLOCK_CAUTIOUS(shouldunlock)    do {             \
     int _i;                                               \
+    shouldunlock = 0;                                     \
     gasnetc_AMLockYield = 1;                              \
     for (_i=0; _i < 50; _i++) {                           \
       _AMLOCK_CAUTIOUS_HELPER();                          \
-      if (!gasneti_mutex_trylock(&gasnetc_AMlock)) break; \
-      else gasneti_sched_yield();                         \
+      if (!gasneti_mutex_trylock(&gasnetc_AMlock)) {      \
+        shouldunlock = 1; break;                          \
+      } else gasneti_sched_yield();                       \
     }                                                     \
     gasnetc_AMLockYield = 0;                              \
 } while (0)

@@ -591,7 +591,8 @@ extern void gasnetc_stats_dump(int reset) {
     amudp_stats_t stats = AMUDP_initial_stats;
 
     /* bug 2181 - lock state is unknown, eg we may be in handler context */
-    AMLOCK_CAUTIOUS();
+    int shouldunlock;
+    AMLOCK_CAUTIOUS(shouldunlock);
 
     if (isglobal) {
       /* TODO: tricky bit - if this exit is collective, we can display more interesting and useful
@@ -625,6 +626,7 @@ extern void gasnetc_stats_dump(int reset) {
       GASNETI_STATS_PRINTF(C,("\n%s",statdump)); /* note, dump has embedded '%' chars */
       GASNETI_STATS_PRINTF(C,("--------------------------------------------------------------------------------"));
     }
+    if (shouldunlock) AMUNLOCK();
   }
 }
 extern void gasnetc_fatalsignal_callback(int sig) {
@@ -659,7 +661,8 @@ extern void gasnetc_exit(int exitcode) {
   /* bug2181: try to prevent races where we exit while other local pthreads are in AMUDP
      can't use a blocking lock here, because may be in a signal context
   */
-  AMLOCK_CAUTIOUS();
+  int dummy;
+  AMLOCK_CAUTIOUS(dummy);
 
   AMUDP_SPMDExit(exitcode);
   gasneti_fatalerror("AMUDP_SPMDExit failed!");
