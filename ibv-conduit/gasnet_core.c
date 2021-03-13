@@ -978,18 +978,44 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_pin_info.num_local = num_local;
 
   // How many pinnable regions per host?
-  // TODO: may want explicit knob(s) in addition to those for firehose
-  gasnetc_pin_info.regions = ~((uint32_t)0);
+  uint32_t max_regions = ~((uint32_t)0);
   GASNETC_FOR_ALL_HCA_INDEX(i) {
     if (! gasnetc_hca[i].hca_cap.max_mr) { // Treat zero as unbounded (e.g. Omni-Path)
       GASNETI_TRACE_PRINTF(I, ("HCA %d advertises hca_cap.max_mr == 0, treating as unbounded", i));
       continue;
     }
-    gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, gasnetc_hca[i].hca_cap.max_mr);
+    max_regions = MIN(max_regions, gasnetc_hca[i].hca_cap.max_mr);
   }
-  // Heuristic: cap use at same fraction of HCA resources as of physical memory
-  gasnetc_pin_info.regions *= ((double)limit / physmemsz);
-  gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, gasnetc_fh_maxregions);
+  {
+    const char *key = "GASNET_PINNED_REGIONS_MAX";
+    const char *input = gasneti_getenv(key);
+    int using_dflt = !input || !input[0]; // unset or empty
+    if (using_dflt) {
+      // Default (heuristic): cap use at same fraction of HCA resources as of physical memory
+      gasnetc_pin_info.regions = max_regions * ((double)limit / physmemsz);
+      gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, gasnetc_fh_maxregions);
+    } else {
+      // User override - accept fractions or absolute value
+      double dbl;
+      int64_t val;
+      if (gasneti_parse_dbl(input, &dbl)) {  // Not a valid double
+        val = gasneti_parse_int(input, 0);
+      } else if ((dbl > 0.) && (dbl < 1.)) { // A double in interval (0,1)
+        val = dbl * max_regions;
+      } else {                               // A valid double outside (0,1)
+        val = dbl;
+      }
+      const int64_t region_lower = 16; // arbitrary. firehose will further validate
+      const int64_t region_upper = MIN(max_regions * 0.95, gasnetc_fh_maxregions); // 95% is arbitrary
+      if (val > region_upper) {
+        gasneti_fatalerror("%s='%s' is above the maximum value %d.", key, input, (int)region_upper);
+      } else if (val < region_lower) {
+        gasneti_fatalerror("%s='%s' is below the minimum value %d.", key, input, (int)region_lower);
+      }
+      gasnetc_pin_info.regions = val;
+    }
+    gasneti_envint_display(key, gasnetc_pin_info.regions, using_dflt, 0);
+  }
   GASNETI_TRACE_PRINTF(I, ("Max pinnable regions per host: %u", (unsigned int)gasnetc_pin_info.regions));
 
   if (do_probe) {
