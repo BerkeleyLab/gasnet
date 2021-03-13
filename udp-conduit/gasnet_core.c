@@ -582,9 +582,9 @@ static void gasnetc_traceoutput(int exitcode) {
     gasneti_trace_finish();
   }
 }
-extern void gasnetc_trace_finish(void) {
+extern void gasnetc_stats_dump(int reset) {
   /* dump AMUDP statistics */
-  if (GASNETI_STATS_ENABLED(C) ) {
+  if (GASNETI_STATS_ENABLED(C) || reset) {
     const char *statdump;
     int isglobal = 0;
     int retval = 0;
@@ -613,8 +613,10 @@ extern void gasnetc_trace_finish(void) {
     } else {
         GASNETI_AM_SAFE_NORETURN(retval, AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
     }
+    if (reset && !retval) 
+      GASNETI_AM_SAFE_NORETURN(retval, AMUDP_ResetEndpointStatistics(gasnetc_endpoint));
 
-    if ((gasneti_mynode == 0 || !isglobal) && !retval) {
+    if (GASNETI_STATS_ENABLED(C) && (gasneti_mynode == 0 || !isglobal) && !retval) {
       GASNETI_STATS_PRINTF(C,("--------------------------------------------------------------------------------"));
       GASNETI_STATS_PRINTF(C,("AMUDP Statistics:"));
       if (!isglobal)

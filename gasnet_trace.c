@@ -1437,9 +1437,9 @@ extern void gasneti_stats_dump(int reset) {
 
   gasneti_stats_printf("--------------------------------------------------------------------------------");
 
+  GASNETC_STATS_DUMP(reset); /* allow for dump of conduit-core specific statistics */
+  GASNETE_STATS_DUMP(reset); /* allow for dump of conduit-extended specific statistics */
 
-  GASNETC_TRACE_FINISH(); /* allow for final output of conduit-core specific statistics */
-  GASNETE_TRACE_FINISH(); /* allow for final output of conduit-extended specific statistics */
   fflush(NULL);
 
   memcpy(gasneti_statstypes, statstypes_tmp, GASNETI_MAX_MASKBITS); // restore

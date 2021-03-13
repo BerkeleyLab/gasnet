@@ -153,8 +153,8 @@
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
-#define GASNETC_TRACE_FINISH()  gasnetc_trace_finish()
-extern void gasnetc_trace_finish(void);
+extern void gasnetc_stats_dump(int _reset);
+#define GASNETC_STATS_DUMP(reset) gasnetc_stats_dump(reset)
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 extern void gasnetc_fatalsignal_callback(int _sig);

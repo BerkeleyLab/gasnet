@@ -86,13 +86,13 @@
   #define GASNETI_STATS_PRINTF(type, args)  ((void)0)
 #endif
 
-/* allow for final output of conduit-core specific statistics */
-#ifndef GASNETC_TRACE_FINISH
-#define GASNETC_TRACE_FINISH()  ((void)0)
+/* allow for dump of conduit-core specific statistics */
+#ifndef GASNETC_STATS_DUMP
+#define GASNETC_STATS_DUMP(reset)  ((void)0)
 #endif
-/* allow for final output of conduit-extended specific statistics */
-#ifndef GASNETE_TRACE_FINISH
-#define GASNETE_TRACE_FINISH()  ((void)0)
+/* allow for dump of conduit-extended specific statistics */
+#ifndef GASNETE_STATS_DUMP
+#define GASNETE_STATS_DUMP(reset)  ((void)0)
 #endif
 
 #ifndef GASNETI_STATS_ECHOED_TO_TRACEFILE
