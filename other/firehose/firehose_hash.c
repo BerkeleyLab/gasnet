@@ -128,12 +128,13 @@ fh_hash_create(size_t entries)
 	hash->fh_table   = (void **) gasneti_calloc(entries, sizeof(void *));
 	hash->fh_mask    = entries-1;
 	hash->fh_entries = entries;
-	#ifdef FH_HASH_STATS
-		hash->fh_col_table = (int *) gasneti_malloc(entries * sizeof(int));
-		/*printf("hash create: entries=%d, mask=%x\n", entries, entries-1);*/
-		hash->fh_used = 0;
-		hash->fh_collisions = 0;
-	#endif
+#ifdef FH_HASH_STATS
+        hash->fh_col_table = (int *) gasneti_calloc(entries, sizeof(int));
+        printf("[n%d] hash create: entries=%"PRIuSZ", mask=%"PRIxSZ"\n",
+               gasneti_mynode, entries, entries-1);
+        hash->fh_used = 0;
+        hash->fh_collisions = 0;
+#endif
 	
 	return hash;
 }
@@ -143,15 +144,17 @@ void
 fh_hash_destroy(fh_hash_t *hash)
 {
 #ifdef FH_HASH_STATS
-	fprintf(stderr, "elements: %d, collisions: %d, avg=%2.5f%%\n",
-		hash->fh_used, hash->fh_collisions,
-		(float) hash->fh_collisions*100/hash->fh_used);
-	{
+        fprintf(stderr, "[n%d] entries: %"PRIuSZ" elements: %d, collisions: %d, avg=%2.5f%%, load %g\n",
+                gasneti_mynode,
+		hash->fh_entries, hash->fh_used, hash->fh_collisions,
+                (double) hash->fh_collisions*100/hash->fh_used,
+                (double) hash->fh_used/hash->fh_entries);
+	if (0) {
 		int i, hits;
 		for (i = 0; i < hash->fh_entries; i++) {
 			hits = hash->fh_col_table[i];
 			if (hits) {
-				/*printf("%d\t%d\n", i, hits);*/
+				printf("%d\t%d\n", i, hits);
 			}
 		}
 	}
