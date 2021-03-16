@@ -3968,9 +3968,24 @@ if test "$enabled_ofi" = yes; then
               rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
                               0, 0, 0, 0, 0);
             }], [ : ], [ have_ofi=no; GASNET_ERR_SAVE() ] )
+
     GASNET_POPVAR(CFLAGS)
     GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
+  fi
+
+  if test "$have_ofi" = yes; then
+    # What we actually care about is GASNETI_HAVE_SPINLOCK, which is available
+    # whenever !GASNETI_ATOMICOPS_NOT_SIGNALSAFE
+    # For all platforms of likely interest, checking (compiler||native) is sufficient.
+    AC_MSG_CHECKING(for appropriate atomics support required by ofi-conduit)
+    CHECK_ATOMICS([native compiler],[
+      AC_MSG_RESULT(yes)
+    ],[
+      AC_MSG_RESULT(no)
+      GASNET_MSG_WARN([ofi-conduit requires native atomicops, but $check_atomics_msg])
+      have_ofi=no
+    ])
   fi
 
   if test "$have_ofi" = yes; then
