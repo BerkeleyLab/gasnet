@@ -841,6 +841,39 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 #define GASNETI_FLAG_INIT_LEGACY           (1U << 31)
 
 /* ------------------------------------------------------------------------------------ */
+// GASNETC_MAX_{ARGS,MEDIUM,LONG}_NBRHD
+// These are compile-time constants used by the "neighborhood" AM support,
+// which includes "loopback" (same-process) and "AMPSHM" (shared-memory).
+// As described below, these defaults are not suitable for all conduits.
+// Any/all conduit-specific overrides belong in gasnet_core_fwd.h.
+
+#ifndef GASNETC_MAX_ARGS_NBRHD
+  // Assumes gex_AM_MaxArgs() is a compile time constant.
+  // If not, the conduit must define GASNETC_MAX_ARGS_NBRHD to a compile-time
+  // constant in its gasnet_core_fwd.h.
+  // The value may be a conservative upper-bound if the real value cannot be
+  // known until run time (at the cost of wasted memory).
+  #define GASNETC_MAX_ARGS_NBRHD   (gex_AM_MaxArgs())
+#endif
+#ifndef GASNETC_MAX_MEDIUM_NBRHD
+  // Assumes gex_AM_LUB{Request,Reply}Medium() expand to compile-time constants
+  // AND that the LUB is the *greatest* upper-bound.  If either property is not
+  // true for a given conduit, then it must define GASNETC_MAX_MEDIUM_NBRHD to
+  // an appropriate compile-time constant bound in its gasnet_core_fwd.h.
+  // The value may be a conservative upper-bound if the real value cannot be
+  // known until run time (at the cost of wasted memory).
+  #define GASNETC_MAX_MEDIUM_NBRHD MAX(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())
+#endif
+#ifndef GASNETC_MAX_LONG_NBRHD
+  // Same assumptions and usage as GASNETC_MAX_MEDIUM_NBRHD, above, but for Long.
+  #define GASNETC_MAX_LONG_NBRHD MAX(gex_AM_LUBRequestLong(),gex_AM_LUBReplyLong())
+#endif
+
+// NPAM GASNet-allocated buffer can use per-thread buffers up to a limit
+// This provides conduits and PSHM with an intuitive name
+#define GASNETC_REF_NPAM_MAX_ALLOC GASNETC_MAX_MEDIUM_NBRHD
+
+/* ------------------------------------------------------------------------------------ */
 
 extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
 

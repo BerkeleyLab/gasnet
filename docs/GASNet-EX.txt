@@ -1835,11 +1835,8 @@ int gex_AM_ReplyShort[M](
 // It is important to note that passing NULL for the client_buf argument to a
 // Prepare call requires GASNet to allocate buffer space of size no smaller
 // than least_payload.  Use of gex_AM_Max{Request,Reply}{Medium,Long}() with
-// the GEX_FLAG_AM_PREPARE_LEAST_ALLOC flag is intended to enforce limits on
-// the space GASNet is required to allocate.  However, the current release does
-// not yet impose limits tighter than the corresponding fixed-payload queries.
-// Therefore, some extra care should be taken to keep such allocation demands
-// reasonable.
+// the GEX_FLAG_AM_PREPARE_LEAST_ALLOC flag gives the limits on the space GASNet
+// is required to allocate.  Larger values of least_payload are erroneous.
 //
 // Between the Prepare and the Commit calls the client is responsible for
 // assembling its payload (or the prefix of the given length) at the selected

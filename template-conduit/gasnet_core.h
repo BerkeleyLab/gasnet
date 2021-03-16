@@ -139,14 +139,24 @@ typedef struct {
         (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)###)
 #define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    \
         (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)###)
-#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    \
-        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)###)
-#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      \
-        (GASNETI_UNUSED_ARGS5(tm,rank,lc_opt,flags,nargs),(size_t)###)
 #define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   \
         (GASNETI_UNUSED_ARGS4(token,lc_opt,flags,nargs),(size_t)###)
+
+#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    \
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,nargs), \
+         ((flags) & GEX_FLAG_AM_PREPARE_LEAST_ALLOC  \
+                  ? GASNETC_REF_NPAM_MAX_ALLOC       \
+                  : (size_t)###))
+#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      \
+        (GASNETI_UNUSED_ARGS4(tm,rank,lc_opt,nargs), \
+         ((flags) & GEX_FLAG_AM_PREPARE_LEAST_ALLOC  \
+                  ? GASNETC_REF_NPAM_MAX_ALLOC       \
+                  : (size_t)###))
 #define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     \
-        (GASNETI_UNUSED_ARGS4(token,lc_opt,flags,nargs),(size_t)###)
+        (GASNETI_UNUSED_ARGS3(token,lc_opt,nargs),   \
+         ((flags) & GEX_FLAG_AM_PREPARE_LEAST_ALLOC  \
+                  ? GASNETC_REF_NPAM_MAX_ALLOC       \
+                  : (size_t)###))
  */
 /* Example for true functions:
 extern GASNETI_PURE size_t gasnetc_AM_MaxRequestMedium(

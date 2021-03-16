@@ -1332,7 +1332,8 @@ int ampshm_prepare_inner(
   } else if (category == gasneti_Medium) {
     size = MIN(most_payload, GASNETC_MAX_MEDIUM_NBRHD);
   } else {
-    size = MIN(most_payload, GASNETC_MAX_LONG_NBRHD);
+    size_t limit = client_buf ? GASNETC_MAX_LONG_NBRHD : GASNETC_REF_NPAM_MAX_ALLOC;
+    size = MIN(most_payload, limit);
     // For small enough Long use the free space after the header to avoid malloc/free
     inline_long = (size <= GASNETI_AMPSHM_MSG_LONG_INLINE);
   }

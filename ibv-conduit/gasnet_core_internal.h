@@ -200,8 +200,10 @@ typedef struct {
   int32_t		nBytes;
   gex_AM_Arg_t	args[GASNETC_MAX_ARGS];
 } gasnetc_longmsg_t;
-#define GASNETC_MSG_LONG_ARGSEND(nargs)  GASNETC_ARGSEND_AUX(gasnetc_longmsg_t,nargs)
-#define GASNETC_MSG_LONG_DATA(msg,nargs) (void *)(&msg->longmsg.args[(unsigned int)nargs])
+#define GASNETC_MSG_LONG_ARGSEND(nargs) /* Note 8-byte alignment for payload */ \
+		GASNETI_ALIGNUP(GASNETC_ARGSEND_AUX(gasnetc_longmsg_t,nargs), 8)
+#define GASNETC_MSG_LONG_DATA(msg,nargs) \
+		((void *)((uintptr_t)(msg) + GASNETC_MSG_LONG_ARGSEND(nargs)))
 
 typedef union {
   uint8_t		raw[GASNETC_BUFSZ];

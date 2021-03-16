@@ -48,6 +48,9 @@ GASNet-EX ChangeLog
     '--enable-kind-[...]' option for a specific kind.
 
 * InfiniBand Verbs (ibv-conduit)
+  - Negotiated-Payload Active Message (NPAM) Long is implemented natively for
+    ibv-conduit in the default FAST segment mode, replacing use of the
+    portable reference implementation.
   - Now support the ODP APIs from the Linux "RDMA Core" distribution, where
     previously only the Mellanox variant was supported (bug 4122).
   - Improved startup times on jobs larger than a few tens of nodes with

@@ -242,33 +242,6 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
 
 /* ------------------------------------------------------------------------------------ */
 
-// GASNETC_MAX_{ARGS,MEDIUM,LONG}_NBRHD
-// These are compile-time constants used by the "neighborhood" AM support,
-// which includes "loopback" (same-process) and "AMPSHM" (shared-memory).
-// As described below, these defaults are not suitable for all conduits.
-
-#ifndef GASNETC_MAX_ARGS_NBRHD
-  // Assumes gex_AM_MaxArgs() is a compile time constant.
-  // If not, the conduit must define GASNETC_MAX_ARGS_NBRHD to a compile-time
-  // constant in its gasnet_core_fwd.h.
-  // The value may be a conservative upper-bound if the real value cannot be
-  // known until run time (at the cost of wasted memory).
-  #define GASNETC_MAX_ARGS_NBRHD   (gex_AM_MaxArgs())
-#endif
-#ifndef GASNETC_MAX_MEDIUM_NBRHD
-  // Assumes gex_AM_LUB{Request,Reply}Medium() expand to compile-time constants
-  // AND that the LUB is the *greatest* upper-bound.  If either property is not
-  // true for a given conduit, then it must define GASNETC_MAX_MEDIUM_NBRHD to
-  // an appropriate compile-time constant bound in its gasnet_core_fwd.h.
-  // The value may be a conservative upper-bound if the real value cannot be
-  // known until run time (at the cost of wasted memory).
-  #define GASNETC_MAX_MEDIUM_NBRHD MAX(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())
-#endif
-#ifndef GASNETC_MAX_LONG_NBRHD
-  // Same assumptions and usage as GASNETC_MAX_MEDIUM_NBRHD, above, but for Long.
-  #define GASNETC_MAX_LONG_NBRHD MAX(gex_AM_LUBRequestLong(),gex_AM_LUBReplyLong())
-#endif
-
 // GASNETC_GET_HANDLER provides a conduit with the means to control how the
 // neighborhood AM support accesses the AM handler table.
 #ifndef GASNETC_GET_HANDLER
@@ -333,7 +306,7 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
 /* ------------------------------------------------------------------------------------ */
 /* common logic for Negotiated Payload AMs */
 
-// Common argument processing and trace/stats
+// Common argument processing, debug checks and trace/stats
 #if GASNET_DEBUG
   extern void gasneti_init_sd_poison(gasneti_AM_SrcDesc_t sd);
   extern int gasneti_test_sd_poison(void *addr, size_t len);
@@ -445,6 +418,18 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
       GASNETI_TRACE_COMMIT_REPLY##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs);   \
       _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat);                      \
     } while(0)
+
+  #define GASNETI_CHECK_SD(cbuf, least_payload, most_payload, sd) \
+    do {                                                                               \
+      if (!sd) break;                                                                  \
+      if (cbuf) {                                                                      \
+        gasneti_assert(sd->_addr == cbuf);                                             \
+      } else {                                                                         \
+        gasneti_assert(0 == (((uintptr_t) sd->_addr) % GASNETI_MEDBUF_ALIGNMENT));     \
+      }                                                                                \
+      gasneti_assert(sd->_size >= least_payload);                                      \
+      gasneti_assert(sd->_size <= most_payload);                                       \
+    } while(0)
 #else
   #define gasneti_init_sd_poison(sd) ((void)0)
 
@@ -463,6 +448,7 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
           GASNETI_TRACE_COMMIT_REQUEST##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs)
   #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs_arg,cat) \
           GASNETI_TRACE_COMMIT_REPLY##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs)
+  #define GASNETI_CHECK_SD(cbuf, least_payload, most_payload, sd) ((void)0)
 #endif
 
 #define GASNETI_TRACE_COMMIT_REQUESTMedium(handler,source_addr,nbytes,dest_addr,numargs) \
@@ -476,28 +462,13 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
 
 #ifndef _GEX_AM_SRCDESC_T
 
-// NPAM GASNet-allocated buffer can use per-thread buffers up to a limit
-#define GASNETI_NPAM_USING_PERTHREAD(sd) ((sd)->_size <= GASNETC_MAX_MEDIUM_NBRHD)
-
 // Allocate a buffer (use IFF client_buf is NULL)
 GASNETI_INLINE(gasneti_alloc_npam_buffer)
 void *gasneti_alloc_npam_buffer(gasneti_AM_SrcDesc_t sd, int isReq)
 {
-    void *result;
-
-    // Prefer use of per-thread buffer over malloc/free
-    if (GASNETI_NPAM_USING_PERTHREAD(sd)) {
-        GASNET_POST_THREADINFO(sd->_thread);
-        result = gasneti_alloc_perthread_medium_buffer(isReq GASNETI_THREAD_PASS);
-    } else {
-        size_t size = sd->_size;
-    #if GASNET_DEBUG
-        // Allocate at least one byte because zero-byte allocation
-        // returns NULL which then leads to ambiguity in argument checking.
-        if (!size) size = 1;
-    #endif
-        result = gasneti_malloc(size);
-    }
+    gasneti_assert_uint(sd->_size ,<=, GASNETC_REF_NPAM_MAX_ALLOC);
+    GASNET_POST_THREADINFO(sd->_thread);
+    void *result = gasneti_alloc_perthread_medium_buffer(isReq GASNETI_THREAD_PASS);
     return (sd->_gex_buf = sd->_addr = result);
 }
 
@@ -505,12 +476,8 @@ GASNETI_INLINE(gasneti_free_npam_buffer)
 void gasneti_free_npam_buffer(gasneti_AM_SrcDesc_t sd)
 {
     gasneti_assert(sd->_tofree);
-    if (GASNETI_NPAM_USING_PERTHREAD(sd)) {
-        GASNET_POST_THREADINFO(sd->_thread);
-        gasneti_free_perthread_medium_buffer(sd->_tofree, sd->_isreq GASNETI_THREAD_PASS);
-    } else {
-        gasneti_free(sd->_tofree);
-    }
+    GASNET_POST_THREADINFO(sd->_thread);
+    gasneti_free_perthread_medium_buffer(sd->_tofree, sd->_isreq GASNETI_THREAD_PASS);
     sd->_tofree = NULL;
 }
 
@@ -812,18 +779,18 @@ int gasnetc_loopback_prepare_inner(
   if (isFixed) {
     sd->_addr = (/*non-const*/void *)client_buf;
   } else {
-    const size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_NBRHD : GASNETC_MAX_MEDIUM_NBRHD;
-    const size_t size = MIN(limit, most_payload);
-    sd->_size = size;
-
     if (client_buf) {
+      size_t limit = (category == gasneti_Medium) ? GASNETC_REF_NPAM_MAX_ALLOC : GASNETC_MAX_LONG_NBRHD;
+      sd->_size = MIN(limit, most_payload);
       sd->_addr = (/*non-const*/void *)client_buf;
       gasneti_leaf_finish(lc_opt);
     } else if (category == gasneti_Medium) {
       // NPAM Medium with GASNet-allocated buffer
+      sd->_size = MIN(GASNETC_REF_NPAM_MAX_ALLOC, most_payload);
       sd->_addr = sd->_gex_buf = sd->_void_p;
     } else {
       // NPAM Long with GASNet-allocated buffer
+      sd->_size = MIN(GASNETC_REF_NPAM_MAX_ALLOC, most_payload);
       sd->_tofree = gasneti_alloc_npam_buffer(sd, isReq);
     }
   }

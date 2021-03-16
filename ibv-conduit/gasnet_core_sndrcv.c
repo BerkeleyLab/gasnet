@@ -534,7 +534,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 	size_t nbytes = buf->longmsg.nBytes & 0x7fffffff;
 	if (buf->longmsg.nBytes & 0x80000000) {
 	  /* Must relocate the payload which is packed like a Medium. */
-	  gasneti_assert(nbytes <= GASNETC_MAX_PACKEDLONG);
+	  gasneti_assert(nbytes <= GASNETC_MAX_PACKEDLONG_(user_numargs));
 	  GASNETI_MEMCPY(data, GASNETC_MSG_LONG_DATA(buf, full_numargs), (size_t)nbytes);
 	}
         GASNETI_RUN_HANDLER_LONG(isreq,handler_id,handler_fn,token,args,user_numargs,data,(size_t)nbytes);

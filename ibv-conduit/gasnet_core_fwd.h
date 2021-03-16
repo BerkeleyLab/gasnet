@@ -23,6 +23,12 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_IBV       1
 
+#if defined(GASNET_SEGMENT_FAST)
+  #define GASNETC_PIN_SEGMENT 1
+#else
+  #define GASNETC_PIN_SEGMENT 0
+#endif
+
 // Size of a buffer to contain any AM with all its header, padding and payload
 #define GASNETC_BUFSZ GASNETC_IBV_MAX_MEDIUM
 
@@ -86,8 +92,10 @@
    */
 #define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1
 #define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM 1
-/* #define GASNET_NATIVE_NP_ALLOC_REQ_LONG 1 */
-/* #define GASNET_NATIVE_NP_ALLOC_REP_LONG 1 */
+#if GASNETC_PIN_SEGMENT
+#define GASNET_NATIVE_NP_ALLOC_REQ_LONG 1
+#define GASNET_NATIVE_NP_ALLOC_REP_LONG 1
+#endif
 
   /* uncomment for each GASNET_NATIVE_NP_ALLOC_* enabled above if the Commit function
      has the numargs argument even in an NDEBUG build (it is always passed in
@@ -95,11 +103,14 @@
    */
 #define GASNETC_AM_COMMIT_REQ_MEDIUM_NARGS 1
 #define GASNETC_AM_COMMIT_REP_MEDIUM_NARGS 1
-//#define GASNETC_AM_COMMIT_REQ_LONG_NARGS 1
-//#define GASNETC_AM_COMMIT_REP_LONG_NARGS 1
+#if GASNETC_PIN_SEGMENT
+#define GASNETC_AM_COMMIT_REQ_LONG_NARGS 1
+#define GASNETC_AM_COMMIT_REP_LONG_NARGS 1
+#endif
 
 #define GASNETI_AM_SRCDESC_EXTRA \
         int                 _have_flow;         \
+        int                 _head_len;          \
         void *              _buf_alloc;         \
         void *              _cep;               \
         void *              _ep;                \
@@ -112,12 +123,6 @@
      Used if (and only if) any of the GASNET_NATIVE_NP_ALLOC_* values above are unset.
    */
 /* #define GASNETC_REQUESTV_POLLS 1 */
-
-#if defined(GASNET_SEGMENT_FAST)
-  #define GASNETC_PIN_SEGMENT 1
-#else
-  #define GASNETC_PIN_SEGMENT 0
-#endif
 
   // uncomment if conduit provides a gasnetc-prefixed override
   // TODO: this should be a hook rather than an override
