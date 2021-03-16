@@ -100,6 +100,8 @@ GASNet-EX ChangeLog
   - bug4141: SRQ-specific test failures
   - bug4145: Vector/Indexed incorrect with non-primordial teams and loopback/PSHM
   - bug4122: ODP support broken with recent libibverbs releases
+  - bug4126: ibv: debug-only exit timeout for large multi-rail jobs on Summit
+  - bug4166: ibv: debug-only crash at exit from an MPI hybrid application
   - bug4173: ibv: race in firehose on powerpc
   - bug4175: thread-safety of gex_EP_RegisterHandlers()
   - bug4194: ibv: unnecessarily slow startup

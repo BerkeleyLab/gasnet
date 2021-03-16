@@ -79,7 +79,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
  * ENOSPC from ibv_create_cq() after a few thousand tests have run.
  * So, we will make a best-effort to at least destroy QPs and CQs.
  */
-#if PLATFORM_OS_SOLARIS || GASNET_DEBUG
+#if PLATFORM_OS_SOLARIS || GASNETC_IBV_QUIESCE
   #define GASNETC_IBV_SHUTDOWN 1
 #endif
 
