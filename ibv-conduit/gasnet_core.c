@@ -4327,7 +4327,7 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
         void *data = (void*)((uintptr_t)buf + head_len);
         gasneti_assert_ptr(data ,==, GASNETC_MSG_MED_DATA(buf, numargs + have_flow));
         gasneti_assert_uint(copy_len ,==, nbytes);
-        GASNETI_MEMCPY_SAFE(data, src_addr, copy_len);
+        GASNETI_MEMCPY(data, src_addr, copy_len);
       }
       break;
   
@@ -4344,7 +4344,7 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
           void *data = (void*)((uintptr_t)buf + head_len);
           gasneti_assert_ptr(data ,==, GASNETC_MSG_LONG_DATA(buf, numargs + have_flow));
           gasneti_assert_uint(copy_len ,==, nbytes);
-          GASNETI_MEMCPY_SAFE(data, src_addr, copy_len);
+          GASNETI_MEMCPY(data, src_addr, copy_len);
         } else {
           gasneti_assert_uint(gath_len ,==, nbytes);
         }
