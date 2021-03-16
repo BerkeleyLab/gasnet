@@ -51,6 +51,17 @@ int main(int argc, char **argv)
   int seed = 0;
   int rc;
 
+#if GASNET_CONDUIT_IBV
+  { // These settings are a hack to avoid triggering known bugs/limitations,
+    // by disabling multiple paths.  See bug 4148.
+    // Both of these variables can have potentially serious negative impacts
+    // on performance, and should not be used in general.
+    // As noted above "One should not clone the logic in this test".
+    setenv("GASNET_SUPERNODE_MAXSIZE", "1", 0 /* NO overwrite if already set */);
+    setenv("GASNET_NUM_QPS", "1", 0 /* NO overwrite if already set */);
+  }
+#endif
+
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcudauva", &argc, &argv, 0));
 
   test_init("testcudauva", 0, "[options] (size) (seed)\n"
