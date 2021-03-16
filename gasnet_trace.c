@@ -611,7 +611,7 @@ void gasneti_format_magic(char *buf, uint64_t magic) {
         if (gasneti_statsfile) 
           gasneti_file_output(gasneti_statsfile, time, type, msg, traceheader);
         #if GASNETI_STATS_ECHOED_TO_TRACEFILE
-        if (gasneti_tracefile) /* stat output also goes to trace */
+        if (gasneti_tracefile && gasneti_tracefile != gasneti_statsfile) /* stat output also goes to trace */
           gasneti_file_output(gasneti_tracefile, time, type, msg, traceheader);
         #endif
       gasneti_mutex_unlock(&gasneti_tracelock);
@@ -623,7 +623,7 @@ void gasneti_format_magic(char *buf, uint64_t magic) {
       gasneti_mutex_lock(&gasneti_tracelock);
         if (gasneti_statsfile) 
           gasneti_file_output(gasneti_statsfile, time, type, msg, traceheader);
-        if (gasneti_tracefile) 
+        if (gasneti_tracefile && gasneti_tracefile != gasneti_statsfile) 
           gasneti_file_output(gasneti_tracefile, time, type, msg, traceheader);
       gasneti_mutex_unlock(&gasneti_tracelock);
     }
@@ -665,7 +665,7 @@ void gasneti_format_magic(char *buf, uint64_t magic) {
         va_end(argptr);
       }
       #if GASNETI_STATS_ECHOED_TO_TRACEFILE
-      if (gasneti_tracefile) { /* stat output also goes to trace */
+      if (gasneti_tracefile && gasneti_tracefile != gasneti_statsfile) { /* stat output also goes to trace */
         va_start(argptr, format); /*  pass in last argument */
         gasneti_file_vprintf(gasneti_tracefile, format, argptr);
         va_end(argptr);
@@ -683,7 +683,7 @@ void gasneti_format_magic(char *buf, uint64_t magic) {
         gasneti_file_vprintf(gasneti_statsfile, format, argptr);
         va_end(argptr);
       }
-      if (gasneti_tracefile) {
+      if (gasneti_tracefile && gasneti_tracefile != gasneti_statsfile) {
         va_start(argptr, format); /*  pass in last argument */
         gasneti_file_vprintf(gasneti_tracefile, format, argptr);
         va_end(argptr);
