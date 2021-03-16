@@ -559,6 +559,11 @@ void gasneti_format_magic(char *buf, uint64_t magic) {
     if (gasneti_autoflush) fflush(fp);      \
   } while (0)
 
+  static void gasneti_tracestats_forceflush() {
+    if (gasneti_statsfile) fflush(gasneti_statsfile);
+    if (gasneti_tracefile) fflush(gasneti_tracefile);
+  }
+
   /* private helper for gasneti_trace/stats_output */
   static void gasneti_file_output(FILE *fp, double time, const char *type, const char *msg, int traceheader) {
     gasneti_mutex_assertlocked(&gasneti_tracelock);
@@ -1272,7 +1277,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   gasneti_tracestats_printf("Timer granularity: ~ %.3f us, overhead: ~ %.3f us",
    gasneti_tick_granularity(), gasneti_tick_overhead());
 
-  fflush(NULL);
+  gasneti_tracestats_forceflush();
  #endif /* GASNETI_STATS_OR_TRACE */
 
  #if GASNET_DEBUGMALLOC
@@ -1447,7 +1452,7 @@ extern void gasneti_stats_dump(int reset) {
 
   if (reset) gasneti_tracestats_output("U","Stats have been RESET at client request.",1);
 
-  fflush(NULL);
+  gasneti_tracestats_forceflush();
 
   memcpy(gasneti_statstypes, statstypes_tmp, GASNETI_MAX_MASKBITS); // restore
   gasneti_mutex_unlock(&stats_dump_lock);
@@ -1462,8 +1467,8 @@ extern void gasneti_trace_finish(void) {
 
     double time = gasneti_ticks_to_ns(gasneti_ticks_now() - starttime) / 1.0E9;
     gasneti_tracestats_printf("Total application run time: %10.6fs", time);
+    gasneti_tracestats_forceflush();
 
-    fflush(NULL);
     gasneti_stats_dump(0);
 
     gasneti_mutex_lock(&gasneti_tracelock);
