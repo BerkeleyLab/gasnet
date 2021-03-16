@@ -306,7 +306,7 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
 /* ------------------------------------------------------------------------------------ */
 /* common logic for Negotiated Payload AMs */
 
-// Common argument processing and trace/stats
+// Common argument processing, debug checks and trace/stats
 #if GASNET_DEBUG
   extern void gasneti_init_sd_poison(gasneti_AM_SrcDesc_t sd);
   extern int gasneti_test_sd_poison(void *addr, size_t len);
@@ -418,6 +418,18 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
       GASNETI_TRACE_COMMIT_REPLY##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs);   \
       _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat);                      \
     } while(0)
+
+  #define GASNETI_CHECK_SD(cbuf, least_payload, most_payload, sd) \
+    do {                                                                               \
+      if (!sd) break;                                                                  \
+      if (cbuf) {                                                                      \
+        gasneti_assert(sd->_addr == cbuf);                                             \
+      } else {                                                                         \
+        gasneti_assert(0 == (((uintptr_t) sd->_addr) % GASNETI_MEDBUF_ALIGNMENT));     \
+      }                                                                                \
+      gasneti_assert(sd->_size >= least_payload);                                      \
+      gasneti_assert(sd->_size <= most_payload);                                       \
+    } while(0)
 #else
   #define gasneti_init_sd_poison(sd) ((void)0)
 
@@ -436,6 +448,7 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
           GASNETI_TRACE_COMMIT_REQUEST##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs)
   #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs_arg,cat) \
           GASNETI_TRACE_COMMIT_REPLY##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs)
+  #define GASNETI_CHECK_SD(cbuf, least_payload, most_payload, sd) ((void)0)
 #endif
 
 #define GASNETI_TRACE_COMMIT_REQUESTMedium(handler,source_addr,nbytes,dest_addr,numargs) \
