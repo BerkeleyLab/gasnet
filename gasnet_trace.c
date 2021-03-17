@@ -726,14 +726,15 @@ extern FILE *gasneti_open_outputfile(const char *filename, const char *desc) {
     #endif
     }
     if (!fp) {
-      fprintf(stderr, "ERROR: Failed to open '%s' for %s output (%s). Redirecting output to stderr.\n",
+      gasneti_console_message("ERROR",
+              "Failed to open '%s' for %s output (%s). Redirecting output to stderr.\n",
               filename, desc, strerror(errno));
       filename = "stderr";
       fp = stderr;
     }
   }
-  fprintf(stderr, "GASNet reporting enabled - %s output directed to %s\n", 
-          desc, filename);
+  gasneti_console_message("GASNet reporting enabled", 
+                          "%s output directed to %s\n", desc, filename);
   return fp;
 }
 
@@ -1259,14 +1260,9 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   #endif
 
   #if GASNET_NDEBUG
-  { const char *NDEBUG_warning =
-     "WARNING: tracing/statistical collection may adversely affect application performance.";
-    gasneti_tracestats_printf("%s",NDEBUG_warning);
-    if (gasneti_tracefile != stdout && gasneti_tracefile != stderr &&
-        gasneti_statsfile != stdout && gasneti_statsfile != stderr) {
-      fputs(NDEBUG_warning,stderr);
-      fputs("\n",stderr);
-    }
+  { const char *NDEBUG_warning = "tracing/statistical collection may adversely affect application performance.";
+    gasneti_tracestats_printf("WARNING: %s", NDEBUG_warning);
+    if (!gasneti_mynode) gasneti_console_message("WARNING", NDEBUG_warning);
   }
   #endif
 
@@ -1282,17 +1278,11 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
 
  #if GASNET_DEBUGMALLOC
   #if GASNET_NDEBUG
-  { const char *NDEBUG_warning =
-     "WARNING: debugging malloc may adversely affect application performance.";
+  { const char *NDEBUG_warning = "debugging malloc may adversely affect application performance.";
    #if GASNETI_STATS_OR_TRACE
-    gasneti_tracestats_printf(NDEBUG_warning);
-    if (gasneti_tracefile != stdout && gasneti_tracefile != stderr &&
-        gasneti_statsfile != stdout && gasneti_statsfile != stderr)
+    gasneti_tracestats_printf("WARNING: %s", NDEBUG_warning);
    #endif
-    {
-      fputs(NDEBUG_warning,stderr);
-      fputs("\n",stderr);
-    }
+   if (!gasneti_mynode) gasneti_console_message("WARNING", NDEBUG_warning);
   }
   #endif
   gasneti_mallocreport_filename = gasneti_getenv_withdefault("GASNET_MALLOCFILE","");
