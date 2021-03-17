@@ -582,16 +582,17 @@ static void gasnetc_traceoutput(int exitcode) {
     gasneti_trace_finish();
   }
 }
-extern void gasnetc_trace_finish(void) {
+extern void gasnetc_stats_dump(int reset) {
   /* dump AMUDP statistics */
-  if (GASNETI_STATS_ENABLED(C) ) {
+  if (GASNETI_STATS_ENABLED(C) || reset) {
     const char *statdump;
     int isglobal = 0;
     int retval = 0;
     amudp_stats_t stats = AMUDP_initial_stats;
 
     /* bug 2181 - lock state is unknown, eg we may be in handler context */
-    AMLOCK_CAUTIOUS();
+    int shouldunlock;
+    AMLOCK_CAUTIOUS(shouldunlock);
 
     if (isglobal) {
       /* TODO: tricky bit - if this exit is collective, we can display more interesting and useful
@@ -613,8 +614,10 @@ extern void gasnetc_trace_finish(void) {
     } else {
         GASNETI_AM_SAFE_NORETURN(retval, AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
     }
+    if (reset && !retval) 
+      GASNETI_AM_SAFE_NORETURN(retval, AMUDP_ResetEndpointStatistics(gasnetc_endpoint));
 
-    if ((gasneti_mynode == 0 || !isglobal) && !retval) {
+    if (GASNETI_STATS_ENABLED(C) && (gasneti_mynode == 0 || !isglobal) && !retval) {
       GASNETI_STATS_PRINTF(C,("--------------------------------------------------------------------------------"));
       GASNETI_STATS_PRINTF(C,("AMUDP Statistics:"));
       if (!isglobal)
@@ -623,6 +626,7 @@ extern void gasnetc_trace_finish(void) {
       GASNETI_STATS_PRINTF(C,("\n%s",statdump)); /* note, dump has embedded '%' chars */
       GASNETI_STATS_PRINTF(C,("--------------------------------------------------------------------------------"));
     }
+    if (shouldunlock) AMUNLOCK();
   }
 }
 extern void gasnetc_fatalsignal_callback(int sig) {
@@ -657,7 +661,8 @@ extern void gasnetc_exit(int exitcode) {
   /* bug2181: try to prevent races where we exit while other local pthreads are in AMUDP
      can't use a blocking lock here, because may be in a signal context
   */
-  AMLOCK_CAUTIOUS();
+  int dummy;
+  AMLOCK_CAUTIOUS(dummy);
 
   AMUDP_SPMDExit(exitcode);
   gasneti_fatalerror("AMUDP_SPMDExit failed!");

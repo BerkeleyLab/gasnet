@@ -96,6 +96,11 @@ GASNet-EX ChangeLog
 
 * GASNet tools (spec v1.17)
   - Add GASNETT_UNUSED_ARGS*() family of macros
+  - Added documentation for an interface providing programmatic control
+    of stats/trace features in conduit-mode libraries. Details: see README-tools.
+  - Add GASNETT_STATS_DUMP() to allow dumping and optionally resetting stats
+    counters at runtime. 
+  - Add GASNETT_STATS_PRINTF(_FORCE)() to generate stats output.
 
 * Notable bugs fixed in this release:
   - bug4159: AM max-payload queries do not evaluate arguments
