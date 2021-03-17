@@ -210,6 +210,7 @@ static struct fds {
 static int parent = -1; /* socket */
 static gex_Rank_t myrank = 0;
 static int myname = -1;
+static char my_host[1024] = "[unknown hostname]";
 static int children = 0;
 static int ctrl_children = 0;
 static gex_Rank_t tree_ranks = GEX_RANK_INVALID;
@@ -495,7 +496,10 @@ static void reap_one(pid_t pid, int status)
 				  myname, kind, child[j].rank, tmp, fini));
           if (!sock && (j < ctrl_children)) { // Ctrl proc which did not yet connect
             const char *host = child[j].nodelist ? child[j].nodelist[0] : nodelist[0];
-            fprintf(stderr, "*** Failed to start processes on %s\n", host);
+            fprintf(stderr, "*** Failed to start processes on %s, possibly due to an "
+                            "inability to establish an ssh connection from %s without "
+                            "interactive authentication.\n",
+                            host, my_host);
           }
 	} else if (WIFSIGNALED(status)) {
           int tmp = WTERMSIG(status);
@@ -1643,7 +1647,6 @@ static void spawn_rank(int argc, char **argv) {
 
 /* Spawn control procs via ssh (or fork() when possible) */
 static void spawn_ctrl(int argc, char **argv) {
-  static char my_host[1024];
   char *cmdline = quote_arg(argv[0]);
   int j;
 

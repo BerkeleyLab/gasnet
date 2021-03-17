@@ -114,6 +114,7 @@ GASNet-EX ChangeLog
   - bug4175: thread-safety of gex_EP_RegisterHandlers()
   - bug4194: ibv: unnecessarily slow startup
   - bug4195: ibv dynamic connection support broken
+  - bug4203: Improve error message when passwordless ssh isn't set up
 
 * Removal of unmaintained platform support
   - This release no longer supports the following platforms:
