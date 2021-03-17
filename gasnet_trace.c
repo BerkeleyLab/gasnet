@@ -52,49 +52,63 @@ FILE *gasneti_statsfile = NULL;
 static gasneti_tick_t starttime;
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+// Tools tracing interface support
+
 #if GASNET_STATS
   void (*gasnett_stats_callback)(
     GASNETI_FORMAT_PRINTF_FUNCPTR_ARG(format,1,2,void (*format)(const char *, ...))
   ) = NULL;
 #endif
 
-
 static int _gasnett_trace_enabled_body(char tracecat) {
   return GASNETI_TRACE_ENABLED(tracecat);
 }
 int (*_gasnett_trace_enabled)(char tracecat) = &_gasnett_trace_enabled_body;
 
-#if GASNET_TRACE
-  #define TMPBUFSZ 1024
-  #define _GASNETT_TRACE_PRINTF_DOIT(cat) do {                                 \
+#ifndef TMPBUFSZ
+#define TMPBUFSZ 1024
+#endif
+#define _GASNETT_TS_PRINTF_DOIT(TS,cat) do {                                   \
     char output[TMPBUFSZ];                                                     \
-    if (GASNETI_TRACE_ENABLED(cat)) { /* skip some varargs overhead */         \
+    if (TS##_ENABLED(cat)) { /* skip some varargs overhead */                  \
       va_list argptr;                                                          \
       va_start(argptr, format); /*  pass in last argument */                   \
         { int sz = vsnprintf(output, TMPBUFSZ, format, argptr);                \
           if (sz >= (TMPBUFSZ-5) || sz < 0) strcpy(output+(TMPBUFSZ-5),"..."); \
         }                                                                      \
       va_end(argptr);                                                          \
-      GASNETI_TRACE_MSG(cat, output);                                            \
+      TS##_MSG(cat, output);                                                   \
     }                                                                          \
   } while (0)
 
+#if GASNET_TRACE
   GASNETI_FORMAT_PRINTF(_gasnett_trace_printf_body,1,2,
   static void _gasnett_trace_printf_body(const char *format, ...)) {
-    _GASNETT_TRACE_PRINTF_DOIT(H);
+    _GASNETT_TS_PRINTF_DOIT(GASNETI_TRACE,H);
   }
   GASNETI_FORMAT_PRINTF(_gasnett_trace_printf_force_body,1,2,
   static void _gasnett_trace_printf_force_body(const char *format, ...)) {
-    _GASNETT_TRACE_PRINTF_DOIT(U);
+    _GASNETT_TS_PRINTF_DOIT(GASNETI_TRACE,U);
   }
   GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf,1,2,
   void (*_gasnett_trace_printf)(const char *format, ...)) = _gasnett_trace_printf_body;
   GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf_force,1,2,
   void (*_gasnett_trace_printf_force)(const char *format, ...)) = _gasnett_trace_printf_force_body;
-
-  #undef _GASNETT_TRACE_PRINTF_DOIT
-  #undef TMPBUFSZ
 #endif
+
+#if GASNET_STATS
+  GASNETI_FORMAT_PRINTF(_gasnett_stats_printf,1,2,
+  extern void _gasnett_stats_printf(const char *format, ...)) {
+    _GASNETT_TS_PRINTF_DOIT(GASNETI_STATS,H);
+  }
+  GASNETI_FORMAT_PRINTF(_gasnett_stats_printf_force,1,2,
+  extern void _gasnett_stats_printf_force(const char *format, ...)) {
+    _GASNETT_TS_PRINTF_DOIT(GASNETI_STATS,U);
+  }
+#endif
+#undef _GASNETT_TRACE_PRINTF_DOIT
+#undef TMPBUFSZ
 
 /* ------------------------------------------------------------------------------------ */
 /* VIS trace formatting - these are legal even without STATS/TRACE */
