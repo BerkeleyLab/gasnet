@@ -486,6 +486,7 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
   #undef CHECK_MAX
   gex_AM_ReplyShort0(token, sizecheck_handlers[1].gex_index, 0);
 
+#if !PLATFORM_COMPILER_XLC // Skip due to external bug 4205
   // verify that payload queries evalute their args exactly once
   #define CHECK_TOKEN_MAX_EVAL(cat) \
     do { \
@@ -496,6 +497,7 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
   CHECK_TOKEN_MAX_EVAL(Medium);
   CHECK_TOKEN_MAX_EVAL(Long);
   #undef CHECK_TOKEN_MAX_EVAL
+#endif
 }
 gasnett_atomic_t sizecheck_ack = gasnett_atomic_init(0);
 GASNETT_EXTERNC void sizecheck_reph(gex_Token_t token) {
@@ -879,6 +881,7 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_AM_LUBRequestLong() >= 512);
   assert_always(gex_AM_LUBReplyLong() >= 512);
 
+#if !PLATFORM_COMPILER_XLC // Skip due to external bug 4205
   // verify that payload queries evalute their args exactly once
   #define CHECK_AM_MAX_EVAL(name) \
     do { \
@@ -891,6 +894,7 @@ void doit(int partner, int *partnerseg) {
   CHECK_AM_MAX_EVAL(ReplyMedium);
   CHECK_AM_MAX_EVAL(ReplyLong);
   #undef CHECK_AM_MAX_EVAL
+#endif
 
   static int firsttime = 1;
   if (firsttime) {
