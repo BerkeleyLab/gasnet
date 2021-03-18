@@ -1700,7 +1700,6 @@ extern gasnetc_cep_t *
 gasnetc_connect_to(gasnetc_EP_t ep, gex_Rank_t node)
 {
   gasnetc_cep_t *result = NULL;
-  gasneti_assert(ep == gasnetc_ep0); // TODO: multi-EP support
 
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   do {
