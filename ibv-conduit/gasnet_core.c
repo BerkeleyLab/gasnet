@@ -1607,7 +1607,7 @@ static void gasnetc_probe_ports(int max_ports) {
 #endif
 
   if ((ib_hcas > GASNETC_IB_MAX_HCAS) && (gasnetc_port_list == NULL)) {
-#if GASNETC_IBV_MAX_HCAS
+#if GASNETC_IBV_MAX_HCAS_CONFIGURE
     const char *current = "with '--with-ibv-max-hcas=" _STRINGIFY(GASNETC_IB_MAX_HCAS) "'";
 #else
     const char *current = "without multi-rail support";
