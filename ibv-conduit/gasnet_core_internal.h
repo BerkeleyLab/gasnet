@@ -776,6 +776,7 @@ typedef union {
 
 /* Routines in gasnet_core_connect.c */
 #if GASNETC_IBV_XRC
+extern size_t gasnetc_xrc_preinit(const uint16_t *remote_lids);
 extern int gasnetc_xrc_init(void **shared_mem_p);
 #endif
 extern int gasnetc_connect_init(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?

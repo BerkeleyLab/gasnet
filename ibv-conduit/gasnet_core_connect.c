@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <limits.h> // INT_MAX
 
 /*
   The following configuration cannot yet be overridden by environment variables.
@@ -182,8 +183,20 @@ typedef struct gasnetc_xrc_snd_qp_s {
 } gasnetc_xrc_snd_qp_t;
 
 static gasnetc_xrc_snd_qp_t *gasnetc_xrc_snd_qp = NULL;
-#define GASNETC_NODE2SND_QP(_node) \
-	(&gasnetc_xrc_snd_qp[gasneti_node2supernode(_node) * gasnetc_alloc_qps])
+#if GASNET_MAXNODES <= 65535
+static uint16_t *gasnetc_xrcd_map = NULL;
+#else
+static uint32_t *gasnetc_xrcd_map = NULL;
+#endif
+static int gasnetc_xrcd_simple;
+
+static gasnetc_xrc_snd_qp_t *
+gasnetc_node2snd_qp(gex_Rank_t rank) {
+  if (!gasnetc_use_xrc) return NULL;
+  int idx = gasnetc_xrcd_simple ? gasneti_node2supernode(rank) : gasnetc_xrcd_map[rank];
+  return gasnetc_xrc_snd_qp + (idx * gasnetc_alloc_qps);
+}
+#define GASNETC_NODE2SND_QP(rank) gasnetc_node2snd_qp(rank)
 
 static uint32_t *gasnetc_xrc_rcv_qpn = NULL;
 
@@ -289,15 +302,26 @@ gasnetc_xrc_modify_qp(
 
 /* XXX: Requires that at least the first call is collective */
 static char*
-gasnetc_xrc_tmpname(uint16_t mylid, int index) {
+gasnetc_xrc_tmpname(uint16_t mylid, int index, int domain) {
   static const char *tmpdir = NULL;
   static int tmpdir_len = -1;
   static pid_t pid;
-  static const char pattern[] = "/GASNETxrc-%04x%01x-%06x"; /* Max 11 + 5 + 1 + 6 + 1 = 24 */
-  const int filename_len = 24;
+  static const char pattern[] = "/GASNETxrc-%04x%01x%02x-%06x"; /* Max 11 + 7 + 1 + 6 + 1 = 26 */
+  const int filename_len = 26;
   char *filename;
 
-  gasneti_assert(index >= 0  &&  index <= 16);
+  // At most 16 HCAs per process
+  gasneti_assert_always(index >= 0);
+  gasneti_assert_always_uint(index ,<, 16);
+
+  // At most 256 XRC domains per supernode
+  // Worst case for `n` HCAs per host with `r` open per process is `C(n,r)` possible
+  // domains per host, where `C()` is "combinations of n pick r" = `n! / ( n! * (n-r)! )`.
+  // The maximum over `r` occurs at `r = floor(n/2)`.
+  // For n=10 this yields 252 possible domains, meaning that with current encoding,
+  // we are assured of handling any configuration with no more than ten HCAs per host.
+  gasneti_assert_always(domain >= 0);
+  gasneti_assert_always_uint(domain ,<, 256);
 
   /* Initialize tmpdir and pid only on first call */
   if (!tmpdir) {
@@ -318,13 +342,123 @@ gasnetc_xrc_tmpname(uint16_t mylid, int index) {
           pattern,
           (unsigned int)(mylid & 0xffff),
           (unsigned int)(index & 0xf),
+          (unsigned int)(domain & 0xf),
           (unsigned int)(pid & 0xffffff));
   gasneti_assert(strlen(filename) < (tmpdir_len + filename_len));
 
   return filename;
 }
 
-/* Create an XRC domain per HCA (once per supernode) and a shared RCV QPN table */
+// XRD domain (xrcd) info
+static int gasnetc_xrcd_global_count; // Number of XRC domains in the entire job
+static int gasnetc_xrcd_local_count;  // Number of XRC domains in my supernode
+static int gasnetc_xrcd_local_rank;   // Rank of my XRC domain within my suprnode
+static int gasnetc_xrcd_iam_leader;   // Boolean, true in exactly one proc per XRC domain
+
+// qsort comparison fn
+static const uint16_t *gasnetc_xrc_remote_lids;
+static int _gasnetc_xrc_compare_keys(gex_Rank_t a_r, gex_Rank_t b_r) {
+  // Primary key is supernode
+  int a_s = gasneti_node2supernode(a_r);
+  int b_s = gasneti_node2supernode(b_r);
+  int result = (a_s - b_s);
+  if (result) return result;
+
+  // Secondary key is the array of gasnetc_num_ports lids
+  return memcmp(gasnetc_xrc_remote_lids + a_r * gasnetc_num_ports,
+                gasnetc_xrc_remote_lids + b_r * gasnetc_num_ports,
+                sizeof(uint16_t) * gasnetc_num_ports);
+}
+static int _gasnetc_xrc_compare_fn(const void *a_p, const void *b_p) {
+  gasneti_static_assert(GASNET_MAXNODES < INT_MAX);
+  gex_Rank_t a_r = *(gex_Rank_t *)a_p;
+  gex_Rank_t b_r = *(gex_Rank_t *)b_p;
+
+  // Compare the keys
+  int result = _gasnetc_xrc_compare_keys(a_r, b_r);
+  if (result) return result;
+
+  // tie-break using the rank itself
+  return (int)a_r - (int)b_r;
+}
+
+// Compute XRC domain mebership
+// Return size of shared memory required for its management
+extern size_t
+gasnetc_xrc_preinit(const uint16_t *remote_lids) {
+  // Map the xrc domains, where each is a unique (supernode, lids[]) tuple
+  // We cannot map by just lids[] due to GASNET_SUPERNODE_MAX (or GASNETI_PSHM_MAX_NODES)
+  // We don't form the actual keys in memory, and instead just permute an array of ranks
+  gasnetc_xrc_remote_lids = remote_lids;
+  gex_Rank_t *map = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
+  for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) map[i] = i;
+  qsort(map, gasneti_nodes, sizeof(gex_Rank_t), _gasnetc_xrc_compare_fn);
+
+  // Allocate gasnetc_xrcd_map[], which is mapping from rank to a global
+  // xrc domain number, used to index into gasnetc_xrc_snd_qp[].
+  // This will move to shared memory after PSHM has been initialized
+  if (!gasneti_mysupernode.node_rank) {
+    gasnetc_xrcd_map = gasneti_malloc(gasneti_nodes * sizeof(*gasnetc_xrcd_map));
+  }
+
+  // Make a single pass over the sorted array to do the following:
+  // + populate gasnetc_xrcd_map[] (one per supernode)
+  // + count the number of xrc domains (distinct keys) globally
+  // + count the number of xrc domains local to this supernode
+  // + find which of the local xrc domains I belong to
+  // + determine if I am the leader (lowest ranked member) of my xrc domain
+  // Use the _gasnetc_xrc_compare_keys() for sanity
+  gasnetc_xrcd_global_count = 0;
+  gasnetc_xrcd_local_count = 0;
+  gasnetc_xrcd_iam_leader = 0;
+  for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+    gex_Rank_t curr = map[i];
+    if (!i || _gasnetc_xrc_compare_keys(curr, map[i-1])) { // First instance of this key
+      ++gasnetc_xrcd_global_count;
+      if (gasneti_node2supernode(curr) == gasneti_mysupernode.grp_rank) { // in local supernode
+        ++gasnetc_xrcd_local_count;
+      }
+      if (curr == gasneti_mynode) {
+        gasnetc_xrcd_iam_leader = 1;
+      }
+    }
+    if (curr == gasneti_mynode) {
+      gasnetc_xrcd_local_rank = gasnetc_xrcd_local_count - 1;
+    }
+    if (gasnetc_xrcd_map) {
+      gasnetc_xrcd_map[curr] = gasnetc_xrcd_global_count - 1;
+    }
+  }
+  gasneti_free(map);
+
+  // Do we have the simple case of one XRC domain per supernode?
+  gasnetc_xrcd_simple = (gasnetc_xrcd_global_count == gasneti_mysupernode.grp_count);
+  if (gasnetc_xrcd_simple) {
+    gasneti_assert_int(gasnetc_xrcd_local_rank ,==, 0);
+    gasneti_assert_int(gasnetc_xrcd_local_count ,==, 1);
+    if (gasnetc_xrcd_map) {
+      gasneti_free(gasnetc_xrcd_map);
+      gasnetc_xrcd_map = NULL;
+    }
+  }
+
+  GASNETI_TRACE_PRINTF(I, ("Identified %d XRC domains globaly%s",
+                           gasnetc_xrcd_global_count,
+                           gasnetc_xrcd_simple?", one per supernode (simple case)":""));
+  GASNETI_TRACE_PRINTF(I, ("I am %s of XRC domain %d of %d within my supernode",
+                            gasnetc_xrcd_iam_leader?"the leader":"a member",
+                            gasnetc_xrcd_local_rank, gasnetc_xrcd_local_count));
+
+  // *May* need a single gasnetc_xrcd_map[]...
+  size_t xrcd_map_bytes = gasnetc_xrcd_simple ? 0 : (gasneti_nodes * sizeof(*gasnetc_xrcd_map));
+  // ... plus a full gasnetc_xrc_rcv_qpn[] per local xrc domain...
+  size_t xrc_rcv_qpn_bytes = gasneti_nodes * gasnetc_alloc_qps * sizeof(uint32_t);
+  // .. and we cache pad each
+  return GASNETI_ALIGNUP(xrcd_map_bytes, GASNETI_CACHE_LINE_BYTES) +
+         GASNETI_ALIGNUP(xrc_rcv_qpn_bytes * gasnetc_xrcd_local_count, GASNETI_CACHE_LINE_BYTES);
+}
+
+/* Create an XRC domain per HCA and a shared RCV QPN table */
 /* XXX: Requires that the call is collective */
 extern int
 gasnetc_xrc_init(void **shared_mem_p) {
@@ -332,10 +466,22 @@ gasnetc_xrc_init(void **shared_mem_p) {
   char *filename[GASNETC_IB_MAX_HCAS];
   int index, fd;
 
+  if (! gasnetc_xrcd_simple) {
+    // We lack 1-to-1 correspondence between supernode and XRC domains,
+    // but at least we can share a single gasnetc_xrcd_map[] per supernode.
+    size_t xrcd_map_bytes = gasneti_nodes * sizeof(*gasnetc_xrcd_map);
+    if (gasnetc_xrcd_map) { // built once per supernode in preinit
+      memcpy(*shared_mem_p, gasnetc_xrcd_map, xrcd_map_bytes);
+      gasneti_free(gasnetc_xrcd_map);
+    }
+    gasnetc_xrcd_map = *shared_mem_p;
+    *shared_mem_p = (void *)GASNETI_ALIGNUP((uintptr_t)(*shared_mem_p) + xrcd_map_bytes, GASNETI_CACHE_LINE_BYTES);
+  }
+
   /* Use per-supernode filename to create common XRC domain once per HCA */
   GASNETC_FOR_ALL_HCA_INDEX(index) {
     gasnetc_hca_t *hca = &gasnetc_hca[index];
-    filename[index] = gasnetc_xrc_tmpname(mylid, index);
+    filename[index] = gasnetc_xrc_tmpname(mylid, index, gasnetc_xrcd_local_rank);
     fd = open(filename[index], O_CREAT, S_IWUSR|S_IRUSR);
     if (fd < 0) {
       gasneti_fatalerror("failed to create xrc domain file '%s': %d:%s", filename[index], errno, strerror(errno));
@@ -360,13 +506,15 @@ gasnetc_xrc_init(void **shared_mem_p) {
     (void) close(fd);
   }
 
-  /* Place RCV QPN table in shared memory */
-  gasnetc_xrc_rcv_qpn = (uint32_t *)(*shared_mem_p);
-  size_t count = gasneti_nodes * gasnetc_alloc_qps;
-  if (!gasneti_pshm_mynode) {
-    gasneti_pshm_prefault(gasnetc_xrc_rcv_qpn, count * sizeof(uint32_t));
+  /* Place RCV QPN table in shared memory at per-domain offset */
+  uint32_t *xrc_shared_mem = *shared_mem_p;
+  size_t domain_elems = gasneti_nodes * gasnetc_alloc_qps;
+  gasnetc_xrc_rcv_qpn = xrc_shared_mem + (gasnetc_xrcd_local_rank * domain_elems);
+  if (gasnetc_xrcd_iam_leader) {
+    gasneti_pshm_prefault(gasnetc_xrc_rcv_qpn, domain_elems * sizeof(uint32_t));
   }
-  *shared_mem_p = (void *)GASNETI_ALIGNUP(gasnetc_xrc_rcv_qpn + count, GASNETI_CACHE_LINE_BYTES);
+  size_t total_elems = gasnetc_xrcd_local_count * domain_elems;
+  *shared_mem_p = (void *)GASNETI_ALIGNUP(xrc_shared_mem + total_elems, GASNETI_CACHE_LINE_BYTES);
 
   /* Clean up once everyone is done w/ all files, and RCV QPN table is prefaulted */
   gasneti_pshmnet_bootstrapBarrier();
@@ -375,7 +523,7 @@ gasnetc_xrc_init(void **shared_mem_p) {
   }
 
   /* Allocate SND QP table */
-  gasnetc_xrc_snd_qp = gasneti_calloc(gasneti_nodemap_global_count * gasnetc_alloc_qps,
+  gasnetc_xrc_snd_qp = gasneti_calloc(gasnetc_xrcd_global_count * gasnetc_alloc_qps,
                                       sizeof(gasnetc_xrc_snd_qp_t));
   gasneti_leak(gasnetc_xrc_snd_qp);
 
@@ -2259,9 +2407,9 @@ gasnetc_connect_static(gasnetc_EP_t ep)
   gasneti_bootstrapAlltoall(local_qpn, gasnetc_alloc_qps*sizeof(uint32_t), remote_qpn);
 
   /* Advance state RESET -> INIT -> RTR. */
-  // One active process per-nbrhd is sufficent (more just slow things down).
+  // One active process per XRC domain is sufficent (more just slow things down).
 #if GASNET_PSHM
-  const int active = !gasneti_pshm_mynode;
+  const int active = gasnetc_xrcd_iam_leader || !gasnetc_use_xrc;
 #else
   const int active = 1;
 #endif

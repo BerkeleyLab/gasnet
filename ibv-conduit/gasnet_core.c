@@ -2352,18 +2352,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
   gasneti_bootstrapExchange(local_lid, gasnetc_num_ports * sizeof(uint16_t), remote_lid);
   gasneti_free(local_lid);
 
-#if PLATFORM_ARCH_MIC
-  /* In the case of multiple MICs in a host, the LIDs will be the same.
-   * So, use the default nodemap.
-   * TODO: distinguish single-MIC and "self hosted" MIC systems.
-   */
+  // Derive nodemap by the default means.
+  // We cannot use LID info if GASNET_IBV_PORTS is inhomogeneous (bug 4208)
   gasneti_nodemapInit(&gasneti_bootstrapExchange, NULL, 0, 0);
-#else
-  /* Derive nodemap from the LID info we have just exchanged */
-  gasneti_nodemapInit(NULL, &remote_lid[0],
-                      sizeof(remote_lid[0]),
-                      sizeof(remote_lid[0]) * gasnetc_num_ports);
-#endif
 
   /* compute various snd/rcv resource limits (requires node map) */
   i = gasnetc_sndrcv_limits();
@@ -2427,8 +2418,10 @@ static int gasnetc_init( gex_Client_t            *client_p,
 
 #if GASNETC_IBV_XRC
     /* shared qpn table: */
-    shared_size += gasneti_nodes * gasnetc_alloc_qps * sizeof(uint32_t);
-    shared_size = GASNETI_ALIGNUP(shared_size, GASNETI_CACHE_LINE_BYTES);
+    if (gasnetc_use_xrc) {
+      shared_size += gasnetc_xrc_preinit(remote_lid);
+      shared_size = GASNETI_ALIGNUP(shared_size, GASNETI_CACHE_LINE_BYTES);
+    }
 #endif
 
     shared_mem = gasneti_pshm_init(&gasneti_bootstrapSNodeBroadcast, shared_size);
