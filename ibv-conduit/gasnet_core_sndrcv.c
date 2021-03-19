@@ -90,7 +90,7 @@ typedef struct {
  *  File-scoped variables
  * ------------------------------------------------------------------------------------ */
 
-#if GASNETC_IB_MAX_HCAS > 1
+#if GASNETC_HAVE_FENCED_PUTS
 static int gasnetc_op_needs_fence_mask;
 #endif
 
@@ -173,7 +173,7 @@ extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *cnt) {
 }
 
 
-#if GASNETC_IB_MAX_HCAS > 1
+#if GASNETC_HAVE_FENCED_PUTS
 /* ------------------------------------------------------------------------------------ *
  * AuxSeg space for dummy Atomic ops used to fence multi-rail Puts
  * TODO: this use of auxseg is yet another an O(ranks) table we must seek to eliminate
@@ -1388,7 +1388,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
     gasnetc_snd_validate(sreq, sr_desc, 1, "POST_SR");
   }
 
-#if GASNETC_IB_MAX_HCAS > 1
+#if GASNETC_HAVE_FENCED_PUTS
   // When GASNET_USE_FENCED_PUTS is enabled, we must post both the Put and an
   // Atomic such that the conduit-level remote completion callback for the Put
   // will not execute until the ibv-level CQE for the Atomic.
@@ -2731,7 +2731,7 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
   }
 #endif
 
-#if GASNETC_IB_MAX_HCAS > 1
+#if GASNETC_HAVE_FENCED_PUTS
   // Speed critical path checks
   gasnetc_op_needs_fence_mask = gasnetc_use_fenced_puts ?  GASNETC_OP_NEEDS_FENCE : 0;
 #endif

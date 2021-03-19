@@ -2110,23 +2110,12 @@ static int gasnetc_init( gex_Client_t            *client_p,
     }
   }
 
-#if GASNETC_IB_MAX_HCAS > 1
+#if GASNETC_HAVE_FENCED_PUTS
   gasnetc_use_fenced_puts = gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS", 0);
-  if (gasnetc_use_fenced_puts && (gasnetc_num_hcas == 1)) {
-    if (!gasneti_mynode) {
-      fprintf(stderr,
-              "WARNING: GASNET_USE_FENCED_PUTS requested, but ignored because only a single\n"
-              "         HCA was detected and/or enabled.  To suppress this message, you may\n"
-              "         either unset this environment variable or set it to '0'.\n"
-              "         Alternatively, you may configure using '--disable-ibv-multirail'\n"
-              "         if all nodes have only a single InfiniBand HCA.\n");
-    }
-    gasnetc_use_fenced_puts = 0;
-  }
 #else
   if (!gasneti_mynode && gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS", 0)) {
-    fprintf(stderr,
-            "WARNING: GASNET_USE_FENCED_PUTS requested, but ignored because GASNet was\n"
+    gasneti_console_message("WARNING",
+                     "GASNET_USE_FENCED_PUTS requested, but ignored because GASNet was\n"
             "         configured without multi-rail support.  To suppress this message,\n"
             "         you may either unset this environment variable or set it to '0'.\n"
             "         Alternatively, you may configure using '--enable-ibv-multirail'.\n");

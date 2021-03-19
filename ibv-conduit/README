@@ -87,8 +87,17 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   Alternatively, specifying '--enable-ibv-multirail' is equivalent to
   '--with-ibv-max-hcas=2' unless an explicit '--with-ibv-max-hcas=N'
   option provides a different value.  Passing '--disable-ibv-multirail'
-  is equivalent to '--with-ibv-max-hcas=1', overridding any explicit
-  '--with-ibv-max-hcas=N' options.
+  overrides any explicit '--with-ibv-max-hcas=N' options.
+
+  Note that multirail support includes provisions for correctness which
+  can be relevant if using mutiple HCAs per *host*, even if using only
+  a single HCA in each process.  So, '--with-ibv-max-hcas=1' is distinct
+  from '--disable-ibv-multirail'.
+  Enabling multirail support (using '--with-ibv-max-hcas=1' if appropriate)
+  is strongly recommended if one might ever use multiple HCAs per host.
+  See 'GASNET_USE_FENCED_PUTS' in the Runtime Configuration section and
+  "Bug 3447" in the Known Problems section for more information regarding
+  the correctness issues.
 
   The use of specific HCA ports is controlled at run time by the environment
   variable GASNET_IBV_PORTS, described below.  The default value of this
@@ -720,7 +729,8 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     correct remote completion detection in the presence of multiple HCAs.
     See "Bug 3447" in the Known Problems section for information on when one
     may wish to enable this setting.
-    If enabled when using only a single HCA a warning will be issued.
+    If enabled when multirail support was not enabled at configure time, a
+    warning will be issued.
     This setting defaults to 0 (disabled).
 
   Resource usage parameters:
