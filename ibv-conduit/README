@@ -284,19 +284,23 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     which represent connections from two I/O buses (one per socket) to two
     distinct InfinBand rails.  Use of the further I/O bus introduces a latency
     penalty, but achieving peak bandwidth from a single socket requires use of
-    both I/O buses.  In general, the relative bandwidth penalty for use of only
-    a single I/O bus is larger than the latency penalty for use of the farther
-    I/O bus.  So the recommended default setting on Summit calls for use of
-    both I/O buses:
+    both I/O buses.
+    For applications in which there is a need to maximize bandwidth from a
+    single socket at a time, one can make use of both I/O buses and network
+    rails simply:
        GASNET_IBV_PORTS='mlx5_0+mlx5_3'
-    For a latency-dominated application one can expect the best performance from
-    use of only one HCA connected to the local socket's I/O bus when processes
-    are bound to a socket, while for an unbound process one gets the best
-    average-case behavior using two HCAs chosen to span both buses and both
-    rails.  This yields the following recommendation:
+    However, the situation is more complex for applications which are
+    latency-dominated or which can saturate bandwidth via communication to/from
+    both sockets.  When processes are bound to a socket, one can expect the
+    best performance from use of only one HCA connected to the local socket's
+    I/O bus, chosen such that the two sockets use different network rails.  For
+    an unbound process one gets the best average-case behavior using two HCAs
+    chosen to span both buses and both network rails.  This yields the
+    following recommendation:
        GASNET_IBV_PORTS='mlx5_0+mlx5_3' # Spanning both sockets (e.g. unbound)
        GASNET_IBV_PORTS_0='mlx5_0'      # Bound to socket0
        GASNET_IBV_PORTS_1='mlx5_3'      # Bound to socket1
+    Of course, your mileage may vary.
     By default 'GASNET_IBV_PORTS_TYPE' is "Socket" and all other variables in
     this family are unset.
 
