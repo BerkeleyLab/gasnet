@@ -374,7 +374,12 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context GASNET
 #if (GASNETC_IB_MAX_HCAS > 1)
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < gasnetc_num_hcas; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[gasnetc_num_hcas]; ++p)
+#else
+  #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < 1; ++h)
+  #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[1]; ++p)
+#endif
 
+#if GASNETC_IBV_MAX_HCAS_CONFIGURE // Includes multi-rail support w/ 1 HCA
   // Need a couple cache lines for dummy AMO accesses
   extern gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
   #define GASNETC_AUXSEG_FNS() gasnetc_fence_auxseg_alloc,
@@ -382,11 +387,10 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context GASNET
   // Use AMO after Put to fence for strict memory model adherence
   extern int gasnetc_use_fenced_puts;
   #define GASNETC_USE_FENCED_PUTS gasnetc_use_fenced_puts
+  #define GASNETC_HAVE_FENCED_PUTS 1
 #else
-  #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < 1; ++h)
-  #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[1]; ++p)
-
   #define GASNETC_USE_FENCED_PUTS 0
+  #undef GASNETC_HAVE_FENCED_PUTS
 #endif
 
 /* ------------------------------------------------------------------------------------ */

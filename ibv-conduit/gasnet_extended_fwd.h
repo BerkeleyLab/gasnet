@@ -30,8 +30,8 @@
    */
   /* Each RCV thread needs a slot in the threadtable.  The CONN thread doesn't. */
 #if GASNETC_IBV_RCV_THREAD
- #ifdef GASNETC_IBV_MAX_HCAS
-  #define GASNETE_CONDUIT_THREADS_USING_TD GASNETC_IBV_MAX_HCAS
+ #ifdef GASNETC_IBV_MAX_HCAS_CONFIGURE
+  #define GASNETE_CONDUIT_THREADS_USING_TD GASNETC_IBV_MAX_HCAS_CONFIGURE
  #else
   #define GASNETE_CONDUIT_THREADS_USING_TD 1
  #endif
