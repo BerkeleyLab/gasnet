@@ -148,11 +148,13 @@ fh_hash_create(size_t entries)
 #ifdef FH_HASH_STATS
         hash->fh_col_table = (int *) gasneti_calloc(entries, sizeof(int));
     #if FH_HASH_KNUTH
-        printf("[n%d] hash create: entries=%"PRIuSZ", bits=%u\n",
-               gasneti_mynode, entries, (32 - hash->fh_shift));
+        gasneti_console_message("INFO",
+               "hash create: entries=%"PRIuSZ", bits=%u\n",
+               entries, (32 - hash->fh_shift));
     #else
-        printf("[n%d] hash create: entries=%"PRIuSZ", mask=%"PRIxSZ"\n",
-               gasneti_mynode, entries, entries-1);
+        gasneti_console_message("INFO",
+               "hash create: entries=%"PRIuSZ", mask=%"PRIxSZ"\n",
+               entries, entries-1);
     #endif
         hash->fh_used = 0;
         hash->fh_collisions = 0;
@@ -166,8 +168,8 @@ void
 fh_hash_destroy(fh_hash_t *hash)
 {
 #ifdef FH_HASH_STATS
-        fprintf(stderr, "[n%d] entries: %"PRIuSZ" elements: %d, collisions: %d, avg=%2.5f%%, load %g\n",
-                gasneti_mynode,
+        gasneti_console_message("INFO",
+                "entries: %"PRIuSZ" elements: %d, collisions: %d, avg=%2.5f%%, load %g\n",
 		hash->fh_entries, hash->fh_used, hash->fh_collisions,
                 (double) hash->fh_collisions*100/hash->fh_used,
                 (double) hash->fh_used/hash->fh_entries);
