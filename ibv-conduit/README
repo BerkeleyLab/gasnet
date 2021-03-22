@@ -611,30 +611,37 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     up to an hardware- and firmware-dependent maximum size.
 
     A value of 0 disables use of inline sends.
+    A value of -1 causes use of the maximum value reported by the HCA.
     The default of 72 is normally correct.
-    For ibv-conduit the default of -1 causes use of the maximum value
-    reported by the HCA.
    
   + GASNET_PACKEDLONG_LIMIT
-    To perform an AMLong or AMLongAsync with non-empty payload,
+    To perform an AMLong with non-empty payload,
     ibv-conduit must transfer both the payload and the header.  For
     sufficiently small payloads, it is more efficient (in terms of both CPU
     overhead and network latency) to pack the header and payload together
     and copy the payload into place on the target before running the
     handler.  Thus, for payload up to and including this size this packing
     is used.
-    The default value is the maximum that fits into a 4KB buffer together
-    with the maximum sized header (currently 4012).
+    The default value is the maximum that, together with the maximum sized
+    header, fits into a 4KiB transfer (currently 4012).
     A value of zero ensures the payload and header always travel separately.
     
   + GASNET_NONBULKPUT_BOUNCE_LIMIT
-    To perform a non-bulk PUT with nbytes > GASNET_INLINESEND_LIMIT or to
-    transfer the payload of an AMLong (but not AMLongAsync) with nbytes >
-    MAX(GASNET_INLINESEND_LIMIT, GASNET_PACKEDLONG_LIMIT), ibv-conduit must
-    either copy the data into bounce buffers, or block until remote
-    completion is signaled by the HCA.  Such transfers up to and including
-    size GASNET_NONBULKPUT_BOUNCE_LIMIT are performed using bounce buffers
-    while larger transfers are transferred using blocking PUTs.
+    This parameter sets the limit on the use of bounce buffers to achieve
+    local completion of "non-bulk" PUT and AMLong payload transfers.  When
+    passing GEX_EVENT_NOW to perform a PUT or AMLong, the implementation must
+    block until local completion.  For PUTs with nbytes larger than
+    GASNET_INLINESEND_LIMIT, and for AMLongs with nbytes larger than both
+    GASNET_INLINESEND_LIMIT and GASNET_PACKEDLONG_LIMIT, ibv-conduit must
+    either copy the data into bounce buffers, or block until remote completion
+    is signaled by the HCA.  Such transfers up to and including size
+    GASNET_NONBULKPUT_BOUNCE_LIMIT are performed using bounce buffers while
+    larger transfers stall return from injection until the RMA is acknowledged.
+    Currently, this parameter also controls the use of bounce buffers versus
+    non-blocking RMA for initiation of all AMLong payload transfers and
+    for PUTs not passing GEX_EVENT_DEFER for the lc_opt parameter.  However,
+    cases other than GEX_EVENT_NOW are not the intended scope of this
+    parameter, and this behavior is subject to change.
     The default value is 64KB.
     A value of zero disables use of bounce buffers.
     
