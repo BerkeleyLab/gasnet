@@ -866,7 +866,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     region count.
     The default is to use a fraction of the HCA pinning resources equal to
     the fraction of physical memory given by GASNET_PHYSMEM_MAX, subject to
-    a maximum value.
+    a system-dependent maximum value.
    
   Firehose configuration:
   ----------------------
