@@ -1066,44 +1066,62 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
 + Negotiated-payload Active Messages (NPAM)
 
-    TL;DR:  The results below can be summarized in the following rules-of-thumb
-    for use of NPAM Medium with ibv-conduit in the current release:
+    TL;DR:  The results below, from one particular system, can be summarized in
+    the following rules-of-thumb for use of NPAM with ibv-conduit in the
+    *current* release:
     +  Use of client-provided buffer is never advantageous.
-    +  Use of gasnet-provided buffer may be advantageous for payloads of
-       512 bytes or larger.
+    +  Use of gasnet-provided buffer may be advantageous for Medium with
+       sufficiently large payloads, where both latency and bandwidth can exceed those
+       of FPAM.
+    +  Use of gasnet-provided buffer may be advantageous for Long payloads of
+       sufficient length, where bandwidth is better than FPAM (but at the
+       expense of worse latency).
+    Note that as development continues, these finding are subject to change.
 
-    Calls to gex_AM_Prepare{Request,Reply}Medium() with client_buf != NULL
-    are known as "client-provided buffer" calls.  In this mode of operation,
-    there is a small penalty in CPU overhead relative to the fixed-payload
-    AM (FPAM) calls gex_AM_{Request,Reply}Medium(), due primarily to the
-    split-phase calling convention.  While the design of NPAM allows for the
-    possibility that NPAM with client-provided buffer could enable larger
-    payloads than FPAM, ibv-conduit currently does not provide that
-    capability.
+    Calls to gex_AM_Prepare{Request,Reply}{Medium,Long}() with client_buf !=
+    NULL are known as "client-provided buffer" calls.  In this mode of
+    operation, there is a small penalty in CPU overhead relative to the
+    fixed-payload AM (FPAM) calls gex_AM_{Request,Reply}{Medium,Long}(), due
+    primarily to the split-phase calling convention.  While the design of NPAM
+    allows for the possibility that NPAM with client-provided buffer could
+    enable larger Medium payloads than FPAM, ibv-conduit currently does not
+    provide that capability.
 
-    Measurements with client-provided buffer NPAM on OLCF's Summit show the
-    latency penalty relative to FPAM in a Request/Reply "ping-pong" test is
-    around 2% for payload sizes below a couple hundred bytes, and 1% or
-    lower for payloads of 512 bytes or larger.  Throughput of a "flood" test
-    shows penalties of about 8% at the smallest payload sizes, declining
-    smoothly to 5% at the largest payloads.
-    Of course, your mileage may vary.
+    Measurements of both AM Mediums and Long with client-provided buffer NPAM
+    on OLCF's Summit show the latency penalty relative to FPAM in a
+    Request/Reply "ping-pong" test is around 2% for payload sizes below a
+    couple hundred bytes, and 1% or lower for payloads of 512 bytes or larger.
+    For AM Longs the penalty eventually approaches zero for payloads of about
+    512KiB or larger.
 
-    Calls to gex_AM_Prepare{Request,Reply}Medium() with client_buf == NULL
-    are known as "gasnet-provided buffer" calls.  In this mode of operation,
-    in code which assembles/generates the payload at AM injection time,
-    there is a measurable advantage to NPAM for sufficiently large payloads,
-    and a small penalty for small payloads.
+    Throughput of a "flood" test with client-provided buffer NPAM shows
+    penalties of about 8% at the smallest payload sizes, declining smoothly to
+    5% at the largest Medium payloads and approaching zero for Long payloads of
+    about 512KiB or larger.
+
+    Calls to gex_AM_Prepare{Request,Reply}{Medium,Long}() with client_buf ==
+    NULL are known as "gasnet-provided buffer" calls.  In this mode of
+    operation, in which GASNet allocates a buffer where client code
+    assembles/generates the payload at AM injection time, there is a measurable
+    advantage to NPAM for sufficiently large payloads, but a small penalty for
+    small payloads.
 
     Measurements with gasnet-provided buffer NPAM on OLCF's Summit show the
     latency penalty in a Request/Reply "ping-pong" test is around 2% for
-    payload sizes below a couple hundred bytes, but that latency is improved
-    over FPAM for payloads of 512 bytes or larger (by about 9% for large
-    payloads).  Throughput of a "flood" test shows similar behavior with a
-    throughput penalty of up to 5% for payload sizes 512 bytes and below,
-    but improvements in throughput above 512 bytes (by about 17% for large
-    payloads).
-    Of course, your mileage may vary.
+    payload sizes below a couple hundred bytes for both Medium and Long.  For
+    Mediums of 512 bytes or larger, the latency is improved over FPAM (by about
+    9% for large payloads).  For Longs, the large payload latency is worse
+    than for small payloads.
+
+    Throughput of a "flood" test with Mediums shows similar behavior to
+    ping-pong, with a throughput penalty of up to 5% for payload sizes 512
+    bytes and below, but improvements in throughput above 512 bytes (by about
+    17% for large payloads).  For Longs there is a throughput penalty of up to
+    5% for payload sizes below about 2KiB, but for large payloads a latency
+    improvement of 40% or more can be seen.
+
+    Your mileage may vary.
+    Relative performance may change in future releases.
 
 @ Section: Known Problems @
 
