@@ -2408,7 +2408,7 @@ gasnetc_connect_static(gasnetc_EP_t ep)
 
   /* Advance state RESET -> INIT -> RTR. */
   // One active process per XRC domain is sufficent (more just slow things down).
-#if GASNET_PSHM
+#if GASNETC_IBV_XRC
   const int active = gasnetc_xrcd_iam_leader || !gasnetc_use_xrc;
 #else
   const int active = 1;
