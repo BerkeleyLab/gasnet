@@ -1361,6 +1361,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
 @ Section: Extended API @
 
+[This section is still *mostly* accurate, but has not been kept up-to-date
+with respect to EX updates.  Most notably: "LongAsync" is gone, "_bulk" has
+been supplanted by lc_opt options, and all the function names have changed.]
+
 Notes for myself for extended API:
 
 + The send completion facility consists of two pointers to counters,
