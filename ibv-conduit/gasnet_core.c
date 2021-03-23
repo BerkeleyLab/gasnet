@@ -2577,7 +2577,8 @@ static int gasnetc_init( gex_Client_t            *client_p,
   
   GASNETC_FOR_ALL_HCA(hca) {
     if (0 != gasnetc_pin(hca, auxbase, auxsize, gasneti_seg_access_flags, &hca->aux_reg)) {
-      gasneti_fatalerror(gasnetc_segreg_failed(auxsize, gasnetc_segreg_aux, errno, GEX_MK_CLASS_HOST));
+      const char *msg = gasnetc_segreg_failed(auxsize, gasnetc_segreg_aux, errno, GEX_MK_CLASS_HOST);
+      gasneti_fatalerror("%s", msg);
     }
     // TODO_EX: need scalable and/or lazy storage of aux segments and their rkeys
     hca->aux_rkeys = gasneti_malloc(gasneti_nodes*sizeof(uint32_t));
