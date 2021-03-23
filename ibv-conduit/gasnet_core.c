@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include <limits.h> // (U)INT_MAX
 
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -143,11 +144,12 @@ int gasnetc_qp_timeout, gasnetc_qp_retry_count;
 /* conduit-specific firehose region parameters
  * Note that these are kept to sane sizes rather than the HCA limit
  * 128kB is the peak of the bandwidth curve and thus a good size.
- * With 32k * 128k = 4G we can pin upto 4GB of physical memory with these.
- * We don't yet deal well with many small regions.
+ * Some adapters have no limit on the number of regions supported (Omni-Path),
+ * in which case we substitute gasnetc_fh_maxregions for the HCA queried value.
+ * With 16m * 128KB we can pin up to 2TB of physical memory per host.
  * Note that GASNET_FIREHOSE_* env vars can override these.
  */
-static unsigned int gasnetc_fh_maxregions = 32768;
+static unsigned int gasnetc_fh_maxregions = 16777216;
 static unsigned int gasnetc_fh_maxsize    = 131072;
 
 /* ------------------------------------------------------------------------------------ */
@@ -975,14 +977,55 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_pin_info.physmemsz = physmemsz;
   gasnetc_pin_info.memory    = ~((uintptr_t)0);
   gasnetc_pin_info.num_local = num_local;
-  gasnetc_pin_info.regions = gasnetc_fh_maxregions;
+
+  // How many pinnable regions per host?
+  unsigned int max_regions = UINT_MAX;
   GASNETC_FOR_ALL_HCA_INDEX(i) {
-    if (! gasnetc_hca[i].hca_cap.max_mr) { // Treat zero as unbounded (e.g. Omni-Path)
+    unsigned int tmp = gasnetc_hca[i].hca_cap.max_mr;  // Field has type `int`
+    // Zero or above INT_MAX should use gasnetc_fh_maxregions
+    if (tmp == 0) { // Treat zero as unbounded (e.g. Omni-Path)
       GASNETI_TRACE_PRINTF(I, ("HCA %d advertises hca_cap.max_mr == 0, treating as unbounded", i));
       continue;
+    } else if (tmp >= (unsigned int)INT_MAX) { // Treat INT_MAX (or negative int) as unbounded
+      GASNETI_TRACE_PRINTF(I, ("HCA %d advertises hca_cap.max_mr >= INT_MAX, treating as unbounded", i));
+      continue;
     }
-    gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, gasnetc_hca[i].hca_cap.max_mr);
+    max_regions = MIN(max_regions, tmp);
   }
+  if (max_regions == UINT_MAX) {
+    // For adapters not reporting a valid limit:
+    max_regions = gasnetc_fh_maxregions;
+  }
+  {
+    const char *key = "GASNET_PINNED_REGIONS_MAX";
+    const char *input = gasneti_getenv(key);
+    int using_dflt = !input || !input[0]; // unset or empty
+    if (using_dflt) {
+      // Default (heuristic): cap use at same fraction of HCA resources as of physical memory
+      gasnetc_pin_info.regions = max_regions * ((double)limit / physmemsz);
+    } else {
+      // User override - accept fractions or absolute value
+      double dbl;
+      int64_t val;
+      if (gasneti_parse_dbl(input, &dbl)) {  // Not a valid double
+        val = gasneti_parse_int(input, 0);
+      } else if ((dbl > 0.) && (dbl < 1.)) { // A double in interval (0,1)
+        val = dbl * max_regions;
+      } else {                               // A valid double outside (0,1)
+        val = dbl;
+      }
+      const int64_t region_lower = 16; // arbitrary. firehose will further validate
+      const int64_t region_upper = max_regions * 0.95; // 95% is arbitrary
+      if (val > region_upper) {
+        gasneti_fatalerror("%s='%s' is above the maximum value %d.", key, input, (int)region_upper);
+      } else if (val < region_lower) {
+        gasneti_fatalerror("%s='%s' is below the minimum value %d.", key, input, (int)region_lower);
+      }
+      gasnetc_pin_info.regions = val;
+    }
+    gasneti_envint_display(key, gasnetc_pin_info.regions, using_dflt, 0);
+  }
+  GASNETI_TRACE_PRINTF(I, ("Max pinnable regions per host: %u", (unsigned int)gasnetc_pin_info.regions));
 
   if (do_probe) {
     int did_warn = 0;
