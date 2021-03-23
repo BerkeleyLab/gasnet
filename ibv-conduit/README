@@ -929,8 +929,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     GASNET_FIREHOSE_R and GASNET_FIREHOSE_MAXVICTIM_R for more information.
     If only one of these variables is set, then the other defaults such that
     their sum equals the total pool size.  Therefore, to enlarge or reduce the
-    total pool, one must set both.  Note that enlarging the total pool risks
-    exhausting resources, potentially leading to crashes at runtime.
+    total pool, one must set both.  Since enlarging the total pool risks
+    exhausting resources, potentially leading to crashes at runtime, doing so
+    will result in a warning.
 
   + GASNET_FIREHOSE_R and GASNET_FIREHOSE_MAXVICTIM_R
     GASNET_FIREHOSE_R gives the maximum number of pinned regions to allocate
@@ -941,7 +942,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     pinnable regions (see GASNET_PINNED_REGIONS_MAX) in proportion to the
     values of GASNET_FIREHOSE_M and GASNET_FIREHOSE_MAXVICTIM_M.
     If only one of these variables is set, then the other defaults such that
-    their sum equals the total pool size.
+    their sum equals the total pool size.  Therefore, to enlarge or reduce the
+    total pool, one must set both.  Since enlarging the total pool risks
+    exhausting resources, potentially leading to crashes at runtime, doing so
+    will result in a warning.
     The value of GASNET_FIREHOSE_R will be silently truncated if larger than
     (GASNET_FIREHOSE_M / GASNET_FIREHOSE_MAXREGION_SIZE), since additional
     regions would not be used.  Similarly, GASNET_FIREHOSE_MAXVICTIM_R will be

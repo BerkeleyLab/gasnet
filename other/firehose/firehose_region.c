@@ -1370,6 +1370,17 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
                 }
 		param_VM = max_pinnable_memory - param_M;
         }
+        else if (param_M + param_VM > max_pinnable_memory) {
+                if (!gasneti_mynode) {
+                        char str0[24], str1[24], str2[24];
+                        gasneti_console_message("WARNING",
+                                "GASNET_FIREHOSE_M (%s) and GASNET_FIREHOSE_MAXVICTIM_M (%s) together "
+                                "are more than the maximum of %s recommended based on GASNET_PHYSMEM_MAX.",
+                                gasneti_format_number(param_M, str0, 24, 1),
+                                gasneti_format_number(param_VM, str1, 24, 1),
+                                gasneti_format_number(max_pinnable_memory, str2, 24, 1));
+                }
+        }
         uintptr_t orig_M = param_M;
         uintptr_t orig_VM = param_VM;
 
@@ -1464,6 +1475,15 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
                                             param_R, limit);
                 }
                 param_VR = avail_regions - param_R;
+        }
+        else if (param_R + param_VR > avail_regions) {
+                if (!gasneti_mynode) {
+                        char str0[24], str1[24];
+                        gasneti_console_message("WARNING",
+                                "GASNET_FIREHOSE_R (%d) and GASNET_FIREHOSE_MAXVICTIM_R (%d) together "
+                                "are more than the maximum of %d recommended based on GASNET_PINNED_REGIONS_MAX.",
+                                param_R, param_VR, avail_regions);
+                }
         }
 
 	/* Trim and eliminate round-off so that limits are self-consistent */
