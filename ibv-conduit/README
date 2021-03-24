@@ -611,30 +611,37 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     up to an hardware- and firmware-dependent maximum size.
 
     A value of 0 disables use of inline sends.
+    A value of -1 causes use of the maximum value reported by the HCA.
     The default of 72 is normally correct.
-    For ibv-conduit the default of -1 causes use of the maximum value
-    reported by the HCA.
    
   + GASNET_PACKEDLONG_LIMIT
-    To perform an AMLong or AMLongAsync with non-empty payload,
+    To perform an AMLong with non-empty payload,
     ibv-conduit must transfer both the payload and the header.  For
     sufficiently small payloads, it is more efficient (in terms of both CPU
     overhead and network latency) to pack the header and payload together
     and copy the payload into place on the target before running the
     handler.  Thus, for payload up to and including this size this packing
     is used.
-    The default value is the maximum that fits into a 4KB buffer together
-    with the maximum sized header (currently 4012).
+    The default value is the maximum that, together with the maximum sized
+    header, fits into a 4KiB transfer (currently 4012).
     A value of zero ensures the payload and header always travel separately.
     
   + GASNET_NONBULKPUT_BOUNCE_LIMIT
-    To perform a non-bulk PUT with nbytes > GASNET_INLINESEND_LIMIT or to
-    transfer the payload of an AMLong (but not AMLongAsync) with nbytes >
-    MAX(GASNET_INLINESEND_LIMIT, GASNET_PACKEDLONG_LIMIT), ibv-conduit must
-    either copy the data into bounce buffers, or block until remote
-    completion is signaled by the HCA.  Such transfers up to and including
-    size GASNET_NONBULKPUT_BOUNCE_LIMIT are performed using bounce buffers
-    while larger transfers are transferred using blocking PUTs.
+    This parameter sets the limit on the use of bounce buffers to achieve
+    local completion of "non-bulk" PUT and AMLong payload transfers.  When
+    passing GEX_EVENT_NOW to perform a PUT or AMLong, the implementation must
+    block until local completion.  For PUTs with nbytes larger than
+    GASNET_INLINESEND_LIMIT, and for AMLongs with nbytes larger than both
+    GASNET_INLINESEND_LIMIT and GASNET_PACKEDLONG_LIMIT, ibv-conduit must
+    either copy the data into bounce buffers, or block until remote completion
+    is signaled by the HCA.  Such transfers up to and including size
+    GASNET_NONBULKPUT_BOUNCE_LIMIT are performed using bounce buffers while
+    larger transfers stall return from injection until the RMA is acknowledged.
+    Currently, this parameter also controls the use of bounce buffers versus
+    non-blocking RMA for initiation of all AMLong payload transfers and
+    for PUTs not passing GEX_EVENT_DEFER for the lc_opt parameter.  However,
+    cases other than GEX_EVENT_NOW are not the intended scope of this
+    parameter, and this behavior is subject to change.
     The default value is 64KB.
     A value of zero disables use of bounce buffers.
     
@@ -1059,44 +1066,62 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
 + Negotiated-payload Active Messages (NPAM)
 
-    TL;DR:  The results below can be summarized in the following rules-of-thumb
-    for use of NPAM Medium with ibv-conduit in the current release:
+    TL;DR:  The results below, from one particular system, can be summarized in
+    the following rules-of-thumb for use of NPAM with ibv-conduit in the
+    *current* release:
     +  Use of client-provided buffer is never advantageous.
-    +  Use of gasnet-provided buffer may be advantageous for payloads of
-       512 bytes or larger.
+    +  Use of gasnet-provided buffer may be advantageous for Medium with
+       sufficiently large payloads, where both latency and bandwidth can exceed those
+       of FPAM.
+    +  Use of gasnet-provided buffer may be advantageous for Long payloads of
+       sufficient length, where bandwidth is better than FPAM (but at the
+       expense of worse latency).
+    Note that as development continues, these finding are subject to change.
 
-    Calls to gex_AM_Prepare{Request,Reply}Medium() with client_buf != NULL
-    are known as "client-provided buffer" calls.  In this mode of operation,
-    there is a small penalty in CPU overhead relative to the fixed-payload
-    AM (FPAM) calls gex_AM_{Request,Reply}Medium(), due primarily to the
-    split-phase calling convention.  While the design of NPAM allows for the
-    possibility that NPAM with client-provided buffer could enable larger
-    payloads than FPAM, ibv-conduit currently does not provide that
-    capability.
+    Calls to gex_AM_Prepare{Request,Reply}{Medium,Long}() with client_buf !=
+    NULL are known as "client-provided buffer" calls.  In this mode of
+    operation, there is a small penalty in CPU overhead relative to the
+    fixed-payload AM (FPAM) calls gex_AM_{Request,Reply}{Medium,Long}(), due
+    primarily to the split-phase calling convention.  While the design of NPAM
+    allows for the possibility that NPAM with client-provided buffer could
+    enable larger Medium payloads than FPAM, ibv-conduit currently does not
+    provide that capability.
 
-    Measurements with client-provided buffer NPAM on OLCF's Summit show the
-    latency penalty relative to FPAM in a Request/Reply "ping-pong" test is
-    around 2% for payload sizes below a couple hundred bytes, and 1% or
-    lower for payloads of 512 bytes or larger.  Throughput of a "flood" test
-    shows penalties of about 8% at the smallest payload sizes, declining
-    smoothly to 5% at the largest payloads.
-    Of course, your mileage may vary.
+    Measurements of both AM Mediums and Long with client-provided buffer NPAM
+    on OLCF's Summit show the latency penalty relative to FPAM in a
+    Request/Reply "ping-pong" test is around 2% for payload sizes below a
+    couple hundred bytes, and 1% or lower for payloads of 512 bytes or larger.
+    For AM Longs the penalty eventually approaches zero for payloads of about
+    512KiB or larger.
 
-    Calls to gex_AM_Prepare{Request,Reply}Medium() with client_buf == NULL
-    are known as "gasnet-provided buffer" calls.  In this mode of operation,
-    in code which assembles/generates the payload at AM injection time,
-    there is a measurable advantage to NPAM for sufficiently large payloads,
-    and a small penalty for small payloads.
+    Throughput of a "flood" test with client-provided buffer NPAM shows
+    penalties of about 8% at the smallest payload sizes, declining smoothly to
+    5% at the largest Medium payloads and approaching zero for Long payloads of
+    about 512KiB or larger.
+
+    Calls to gex_AM_Prepare{Request,Reply}{Medium,Long}() with client_buf ==
+    NULL are known as "gasnet-provided buffer" calls.  In this mode of
+    operation, in which GASNet allocates a buffer where client code
+    assembles/generates the payload at AM injection time, there is a measurable
+    advantage to NPAM for sufficiently large payloads, but a small penalty for
+    small payloads.
 
     Measurements with gasnet-provided buffer NPAM on OLCF's Summit show the
     latency penalty in a Request/Reply "ping-pong" test is around 2% for
-    payload sizes below a couple hundred bytes, but that latency is improved
-    over FPAM for payloads of 512 bytes or larger (by about 9% for large
-    payloads).  Throughput of a "flood" test shows similar behavior with a
-    throughput penalty of up to 5% for payload sizes 512 bytes and below,
-    but improvements in throughput above 512 bytes (by about 17% for large
-    payloads).
-    Of course, your mileage may vary.
+    payload sizes below a couple hundred bytes for both Medium and Long.  For
+    Mediums of 512 bytes or larger, the latency is improved over FPAM (by about
+    9% for large payloads).  For Longs, the large payload latency is worse
+    than for small payloads.
+
+    Throughput of a "flood" test with Mediums shows similar behavior to
+    ping-pong, with a throughput penalty of up to 5% for payload sizes 512
+    bytes and below, but improvements in throughput above 512 bytes (by about
+    17% for large payloads).  For Longs there is a throughput penalty of up to
+    5% for payload sizes below about 2KiB, but for large payloads a latency
+    improvement of 40% or more can be seen.
+
+    Your mileage may vary.
+    Relative performance may change in future releases.
 
 @ Section: Known Problems @
 
@@ -1353,6 +1378,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   Note that when SRQ is used, no flow control is used.
 
 @ Section: Extended API @
+
+[This section is still *mostly* accurate, but has not been kept up-to-date
+with respect to EX updates.  Most notably: "LongAsync" is gone, "_bulk" has
+been supplanted by lc_opt options, and all the function names have changed.]
 
 Notes for myself for extended API:
 
