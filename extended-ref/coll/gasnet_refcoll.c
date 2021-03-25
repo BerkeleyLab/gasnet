@@ -1388,6 +1388,7 @@ _gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
   gex_Event_t handle;
 
   GASNETI_TRACE_COLL_BROADCAST(COLL_BROADCAST_NB,team,dst,srcimage,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcimage,src,nbytes,flags);
   handle = gasnete_coll_broadcast_nb(team,dst,srcimage,src,nbytes,flags,0 GASNETI_THREAD_PASS);
   gasneti_AMPoll(); // No progress made until now
@@ -1418,6 +1419,7 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_broadcast)
                                  gasnet_image_t srcimage, void *src,
                                  size_t nbytes, int flags GASNETI_THREAD_FARG) {
   GASNETI_TRACE_COLL_BROADCAST(COLL_BROADCAST,team,dst,srcimage,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcimage,src,nbytes,flags);
   gasnete_coll_broadcast(team,dst,srcimage,src,nbytes,flags GASNETI_THREAD_PASS);
 }
@@ -1447,6 +1449,7 @@ _gasnet_coll_scatter_nb(gasnet_team_handle_t team,
                         size_t nbytes, int flags GASNETI_THREAD_FARG) {
   gex_Event_t handle;
   GASNETI_TRACE_COLL_SCATTER(COLL_SCATTER_NB,team,dst,srcimage,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_SCATTER(team,dst,srcimage,src,nbytes,flags);
   handle = gasnete_coll_scatter_nb(team,dst,srcimage,src,nbytes,flags,0 GASNETI_THREAD_PASS);
   gasneti_AMPoll(); // No progress made until now
@@ -1477,6 +1480,7 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_scatter)
                                gasnet_image_t srcimage, void *src,
                                size_t nbytes, int flags GASNETI_THREAD_FARG) {
   GASNETI_TRACE_COLL_SCATTER(COLL_SCATTER,team,dst,srcimage,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_SCATTER(team,dst,srcimage,src,nbytes,flags);
   gasnete_coll_scatter(team,dst,srcimage,src,nbytes,flags GASNETI_THREAD_PASS);
 }
@@ -1507,6 +1511,7 @@ _gasnet_coll_gather_nb(gasnet_team_handle_t team,
                        size_t nbytes, int flags GASNETI_THREAD_FARG) {
   gex_Event_t handle;
   GASNETI_TRACE_COLL_GATHER(COLL_GATHER_NB,team,dstimage,dst,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_GATHER(team,dstimage,dst,src,nbytes,flags);
   handle = gasnete_coll_gather_nb(team,dstimage,dst,src,nbytes,flags,0 GASNETI_THREAD_PASS);
   gasneti_AMPoll(); // No progress made until now
@@ -1536,6 +1541,7 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_gather)
                               void *src,
                               size_t nbytes, int flags GASNETI_THREAD_FARG) {
   GASNETI_TRACE_COLL_GATHER(COLL_GATHER,team,dstimage,dst,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_GATHER(team,dstimage,dst,src,nbytes,flags);
   gasnete_coll_gather(team,dstimage,dst,src,nbytes,flags GASNETI_THREAD_PASS);
 }
@@ -1563,6 +1569,7 @@ _gasnet_coll_gather_all_nb(gasnet_team_handle_t team,
   gex_Event_t handle;
 
   GASNETI_TRACE_COLL_GATHER_ALL(COLL_GATHER_ALL_NB,team,dst,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_GATHER_ALL(team,dst,src,nbytes,flags);
   handle = gasnete_coll_gather_all_nb(team,dst,src,nbytes,flags,0 GASNETI_THREAD_PASS);
   gasneti_AMPoll(); // No progress made until now
@@ -1589,6 +1596,7 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_gather_all)
                                   void *dst, void *src,
                                   size_t nbytes, int flags GASNETI_THREAD_FARG) {
   GASNETI_TRACE_COLL_GATHER_ALL(COLL_GATHER_ALL,team,dst,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_GATHER_ALL(team,dst,src,nbytes,flags);
   gasnete_coll_gather_all(team,dst,src,nbytes,flags GASNETI_THREAD_PASS);
 }
@@ -1616,6 +1624,7 @@ _gasnet_coll_exchange_nb(gasnet_team_handle_t team,
                          size_t nbytes, int flags GASNETI_THREAD_FARG) {
   gex_Event_t handle;
   GASNETI_TRACE_COLL_EXCHANGE(COLL_EXCHANGE_NB,team,dst,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_EXCHANGE(team,dst,src,nbytes,flags);
   handle = gasnete_coll_exchange_nb(team,dst,src,nbytes,flags,0 GASNETI_THREAD_PASS);
   gasneti_AMPoll(); // No progress made until now
@@ -1642,6 +1651,7 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_exchange)
                                 void *dst, void *src,
                                 size_t nbytes, int flags GASNETI_THREAD_FARG) {
   GASNETI_TRACE_COLL_EXCHANGE(COLL_EXCHANGE,team,dst,src,nbytes,flags);
+  GASNETI_CHECK_INJECT();
   GASNETE_COLL_VALIDATE_EXCHANGE(team,dst,src,nbytes,flags);
   gasnete_coll_exchange(team,dst,src,nbytes,flags GASNETI_THREAD_PASS);
 }
@@ -2354,6 +2364,7 @@ gasnete_tm_reduce_nb_default(
   gasneti_TM_t i_tm = gasneti_import_tm_nonpair(e_tm);
 
   GASNETI_TRACE_TM_REDUCE(COLL_REDUCE_NB,e_tm,root,dst,src,dt,dt_sz,dt_cnt,opcode,user_fnptr,user_cdata,flags);
+  GASNETI_CHECK_INJECT();
 
   // Argument validation
   // TODO-EX: factor to avoid cloning this logic to conduit collectives
@@ -2505,6 +2516,7 @@ gasnete_tm_reduce_all_nb_default(
   gasneti_TM_t i_tm = gasneti_import_tm_nonpair(e_tm);
 
   GASNETI_TRACE_TM_REDUCE_ALL(COLL_REDUCE_ALL_NB,e_tm,dst,src,dt,dt_sz,dt_cnt,opcode,user_fnptr,user_cdata,flags);
+  GASNETI_CHECK_INJECT();
 
   // Argument validation
   // TODO-EX: factor to avoid cloning this logic to conduit collectives

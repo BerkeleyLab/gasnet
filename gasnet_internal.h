@@ -27,6 +27,10 @@
 #include <gasnet_ratomic.h>
 #endif
 
+#if GASNETI_NEED_GASNET_MK_H
+#include <gasnet_mk.h>
+#endif
+
 #if GASNETI_COMPILER_IS_UNKNOWN
   #error "Invalid attempt to build GASNet with a compiler other than the one probed at configure time"
 #endif
@@ -83,6 +87,10 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
 #define gasneti_strdup(ptr)	     _gasneti_strdup((ptr) GASNETI_CURLOCAARG)
 #define gasneti_strndup(ptr,sz)      _gasneti_strndup((ptr),(sz) GASNETI_CURLOCAARG)
 /* corresponding gasneti_memcheck fns are in gasnet_help.h */
+
+// String append with safe-memory dynamic allocation
+GASNETI_FORMAT_PRINTF(gasneti_sappendf,2,3,
+extern char *gasneti_sappendf(char *s, const char *fmt, ...));
 
 #if GASNET_DEBUGMALLOC
   extern void *_gasneti_malloc(size_t nbytes, const char *curloc) GASNETI_MALLOC;
@@ -223,13 +231,6 @@ GASNETI_MALLOCP(_gasneti_calloc)
 #undef gasneti_thunk_segment
 #endif
 #define gasneti_thunk_segment  gasneti_thunk_error
-
-#if 0 // this safety belt must be disabled until the cleanup in PR #126 fixes internal inclusion of public headers
-#ifdef GASNETI_MYTHREAD_GET_OR_LOOKUP
-#undef GASNETI_MYTHREAD_GET_OR_LOOKUP
-#endif
-#define GASNETI_MYTHREAD_GET_OR_LOOKUP ERROR__GASNet_conduit_code_should_use_GASNETI_MYTHREAD
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* Version of strdup() which is compatible w/ gasneti_free(), instead of plain free() */
@@ -629,6 +630,17 @@ gasneti_iop_t *gasneti_iop_register_rmw(unsigned int noperations GASNETI_THREAD_
 void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations);
 
 /* ------------------------------------------------------------------------------------ */
+// memory kinds hooks
+
+int gasneti_MK_Segment_Create(
+            gasneti_Segment_t *i_segment_p,
+            gasneti_Client_t  i_client,
+            void              *address,
+            uintptr_t         length,
+            gex_MK_t          e_kind,
+            gex_Flags_t       flags);
+
+/* ------------------------------------------------------------------------------------ */
 /* macros for returning errors that allow verbose error tracking */
 extern int gasneti_VerboseErrors;
 #define GASNETI_RETURN_ERR(type) do {                                        \
@@ -792,6 +804,13 @@ extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
     gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0)
 
 /* ------------------------------------------------------------------------------------ */
+// Helpers for debug checks
+
+#if GASNET_DEBUG
+void gasneti_checknpam(int for_reply GASNETI_THREAD_FARG);
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 
 #include <gasnet_handler_internal.h>
 
@@ -835,8 +854,15 @@ typedef struct _gasneti_threaddata_t {
   #define GASNETI_NEED_INIT_SRCDESC 1
   int sd_is_init;
 #endif
+#if GASNET_DEBUG
+  int request_handler_active, reply_handler_active;
+#endif
   struct gasneti_AM_SrcDesc request_sd, reply_sd;
-  void *loopback_requestBuf, *loopback_replyBuf;
+  // Buffers, sized to max-medium, used by loopback AM and reference NPAM
+  void *requestBuf, *replyBuf;
+#if GASNET_DEBUG
+  int requestBuf_live, replyBuf_live;
+#endif
 
   //
   // Event data

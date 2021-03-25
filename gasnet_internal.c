@@ -118,6 +118,7 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_MK_CLASS_CUDA_UVA_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(HIDDEN_AM_CONCUR_,GASNET_HIDDEN_AM_CONCURRENCY_LEVEL)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CACHE_LINE_BYTES_,GASNETI_CACHE_LINE_BYTES)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(GASNETI_TM0_ALIGN_,GASNETI_TM0_ALIGN)) = 1;
@@ -154,6 +155,10 @@ gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark = NULL;
 
 gasnet_seginfo_t *gasneti_seginfo = NULL;
 gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
+
+// TODO: this is proof-of-concept and not a scalable final solution (bug 4088)
+// Note that (gasneti_seginfo_tbl[0] == gasneti_seginfo) to simplify some logic.
+gasnet_seginfo_t *gasneti_seginfo_tbl[GASNET_MAXEPS] = {NULL, };
 
 /* ------------------------------------------------------------------------------------ */
 /* conduit-independent sanity checks */
@@ -361,6 +366,40 @@ extern void gasneti_check_config_postattach(void) {
 }
 
 /* ------------------------------------------------------------------------------------ */
+// Helpers for debug checks
+
+#if GASNET_DEBUG
+void gasneti_check_inject(int for_reply GASNETI_THREAD_FARG) {
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  if (!mythread) return; // Some conduits communicate very early
+
+  if (mythread->reply_handler_active) {
+    gasneti_fatalerror("Invalid GASNet call (communication injection or poll) while executing a Reply handler");
+  }
+  if (mythread->request_handler_active && !for_reply) {
+    gasneti_fatalerror("Invalid GASNet call (communication injection or poll) while executing a Request handler");
+  }
+
+  // NPAM checks are distinct to allow that entire subsytem to be overridden
+  gasneti_checknpam(for_reply GASNETI_THREAD_PASS);
+
+  // TODO: check for HSL context
+}
+
+// Resets all state indicative of restricted context.
+// This is intended for use within `gasnet-exit()` which *is* valid from
+// handler context, and is known to run with HSLs held on error paths.
+// There is currently no other known-valid reason to use this call.
+void gasneti_check_inject_reset(GASNETI_THREAD_FARG_ALONE) {
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  if (!mythread) return; // Some conduits communicate very early
+  mythread->reply_handler_active = 0;
+  mythread->request_handler_active = 0;
+  // TODO: reset HSL context
+}
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 #ifndef _GASNET_ERRORNAME
 extern const char *gasnet_ErrorName(int errval) {
   switch (errval) {
@@ -552,7 +591,8 @@ gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
 static gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
                        gex_EP_Capabilities_t caps,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       int new_index)
 {
   gasneti_EP_t endpoint;
 #ifdef GASNETC_SIZEOF_EP_T
@@ -568,13 +608,10 @@ static gasneti_EP_t gasneti_alloc_ep(
   endpoint->_segment = NULL;
   endpoint->_orig_caps = endpoint->_caps = caps;
   endpoint->_flags = flags;
-  endpoint->_index = gasneti_weakatomic32_add(&client->_next_ep_index, 1, 0) - 1;
-  if (endpoint->_index >= GASNET_MAXEPS) {
-    gasneti_fatalerror("Call to gex_EP_Create() would exceed per-client EP limit of %d\n", (int)GASNET_MAXEPS);
-  }
-  gasneti_assert(! client->_ep_tbl[endpoint->_index]);
-  client->_ep_tbl[endpoint->_index] = endpoint;
-  gasneti_amtbl_init(endpoint->_amtbl);
+  endpoint->_index = new_index;
+  gasneti_assert(! client->_ep_tbl[new_index]);
+  client->_ep_tbl[new_index] = endpoint;
+  gasneti_amtbl_init(endpoint);
 #ifndef GASNETC_EP_INIT_HOOK
   size_t extra = alloc_size - sizeof(*endpoint);
   if (extra) memset(endpoint + 1, 0, extra);
@@ -627,7 +664,13 @@ extern int gex_EP_Create(
 
   // TODO: any validation of flags? any conditional behaviors?
 
-  gasneti_EP_t ep = gasneti_alloc_ep(client, caps, flags);
+  uint32_t new_index = gasneti_weakatomic32_add(&client->_next_ep_index, 1, 0) - 1;
+  if_pf (new_index >= GASNET_MAXEPS) {
+    gasneti_weakatomic32_decrement(&client->_next_ep_index, 0);
+    GASNETI_RETURN_ERRR(RESOURCE,"would exceed per-client EP limit of " _STRINGIFY(GASNET_MAXEPS));
+  }
+    
+  gasneti_EP_t ep = gasneti_alloc_ep(client, caps, flags, new_index);
 
   // TODO: any need/want to omit on non-primordial EPs?
   { /*  core API handlers */
@@ -636,7 +679,7 @@ extern int gex_EP_Create(
     int numreg = 0;
     gasneti_assert(ctable);
     while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, ctable, len,
+    if (gasneti_amregister(ep, ctable, len,
                            GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE,
                            0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
@@ -650,7 +693,7 @@ extern int gex_EP_Create(
     int numreg = 0;
     gasneti_assert(etable);
     while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, etable, len,
+    if (gasneti_amregister(ep, etable, len,
                            GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE,
                            0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
@@ -797,6 +840,17 @@ gex_TM_t gasneti_export_tm_pair(gasneti_TM_Pair_t tm_pair) {
   return GASNETI_EXPORT_POINTER(gex_TM_t, tm_pair);
 }
 #endif
+
+// Helper for PSHM queries which cannot inline THUNK_CLIENT
+gasneti_Segment_t gasneti_tm_pair_to_segment(gasneti_TM_Pair_t tm_pair) {
+  gex_EP_Index_t ep_idx = gasneti_tm_pair_loc_idx(tm_pair);
+  gasneti_Client_t i_client = gasneti_import_client(gasneti_THUNK_CLIENT); // TODO: multi-client
+  gasneti_assert_int(ep_idx ,<, GASNET_MAXEPS);
+  gasneti_assert_int(ep_idx ,<, gasneti_weakatomic32_read(&i_client->_next_ep_index, 0));
+  gasneti_EP_t i_ep = i_client->_ep_tbl[ep_idx];
+  gasneti_assert(i_ep);
+  return i_ep->_segment;
+}
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -1341,10 +1395,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         const char *desc;
         int hwid;
       } known_devs[] = {
-        #if PLATFORM_OS_LINUX && PLATFORM_ARCH_IA64 && GASNET_SEQ
-          { "/dev/hw/cpunum",      S_IFDIR, "SGI Altix", 0 },
-          { "/dev/xpmem",          S_IFCHR, "SGI Altix", 0 },
-        #endif
         { "/dev/infiniband/uverbs0",     S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
         { "/dev/infiniband/ofs/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* Solaris */
         #if !GASNET_SEGMENT_EVERYTHING
@@ -2564,6 +2614,27 @@ extern char *_gasneti_extern_strdup(const char *s GASNETI_CURLOCFARG) {
 }
 extern char *_gasneti_extern_strndup(const char *s, size_t n GASNETI_CURLOCFARG) {
   return _gasneti_strndup(s,n GASNETI_CURLOCPARG);
+}
+
+// append to a string with dynamic memory allocation
+// not high-performance, but concise
+char *gasneti_sappendf(char *s, const char *fmt, ...) {
+  // compute length of thing to append
+  va_list args;
+  va_start(args, fmt);
+  int add_len = vsnprintf(NULL, 0, fmt, args);
+  va_end(args);
+
+  // grow (or allocate) the string, including space for '\0'
+  int old_len = s ? strlen(s) : 0;
+  s = gasneti_realloc(s, old_len + add_len + 1);
+
+  // append
+  va_start(args, fmt);
+  vsprintf((s+old_len), fmt, args);
+  va_end(args);
+
+  return s;
 }
 
 #if GASNET_DEBUGMALLOC

@@ -814,7 +814,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
 #endif // GASNETC_PIN_SEGMENT
 
   /*  register client handlers */
-  if (table && gasneti_amregister_legacy(ep->_amtbl, table, numentries) != GASNET_OK)
+  if (table && gasneti_amregister_legacy(ep, table, numentries) != GASNET_OK)
     GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
 
   /* ensure everything is initialized across all nodes */
@@ -955,7 +955,7 @@ extern int gasnetc_EP_PublishBoundSegment(
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
                                        size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
+  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
 
@@ -1296,6 +1296,9 @@ static void gasnetc_exit_body(void) {
 
   /* Disable processing of AMs, except core-specific ones */
   gasnetc_disable_AMs();
+
+  // prevent possible GASNETI_CHECK_INJECT() failures when we communicate
+  GASNETI_CHECK_INJECT_RESET();
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
@@ -1678,7 +1681,7 @@ extern int gasnetc_AMRequestShortM(
   return retval;
 }
 
-#if !GASNETC_HAVE_NP_REQ_MEDIUM // (###)
+#if !GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM // (###)
 
 // This provides a template implementing the following two external functions:
 //     int gasnetc_AMRequestMediumV()
@@ -1745,7 +1748,7 @@ extern int gasnetc_AMRequestMediumM(
   return retval;
 }
 
-#else // GASNETC_HAVE_NP_REQ_MEDIUM
+#else // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 // This provides a template implementing the following three external functions:
 //     int gasnetc_AMRequestMediumM()
@@ -1760,7 +1763,7 @@ extern int gasnetc_AMRequestMediumM(
 // This example provides a specialized implementation of Negotiated-Payload
 // RequestMedium (by providing gasnetc_AM_PrepareRequestMedium() and
 // gasnetc_AM_CommitRequestMediumM()) and one must
-//    #define GASNETC_HAVE_NP_REQ_MEDIUM 1
+//    #define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1
 // in the conduit's gasnet_core_fwd.h to disable (conflicting) definitions in
 // the reference implementation.
 
@@ -1858,6 +1861,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,rank,client_buf,least_payload,most_payload,flags,nargs);
+
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
@@ -1884,6 +1889,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     }
 
     GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
+    GASNETI_CHECK_SD(client_buf, least_payload, most_payload, sd);
     return gasneti_export_srcdesc(sd);
 }
 
@@ -1911,7 +1917,7 @@ extern void gasnetc_AM_CommitRequestMediumM(
 
     gasneti_reset_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REQ_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMRequestLong)
 int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
@@ -2004,7 +2010,7 @@ extern int gasnetc_AMReplyShortM(
   return retval;
 }
 
-#if !GASNETC_HAVE_NP_REP_MEDIUM // (###)
+#if !GASNET_NATIVE_NP_ALLOC_REP_MEDIUM // (###)
 
 // This provides a template implementing the following two external functions:
 //     int gasnetc_AMReplyMediumV()
@@ -2061,13 +2067,13 @@ extern int gasnetc_AMReplyMediumM(
   return retval;
 }
 
-#else // GASNETC_HAVE_NP_REP_MEDIUM
+#else // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 // This provides a template implementing the following three external functions:
 //     int gasnetc_AMReplyMediumM()
 //     int gasnetc_AM_PrepareReplyMedium()
 //     void gasnetc_AM_CommitReplyMediumM()
-// See comments with GASNETC_HAVE_NP_REQ_MEDIUM for more information.
+// See comments with GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM for more information.
 
 GASNETI_INLINE(gasnetc_prepare_rep_medium)
 int gasnetc_prepare_rep_medium(
@@ -2159,6 +2165,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Flags_t        flags
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REPLYMEDIUM(token,client_buf,least_payload,most_payload,flags,nargs);
+
     gasneti_AM_SrcDesc_t sd;
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
@@ -2185,6 +2193,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     }
 
     GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
+    GASNETI_CHECK_SD(client_buf, least_payload, most_payload, sd);
     return gasneti_export_srcdesc(sd);
 }
 
@@ -2212,7 +2221,7 @@ extern void gasnetc_AM_CommitReplyMediumM(
     gasneti_reset_srcdesc(sd);
 }
 
-#endif // GASNETC_HAVE_NP_REP_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMReplyLong)
 int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,

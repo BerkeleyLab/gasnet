@@ -43,6 +43,9 @@
 #define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
 #endif
 
+  // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
+//#define GASNET_HAVE_MK_CLASS_CUDA_UVA GASNETI_MK_CLASS_CUDA_UVA_ENABLED
+
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
      this ensures locking is still done correctly, etc
@@ -66,12 +69,12 @@
      your conduit must provide the V-suffixed functions for any of these that
      are not defined.
    */
-/* #define GASNETC_HAVE_NP_REQ_MEDIUM 1 */
-/* #define GASNETC_HAVE_NP_REP_MEDIUM 1 */
-/* #define GASNETC_HAVE_NP_REQ_LONG 1 */
-/* #define GASNETC_HAVE_NP_REP_LONG 1 */
+/* #define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1 */
+/* #define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM 1 */
+/* #define GASNET_NATIVE_NP_ALLOC_REQ_LONG 1 */
+/* #define GASNET_NATIVE_NP_ALLOC_REP_LONG 1 */
 
-  /* uncomment for each GASNETC_HAVE_NP_* enabled above if the Commit function
+  /* uncomment for each GASNET_NATIVE_NP_ALLOC_* enabled above if the Commit function
      has the numargs argument even in an NDEBUG build (it is always passed in
      DEBUG builds).
    */
@@ -84,7 +87,7 @@
      include a call to gasneti_AMPoll (or equivalent) for progress.
      The preferred implementation is to Poll only in the M-suffixed calls
      and not the V-suffixed calls (and GASNETC_REQUESTV_POLLS undefined).
-     Used if (and only if) any of the GASNETC_HAVE_NP_* values above are unset.
+     Used if (and only if) any of the GASNET_NATIVE_NP_ALLOC_* values above are unset.
    */
 #define GASNETC_REQUESTV_POLLS 1
 
@@ -144,6 +147,14 @@
 #define GASNET_ERR_BAD_ARG              2
 #define GASNET_ERR_NOT_READY            (_GASNET_ERR_BASE+4)
 #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
+
+// If conduit supports GASNET_MAXEPS!=1, set default and (optional) max values here.
+// Leaving GASNETC_MAXEPS_DFLT unset will result in GASNET_MAXEPS=1, independent
+// of all other settings (appropriate for conduits without multi-ep support).
+// If set, GASNETC_MAXEPS_MAX it is used to limit a user's --with-maxeps (and a
+// global default limit is used otherwise).
+//#define GASNETC_MAXEPS_DFLT ### // default num endpoints this conduit supports, undef means no multi-ep support
+//#define GASNETC_MAXEPS_MAX ### // leave unset for default
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */

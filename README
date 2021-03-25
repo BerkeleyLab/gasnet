@@ -427,9 +427,10 @@ ucx-conduit: Unified Communication X framework [EXPERIMENTAL]
  This conduit is currently experimental, and is not yet carefully tuned for performance.
  It has only been validated on Mellanox InfiniBand devices starting from ConnectX-5.
 
-ofi-conduit: Open Fabrics Interfaces (*TEMPORARILY DISABLED*)
+ofi-conduit: Open Fabrics Interfaces [EXPERIMENTAL]
  GASNet over the Open Fabrics Interface framework (libfabric).
  This conduit is currently being re-implemented for GASNet-EX.
+ Work to date is believed to be functionally complete and correct, but not performant.
  Until that rewrite is complete, users are advised to use other conduits compatible
  with their hardware, or to use the legacy GASNet-1 release (if EX-specific features are not required).
 
@@ -520,6 +521,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested include:
     * macOS/{x86,x86_64}/icc/{32,64}: smp, udp, mpi &
     * macOS/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi
     * macOS/{x86,x86_64}/PGI/{32,64}: smp, udp, #
+    * macOS/AARCH64/{gcc,clang}/64:   smp, udp, #
 
     * CNL/Cray-XT/{gcc,PGI,PathScale,Intel}/64: smp, mpi &
 

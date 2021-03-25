@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testsegment.c $
+/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testtmpair.c $
  * Copyright (c) 2020, The Regents of the University of California
  *
  * Description: Test of gex_TM_Pair() for communication initiation
@@ -173,17 +173,15 @@ int main(int argc, char **argv)
 
   next = (myrank + 1) % nranks;
   prev = (myrank + nranks - 1) % nranks;
-  void *self_base = TEST_MYSEG();
-  void *next_base = TEST_SEG(next);
-  void *prev_base = TEST_SEG(prev);
 
   const int num_eps = MIN(4, GASNET_MAXEPS);  // TODO: command line arg to control this
   gex_EP_t *eps = test_malloc(num_eps * sizeof(gex_EP_t));
+  gex_Segment_t *segs = test_malloc(num_eps * sizeof(gex_Segment_t));
+  gex_EP_Capabilities_t ep_caps = 0;
   eps[0] = myep;
-#if 0 // TODO: allocate/setup non-primordial endpoints
+  segs[0] = mysegment;
   {
     // Limit capabilities to those required by the enabled tests
-    gex_EP_Capabilities_t ep_caps = 0;
     for (gex_EP_Index_t idx = 0; idx < num_eps; ++idx) {
       if (TEST_SECTION_BEGIN_ENABLED()) ep_caps |= GEX_EP_CAPABILITY_RMA; // Get
       if (TEST_SECTION_BEGIN_ENABLED()) ep_caps |= GEX_EP_CAPABILITY_RMA; // Put
@@ -192,39 +190,59 @@ int main(int argc, char **argv)
     }
     test_section = '\0';
 
+    // Limit capabilities to those currently implementd by the current conduit
+  #if GASNET_CONDUIT_IBV
+    ep_caps &= GEX_EP_CAPABILITY_RMA;
+  #elif GASNET_MAXEPS > 1
+    MSG0("Update required in testtmpair.c for conduit-specific capabilities.");
+  #endif
+
     for (gex_EP_Index_t idx = 1; idx < num_eps; ++idx) {
       GASNET_Safe(gex_EP_Create(eps+idx, myclient, ep_caps, 0));
     }
 
-  #if !GASNET_SEGMENT_EVERYTHING
     for (gex_EP_Index_t idx = 1; idx < num_eps; ++idx) {
-      // TODO: distinct segments would provide a stronger test,
-      // but currently this has a risk of conflicting with PSHM.
-      gex_EP_BindSegment(eps[idx], mysegment, 0);
+      GASNET_Safe(gex_Segment_Create(segs+idx, myclient, NULL, TEST_SEGSZ_EXPR, GEX_MK_HOST, 0));
+      gex_EP_BindSegment(eps[idx], segs[idx], 0);
     }
     gex_EP_PublishBoundSegment(myteam, eps+1, num_eps-1, 0);
-  #endif
   }
-#endif
 
   // Paranoia to prevent accidental use:
   myteam = GEX_TM_INVALID;
 
-  for (gex_EP_Index_t loc_idx = 0; loc_idx < num_eps; ++loc_idx) {
-    gex_EP_Index_t rem_idx = loc_idx ^ 1; // odd/even matching of local and remote EPs
-    if (rem_idx == num_eps) { rem_idx = loc_idx; } // fixup for odd total count
-    gex_TM_t pair = gex_TM_Pair(eps[loc_idx], rem_idx);
+  for (int iter = 0; iter < num_eps; ++iter) {
+    gex_EP_Index_t loc_idx, rem_idx;
 
+    // TODO: "mix it up", such that non-equal local and remote indices communicate.
+    // However, that requires addition thought to managing two local segments if we
+    // are to continue using in-segment local addresses.
+    loc_idx = rem_idx = iter;
+
+    gex_EP_Capabilities_t test_caps = (loc_idx || rem_idx) ? ep_caps : GEX_EP_CAPABILITY_ALL;
+
+    gex_TM_t pair = gex_TM_Pair(eps[loc_idx], rem_idx);
 
     const size_t rank_sz = sizeof(gex_Rank_t);
 
-    struct test_segment *loc_seg = (struct test_segment *)self_base;
-#if GASNET_SEGMENT_EVERYTHING
-    struct test_segment *rem_seg = (struct test_segment *)next_base;
-#else
+    struct test_segment *loc_seg;
+    if (!loc_idx) {
+      // Required for GASNET_SEGMENT_EVERYTHING, buy always correct
+      loc_seg = (struct test_segment *) TEST_MYSEG();
+    } else {
+      loc_seg = gex_Segment_QueryAddr(segs[loc_idx]);
+    }
+
     struct test_segment *rem_seg;
-    GASNET_Safe(gex_Segment_QueryBound(pair, next, (void**)&rem_seg, NULL, NULL));
-#endif
+    struct test_segment *prev_seg;
+    if (!rem_idx) {
+      // Required for GASNET_SEGMENT_EVERYTHING, buy always correct
+      rem_seg = (struct test_segment *) TEST_SEG(next);
+      prev_seg = (struct test_segment *) TEST_SEG(prev);
+    } else {
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(pair, next, (void**)&rem_seg, NULL, NULL, 0) );
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(pair, prev, (void**)&prev_seg, NULL, NULL, 0) );
+    }
 
     loc_seg->get_src = myrank;
     for (int i = 0; i < 6; ++i) {
@@ -240,16 +258,20 @@ int main(int argc, char **argv)
     }
 
     // Cannot use QueryBound in handler context
-    {
-      struct test_segment *prev_seg = (struct test_segment *)prev_base;
-      fp_reply_dst = &prev_seg->fp_rep_dst;
-      np_reply_dst = &prev_seg->np_rep_dst;
-    }
+    fp_reply_dst = &prev_seg->fp_rep_dst;
+    np_reply_dst = &prev_seg->np_rep_dst;
 
     BARRIER();
 
-    if (TEST_SECTION_BEGIN_ENABLED()) { // RMA Get tests
-      MSG0("%c: Starting RMA Get tests for pair (%d,%d)", TEST_SECTION_NAME(), loc_idx, rem_idx);
+    // RMA Get tests
+    if (!TEST_SECTION_BEGIN_ENABLED()) {
+      // Nothing to do
+    } else if (! (test_caps & GEX_EP_CAPABILITY_RMA)) {
+      MSG0("%c: Skipping RMA Get tests for pair (%d,%d) - RMA not yet supported for non-primordial EPs",
+           TEST_SECTION_NAME(), loc_idx, rem_idx);
+    } else {
+      MSG0("%c: Starting RMA Get tests for pair (%d,%d)",
+           TEST_SECTION_NAME(), loc_idx, rem_idx);
 
       int rc;
       gex_Event_t ev;
@@ -281,8 +303,15 @@ int main(int argc, char **argv)
       }
     }
 
-    if (TEST_SECTION_BEGIN_ENABLED()) { // RMA Put tests
-      MSG0("%c: Starting RMA Put tests for pair (%d,%d)", TEST_SECTION_NAME(), loc_idx, rem_idx);
+    // RMA Put tests
+    if (!TEST_SECTION_BEGIN_ENABLED()) {
+      // Nothing to do
+    } else if (! (test_caps & GEX_EP_CAPABILITY_RMA)) {
+      MSG0("%c: Skipping RMA Put tests for pair (%d,%d) - RMA not yet supported for non-primordial EPs",
+           TEST_SECTION_NAME(), loc_idx, rem_idx);
+    } else {
+      MSG0("%c: Starting RMA Put tests for pair (%d,%d)",
+           TEST_SECTION_NAME(), loc_idx, rem_idx);
 
       int rc;
       gex_Event_t ev[2];
@@ -318,8 +347,14 @@ int main(int argc, char **argv)
     }
 
     // TODO: Long tests probably don't use RMA on conduits w/ "packed long"
-    if (TEST_SECTION_BEGIN_ENABLED()) { // AM Tests
-      MSG0("%c: Starting AM Request tests for pair (%d,%d)", TEST_SECTION_NAME(), loc_idx, rem_idx);
+    if (!TEST_SECTION_BEGIN_ENABLED()) { // AM Tests
+      // Nothing to do
+    } else if (! (test_caps & GEX_EP_CAPABILITY_AM)) {
+      MSG0("%c: Skipping AM Request tests for pair (%d,%d) - AMs not yet supported for non-primordial EPs",
+           TEST_SECTION_NAME(), loc_idx, rem_idx);
+    } else {
+      MSG0("%c: Starting AM Request tests for pair (%d,%d)",
+           TEST_SECTION_NAME(), loc_idx, rem_idx);
 
       static gasnett_atomic_val_t cntr_target = 0;
 
@@ -403,8 +438,14 @@ int main(int argc, char **argv)
       }
     }
 
-    if (TEST_SECTION_BEGIN_ENABLED()) { // VIS Indexed Tests
-      MSG0("%c: Starting VIS Indexed tests for pair (%d,%d)", TEST_SECTION_NAME(), loc_idx, rem_idx);
+    if (!TEST_SECTION_BEGIN_ENABLED()) { // VIS Indexed Tests
+      // Nothing to do
+    } else if (! (test_caps & GEX_EP_CAPABILITY_VIS)) {
+      MSG0("%c: Skipping VIS Indxed tests for pair (%d,%d) - VIS not yet supported for non-primordial EPs",
+           TEST_SECTION_NAME(), loc_idx, rem_idx);
+    } else {
+      MSG0("%c: Starting VIS Indexed tests for pair (%d,%d)",
+           TEST_SECTION_NAME(), loc_idx, rem_idx);
 
       // gex_VIS_{Vector,Indexed,Strided}{Put,Get}{NB,NBI,Blocking} == 18 entry points
       // TODO: currently we cover only Indexed, which we *hope* is representative

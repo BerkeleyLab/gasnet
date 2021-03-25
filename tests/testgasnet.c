@@ -6,6 +6,7 @@
 
 #include <gasnetex.h>
 #include <gasnet_ratomic.h>
+#include <gasnet_mk.h>
 #include <gasnet_tools.h>
 
 /* limit segsz to prevent stack overflows for seg_everything tests */
@@ -43,6 +44,7 @@ void doit3(int partner, int *partnerseg);
 void doit5(int partner, int *partnerseg);
 void doit6(int partner, int *partnerseg);
 void doit7(int partner, int *partnerseg);
+void doit8(int partner, int *partnerseg);
 
 static gex_Client_t      myclient;
 static gex_EP_t    myep;
@@ -141,6 +143,16 @@ void test_threadinfo(int threadid, int numthreads) {
   { GASNET_POST_THREADINFO(my_ti);
     gasnet_threadinfo_t ti = GASNET_GET_THREADINFO();
     assert_always(ti == my_ti);
+  }
+  { GASNET_BEGIN_FUNCTION();
+    { GASNET_BEGIN_FUNCTION();
+      gasnet_threadinfo_t ti = GASNET_GET_THREADINFO();
+      assert_always(ti == my_ti);
+    }
+    { GASNET_POST_THREADINFO(GASNET_GET_THREADINFO());
+      gasnet_threadinfo_t ti = GASNET_GET_THREADINFO();
+      assert_always(ti == my_ti);
+    }
   }
   assert(threadid < numthreads && numthreads <= MAX_THREADS);
   all_ti[threadid] = my_ti;
@@ -345,13 +357,26 @@ int main(int argc, char **argv) {
     assert_always(global_segsz > 0);
   #endif
 
-  { uintptr_t size = (uintptr_t)-5;
+  { uintptr_t size = (uintptr_t)-3;
     void *owneraddr = (void*)&size;
     void *localaddr = (void*)&size;
 
     // No segments have been created/bound yet.
-    // Local and remote bound-segment queries must return non-zero and preserve output locations.
+    // Local bound-segment query must succeed synchronously and return zero size:
+    gex_Event_t ev = gex_EP_QueryBoundSegmentNB(myteam, myrank, NULL, NULL, &size, 0);
+    if (ev != GEX_EVENT_INVALID || size) {
+      MSG("*** ERROR - FAILED NO BOUND SEGMENT TEST!!!!!");
+    }
+    // Remote bound-segment query must not "fail", and must return zero size:
+    size = (uintptr_t)-4;
     gex_Rank_t peer = (myrank + 1) % numranks;
+    ev = gex_EP_QueryBoundSegmentNB(myteam, peer, NULL, NULL, &size, 0);
+    if (ev == GEX_EVENT_NO_OP || (gex_Event_Wait(ev),0) || size) {
+      MSG("*** ERROR - FAILED NO BOUND SEGMENT TEST!!!!!");
+    }
+    
+    // DEPRECATED queries must return non-zero and preserve output locations:
+    size = (uintptr_t)-5;
     if (!gex_Segment_QueryBound(myteam, myrank, &owneraddr, &localaddr, &size) ||
         !gex_Segment_QueryBound(myteam, peer,   &owneraddr, &localaddr, &size) ||
         owneraddr != (void*)&size || localaddr != (void*)&size || size != (uintptr_t)-5) {
@@ -461,6 +486,7 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
   #undef CHECK_MAX
   gex_AM_ReplyShort0(token, sizecheck_handlers[1].gex_index, 0);
 
+#if !PLATFORM_COMPILER_XLC // Skip due to external bug 4205
   // verify that payload queries evalute their args exactly once
   #define CHECK_TOKEN_MAX_EVAL(cat) \
     do { \
@@ -471,6 +497,7 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
   CHECK_TOKEN_MAX_EVAL(Medium);
   CHECK_TOKEN_MAX_EVAL(Long);
   #undef CHECK_TOKEN_MAX_EVAL
+#endif
 }
 gasnett_atomic_t sizecheck_ack = gasnett_atomic_init(0);
 GASNETT_EXTERNC void sizecheck_reph(gex_Token_t token) {
@@ -494,6 +521,19 @@ void doit(int partner, int *partnerseg) {
     assert_always(!memcmp(&v,&vz,sizeof(type)));   \
   } while (0)
   CHECK_ZERO_CONSTANT(gex_Segment_t, GEX_SEGMENT_INVALID);
+  CHECK_ZERO_CONSTANT(gex_TM_t,      GEX_TM_INVALID);
+  CHECK_ZERO_CONSTANT(gex_Client_t,  GEX_CLIENT_INVALID);
+  CHECK_ZERO_CONSTANT(gex_EP_t,      GEX_EP_INVALID);
+  CHECK_ZERO_CONSTANT(gex_MK_t,      GEX_MK_INVALID);
+
+  #define CHECK_NONZERO_CONSTANT(type, constant) do { \
+    static type vz;                                \
+    type v = constant;                             \
+    test_static_assert(sizeof(constant) == sizeof(type));  \
+    assert_always(sizeof(constant) == sizeof(v));  \
+    assert_always(memcmp(&v,&vz,sizeof(type)));    \
+  } while (0)
+  CHECK_NONZERO_CONSTANT(gex_MK_t,   GEX_MK_HOST);
 
   if (strcmp(clientname, gex_Client_QueryName(myclient))) {
     MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");
@@ -540,7 +580,16 @@ void doit(int partner, int *partnerseg) {
   { void *owneraddr, *localaddr;
     uintptr_t size;
 
-    // Local bound-segment query must return 0 and give same data as direct queries
+    // Local segment query must locate the segment and give same data as direct queries
+    gex_Event_t ev = gex_EP_QueryBoundSegmentNB(myteam, myrank, &owneraddr, &localaddr, &size, GEX_FLAG_IMMEDIATE);
+    if (ev        != GEX_EVENT_INVALID ||
+        size      != gex_Segment_QuerySize(mysegment) ||
+        owneraddr != gex_Segment_QueryAddr(mysegment) ||
+        owneraddr != localaddr) {
+      MSG("*** ERROR - FAILED LOCAL BOUND SEGMENT TEST!!!!!");
+    }
+    // and DEPRECATED API should too:
+    owneraddr = localaddr = NULL; size = 0;
     if (gex_Segment_QueryBound(myteam, myrank, &owneraddr, &localaddr, &size) ||
         size      != gex_Segment_QuerySize(mysegment) ||
         owneraddr != gex_Segment_QueryAddr(mysegment) ||
@@ -553,9 +602,29 @@ void doit(int partner, int *partnerseg) {
       size = 0;
       owneraddr = NULL;
       localaddr = (void*)&size;
-      // Remote bound-segment query must return 0 and set all outputs to "plausible" values
-      if (gex_Segment_QueryBound(myteam, peer, &owneraddr, &localaddr, &size) ||
-          !size || !owneraddr || localaddr == (void*)&size) {
+      // Remote bound-segment IMMEDIATE queries may fail, but can never return a real event
+      ev = gex_EP_QueryBoundSegmentNB(myteam, peer, &owneraddr, &localaddr, &size, GEX_FLAG_IMMEDIATE);
+      if (ev == GEX_EVENT_NO_OP) {
+        // IMMEDIATE "failed.  Non-IMMEDIATE retry must locate the segment.
+        ev = gex_EP_QueryBoundSegmentNB(myteam, peer, &owneraddr, &localaddr, &size, 0);
+        if (ev == GEX_EVENT_NO_OP) {
+          MSG("*** ERROR - FAILED REMOTE BOUND SEGMENT TEST!!!!!");
+        }
+        gex_Event_Wait(ev);
+      } else if (ev != GEX_EVENT_INVALID) {
+        // "real" event (or entirely bogus value) returned from an IMMEDIATE query
+        MSG("*** ERROR - FAILED REMOTE BOUND SEGMENT TEST!!!!!");
+      }
+      // Successfully query must set all outputs to "plausible" values
+      if (!size || !owneraddr || localaddr == (void*)&size) {
+        MSG("*** ERROR - FAILED REMOTE BOUND SEGMENT TEST!!!!!");
+      }
+      // and DEPRECATED API should match:
+      void *owneraddr2 = NULL;
+      void *localaddr2 = NULL;
+      uintptr_t size2 = 0;
+      if (gex_Segment_QueryBound(myteam, peer, &owneraddr2, &localaddr2, &size2) ||
+          size2 != size || owneraddr2 != owneraddr || localaddr2 != localaddr) {
         MSG("*** ERROR - FAILED REMOTE BOUND SEGMENT TEST!!!!!");
       }
     }
@@ -645,8 +714,10 @@ void doit(int partner, int *partnerseg) {
     BARRIER();
     for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
       gex_Rank_t *crossmap = NULL;
-      int rc = gex_Segment_QueryBound(myteam, neighbor_array[i].gex_jobrank, NULL, (void**)&crossmap, NULL);
-      assert_always(rc == 0);
+      size_t size;
+      gex_Event_Wait(
+          gex_EP_QueryBoundSegmentNB(myteam, neighbor_array[i].gex_jobrank, NULL, (void**)&crossmap, &size, 0) );
+      assert_always(size != 0);
       assert_always(crossmap != NULL);
       crossmap[neighbor_rank] = myrank;
     }
@@ -669,6 +740,12 @@ void doit(int partner, int *partnerseg) {
     // #proc >= #nbrhd >= #host:
     assert_always(n_proc >= n_size && n_size >= h_size);
   }
+
+  assert_always(gex_System_GetVerboseErrors());
+  gex_System_SetVerboseErrors(0);
+  assert_always(!gex_System_GetVerboseErrors());
+  gex_System_SetVerboseErrors(1);
+  assert_always(gex_System_GetVerboseErrors());
 
   /* width-independent computation of an integer variable with unknown unsigned type */
   #if PLATFORM_ARCH_LITTLE_ENDIAN
@@ -780,6 +857,14 @@ void doit(int partner, int *partnerseg) {
   assert_always(myrank < numranks);
   assert_always(numranks < GEX_RANK_INVALID);
 
+  /* max thread query */
+#if GASNET_SEQ
+  assert_always(gex_System_QueryMaxThreads() == 1);
+#else
+  // Not a spec requirement, but a reasonable assumption for any implementation
+  assert_always(gex_System_QueryMaxThreads() > 1);
+#endif
+
   /* ep_index/ep_location tests */
   assert_unsigned(gex_EP_Index_t);
   for (gex_Rank_t i = 0; i < numranks; ++i) {
@@ -796,6 +881,7 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_AM_LUBRequestLong() >= 512);
   assert_always(gex_AM_LUBReplyLong() >= 512);
 
+#if !PLATFORM_COMPILER_XLC // Skip due to external bug 4205
   // verify that payload queries evalute their args exactly once
   #define CHECK_AM_MAX_EVAL(name) \
     do { \
@@ -808,6 +894,7 @@ void doit(int partner, int *partnerseg) {
   CHECK_AM_MAX_EVAL(ReplyMedium);
   CHECK_AM_MAX_EVAL(ReplyLong);
   #undef CHECK_AM_MAX_EVAL
+#endif
 
   static int firsttime = 1;
   if (firsttime) {
@@ -1579,5 +1666,37 @@ void doit7(int partner, int *partnerseg) {
    * moved to gasnet_diagnostic.c (run from testinternal).
    */
   
+#ifndef TESTGASNET_NO_SPLIT
+  doit8(partner, partnerseg);
+}
+void doit8(int partner, int *partnerseg) {
+#endif
+  BARRIER();
+
+  // Checks for graceful degradation where support is missing or limited.
+  // As features become widely support these should be removed in favor
+  // of complete tests (and conduit-specific KnownFailures if needed).
+
+  // Suspend verbose errors since some of these test are expected to fail
+  gex_System_SetVerboseErrors(0);
+
+
+  // Sane GASNET_MAXEPS and graceful failure of EP_Create
+  if (GASNET_MAXEPS < 1) {
+    MSG("*** ERROR - INVALID MAXEPS SETTING!!!!!");
+  } else if (GASNET_MAXEPS == 1) {
+    gex_EP_t ep;
+    int rc = gex_EP_Create(&ep, myclient, GEX_EP_CAPABILITY_RMA, 0);
+    if (rc != GASNET_ERR_RESOURCE) {
+      MSG("*** ERROR - EXCESS EP_CREATE DID NOT FAIL AS EXPECTED!!!!!");
+    }
+  } else {
+    // testtmpair covers creation of multiple EPs where implemented
+  }
+
+
+  // Restore verbose errors
+  gex_System_SetVerboseErrors(1);
+
   BARRIER();
 }

@@ -107,13 +107,11 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   #endif
 
   /* allocate and attach an aux segment */
-
-  gasneti_auxsegAttach((uintptr_t)-1, gasneti_spawner->Exchange);
+  gasnet_seginfo_t auxseg = gasneti_auxsegAttach((uintptr_t)-1, gasneti_spawner->Exchange);
+  gasnetc_auxseg_register(auxseg);
 
   /* determine Max{Local,GLobal}SegmentSize */
   gasneti_segmentInit(mmap_limit, gasneti_spawner->Exchange, flags);
-
-  // TODO-EX: MUST REGISTER THE AUXSEG AND UPDATE (AT LEAST) OFI_{WRITE,READ}()
 
   gasneti_init_done = 1;  
 
@@ -158,6 +156,10 @@ static int gasnetc_attach_primary(void) {
    * Safe even if spawner collectives are used after attach
    */
   gasneti_spawner->Cleanup();
+
+#if GASNET_SEGMENT_EVERYTHING
+  GASNETI_SAFE_PROPAGATE( gasnetc_segment_register(NULL) );
+#endif
 
   return GASNET_OK;
 }
@@ -221,7 +223,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
   #endif
 
   /*  register client handlers */
-  if (table && gasneti_amregister_legacy(ep->_amtbl, table, numentries) != GASNET_OK)
+  if (table && gasneti_amregister_legacy(ep, table, numentries) != GASNET_OK)
     GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
 
   /* ensure everything is initialized across all nodes */
@@ -363,7 +365,7 @@ extern int gasnetc_EP_PublishBoundSegment(
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
                                        size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
+  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
 int gasnetc_exit_in_progress = 0;
@@ -453,6 +455,9 @@ static int gasnetc_exit_coordinate(int exitcode) {
   for (int i = GASNETE_HANDLER_BASE; i < GASNETC_MAX_NUMHANDLERS; ++i) {
     gasnetc_handler[i].gex_fnptr = (gex_AM_Fn_t)&gasnetc_noop;
   }
+
+  // prevent possible GASNETI_CHECK_INJECT() failures when we communicate
+  GASNETI_CHECK_INJECT_RESET();
 
   /* Coordinate using dissemination-pattern, with timeout.
    * lg(N) rounds each of which sends and recvs 1 AM

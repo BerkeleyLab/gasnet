@@ -369,7 +369,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
 
   AMLOCK();
     /*  register client handlers */
-    if (table && gasneti_amregister_legacy(ep->_amtbl, table, numentries) != GASNET_OK)
+    if (table && gasneti_amregister_legacy(ep, table, numentries) != GASNET_OK)
       INITERR(RESOURCE,"Error registering handlers");
   AMUNLOCK();
 
@@ -493,7 +493,7 @@ extern int gasnetc_Segment_Create(
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
                                        size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
+  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_exitcalled = 0;
@@ -1233,6 +1233,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
         break;
       default: gasneti_unreachable_error(("Unknown handler type in gasnetc_enteringHandler_hook(): 0x%x",(int)cat));
     }
+    GASNETI_HANDLER_ENTER(isReq); // TODO: absorb HSL check, below
     #if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK)
       gasnetc_enteringHandler_hook_hsl(cat, isReq, handlerId, token, buf, nbytes,
                                        numargs, (gex_AM_Arg_t *)args);
@@ -1251,6 +1252,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
         break;
       default: gasneti_unreachable_error(("Unknown handler type in gasnetc_leavingHandler_hook(): 0x%x",(int)cat));
     }
+    GASNETI_HANDLER_LEAVE(isReq); // TODO: absorb HSL check, below
     #if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK)
       gasnetc_leavingHandler_hook_hsl(cat, isReq);
     #endif

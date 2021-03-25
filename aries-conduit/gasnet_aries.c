@@ -1571,7 +1571,7 @@ void gasnetc_shutdown(void)
   }
 }
 
-extern void gasnetc_trace_finish(void) {
+extern void gasnetc_stats_dump(int reset) {
 #if GASNETC_GNI_UDREG
   if (GASNETI_STATS_ENABLED(C) && gasnetc_udreg_hndl) {
     int max_memreg = MAX(1,gasneti_getenv_int_withdefault("GASNET_GNI_MEMREG", GASNETC_GNI_MEMREG_DEFAULT, 0));
@@ -1581,6 +1581,11 @@ extern void gasnetc_trace_finish(void) {
     (void)UDREG_GetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_EVICTED, &evict);
     GASNETI_STATS_PRINTF(C,("UDREG size=%d hit/miss/evict: %"PRIu64"/%"PRIu64"/%"PRIu64"\n", max_memreg,
                             hit, miss, evict));
+  }
+  if (reset && gasnetc_udreg_hndl) {
+    (void)UDREG_ResetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_HIT);
+    (void)UDREG_ResetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_MISS);
+    (void)UDREG_ResetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_EVICTED);
   }
 #endif
 }

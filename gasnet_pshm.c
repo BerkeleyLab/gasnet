@@ -9,7 +9,7 @@
 #if GASNET_PSHM /* Otherwise file is empty */
 
 #include <gasnet_core_internal.h> /* for gasnetc_handler[] */
-#include <gasnet_am.h> /* for gasneti_prepare_alloc_buffer() */
+#include <gasnet_am.h> /* for gasneti_{prepare_alloc,commit_free}_buffer() */
 
 #include <sys/types.h>
 #include <signal.h>
@@ -1332,12 +1332,11 @@ int ampshm_prepare_inner(
   } else if (category == gasneti_Medium) {
     size = MIN(most_payload, GASNETC_MAX_MEDIUM_NBRHD);
   } else {
-    size = MIN(most_payload, GASNETC_MAX_LONG_NBRHD);
+    size_t limit = client_buf ? GASNETC_MAX_LONG_NBRHD : GASNETC_REF_NPAM_MAX_ALLOC;
+    size = MIN(most_payload, limit);
     // For small enough Long use the free space after the header to avoid malloc/free
     inline_long = (size <= GASNETI_AMPSHM_MSG_LONG_INLINE);
   }
-
-  gasneti_assert(sd->_tofree == NULL);  // check this before possible IMMEDIATE failure
 
   // Allocate our buffer (honoring IMMEDIATE)
   gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);
@@ -1360,11 +1359,14 @@ int ampshm_prepare_inner(
     sd->_addr = (/*non-const*/void *)client_buf;
     gasneti_leaf_finish(lc_opt);
   } else if (category == gasneti_Medium) {
+    // NPAM Medium with GASNet-allocated buffer
     sd->_gex_buf = sd->_addr = GASNETI_AMPSHM_MSG_MED_DATA(msg);
   } else if (inline_long) {
+    // NPAM Long with GASNet-allocated buffer, "inline" with header
     sd->_gex_buf = sd->_addr = GASNETI_AMPSHM_MSG_LONG_TMP(msg);
   } else {
-    sd->_tofree = gasneti_prepare_alloc_buffer(sd);
+    // NPAM Long with GASNet-allocated buffer, general case
+    sd->_tofree = gasneti_alloc_npam_buffer(sd, isReq);
   }
 
   return 0;
@@ -1372,7 +1374,7 @@ int ampshm_prepare_inner(
 
 // After sd, next 3 params (isFixed, isReq, category) will be manifest constants
 // which should lead to specialization of the code upon inlining.
-GASNETI_INLINE(ampshm_comit_inner)
+GASNETI_INLINE(ampshm_commit_inner)
 void ampshm_commit_inner(
                    gasneti_AM_SrcDesc_t sd, const int isFixed,
                    const int isReq, const int category,
@@ -1423,9 +1425,8 @@ void ampshm_commit_inner(
   gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);
   gasneti_pshmnet_deliver_send_buffer(vnet, msg, 0 /*msgsz unused*/, sd->_pshm._pshmrank);
 
-  if (sd->_tofree) { // Branch to avoid free(NULL) library call overhead for NPAM/cb
-    gasneti_free(sd->_tofree);
-    sd->_tofree = NULL;
+  if (sd->_tofree) {
+    gasneti_free_npam_buffer(sd);
   }
 }
 
@@ -1485,7 +1486,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
 
 // After sd, next 2 params (isReq, category) will be manifest constants
 // which should lead to specialization of the code upon inlining.
-GASNETI_INLINE(ampshm_comit)
+GASNETI_INLINE(ampshm_commit)
 void ampshm_commit(gasneti_AM_SrcDesc_t sd,
                    const int isReq, const gasneti_category_t category,
                    gex_AM_Index_t handler, size_t nbytes,

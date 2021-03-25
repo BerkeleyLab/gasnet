@@ -864,7 +864,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
   #endif
 
   /*  register client handlers */
-  if (table && gasneti_amregister_legacy(ep->_amtbl, table, numentries) != GASNET_OK)
+  if (table && gasneti_amregister_legacy(ep, table, numentries) != GASNET_OK)
     GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
 
   /* ensure everything is initialized across all nodes */
@@ -1011,7 +1011,7 @@ extern int gasnetc_EP_PublishBoundSegment(
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
                                        size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
+  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_exit_in_signal = 0;  /* to avoid certain things in signal context */
@@ -1076,6 +1076,9 @@ extern void gasnetc_exit(int exitcode) {
   gasnetc_shutdownInProgress = 1;
 
   gasnetc_disable_AMs();
+
+  // prevent possible GASNETI_CHECK_INJECT() failures when we communicate
+  GASNETI_CHECK_INJECT_RESET();
 
   /* HACK borrowed from elan-conduit: release locks we might have held
      If we are exiting from a signal hander, we might already hold some locks.
@@ -1644,10 +1647,11 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,rank,client_buf,least_payload,most_payload,flags,nargs);
+    GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
+
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
-
-    GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
 
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
@@ -1671,6 +1675,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     }
 
     GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
+    GASNETI_CHECK_SD(client_buf, least_payload, most_payload, sd);
     return gasneti_export_srcdesc(sd);
 }
 
@@ -1878,6 +1883,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Flags_t        flags,
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REPLYMEDIUM(token,client_buf,least_payload,most_payload,flags,nargs);
+
     gasneti_AM_SrcDesc_t sd;
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
@@ -1903,6 +1910,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     }
 
     GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
+    GASNETI_CHECK_SD(client_buf, least_payload, most_payload, sd);
     return gasneti_export_srcdesc(sd);
 }
 
