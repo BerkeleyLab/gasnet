@@ -250,8 +250,8 @@ retry:
     flags &= ~GEX_FLAG_IMMEDIATE;
     goto retry;
   }
-  if ((injmode != INJ_NP_GB) && TEST_RAND_ONEIN(5)) {
-    memset(buf, 0x55, len);
+  if ((injmode != INJ_NP_GB) && !INSEG(iter) && TEST_RAND_ONEIN(5)) {
+    memset(srcbuf, 0x55, len);
   }
 }
 

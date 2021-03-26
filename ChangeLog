@@ -98,7 +98,7 @@ GASNet-EX ChangeLog
   - This release adds support for macOS on AARCH64 (aka ARM64, "Apple M1" and
     "Apple Silicon").
 
-* GASNet-EX Spec v0.13: (work-in-progress)
+* GASNet-EX Spec v0.13:
   - Add GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} defines
   - Add gex_System_{Get,Set}VerboseErrors()
   - Add gex_System_QueryMaxThreads()
