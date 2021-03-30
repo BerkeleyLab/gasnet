@@ -168,13 +168,11 @@ GASNet Release Procedure
 
 * Now merge the release branch to 'master' (where the general public will
   expect to find sources intended for general consumption), tag the release,
-  merge back to 'develop' as well, and delete the transient release branch.
+  and delete the transient release branch. (We no longer merge master back 
+  to develop, due to lack of perceived benefit).
     $ git checkout master
     $ git merge --edit --no-ff release/2040.8.0
     $ git tag -a gex-2040.8.0 -m "GASNet release 2040.8.0" master
-    $ git checkout develop
-    $ git merge --edit --no-ff release/2040.8.0
-    $ git branch -d release/2040.8.0
 
 * Check the tag landed in the correct place as follows:
     $ git show gex-2040.8.0
@@ -182,6 +180,10 @@ GASNet Release Procedure
   of the earlier commits, move it using "--force":
     $ git tag --force -a gex-2040.8.0 -m "GASNet release 2040.8.0" master
   OR, just "--force" it without checking - this is perfectly safe.
+
+* Bump package patch version to .1 on develop and create annotated tag
+  - This should also increment the spec and tools spec versions in
+    documentation files ONLY, with comment: // work-in-progress, not "closed"
 
 * Check carefully that everything is exactly as you wish before you push:
     $ git push origin master gex-2040.8.0
