@@ -15,8 +15,6 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-gex_AM_Entry_t const *gasnetc_get_handlertable(void);
-
 gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
@@ -171,12 +169,11 @@ static int gasnetc_attach_primary(void) {
 static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   gex_TM_t                      tm,
                                   uintptr_t                     segsize,
-                                  gasneti_bootstrapExchangefn_t exchangefn,
                                   gex_Flags_t                   flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  (void) gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
+  (void) gasneti_segmentAttach(segment_p, tm, segsize, flags);
 
   /* (###) do any client-specific pinning/registration of the client segment */
 
@@ -191,7 +188,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
 {
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
                           numentries, segsize));
-  gasneti_TM_t tm = gasneti_import_tm(_tm);
+  gasneti_TM_t tm = gasneti_import_tm_nonpair(_tm);
   gasneti_EP_t ep = tm->_ep;
 
   if (!gasneti_init_done) 
@@ -216,14 +213,12 @@ extern int gasnetc_attach( gex_TM_t               _tm,
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
     gex_Segment_t seg; // g2ex segment is automatically saved by a hook
-    /*  (###) may replace gasneti_defaultExchange with a conduit-specific exchange if available */
-    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
-
+    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 
   /*  register client handlers */
-  if (table && gasneti_amregister_legacy(ep->_amtbl, table, numentries) != GASNET_OK)
+  if (table && gasneti_amregister_legacy(ep, table, numentries) != GASNET_OK)
     GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
 
   /* ensure everything is initialized across all nodes */
@@ -259,18 +254,22 @@ extern int gasnetc_Client_Init(
     gasneti_trace_init(argc, argv);
   }
 
+  // Do NOT move this prior to the gasneti_trace_init() call
+  GASNETI_TRACE_PRINTF(O,("gex_Client_Init: name='%s' argc_p=%p argv_p=%p flags=%d",
+                          clientName, (void *)argc, (void *)argv, flags));
+
   //  allocate the client object
-  gasneti_Client_t client = gasneti_alloc_client(clientName, flags, 0);
+  gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
   *client_p = gasneti_export_client(client);
 
   //  create the initial endpoint with internal handlers
-  if (gasnetc_EP_Create(ep_p, *client_p, flags))
+  if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
     GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
   gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -299,49 +298,37 @@ extern int gasnetc_Segment_Attach(
   #endif
 
   /* (###) add code to create a segment collectively */
-  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, gasneti_defaultExchange, 0))
+  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   return GASNET_OK;
 }
 
-extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
-                             gex_Client_t       client,
-                             gex_Flags_t        flags) {
-  /* (###) add code here to create an endpoint belonging to the given client */
+extern int gasnetc_Segment_Create(
+                gex_Segment_t           *segment_p,
+                gex_Client_t            client,
+                gex_Addr_t              address,
+                uintptr_t               length,
+                gex_MK_t                kind,
+                gex_Flags_t             flags)
+{
+  gasneti_assert(segment_p);
 
-  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags, 0);
-  *ep_p = gasneti_export_ep(ep);
+  // Create the Segment object, allocating memory if appropriate
+  gasneti_Client_t i_client = gasneti_import_client(client);
+  int rc = gasneti_segmentCreate(segment_p, i_client, address, length, kind, flags);
 
-  { /*  core API handlers */
-    gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
-    int len = 0;
-    int numreg = 0;
-    gasneti_assert(ctable);
-    while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
-    gasneti_assert_int(numreg ,==, len);
+  if (rc == GASNET_OK) {
+    // (###) add code for any conduit-specific registration or similar
   }
 
-  { /*  extended API handlers */
-    gex_AM_Entry_t *etable = (gex_AM_Entry_t *)gasnete_get_handlertable();
-    int len = 0;
-    int numreg = 0;
-    gasneti_assert(etable);
-    while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ep->_amtbl, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
-    gasneti_assert_int(numreg ,==, len);
-  }
-
-  return GASNET_OK;
+  return rc;
 }
 
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
                                        size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
+  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
 
@@ -500,7 +487,7 @@ extern int gasnetc_AMRequestShortM(
   return retval;
 }
 
-#if !GASNETC_HAVE_NP_REQ_MEDIUM // (###)
+#if !GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM // (###)
 
 // This provides a template implementing the following two external functions:
 //     int gasnetc_AMRequestMediumV()
@@ -568,7 +555,7 @@ extern int gasnetc_AMRequestMediumM(
   return retval;
 }
 
-#else // GASNETC_HAVE_NP_REQ_MEDIUM
+#else // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 // This provides a template implementing the following three external functions:
 //     int gasnetc_AMRequestMediumM()
@@ -583,7 +570,7 @@ extern int gasnetc_AMRequestMediumM(
 // This example provides a specialized implementation of Negotiated-Payload
 // RequestMedium (by providing gasnetc_AM_PrepareRequestMedium() and
 // gasnetc_AM_CommitRequestMediumM()) and one must
-//    #define GASNETC_HAVE_NP_REQ_MEDIUM 1
+//    #define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1
 // in the conduit's gasnet_core_fwd.h to disable (conflicting) definitions in
 // the reference implementation.
 
@@ -681,6 +668,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,rank,client_buf,least_payload,most_payload,flags,nargs);
+
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
@@ -707,6 +696,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     }
 
     GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
+    GASNETI_CHECK_SD(client_buf, least_payload, most_payload, sd);
     return gasneti_export_srcdesc(sd);
 }
 
@@ -734,7 +724,7 @@ extern void gasnetc_AM_CommitRequestMediumM(
 
     gasneti_reset_srcdesc(sd);
 }
-#endif // GASNETC_HAVE_NP_REQ_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMRequestLong)
 int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
@@ -829,7 +819,7 @@ extern int gasnetc_AMReplyShortM(
   return retval;
 }
 
-#if !GASNETC_HAVE_NP_REP_MEDIUM // (###)
+#if !GASNET_NATIVE_NP_ALLOC_REP_MEDIUM // (###)
 
 // This provides a template implementing the following two external functions:
 //     int gasnetc_AMReplyMediumV()
@@ -887,13 +877,13 @@ extern int gasnetc_AMReplyMediumM(
   return retval;
 }
 
-#else // GASNETC_HAVE_NP_REP_MEDIUM
+#else // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 // This provides a template implementing the following three external functions:
 //     int gasnetc_AMReplyMediumM()
 //     int gasnetc_AM_PrepareReplyMedium()
 //     void gasnetc_AM_CommitReplyMediumM()
-// See comments with GASNETC_HAVE_NP_REQ_MEDIUM for more information.
+// See comments with GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM for more information.
 
 GASNETI_INLINE(gasnetc_prepare_rep_medium)
 int gasnetc_prepare_rep_medium(
@@ -985,6 +975,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Flags_t        flags
                        unsigned int       nargs)
 {
+    GASNETI_TRACE_PREP_REPLYMEDIUM(token,client_buf,least_payload,most_payload,flags,nargs);
+
     gasneti_AM_SrcDesc_t sd;
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
@@ -1011,6 +1003,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     }
 
     GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
+    GASNETI_CHECK_SD(client_buf, least_payload, most_payload, sd);
     return gasneti_export_srcdesc(sd);
 }
 
@@ -1038,7 +1031,7 @@ extern void gasnetc_AM_CommitReplyMediumM(
     gasneti_reset_srcdesc(sd);
 }
 
-#endif // GASNETC_HAVE_NP_REP_MEDIUM
+#endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMReplyLong)
 int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
@@ -1169,9 +1162,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
   (for internal conduit use in bootstrapping, job management, etc.)
 */
 static gex_AM_Entry_t const gasnetc_handlers[] = {
-  #ifdef GASNETC_COMMON_HANDLERS
-    GASNETC_COMMON_HANDLERS(),
-  #endif
+  GASNETC_COMMON_HANDLERS(),
 
   /* ptr-width independent handlers */
 
