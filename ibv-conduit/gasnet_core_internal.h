@@ -614,7 +614,7 @@ typedef enum {
 #if GASNETC_PIN_SEGMENT && GASNETC_FH_OPTIONAL
 	GASNETC_OP_GET_BOUNCE,
 #endif
-#if GASNETC_IB_MAX_HCAS > 1
+#if GASNETC_HAVE_FENCED_PUTS
 	GASNETC_OP_FENCE,
 #endif
 #if !GASNETC_PIN_SEGMENT
@@ -695,7 +695,7 @@ typedef struct gasnetc_sreq_t_ {
     struct { /* AM buffer */
       gasnetc_buffer_t		*buff;
     } am;
-#if GASNETC_IB_MAX_HCAS > 1
+#if GASNETC_HAVE_FENCED_PUTS
     struct { // Atomic used to fence a multi-rail Put
       struct gasnetc_sreq_t_    *sreq;
     } fence;

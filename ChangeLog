@@ -18,6 +18,12 @@ GASNet-EX ChangeLog
   Users wishing to use other retired conduits may need to download 
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
+ ----------------------------------------------------------------------
+ 20XX.YY.ZZ: PENDING
+
+* Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4212: build failure for ibv conduit with "--with-ibv-max-hcas=1"
+
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release
 

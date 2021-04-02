@@ -56,7 +56,7 @@ int					gasnetc_use_rcv_thread = GASNETC_USE_RCV_THREAD;
 #if GASNETC_IBV_ODP
   int					gasnetc_use_odp = 1;
 #endif
-#if (GASNETC_IB_MAX_HCAS > 1)
+#if GASNETC_HAVE_FENCED_PUTS
   int                                   gasnetc_use_fenced_puts = 0;
 #endif
 int					gasnetc_am_credits_slack;
@@ -779,7 +779,7 @@ static int gasnetc_snd_reap(int limit) {
 	    }
 	    break;
 
-          #if GASNETC_IB_MAX_HCAS > 1
+          #if GASNETC_HAVE_FENCED_PUTS
           case GASNETC_OP_FENCE:        // Atomic after PUT, with descriptor chaining
 	    gasneti_assert(comp.opcode == IBV_WC_FETCH_ADD);
             sreq->opcode = GASNETC_OP_FREE;
