@@ -134,10 +134,8 @@
 //#define GASNETC_EP_FINI_HOOK(i_ep) (###)
 //#define GASNETC_SIZEOF_EP_T() (###)
 
-  // Uncomment if conduit provides, respectively, these hooks:
-  //   int gasnetc_segment_attach_hook(e_segment, e_tm);
-  //   int gasnetc_segment_create_hook(e_segment);
-  //   int gasnetc_ep_publishboundsegment_hook(e_tm, *eps, num_eps, flags);
+  // Uncomment the following defines if conduit provides the corresponding hook.
+  // See gasnet_internal.h for prototypes and brief descriptions.
 #define GASNETC_SEGMENT_ATTACH_HOOK 1
 #define GASNETC_SEGMENT_CREATE_HOOK 1
 #define GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK 1

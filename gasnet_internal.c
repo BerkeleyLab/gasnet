@@ -563,10 +563,6 @@ void gasneti_free_segment(gasneti_Segment_t segment)
 }
 #endif // _GEX_SEGMENT_T
 
-#if GASNETC_SEGMENT_ATTACH_HOOK
-extern int gasnetc_segment_attach_hook(gex_Segment_t, gex_TM_t);
-#endif
-
 extern int gex_Segment_Attach(
                 gex_Segment_t          *segment_p,
                 gex_TM_t               e_tm,
@@ -611,10 +607,6 @@ extern int gex_Segment_Attach(
 
   return GASNET_OK;
 }
-
-#if GASNETC_SEGMENT_CREATE_HOOK
-extern int gasnetc_segment_create_hook(gex_Segment_t);
-#endif
 
 extern int gex_Segment_Create(
                 gex_Segment_t           *segment_p,

@@ -1982,14 +1982,6 @@ extern void gex_EP_BindSegment(
 }
 
 /* ------------------------------------------------------------------------------------ */
-#if GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK
-int gasnetc_ep_publishboundsegment_hook(
-                gex_TM_t               tm,
-                gex_EP_t               *eps,
-                size_t                 num_eps,
-                gex_Flags_t            flags);
-#endif
-
 extern int gex_EP_PublishBoundSegment(
                 gex_TM_t               tm,
                 gex_EP_t               *eps,

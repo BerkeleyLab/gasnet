@@ -89,9 +89,6 @@ extern void gasneti_legacy_segment_attach_hook(gasneti_EP_t ep) {
 // Legacy gasnet_attach()
 
 extern int gasnetc_attach_primary(void);
-#if GASNETC_SEGMENT_ATTACH_HOOK
-extern int gasnetc_segment_attach_hook(gex_Segment_t, gex_TM_t);
-#endif
 
 extern int gasneti_attach( gex_TM_t               _tm,
                            gasnet_handlerentry_t  *table,
