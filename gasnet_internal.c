@@ -571,7 +571,7 @@ extern int gex_Segment_Attach(
   gasneti_TM_t i_tm = gasneti_import_tm_nonpair(e_tm);
 
   GASNETI_TRACE_PRINTF(O,("gex_Segment_Attach: segment_p=%p tm="GASNETI_TMSELFFMT" length=%"PRIuPTR,
-                          segment_p, GASNETI_TMSELFSTR(e_tm), length));
+                          (void*)segment_p, GASNETI_TMSELFSTR(e_tm), length));
   GASNETI_CHECK_INJECT();
 
   if (! segment_p) {
