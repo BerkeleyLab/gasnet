@@ -133,6 +133,29 @@ extern int gasneti_amregister( gasneti_EP_t i_ep,
     gasneti_assert(! output[newindex].gex_index);
     output[newindex] = input[i];
 
+    #if GASNET_TRACE
+    {
+      const char *name = input[i].gex_name
+                         ? gasneti_dynsprintf(", name='%s'", input[i].gex_name) : "";
+      void *fnptr = *(void**)&input[i].gex_fnptr; // level of indirection avoids -pedantic warning
+      char *flags = gasneti_malloc(gasneti_format_flags_amreg(NULL, input[i].gex_flags));
+      gasneti_format_flags_amreg(flags, input[i].gex_flags);
+      const char *nargs = (input[i].gex_nargs == GASNETI_HANDLER_NARGS_UNK)
+                          ? "" : gasneti_dynsprintf(", nargs=%u", input[i].gex_nargs);
+      if (newindex >= GASNETI_CLIENT_HANDLER_BASE) {
+        GASNETI_TRACE_PRINTF(O,("Registered AM handler %d: client table entry=%d, flags=%s%s, fnptr=%p%s%s",
+                                newindex, i, flags, nargs, fnptr, name,
+                                dontcare ? ", input index was zero" : ""));
+      } else {
+        gasneti_static_assert(GASNETE_HANDLER_BASE > GASNETC_HANDLER_BASE);
+        const char *api = (newindex >= GASNETE_HANDLER_BASE) ? "extended" : "core";
+        GASNETI_TRACE_PRINTF(D,("Registered AM handler %d: %s API, flags=%s%s, fnptr=%p%s",
+                                newindex, api, flags, nargs, fnptr, name));
+      }
+      gasneti_free(flags);
+    }
+    #endif
+
     (*numregistered)++;
   }
   return GASNET_OK;
