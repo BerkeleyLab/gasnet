@@ -36,7 +36,7 @@
 size_t					gasnetc_fh_align;
 size_t					gasnetc_fh_align_mask;
 size_t                                  gasnetc_inline_limit;
-size_t                   		gasnetc_bounce_limit;
+size_t                   		gasnetc_nonbulk_bounce_limit;
 size_t					gasnetc_packedlong_limit; // TODO-EX: adjust w/ nargs?
 size_t                                  gasnetc_put_stripe_sz, gasnetc_put_stripe_split;
 size_t                                  gasnetc_get_stripe_sz, gasnetc_get_stripe_split;
@@ -2170,7 +2170,7 @@ size_t gasnetc_fh_put_helper(
    */
   int is_nonbulk = (sreq->fh_lc_cb == gasnetc_cb_counter); // GEX_EVENT_NOW
   if ((len <= gasnetc_inline_limit) ||
-	(is_nonbulk && (len <= gasnetc_bounce_limit))) {
+	(is_nonbulk && (len <= gasnetc_nonbulk_bounce_limit))) {
     sreq->fh_count = 1; /* Just the remote one */
   } else {
     size_t new_len = gasnetc_get_local_fh(sreq, loc_addr, len);
@@ -2220,7 +2220,7 @@ size_t gasnetc_fh_put_helper(
       if (remote_cnt != NULL) {
 	++(*remote_cnt);
       }
-    } else if (is_nonbulk && (nbytes <= gasnetc_bounce_limit)) {
+    } else if (is_nonbulk && (nbytes <= gasnetc_nonbulk_bounce_limit)) {
       /* Bounce buffer use for non-bulk puts (upto a limit) */
       sreq->opcode = is_long_payload ? GASNETC_OP_LONG_BOUNCE : GASNETC_OP_PUT_BOUNCE;
       if_pf (fh_rem == NULL) { /* Memory will be copied asynchronously */
@@ -3165,7 +3165,7 @@ extern int gasnetc_rdma_put(
     // nor aux segment) OR zero copy fails such as for read-only memory (bug 3338).
     size_t to_xfer = nbytes;
     int is_nonbulk = (local_cb == gasnetc_cb_counter); // GEX_EVENT_NOW
-    if ((is_nonbulk && (nbytes <= gasnetc_bounce_limit)) ||
+    if ((is_nonbulk && (nbytes <= gasnetc_nonbulk_bounce_limit)) ||
         (!GASNETC_USE_FIREHOSE &&
          !gasnetc_in_bound_segment(ep, (uintptr_t)src_ptr, nbytes) &&
          !gasneti_in_local_auxsegment((gasneti_EP_t)ep, src_ptr, nbytes)) ||
@@ -3233,7 +3233,7 @@ extern int gasnetc_rdma_long_put(
   // nor aux segment) OR zero copy fails such as for read-only memory (bug 3338).
   size_t to_xfer = nbytes;
   int is_nonbulk = (local_cb == gasnetc_cb_counter); // GEX_EVENT_NOW
-  if ((is_nonbulk && (nbytes <= gasnetc_bounce_limit)) ||
+  if ((is_nonbulk && (nbytes <= gasnetc_nonbulk_bounce_limit)) ||
       (!GASNETC_USE_FIREHOSE &&
        !gasnetc_in_bound_segment(ep, (uintptr_t)src_ptr, nbytes) &&
        !gasneti_in_local_auxsegment((gasneti_EP_t)ep, src_ptr, nbytes)) ||

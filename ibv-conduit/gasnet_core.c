@@ -1244,7 +1244,7 @@ static int gasnetc_load_settings(void) {
 #endif
   GASNETC_ENVINT(gasnetc_num_qps, GASNET_NUM_QPS, GASNETC_DEFAULT_NUM_QPS, 0, 0);
   GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 0);
-  GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
+  GASNETC_ENVINT(gasnetc_nonbulk_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_packedlong_limit, GASNET_PACKEDLONG_LIMIT, GASNETC_DEFAULT_PACKEDLONG_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_am_gather_min, GASNET_AM_GATHER_MIN, GASNETC_DEFAULT_AM_GATHER_MIN, -1, 1);
   if (gasnetc_am_gather_min == -1) {
@@ -1359,7 +1359,7 @@ static int gasnetc_load_settings(void) {
 #endif
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
 				(gasnetc_inline_limit == (size_t)-1 ? " (automatic)" : "")));
-  GASNETI_TRACE_PRINTF(I,  ("  GASNET_NONBULKPUT_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_bounce_limit));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_NONBULKPUT_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_nonbulk_bounce_limit));
 #if !GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
 #endif
@@ -2307,7 +2307,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   for (i = 1; i < gasnetc_num_ports; ++i) {
     gasnetc_max_msg_sz = MIN(gasnetc_max_msg_sz, gasnetc_port_tbl[i].port.max_msg_sz);
   }
-  gasnetc_bounce_limit = MIN(gasnetc_max_msg_sz, gasnetc_bounce_limit);
+  gasnetc_nonbulk_bounce_limit = MIN(gasnetc_max_msg_sz, gasnetc_nonbulk_bounce_limit);
   // Determine striping params used in gasnet_core_sndrcv.c:gasnetc_zerocp_common()
   if (1 == gasnetc_num_ports) {
     // single path: no striping

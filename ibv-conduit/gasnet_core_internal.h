@@ -911,7 +911,7 @@ extern int		gasnetc_alloc_qps;    /* Number of QPs per node in gasnetc_ceps[] */
 extern int		gasnetc_num_qps;      /* How many QPs to use per peer */
 extern size_t		gasnetc_packedlong_limit;
 extern size_t		gasnetc_inline_limit;
-extern size_t		gasnetc_bounce_limit;
+extern size_t		gasnetc_nonbulk_bounce_limit;
 #if !GASNETC_PIN_SEGMENT
   extern size_t		gasnetc_putinmove_limit;
 #endif
