@@ -2309,6 +2309,11 @@ size_t gasnetc_fh_get_helper(gasnetc_EP_t ep, gasnetc_epid_t epid,
 }
 #endif
 
+GASNETI_INLINE(idiv_round_up)
+int idiv_round_up(int numerator, int denominator) {
+  return (numerator + denominator - 1) / denominator;
+}
+
 /* ------------------------------------------------------------------------------------ *
  *  Externally visible functions                                                        *
  * ------------------------------------------------------------------------------------ */
@@ -2361,7 +2366,7 @@ extern int gasnetc_sndrcv_limits(void) {
       gasnetc_op_oust_per_qp = MIN(gasnetc_op_oust_per_qp, (tmp / gasnetc_hca[h].qps));
     }
   } else {
-    gasnetc_op_oust_per_qp = MIN(GASNETI_ATOMIC_MAX, gasnetc_op_oust_limit) / gasnetc_num_qps;
+    gasnetc_op_oust_per_qp = idiv_round_up(MIN(GASNETI_ATOMIC_MAX, gasnetc_op_oust_limit), gasnetc_num_qps);
     GASNETC_FOR_ALL_HCA(hca) {
       int tmp = hca->qps * gasnetc_op_oust_per_qp;
       if (tmp > hca->hca_cap.max_cqe) {
@@ -2369,7 +2374,7 @@ extern int gasnetc_sndrcv_limits(void) {
       }
     }
   }
-  gasnetc_op_oust_pp /= gasnetc_num_qps;
+  gasnetc_op_oust_pp = idiv_round_up(gasnetc_op_oust_pp, gasnetc_num_qps);
   gasnetc_op_oust_per_qp = MIN(gasnetc_op_oust_per_qp, gasnetc_op_oust_pp*gasneti_nodes);
   gasnetc_op_oust_limit = gasnetc_num_qps * gasnetc_op_oust_per_qp;
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_NETWORKDEPTH_TOTAL = %d", gasnetc_op_oust_limit));
@@ -2381,16 +2386,16 @@ extern int gasnetc_sndrcv_limits(void) {
    * (3) (gasnetc_am_oust_pp * hca->max_qps) used to catch Replies
    * However distribution over QPs and SRQ may each reduce the second two.
    */
-  gasnetc_am_oust_pp /= gasnetc_num_qps;
+  gasnetc_am_oust_pp = idiv_round_up(gasnetc_am_oust_pp, gasnetc_num_qps);
   gasnetc_am_rqst_per_qp = gasnetc_am_oust_pp * (gasneti_nodes - 1);
 
   // Compute gasnetc_am_oust_pp (and report GASNET_AM_CREDITS_PP)
   GASNETC_FOR_ALL_HCA(hca) {
     int tmp = hca->hca_cap.max_cqe - gasnetc_rbuf_spares;
-    tmp /= 2 * hca->qps; // Remainder to be split between Request and Reply, spread over the qps
+    tmp = idiv_round_up(tmp, 2 * hca->qps); // Remainder to be split between Request and Reply, spread over the qps
     gasnetc_am_rqst_per_qp = MIN(gasnetc_am_rqst_per_qp, tmp);
   }
-  gasnetc_am_oust_pp = gasnetc_am_rqst_per_qp / MAX(1, (gasneti_nodes - 1));
+  gasnetc_am_oust_pp = idiv_round_up(gasnetc_am_rqst_per_qp, MAX(1, (gasneti_nodes - 1)));
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_AM_CREDITS_PP = %d", gasnetc_am_oust_pp * gasnetc_num_qps));
 
   // Compute gasnetc_am_oust_limit (and report GASNET_AM_CREDITS_TOTAL)
