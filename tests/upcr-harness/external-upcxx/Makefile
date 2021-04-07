@@ -317,6 +317,7 @@ VPATH = \
 	$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator \
 	$(UPCXX_BLDDIR)/extras/examples/rpc_ff_quiescence \
 	$(UPCXX_BLDDIR)/extras/examples/vector_accumulate \
+	$(UPCXX_BLDDIR)/extras/examples/kokkos_montecarlo \
 	$(UPCXX_BLDDIR)/extras/tutorials/2020-11/examples \
 	$(UPCXX_BLDDIR)/extras/tutorials/2020-11/solutions
 
@@ -385,6 +386,15 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
                        OPTIMIZATION="$(OPT) $$UPCXX_EXTENDADD_EXTRA" \
                        clean extend-add_$*
 	mv $</bin/extend-add_$* $@
+
+# upcxx-examples kokkos_montecarlo: clearing CC prevents a hang in Makefile.kokkos
+kokkos_montecarlo% :: $(UPCXX_BLDDIR)/extras/examples/kokkos_montecarlo upcxx-install force
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< \
+	             CC= UPCXX_INSTALL=$(UPCXX_INSTDIR) \
+	             clean all
+	mv $</MC_DartSampler $@
 
 # UPC interop
 upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop upcxx-install force
