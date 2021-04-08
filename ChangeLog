@@ -24,6 +24,7 @@ GASNet-EX ChangeLog
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug3936: Problems with multi-rail and GASNET_{AM_CREDITS,NETWORKDEPTH}_PP
   - bug4212: build failure for ibv conduit with "--with-ibv-max-hcas=1"
+  - bug4213: trace AM handler registration
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release
