@@ -875,3 +875,35 @@ extern gex_TI_t gasnetc_nbrhd_Token_Info(
   gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_EP | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
+
+/* ------------------------------------------------------------------------------------ */
+
+size_t gasneti_format_flags_amreg(char *buf, gex_Flags_t flags) {
+  size_t rc = 1;
+  if (buf) buf[0] = '\0';
+  #define APPEND_TOKEN(string) do {    \
+      if (buf) strcat(buf, string); \
+      rc += strlen(string);         \
+    } while (0)
+  #define CHECK_ONE_FLAG(value) \
+    if ((flags & GEX_FLAG_AM_##value) == GEX_FLAG_AM_##value) { APPEND_TOKEN(#value); }
+  if (flags & GASNETI_FLAG_INIT_LEGACY) {
+    APPEND_TOKEN("GASNet-1");
+  } else if ((flags & GASNETI_FLAG_AM_ANY) == GASNETI_FLAG_AM_ANY) {
+    APPEND_TOKEN("WILDCARD");
+  } else {
+    CHECK_ONE_FLAG(MEDLONG) else // must check first in this group
+    CHECK_ONE_FLAG(SHORT)   else
+    CHECK_ONE_FLAG(MEDIUM)  else
+    CHECK_ONE_FLAG(LONG)
+    APPEND_TOKEN("|");
+    CHECK_ONE_FLAG(REQREP)  else // must check first in this group
+    CHECK_ONE_FLAG(REQUEST) else
+    CHECK_ONE_FLAG(REPLY)
+  }
+  #undef CHECK_ONE_FLAG
+  #undef APPEND_TOKEN
+  if (buf) gasneti_assert_uint(rc ,==, 1+strlen(buf));
+  return rc;
+}
+
