@@ -53,6 +53,9 @@ int main(int argc, char **argv)
     int numprocs, myproc;
     int peerproc;
 
+    int crossmachinemode = 0;
+    int help = 0;
+
     /* call startup */
     GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testslice", &argc, &argv, 0));
 
@@ -60,22 +63,42 @@ int main(int argc, char **argv)
     myproc = gex_TM_QueryRank(myteam);
     numprocs = gex_TM_QuerySize(myteam);
 
-    if (argc > 1) arenasz = gasnett_parse_int(argv[1], 1);
+    // Parse cmdline args
+    int arg = 1;
+    while (argc > arg) {
+      if (!strcmp(argv[arg], "-c")) {
+        crossmachinemode = 1;
+        ++arg;
+      } else if (argv[arg][0] == '-') {
+        help = 1;
+        ++arg;
+      } else break;
+    }
+
+    if (argc > arg) { arenasz = gasnett_parse_int(argv[arg], 1); ++arg; }
     if (!arenasz) arenasz = 1024*1024*16;
-    if (argc > 2) outer_iterations = atoi(argv[2]);
+    if (argc > arg) { outer_iterations = atoi(argv[arg]); ++arg; }
     if (!outer_iterations) outer_iterations = 10;
-    if (argc > 3) inner_iterations = atoi(argv[3]);
+    if (argc > arg) { inner_iterations = atoi(argv[arg]); ++arg; }
     if (!inner_iterations) inner_iterations = 10;
-    if (argc > 4) seedoffset = atoi(argv[4]);
+    if (argc > arg) { seedoffset = atoi(argv[arg]); ++arg; }
 
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ));
 
-    test_init("testslice",0, "(arena size) (iterations) (# of sizes per iteration) (seed)");
-
-    /* parse arguments */
-    if (argc > 5) test_usage();
+    test_init("testslice",0, "[options] (arena size) (iterations) (# of sizes per iteration) (seed)\n"
+              "  The -c option enables cross-machine pairing, default is nearest neighbor.");
+    if (help || argc > arg) test_usage();
     
-    peerproc = (myproc + 1) % numprocs;
+    if (crossmachinemode) {
+      if ((numprocs%2) && (myproc == numprocs-1)) {
+        peerproc = myproc;
+      } else {
+        gex_Rank_t half = numprocs / 2;
+        peerproc = (myproc < half) ? (myproc + half) : (myproc - half);
+      }
+    } else {
+      peerproc = (myproc + 1) % numprocs;
+    }
 
     if (seedoffset == 0) {
       seedoffset = (((unsigned int)TIME()) & 0xFFFF);
@@ -83,7 +106,8 @@ int main(int argc, char **argv)
     }
     TEST_SRAND(myproc+seedoffset);
 
-    MSG0("Running with arena size=%"PRIuSZ" outer iterations=%d inner iterations=%d seed=%d",
+    MSG0("Running %stest with arena size=%"PRIuSZ" outer iterations=%d inner iterations=%d seed=%d",
+         (crossmachinemode ? "cross-machine ": ""),
          arenasz,outer_iterations, inner_iterations, seedoffset);
 
     /* Allocate two shadow regions the same size as the segment */
