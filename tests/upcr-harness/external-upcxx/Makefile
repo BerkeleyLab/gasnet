@@ -318,6 +318,7 @@ VPATH = \
 	$(UPCXX_BLDDIR)/extras/examples/rpc_ff_quiescence \
 	$(UPCXX_BLDDIR)/extras/examples/vector_accumulate \
 	$(UPCXX_BLDDIR)/extras/examples/kokkos_montecarlo \
+	$(UPCXX_BLDDIR)/extras/examples/kokkos_3dhalo \
 	$(UPCXX_BLDDIR)/extras/tutorials/2020-11/examples \
 	$(UPCXX_BLDDIR)/extras/tutorials/2020-11/solutions
 
@@ -395,6 +396,15 @@ kokkos_montecarlo% :: $(UPCXX_BLDDIR)/extras/examples/kokkos_montecarlo upcxx-in
 	             CC= UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	             clean all
 	mv $</MC_DartSampler $@
+
+# upcxx-examples kokkos_3dhalo: clearing CC prevents a hang in Makefile.kokkos
+kokkos_3dhalo% :: $(UPCXX_BLDDIR)/extras/examples/kokkos_3dhalo upcxx-install force
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< \
+	             CC= UPCXX_INSTALL=$(UPCXX_INSTDIR) \
+	             clean all
+	mv $</*upcxx_heat_conduction $@
 
 # UPC interop
 upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop upcxx-install force
