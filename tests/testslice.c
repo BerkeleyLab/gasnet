@@ -12,9 +12,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-size_t segsize = 0;
+size_t arenasz = 0;
 #ifndef TEST_SEGSZ
-  #define TEST_SEGSZ_EXPR ((uintptr_t)segsize)
+  #define TEST_SEGSZ_EXPR ((uintptr_t)arenasz*2)
 #endif
 #include "test.h"
 
@@ -52,10 +52,6 @@ int main(int argc, char **argv)
     int seedoffset = 0;
     int numprocs, myproc;
     int peerproc;
-    int sender_p;
-    char *shadow_region_1, *shadow_region_2;
-    int i,j;
-    char *local_base, *target_base;
 
     /* call startup */
     GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testslice", &argc, &argv, 0));
@@ -64,8 +60,8 @@ int main(int argc, char **argv)
     myproc = gex_TM_QueryRank(myteam);
     numprocs = gex_TM_QuerySize(myteam);
 
-    if (argc > 1) segsize = gasnett_parse_int(argv[1], 1);
-    if (!segsize) segsize = 1024*1000;
+    if (argc > 1) arenasz = gasnett_parse_int(argv[1], 1);
+    if (!arenasz) arenasz = 1024*1024*16;
     if (argc > 2) outer_iterations = atoi(argv[2]);
     if (!outer_iterations) outer_iterations = 10;
     if (argc > 3) inner_iterations = atoi(argv[3]);
@@ -74,16 +70,11 @@ int main(int argc, char **argv)
 
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ));
 
-    test_init("testslice",0, "(segsize) (iterations) (# of sizes per iteration) (seed)");
+    test_init("testslice",0, "(arena size) (iterations) (# of sizes per iteration) (seed)");
 
     /* parse arguments */
     if (argc > 5) test_usage();
     
-    if(numprocs & 1) {
-        MSG0("WARNING: This test requires an even number of nodes. Test skipped.\n");
-        gasnet_exit(0); /* exit 0 to prevent false negatives in test harnesses for smp-conduit */
-    }
-    sender_p = !(myproc & 1);
     peerproc = (myproc + 1) % numprocs;
 
     if (seedoffset == 0) {
@@ -92,36 +83,35 @@ int main(int argc, char **argv)
     }
     TEST_SRAND(myproc+seedoffset);
 
-    MSG0("Running with segment size = %"PRIuSZ" outer iterations=%d inner iterations=%d seed=%d",
-         segsize,outer_iterations, inner_iterations, seedoffset);
+    MSG0("Running with arena size=%"PRIuSZ" outer iterations=%d inner iterations=%d seed=%d",
+         arenasz,outer_iterations, inner_iterations, seedoffset);
+
+    /* Allocate two shadow regions the same size as the segment */
+    char *shadow_region_1 = (char *) test_malloc(arenasz);
+    char *shadow_region_2 = (char *) test_malloc(arenasz);
+   
+    /* Fill up the shadow region with random data */
+    for(size_t k=0;k < arenasz / sizeof(uint32_t);k++) {
+      ((uint32_t *)shadow_region_1)[k] = TEST_RAND(0, UINT32_MAX);
+    }
+    memset(shadow_region_2,0,arenasz);
+
+    char *local_base  = (char *)TEST_SEG(myproc);
+    char *target_base = (char *)TEST_SEG(peerproc) + arenasz;
 
     BARRIER();
 
-    /* Allocate two shadow regions the same size as the segment */
-    shadow_region_1 = (char *) test_malloc(segsize);
-    shadow_region_2 = (char *) test_malloc(segsize);
-   
-    /* Fill up the shadow region with random data */
-    for(size_t k=0;k < segsize / sizeof(uint32_t);k++) {
-      ((uint32_t *)shadow_region_1)[k] = TEST_RAND(0, UINT32_MAX);
-    }
-    memset(shadow_region_2,0,segsize);
-
     /* Big loop performing the following */
-    for(i=0;i < outer_iterations;i++) {
-      if(sender_p) {
+    for(int i=0;i < outer_iterations;i++) {
         /* Pick a starting point anywhere in the segment */
-        size_t starting_point = TEST_RAND(0,(segsize-1));
-
-        local_base = TEST_SEG(myproc);
-        target_base = TEST_SEG(peerproc);
+        size_t starting_point = TEST_RAND(0,(arenasz-1));
  
-        for(j=0;j < inner_iterations;j++) {
+        for(int j=0;j < inner_iterations;j++) {
           /* Pick a length */
-          size_t len = TEST_RAND(1,segsize-starting_point);
-          size_t remote_starting_point = TEST_RAND(0,segsize-len);
-          size_t local_starting_point_1 = TEST_RAND(0,segsize-len);
-          size_t local_starting_point_2 = TEST_RAND(0,segsize-len);
+          size_t len = TEST_RAND(1,arenasz-starting_point);
+          size_t remote_starting_point = TEST_RAND(0,arenasz-len);
+          size_t local_starting_point_1 = TEST_RAND(0,arenasz-len);
+          size_t local_starting_point_2 = TEST_RAND(0,arenasz-len);
 
           /* Perform operations */
           /* Out of segment put from shadow_region 1 to remote */
@@ -140,10 +130,10 @@ int main(int argc, char **argv)
           assert_eq(shadow_region_2+local_starting_point_2, shadow_region_1 + starting_point, len,starting_point,i,j,"Out of segment get");
         }
         TEST_PROGRESS_BAR(i,outer_iterations);
-      }
+
       BARRIER();
     }
-    if(sender_p && !failures) {
+    if(!failures) {
       MSG("testslice PASSED");
     }
     gasnet_exit(0);
