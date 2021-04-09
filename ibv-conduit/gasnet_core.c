@@ -2157,7 +2157,8 @@ static int gasnetc_init( gex_Client_t            *client_p,
   }
 
 #if GASNETC_HAVE_FENCED_PUTS
-  gasnetc_use_fenced_puts = gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS", 0);
+  gasnetc_use_fenced_puts = gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS",
+                                                             GASNETC_IBV_FENCED_PUTS_CONFIGURE);
 #else
   if (!gasneti_mynode && gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS", 0)) {
     gasneti_console_message("WARNING",

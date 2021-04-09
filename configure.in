@@ -3669,6 +3669,19 @@ if test "$enabled_ibv" = yes; then
       AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_HCAS_CONFIGURE, $gasnetc_ibv_max_hcas)
     fi
 
+    ibv_fenced_puts=0
+    GASNET_WITH(ibv-fenced-puts,
+      [Default value of GASNET_USE_FENCED_PUTS environment variable for ibv-conduit (default is 0)],
+      [
+       case $withval in
+         yes) ibv_fenced_puts=1;;
+         0|1) ibv_fenced_puts=$withval;;
+         *) AC_MSG_ERROR([Optional argument to --with-ibv-fenced-puts must be 0 or 1]);;
+       esac],
+      [ibv_fenced_puts=0],
+      [ibv_fenced_puts=1])
+    AC_DEFINE_UNQUOTED(GASNETC_IBV_FENCED_PUTS_CONFIGURE, $ibv_fenced_puts)
+
     # Default GASNET_IBV_PORTS
     GASNET_WITH(ibv-ports,
         [Default value of GASNET_IBV_PORTS environment variable (default is empty)],
