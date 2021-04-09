@@ -48,6 +48,9 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #endif
 GASNETI_IDENT(gasnetc_IdentString_AMMaxMedium,  "$GASNetAMMaxMedium: " _STRINGIFY(GASNETC_IBV_MAX_MEDIUM) " $");
 GASNETI_IDENT(gasnetc_IdentString_MaxHCAs, "$GASNetIbvMaxHCAs: " _STRINGIFY(GASNETC_IB_MAX_HCAS) " $");
+#if GASNETC_IBV_MAX_HCAS_CONFIGURE
+  GASNETI_IDENT(gasnetc_IdentString_Multirail, "$GASNetIbvMultirail: 1 $");
+#endif
 
 gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutdown.
 
