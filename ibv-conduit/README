@@ -646,11 +646,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     is signaled by the HCA.  Such transfers up to and including size
     GASNET_NONBULKPUT_BOUNCE_LIMIT are performed using bounce buffers while
     larger transfers stall return from injection until the RMA is acknowledged.
-    Currently, this parameter also controls the use of bounce buffers versus
-    non-blocking RMA for initiation of all AMLong payload transfers and
-    for PUTs not passing GEX_EVENT_DEFER for the lc_opt parameter.  However,
-    cases other than GEX_EVENT_NOW are not the intended scope of this
-    parameter, and this behavior is subject to change.
     The default value is 64KB.
     A value of zero disables use of bounce buffers.
     
