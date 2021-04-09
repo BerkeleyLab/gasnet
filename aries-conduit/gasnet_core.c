@@ -131,35 +131,6 @@ static int gasnetc_bootstrapInit(int *argc, char ***argv) {
   }
   #endif
 
-  /* As good a place as any for this: */
-  if (!gasneti_mynode && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
-    static const char *old_vars[][3] = {
-        {"GASNET_PHYSMEM_PINNABLE_RATIO", "removed", "GASNET_PHYSMEM_MAX"},
-        {"GASNETC_GNI_MIN_NUM_PD", "removed", "GASNET_GNI_NUM_PD"},
-        {"GASNETC_GNI_MIN_BOUNCE_SIZE", "removed", "GASNET_GNI_BOUNCE_SIZE"},
-        {"GASNETC_GNI_AM_MEM_CONSISTENCY", "removed", NULL},
-        {"GASNETC_GNI_NUM_PD", "renamed", "GASNET_GNI_NUM_PD"},
-        {"GASNETC_GNI_BOUNCE_SIZE", "renamed", "GASNET_GNI_BOUNCE_SIZE"},
-        {"GASNETC_GNI_MEM_CONSISTENCY", "renamed","GASNET_GNI_MEM_CONSISTENCY"},
-        {"GASNETC_GNI_FMA_RDMA_CUTOVER", "split into two variables",
-                "GASNET_GNI_GET_FMA_RDMA_CUTOVER and/or GASNET_GNI_PUT_FMA_RDMA_CUTOVER"},
-        {"GASNETC_GNI_BOUNCE_REGISTER_CUTOVER", "split into two variables",
-                "GASNET_GNI_GET_BOUNCE_REGISTER_CUTOVER and/or GASNET_GNI_PUT_BOUNCE_REGISTER_CUTOVER"},
-        {NULL,NULL,NULL}};
-    int i;
-    for (i=0; old_vars[i][0] != NULL; ++i) {
-      const char *what = old_vars[i][0];
-      const char *why  = old_vars[i][1];
-      const char *who  = old_vars[i][2];
-      if (NULL != getenv(what)) {
-        fprintf(stderr, "WARNING: Detected a setting for environment variable %s, "
-                        "which has been %s.\n", what, why);
-        if (who)
-          fprintf(stderr, "WARNING: Please set %s instead.\n", who);
-      }
-    }
-  }
-
   return GASNET_OK;
 }
 
