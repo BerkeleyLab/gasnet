@@ -13,8 +13,9 @@
 #include <fcntl.h>
 
 size_t arenasz = 0;
+int doforeign = 0;
 #ifndef TEST_SEGSZ
-  #define TEST_SEGSZ_EXPR ((uintptr_t)arenasz*2)
+  #define TEST_SEGSZ_EXPR ((uintptr_t)arenasz*(doforeign?4:2))
 #endif
 #include "test.h"
 
@@ -69,6 +70,9 @@ int main(int argc, char **argv)
       if (!strcmp(argv[arg], "-c")) {
         crossmachinemode = 1;
         ++arg;
+      } else if (!strcmp(argv[arg], "-f")) {
+        doforeign = 1;
+        ++arg;
       } else if (argv[arg][0] == '-') {
         help = 1;
         ++arg;
@@ -83,10 +87,21 @@ int main(int argc, char **argv)
     if (!inner_iterations) inner_iterations = 10;
     if (argc > arg) { seedoffset = atoi(argv[arg]); ++arg; }
 
+    if (doforeign) {
+      gex_Rank_t nbrhd_set_size;
+      gex_System_QueryMyPosition(&nbrhd_set_size, NULL, NULL, NULL);
+      if (nbrhd_set_size == numprocs) { // all nbrhs are single-process
+        MSG0("WARNING: Ignoring '-f' since there are no foreign segments.");
+        doforeign = 0;
+      }
+    }
+
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ));
 
     test_init("testslice",0, "[options] (arena size) (iterations) (# of sizes per iteration) (seed)\n"
-              "  The -c option enables cross-machine pairing, default is nearest neighbor.");
+              "  The -c option enables cross-machine pairing, default is nearest neighbor.\n"
+              "  The -f option enables use of a 'foreign' GASNet segment (one cross-mapped\n"
+              "   from another process) as the 'local' address for communications.");
     if (help || argc > arg) test_usage();
     
     if (crossmachinemode) {
@@ -106,21 +121,45 @@ int main(int argc, char **argv)
     }
     TEST_SRAND(myproc+seedoffset);
 
-    MSG0("Running %stest with arena size=%"PRIuSZ" outer iterations=%d inner iterations=%d seed=%d",
+    MSG0("Running %s%stest with arena size=%"PRIuSZ" outer iterations=%d inner iterations=%d seed=%d",
          (crossmachinemode ? "cross-machine ": ""),
+         (doforeign ? "foreign-segment ": ""),
          arenasz,outer_iterations, inner_iterations, seedoffset);
 
-    /* Allocate two shadow regions the same size as the segment */
-    char *shadow_region_1 = (char *) test_malloc(arenasz);
-    char *shadow_region_2 = (char *) test_malloc(arenasz);
-   
-    /* Fill up the shadow region with random data */
-    for(size_t k=0;k < arenasz / sizeof(uint32_t);k++) {
-      ((uint32_t *)shadow_region_1)[k] = TEST_RAND(0, UINT32_MAX);
+    // Allocate two shadow regions the same size as the arena
+    char *shadow_region_1, *shadow_region_2;
+    if (doforeign) {
+      // Use cross-mapped (localized) segment of a neighbor if possible
+      gex_RankInfo_t *nbrhdinfo = NULL;
+      gex_Rank_t nbrhdsize, nbrhdrank;
+      gex_System_QueryNbrhdInfo(&nbrhdinfo, &nbrhdsize, &nbrhdrank);
+      // Using segment of "left" (-1) neighbor to avoid (when possible) using same as peerproc
+      gex_Rank_t nbrproc = nbrhdinfo[(nbrhdrank + nbrhdsize - 1) % nbrhdsize].gex_jobrank;
+      char *nbr_seg_local_addr = NULL;
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(myteam, nbrproc, NULL, (void**)&nbr_seg_local_addr, NULL, 0) );
+      assert_always(nbr_seg_local_addr != NULL);
+      shadow_region_1 = nbr_seg_local_addr + 2*arenasz;
+    } else {
+      // Just plain local memory
+      shadow_region_1 = (char *) test_malloc(2*arenasz);
     }
-    memset(shadow_region_2,0,arenasz);
+    shadow_region_2 = shadow_region_1 + arenasz;
 
-    char *local_base  = (char *)TEST_SEG(myproc);
+    // Initialize the two shadow regions with random bytes and zeros, respectively
+    // We take care to ensure "owner writes" even for foreign segments
+    {
+      uint32_t *tmp1 = (uint32_t *)
+                       (doforeign ? ((char *)TEST_MYSEG() + 2*arenasz)
+                                  : shadow_region_1);
+      for(size_t k=0;k < arenasz / sizeof(uint32_t);k++) {
+        tmp1[k] = TEST_RAND(0, UINT32_MAX);
+      }
+      char *tmp2 = (doforeign ? ((char *)TEST_MYSEG() + 3*arenasz)
+                              : shadow_region_2);
+      memset(tmp2,0,arenasz);
+    }
+
+    char *local_base  = (char *)TEST_MYSEG();
     char *target_base = (char *)TEST_SEG(peerproc) + arenasz;
 
     BARRIER();
@@ -157,6 +196,8 @@ int main(int argc, char **argv)
 
       BARRIER();
     }
+    if (!doforeign) test_free(shadow_region_1);
+
     if(!failures) {
       MSG("testslice PASSED");
     }
