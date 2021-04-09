@@ -232,8 +232,9 @@ void bulk_test_nb(int iters, int doalc) {GASNET_BEGIN_FUNCTION();
     stat_struct_t stget, stput;
     gex_Event_t *events;
     size_t payload;
+    int nevents = iters * (doalc ? 2 : 1);
     
-	events = (gex_Event_t *) test_malloc(sizeof(gex_Event_t) * iters * (doalc ? 2 : 1));
+	events = (gex_Event_t *) test_malloc(sizeof(gex_Event_t) * nevents);
 
 	for (payload = min_payload; payload <= max_payload && payload > 0; ) {
 		init_stat(&stput, payload);
@@ -247,8 +248,7 @@ void bulk_test_nb(int iters, int doalc) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++, lc_opt += doalc) {
 				events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, lc_opt, 0);
 			}
-			if (doalc) gex_Event_WaitAll(events+iters, iters, 0); // leaf events first...
-			gex_Event_WaitAll(events, iters, 0); // ...then root events
+			gex_Event_WaitAll(events, nevents, 0);
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
