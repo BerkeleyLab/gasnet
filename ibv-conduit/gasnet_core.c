@@ -1182,11 +1182,11 @@ static int gasnetc_load_settings(void) {
 
   tmp =  gasneti_getenv("GASNET_HCA_ID");
   if (tmp && strlen(tmp)) {
-    fprintf(stderr, "WARNING: GASNET_HCA_ID set in environment, but ignored.  See gasnet/ibv-conduit/README.\n");
+    gasneti_console_message("WARNING", "GASNET_HCA_ID set in environment, but ignored.  See gasnet/ibv-conduit/README.");
   }
   tmp =  gasneti_getenv("GASNET_PORT_NUM");
   if (tmp && strlen(tmp) && atoi(tmp)) {
-    fprintf(stderr, "WARNING: GASNET_PORT_NUM set in environment, but ignored.  See gasnet/ibv-conduit/README.\n");
+    gasneti_console_message("WARNING", "GASNET_PORT_NUM set in environment, but ignored.  See gasnet/ibv-conduit/README.");
   }
 
   gasnetc_ibv_ports = gasneti_getenv_hwloc_withdefault("GASNET_IBV_PORTS", GASNETC_DEFAULT_IBV_PORTS, "Socket");
@@ -1200,9 +1200,7 @@ static int gasnetc_load_settings(void) {
   
   GASNETC_ENVINT(i, GASNET_MAX_MTU, 0, -1, 1);
   switch (i) {
-    default: fprintf(stderr,
-                     "WARNING: ignoring invalid GASNET_MAX_MTU value %d.\n",
-                     i);
+    default: gasneti_console_message("WARNING", "ignoring invalid GASNET_MAX_MTU value %d.", i);
              /* fall through to "auto" case: */ GASNETI_FALLTHROUGH
   case    0: /* TODO: "automatic" might be more sophisticated than using the maximum */
   case   -1: gasnetc_max_mtu = (enum ibv_mtu)0; /* Use port's active_mtu */
@@ -1221,14 +1219,16 @@ static int gasnetc_load_settings(void) {
 
   GASNETC_ENVINT(gasnetc_qp_timeout, GASNET_QP_TIMEOUT, GASNETC_DEFAULT_QP_TIMEOUT, 0, 0);
   if_pf (gasnetc_qp_timeout > 31) {
-    fprintf(stderr,
-            "WARNING: GASNET_QP_TIMEOUT reduced from the requested value, %d, to the maximum supported value 31.\n", (int)gasnetc_qp_timeout);
+    gasneti_console_message("WARNING",
+                            "GASNET_QP_TIMEOUT reduced from the requested value, %d, to the maximum supported value 31.",
+                            (int)gasnetc_qp_timeout);
     gasnetc_qp_timeout = 31;
   }
   GASNETC_ENVINT(gasnetc_qp_retry_count, GASNET_QP_RETRY_COUNT, GASNETC_DEFAULT_QP_RETRY_COUNT, 1, 0);
   if_pf (gasnetc_qp_retry_count > 7) {
-    fprintf(stderr,
-            "WARNING: GASNET_QP_RETRY_COUNT reduced from the requested value, %d, to the maximum supported value 7.\n", (int)gasnetc_qp_retry_count);
+    gasneti_console_message("WARNING",
+                            "GASNET_QP_RETRY_COUNT reduced from the requested value, %d, to the maximum supported value 7.",
+                            (int)gasnetc_qp_retry_count);
     gasnetc_qp_retry_count = 7;
   }
   GASNETC_ENVINT(gasnetc_qp_rd_atom, GASNET_QP_RD_ATOM, 0, 0, 0);
@@ -1273,8 +1273,8 @@ static int gasnetc_load_settings(void) {
   }
 #else
   if (!gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1)) {
-    fprintf(stderr,
-	    "WARNING: Environment variable GASNET_USE_FIREHOSE ignored.  It is only available in a DEBUG build of GASNet\n");
+    gasneti_console_message("WARNING",
+	    "Environment variable GASNET_USE_FIREHOSE ignored.  It is only available in a DEBUG build of GASNet");
   }
 #endif
 #if GASNETC_IBV_SRQ
@@ -1301,14 +1301,14 @@ static int gasnetc_load_settings(void) {
 
   /* XXX: Does SRQ make any of these invalid? */
   if_pf (gasnetc_am_credits_slack >= gasnetc_am_oust_pp) {
-    fprintf(stderr,
-            "WARNING: GASNET_AM_CREDITS_SLACK reduced to GASNET_AM_CREDITS_PP-1 (from %d to %d)\n",
+    gasneti_console_message("WARNING",
+            "GASNET_AM_CREDITS_SLACK reduced to GASNET_AM_CREDITS_PP-1 (from %d to %d)",
             gasnetc_am_credits_slack, gasnetc_am_oust_pp-1);
     gasnetc_am_credits_slack = gasnetc_am_oust_pp - 1;
   }
   if_pf (gasnetc_packedlong_limit > GASNETC_MAX_PACKEDLONG) {
-    fprintf(stderr,
-            "WARNING: GASNET_PACKEDLONG_LIMIT reduced from %u to %u\n",
+    gasneti_console_message("WARNING",
+            "GASNET_PACKEDLONG_LIMIT reduced from %u to %u",
             (unsigned int)gasnetc_packedlong_limit, (unsigned int)GASNETC_MAX_PACKEDLONG);
     gasnetc_packedlong_limit = GASNETC_MAX_PACKEDLONG;
   }
