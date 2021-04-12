@@ -1964,6 +1964,7 @@ extern void gex_EP_BindSegment(
   // TODO: macros for formatting when naming endpoints in tracing?
   GASNETI_TRACE_PRINTF(O,("gex_EP_BindSegment: segment=%p, EP index=%d, flags=%d",
                           (void *)segment, i_ep->_index, flags));
+  GASNETI_CHECK_INJECT();
 
   if (segment == GEX_SEGMENT_INVALID) {
     gasneti_fatalerror("Invalid call to gex_EP_BindSegment() with GEX_SEGMENT_INVALID");
@@ -1990,6 +1991,7 @@ extern int gex_EP_PublishBoundSegment(
 {
   GASNETI_TRACE_PRINTF(O,("gex_EP_PublishBoundSegment: tm="GASNETI_TMSELFFMT", num_ep=%"PRIuSZ", flags=%d",
                           GASNETI_TMSELFSTR(tm), num_eps, flags));
+  GASNETI_CHECK_INJECT();
 
   if (flags) {
     gasneti_fatalerror("Invalid call to gex_EP_PublishBoundSegment() with non-zero flags");

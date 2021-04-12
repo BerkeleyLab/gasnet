@@ -82,6 +82,8 @@ void gasneti_AD_Create(
         gex_OP_t                   ops,
         gex_Flags_t                flags)
 {
+  GASNETI_CHECK_INJECT();
+
   gasneti_TM_t real_tm = gasneti_import_tm_nonpair(tm);
 
   // Argument validation is done here, rather than gasneti_alloc_ad(), to
@@ -144,6 +146,8 @@ void gasneti_AD_Create(
 
 void gasneti_AD_Destroy(gex_AD_t ad)
 {
+  GASNETI_CHECK_INJECT();
+
   gasneti_AD_t real_ad = gasneti_import_ad(ad);
 
 #if GASNET_DEBUG
