@@ -102,6 +102,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   The use of specific HCA ports is controlled at run time by the environment
   variable GASNET_IBV_PORTS, described below.  The default value of this
   variable can be set at configure time using '--with-ibv-ports=...'.
+  Closely connected to selection of HCA ports is the setting of the
+  environment variable GASNET_USE_FENCED_PUTS, also described below. Its
+  default value can be set using '--with-ibv-fenced-puts=val' where 'val'
+  is either '0' or '1'.  Alternatively, '--with-ibv-fenced-puts' (with no
+  argument) and '--without-ibv-fenced-puts' can be used to select defaults
+  of 1 and 0, respectively.
 
   When using dynamic connections (see GASNET_CONNECT_DYNAMIC env var,
   below) there is an extra thread spawned to block for the arrival of
@@ -742,7 +748,8 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     may wish to enable this setting.
     If enabled when multirail support was not enabled at configure time, a
     warning will be issued.
-    This setting defaults to 0 (disabled).
+    The default can be set at configure time via '--with-ibv-fenced-puts=...'
+    and is 0 (disabled) in the absence of that configure option.
 
   Resource usage parameters:
   -------------------------
