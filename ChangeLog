@@ -24,6 +24,8 @@ GASNet-EX ChangeLog
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
     local completion and payloads in (roughly) the 4KiB to 64KiB range.
+  - NEW: configure option --with-ibv-fenced-puts=... can be used to set the
+    default value for the GASNET_USE_FENCED_PUTS environment variable.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug3936: Problems with multi-rail and GASNET_{AM_CREDITS,NETWORKDEPTH}_PP
