@@ -393,7 +393,7 @@ kokkos_montecarlo% :: $(UPCXX_BLDDIR)/extras/examples/kokkos_montecarlo upcxx-in
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; export UPCXX_CODEMODE=$(UPCXX_CODEMODE) ; \
-	 env $(MAKE_TEST_ENV) $(MAKE) -C $< \
+	 env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< \
 	             CC= UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	             clean all
 	mv $</MC_DartSampler $@
@@ -403,7 +403,7 @@ kokkos_3dhalo% :: $(UPCXX_BLDDIR)/extras/examples/kokkos_3dhalo upcxx-install fo
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; export UPCXX_CODEMODE=$(UPCXX_CODEMODE) ; \
-	 env $(MAKE_TEST_ENV) $(MAKE) -C $< \
+	 env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< \
 	             CC= UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	             clean all
 	mv $</*upcxx_heat_conduction $@
