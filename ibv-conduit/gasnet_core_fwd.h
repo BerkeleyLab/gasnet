@@ -23,6 +23,17 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_IBV       1
 
+// Client-facing indications of multirail support:
+// GASNET_IBV_MULTIRAIL: 1/undef for enabled/disabled
+// GASNET_IBV_MAX_HCAS: positive integer (1 when multirail disabled)
+#if GASNETC_IBV_MAX_HCAS_CONFIGURE
+  #define GASNET_IBV_MULTIRAIL 1
+  #define GASNET_IBV_MAX_HCAS GASNETC_IBV_MAX_HCAS_CONFIGURE
+#else
+  #undef GASNET_IBV_MULTIRAIL
+  #define GASNET_IBV_MAX_HCAS 1
+#endif
+
 #if defined(GASNET_SEGMENT_FAST)
   #define GASNETC_PIN_SEGMENT 1
 #else

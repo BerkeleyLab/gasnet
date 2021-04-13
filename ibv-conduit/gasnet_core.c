@@ -48,6 +48,9 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #endif
 GASNETI_IDENT(gasnetc_IdentString_AMMaxMedium,  "$GASNetAMMaxMedium: " _STRINGIFY(GASNETC_IBV_MAX_MEDIUM) " $");
 GASNETI_IDENT(gasnetc_IdentString_MaxHCAs, "$GASNetIbvMaxHCAs: " _STRINGIFY(GASNETC_IB_MAX_HCAS) " $");
+#if GASNETC_IBV_MAX_HCAS_CONFIGURE
+  GASNETI_IDENT(gasnetc_IdentString_Multirail, "$GASNetIbvMultirail: 1 $");
+#endif
 
 gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutdown.
 
@@ -2154,7 +2157,8 @@ static int gasnetc_init( gex_Client_t            *client_p,
   }
 
 #if GASNETC_HAVE_FENCED_PUTS
-  gasnetc_use_fenced_puts = gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS", 0);
+  gasnetc_use_fenced_puts = gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS",
+                                                             GASNETC_IBV_FENCED_PUTS_CONFIGURE);
 #else
   if (!gasneti_mynode && gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS", 0)) {
     gasneti_console_message("WARNING",
