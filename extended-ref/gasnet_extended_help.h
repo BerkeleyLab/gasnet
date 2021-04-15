@@ -438,6 +438,30 @@ GASNETI_PUREP(gasneti_nbrhd_local_addr_or_null)
         (gasneti_assert((jobrank) < gasneti_nodes), gasneti_assert(addr), \
          _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr))
 
+
+// gasnete_mapped_at() is used by put/get fns to decide whether memory in 
+// a given process is "mapped" locally (memory one can memcpy() to/from).
+// This includes host memory in the calling process, and segments of other
+// processes which have been cross-mapped via PSHM.
+// This excludes device memory in any process.
+// It returns the local address if addressible, and NULL otherwise.
+// This is based on the jobrank and memory kind.
+GASNETI_INLINE(gasnete_mapped_at) GASNETI_PURE
+void *gasnete_mapped_at(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_addr) {
+    gasneti_assume(_addr != NULL);
+    gex_Rank_t _jobrank = gasneti_jobrank_if_mappable(_e_tm, _rank);
+    if (_jobrank == GEX_RANK_INVALID) return NULL; // not mappable
+#if GASNET_PSHM
+    void *_result = gasneti_pshm_jobrank_addr2local(_jobrank, _addr);
+#else
+    gasneti_assert_uint(_jobrank ,==, gasneti_mynode);
+    void *_result = (/*no const*/ void*)_addr; // loopback
+#endif
+    gasneti_assume(_result != NULL); // can improve codegen in caller
+    return _result;
+}
+GASNETI_PUREP(gasnete_mapped_at)
+
 /* ------------------------------------------------------------------------------------ */
 
 #ifdef GASNETE_HAVE_EXTENDED_HELP_EXTRA_H
