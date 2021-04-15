@@ -402,17 +402,26 @@ GASNETI_INLINE(gasneti_i_tm_rank_to_location)
 gex_EP_Location_t gasneti_i_tm_rank_to_location(gasneti_TM_t _i_tm, gex_Rank_t _rank, gex_Flags_t _flags) {
   gasneti_check_i_tm_rank(_i_tm, _rank);
   gex_EP_Location_t _result;
+#if (GASNET_MAXEPS == 1)
+  _result.gex_ep_index = 0;
+#endif
   if (gasneti_is_tm0(_i_tm)) {
     _result.gex_rank = _rank;
+  #if (GASNET_MAXEPS > 1)
     _result.gex_ep_index = 0;
+  #endif
   } else if (gasneti_i_tm_is_pair(_i_tm)) {
     _result.gex_rank = _rank;
+  #if (GASNET_MAXEPS > 1)
     _result.gex_ep_index = gasneti_tm_pair_rem_idx(gasneti_i_tm_to_pair(_i_tm));
+  #endif
   } else if (!GASNETI_ALLOW_SPARSE_TEAMREP || _i_tm->_rank_map) {
     gasneti_assert(_i_tm->_rank_map);
     _result.gex_rank = _i_tm->_rank_map[_rank];
+  #if (GASNET_MAXEPS > 1)
     // NULL _index_map indicates all members of TM are primordial EPs (idx==0)
     _result.gex_ep_index = _i_tm->_index_map ? _i_tm->_index_map[_rank] : 0;
+  #endif
   } else {
     _result = gasneti_tm_fwd_location(_i_tm, _rank, _flags);
   }
