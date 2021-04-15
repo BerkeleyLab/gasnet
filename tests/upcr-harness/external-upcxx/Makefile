@@ -388,14 +388,14 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
                        clean extend-add_$*
 	mv $</bin/extend-add_$* $@
 
+KOKKOS_MAKE = env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< CC= UPCXX_INSTALL=$(UPCXX_INSTDIR)
 # upcxx-examples kokkos_montecarlo: clearing CC prevents a hang in Makefile.kokkos
 kokkos_montecarlo% :: $(UPCXX_BLDDIR)/extras/examples/kokkos_montecarlo upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; export UPCXX_CODEMODE=$(UPCXX_CODEMODE) ; \
-	 env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< \
-	             CC= UPCXX_INSTALL=$(UPCXX_INSTDIR) \
-	             clean all
+	 $(KOKKOS_MAKE) clean ; \
+	 $(KOKKOS_MAKE) all ; \
 	mv $</MC_DartSampler $@
 
 # upcxx-examples kokkos_3dhalo: clearing CC prevents a hang in Makefile.kokkos
@@ -403,9 +403,8 @@ kokkos_3dhalo% :: $(UPCXX_BLDDIR)/extras/examples/kokkos_3dhalo upcxx-install fo
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; export UPCXX_CODEMODE=$(UPCXX_CODEMODE) ; \
-	 env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< \
-	             CC= UPCXX_INSTALL=$(UPCXX_INSTDIR) \
-	             clean all
+	 $(KOKKOS_MAKE) clean ; \
+	 $(KOKKOS_MAKE) all ; \
 	mv $</*upcxx_heat_conduction $@
 
 # UPC interop
