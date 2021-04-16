@@ -330,7 +330,7 @@ gex_Rank_t gasneti_i_tm_size(gasneti_TM_t _i_tm) {
 }
 
 GASNETI_INLINE(gasneti_i_tm_to_ep_index)
-gex_Rank_t gasneti_i_tm_to_ep_index(gasneti_TM_t _i_tm) {
+gex_EP_Index_t gasneti_i_tm_to_ep_index(gasneti_TM_t _i_tm) {
   gasneti_assert(_i_tm);
   if (gasneti_is_tm0(_i_tm)) {
     return 0; // fast path
@@ -378,7 +378,7 @@ gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
         gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
 
 GASNETI_INLINE(gasneti_i_tm_rank_to_ep_index)
-gex_Rank_t gasneti_i_tm_rank_to_ep_index(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
+gex_EP_Index_t gasneti_i_tm_rank_to_ep_index(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
   gasneti_check_i_tm_rank(_i_tm, _rank);
   gex_EP_Index_t _result;
   if (gasneti_is_tm0(_i_tm)) {
