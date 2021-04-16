@@ -389,6 +389,8 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
 	mv $</bin/extend-add_$* $@
 
 KOKKOS_MAKE = env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< CC= UPCXX_INSTALL=$(UPCXX_INSTDIR)
+KOKKOS_ARCH ?= Maxwell52
+export KOKKOS_ARCH
 # upcxx-examples kokkos_montecarlo: clearing CC prevents a hang in Makefile.kokkos
 kokkos_montecarlo% :: $(UPCXX_BLDDIR)/extras/examples/kokkos_montecarlo upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
