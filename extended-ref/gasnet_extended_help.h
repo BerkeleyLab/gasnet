@@ -13,26 +13,6 @@
 
 #include <gasnet_help.h>
 
-/* gasnete_islocal() is used by put/get fns to decide whether shared memory on 
-   a given rank is "local". By default this is based on comparing the jobrank to
-   the local one, but clients can override this to remove the check overhead
-   by defining either GASNETE_PUTGET_ALWAYSLOCAL or GASNETE_PUTGET_ALWAYSREMOTE
- */
-// TODO-EX: REMOVE THE GASNETE_PUTGET_ALWAYS* DEFINES ENTIRELY
-#if GASNET_CONDUIT_SMP
-  #if GASNET_PSHM // smp w/pshm: the PSHM support handles smp loopback
-    #define gasnete_islocal(e_tm,rank) (gasneti_check_e_tm_rank(e_tm,rank),0)
-  #else           // smp nopshm: single-process loopback handled in header
-    #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) == 0),1)
-  #endif
-#elif defined(GASNETE_PUTGET_ALWAYSLOCAL)  // always local
-  #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) == gasneti_mynode),1)
-#elif defined(GASNETE_PUTGET_ALWAYSREMOTE) // always remote
-  #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) != gasneti_mynode),0)
-#else // general case
-  #define gasnete_islocal(e_tm,rank) (gasneti_e_tm_rank_to_jobrank(e_tm,rank) == gasneti_mynode)
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: Eliminate GASNETE_FAST_ALIGNED_MEMCPY (which no longer has any internal
 // callers) and redirect the tools interface elsewhere.  This should include removal
@@ -342,19 +322,12 @@ typedef union {
       gasnete_loopbackput_memsync();                                            \
       return 0;                                                                 \
     }} while(0)
-  #define GASNETI_CHECKPSHM_MEMSET(tm,rank,dest,val,nbytes) do {                \
-    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
-      memset(gasneti_pshm_addr2local(tm,rank,dest), val, nbytes);               \
-      gasnete_loopbackput_memsync();                                            \
-      return 0;                                                                 \
-    }} while(0)
 #else
   #define GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes)      ((void)0)
   #define GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes)      ((void)0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes) ((void)0)
   #define GASNETI_CHECKPSHM_GETVAL(tm,rank,src,nbytes)        ((void)0)
   #define GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes) ((void)0)
-  #define GASNETI_CHECKPSHM_MEMSET(tm,rank,dest,val,nbytes)   ((void)0)
 #endif
 
 #if GASNET_DEBUG
