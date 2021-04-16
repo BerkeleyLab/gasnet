@@ -286,49 +286,6 @@ typedef union {
       /*GASNETI_CHECK_INJECT();*/                                  \
       return 0;                                                    \
     } } while(0)
-#if GASNET_PSHM
-  #define GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes) do {                   \
-    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
-      GASNETI_MEMCPY(dest, gasneti_pshm_addr2local(tm,rank,src), nbytes);       \
-      gasnete_loopbackget_memsync();                                            \
-      return 0;                                                                 \
-    }} while(0)
-  #define GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes) do {                   \
-    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
-      GASNETI_MEMCPY(gasneti_pshm_addr2local(tm,rank,dest), src, nbytes);       \
-      gasnete_loopbackput_memsync();                                            \
-      gasneti_leaf_finish(lc_opt);                                              \
-      return 0;                                                                 \
-    }} while(0)
-  #define GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes) do {              \
-    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
-      GASNETI_MEMCPY(gasneti_pshm_addr2local(tm,rank,dest), src, nbytes);       \
-      gasnete_loopbackput_memsync();                                            \
-      return 0;                                                                 \
-    }} while(0)
-  #define GASNETI_CHECKPSHM_GETVAL(tm,rank,src,nbytes) do {                     \
-    size_t const _nbytes = (nbytes);                                            \
-    gasneti_assume(_nbytes > 0); /* bug 3793 */                                 \
-    gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));                         \
-    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
-      GASNETE_VALUE_RETURN(gasneti_pshm_addr2local(tm,rank,src), _nbytes);       \
-    }} while(0)
-  #define GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes) do {              \
-    size_t const _nbytes = (nbytes);                                            \
-    gasneti_assume(_nbytes > 0); /* bug 3793 */                                 \
-    gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));                         \
-    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
-      GASNETE_VALUE_ASSIGN(gasneti_pshm_addr2local(tm,rank,dest), value, _nbytes); \
-      gasnete_loopbackput_memsync();                                            \
-      return 0;                                                                 \
-    }} while(0)
-#else
-  #define GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes)      ((void)0)
-  #define GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes)      ((void)0)
-  #define GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes) ((void)0)
-  #define GASNETI_CHECKPSHM_GETVAL(tm,rank,src,nbytes)        ((void)0)
-  #define GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes) ((void)0)
-#endif
 
 #if GASNET_DEBUG
   #define GASNETI_CHECK_PUT_LCOPT(lc_opt, isnbi) do {                                    \
