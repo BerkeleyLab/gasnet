@@ -1682,15 +1682,26 @@ unsigned int gasneti_pshm_jobrank_to_local_rank(gex_Rank_t _jobrank) {
 }
 GASNETI_PUREP(gasneti_pshm_jobrank_to_local_rank)
 
-/* Returns 1 if given node is in the caller's supernode, or 0 if it's not.
- * NOTE: result is false before vnet initialization.
- */
+// gasneti_pshm_jobrank_in_supernode()
+//
+// Returns 1 if given node is in the caller's supernode, or 0 if it's not.
+// NOTE: result is false before vnet initialization.
+//
+// For contiguous nbrhd (gasneti_pshm_rankmap == NULL), the following two are
+// equal to gasneti_pshm_firstnode and gasneti_pshm_nodes, respectively.
+// Otherwise, they are gasneti_mynode and 1, respectively.
+// This ensures that regardless of contiguous or not, the case of _jobrank
+// equal to gasneti_mynode will always satisfy the first condition.
+extern gex_Rank_t gasneti_pshm_first_or_self;
+extern gasneti_pshm_rank_t gasneti_pshm_nodes_or_one;
 GASNETI_INLINE(gasneti_pshm_jobrank_in_supernode) GASNETI_PURE
 int gasneti_pshm_jobrank_in_supernode(gex_Rank_t _jobrank) {
 #if GASNET_CONDUIT_SMP
   return 1;
 #else
-  return (gasneti_pshm_jobrank_to_local_rank(_jobrank) < gasneti_pshm_nodes);
+  // Note use of unsigned type gex_Rank_t below means negative => huge
+  if ((_jobrank - gasneti_pshm_first_or_self) < gasneti_pshm_nodes_or_one) return 1;
+  return gasneti_pshm_rankmap && (gasneti_pshm_rankmap[_jobrank] < gasneti_pshm_nodes);
 #endif
 }
 GASNETI_PUREP(gasneti_pshm_jobrank_in_supernode)

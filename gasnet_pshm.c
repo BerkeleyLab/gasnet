@@ -96,6 +96,15 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   }
 #endif
 
+  // vars for gasneti_pshm_jobrank_in_supernode:
+  if (discontig) {
+    gasneti_pshm_first_or_self = gasneti_mynode;
+    gasneti_pshm_nodes_or_one = 1;
+  } else {
+    gasneti_pshm_first_or_self = gasneti_pshm_firstnode;
+    gasneti_pshm_nodes_or_one = gasneti_pshm_nodes;
+  }
+
   gasneti_assert(gasneti_nodemap_global_count > 0);
 
   /* compute size of vnet shared memory region */
@@ -257,6 +266,8 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
 gasneti_pshm_rank_t gasneti_pshm_nodes = 0;
 gex_Rank_t gasneti_pshm_firstnode = (gex_Rank_t)(-1);
 gasneti_pshm_rank_t gasneti_pshm_mynode = (gasneti_pshm_rank_t)(-1);
+gex_Rank_t gasneti_pshm_first_or_self = (gex_Rank_t)(-1);
+gasneti_pshm_rank_t gasneti_pshm_nodes_or_one = (gasneti_pshm_rank_t)(-1);
 /* vectors constructed in shared space: */
 gasneti_pshm_rank_t *gasneti_pshm_rankmap = NULL;
 gex_Rank_t *gasneti_pshm_firsts = NULL;
