@@ -1316,6 +1316,29 @@ static int gasnetc_load_settings(void) {
     gasnetc_packedlong_limit = GASNETC_MAX_PACKEDLONG;
   }
 
+#if GASNETC_DYNAMIC_CONNECT
+  gasnetc_conn_static = gasneti_getenv_yesno_withdefault("GASNET_CONNECT_STATIC", 1);
+  gasnetc_conn_dynamic = gasneti_getenv_yesno_withdefault("GASNET_CONNECT_DYNAMIC", 1);
+  if (!gasnetc_conn_static && !gasnetc_conn_dynamic) {
+    if (!gasneti_mynode) {
+      gasneti_console_message("WARNING",
+              "Both GASNET_CONNECT_STATIC and GASNET_CONNECT_DYNAMIC are FALSE.  "
+              "Enabling dynamic connection support.");
+    }
+    gasnetc_conn_dynamic = 1;
+  }
+  gasnetc_connectfile_in  = gasneti_getenv_withdefault("GASNET_CONNECTFILE_IN", NULL);
+  if (gasnetc_connectfile_in && !gasnetc_connectfile_in[0]) { // empty string
+    gasnetc_connectfile_in = NULL;
+  }
+  gasnetc_connectfile_out = gasneti_getenv_withdefault("GASNET_CONNECTFILE_OUT", NULL);
+  if (gasnetc_connectfile_out && !gasnetc_connectfile_out[0]) { // empty string
+    gasnetc_connectfile_out = NULL;
+  }
+  gasnetc_connectfile_out_base =
+        gasneti_getenv_int_withdefault("GASNET_CONNECTFILE_BASE",
+                                       gasnetc_connectfile_out_base, 0);
+#endif
 
   /* Report */
   GASNETI_TRACE_PRINTF(I,("ibv-conduit build time configuration settings = {"));

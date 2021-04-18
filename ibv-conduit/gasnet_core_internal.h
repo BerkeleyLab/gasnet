@@ -898,13 +898,19 @@ extern int		gasnetc_op_oust_pp;
 extern int		gasnetc_am_oust_limit;
 extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_bbuf_limit;
+extern int              gasnetc_conn_static;
 #if GASNETC_DYNAMIC_CONNECT
+  extern int            gasnetc_conn_dynamic;
   extern int		gasnetc_ud_rcvs;
   extern int		gasnetc_ud_snds;
 #else
   #define		gasnetc_ud_rcvs 0
   #define		gasnetc_ud_snds 0
 #endif
+extern const char *     gasnetc_connectfile_in;
+extern const char *     gasnetc_connectfile_out;
+extern int              gasnetc_connectfile_out_base;
+
 extern int		gasnetc_use_rcv_thread;
 extern int		gasnetc_am_credits_slack;
 extern int		gasnetc_alloc_qps;    /* Number of QPs per node in gasnetc_ceps[] */
