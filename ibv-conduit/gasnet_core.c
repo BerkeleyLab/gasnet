@@ -2764,7 +2764,7 @@ static int gasnetc_segment_register(gasnetc_Segment_t segment, int is_attach)
       uintptr_t lb = GASNETI_PAGE_ALIGNDOWN(segment->_addr);
       uintptr_t ub = GASNETI_PAGE_ALIGNUP(segment->_ub);
       uintptr_t bb_size = ub - lb;
-      int rc = gasnetc_pin(hca, (void*)lb, ub - lb, gasneti_seg_access_flags, &memreg);
+      int rc = gasnetc_pin(hca, (void*)lb, bb_size, gasneti_seg_access_flags, &memreg);
 
       if (rc) {
         if (gasneti_VerboseErrors) {
