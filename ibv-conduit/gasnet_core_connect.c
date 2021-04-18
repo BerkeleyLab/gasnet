@@ -969,6 +969,19 @@ gasnetc_set_sq_sema(gasnetc_conn_info_t *conn_info)
     return GASNET_OK;
 } /* set_qp_sema */
 
+static uint32_t
+conn_get_srq_num(struct ibv_srq *srq)
+{
+  uint32_t result = 0;
+#if GASNETC_IBV_XRC_OFED
+  int rc = ibv_get_srq_num(srq, &result);
+  GASNETC_IBV_CHECK(rc, "from ibv_get_srq_num()" GASNETC_XRC_HELP_MSG);
+#elif GASNETC_IBV_XRC_MLNX
+  result = srq->xrc_srq_num;
+#endif
+  return result;
+}
+
 #if GASNETC_DYNAMIC_CONNECT
 
 /* ------------------------------------------------------------------------------------ */
@@ -1248,19 +1261,6 @@ conn_get_snd_desc(uint32_t flags)
   }
   desc->wr.imm_data = flags | (gasneti_mynode << 16);
   return desc;
-}
-
-static uint32_t
-conn_get_srq_num(struct ibv_srq *srq)
-{
-  uint32_t result = 0;
-#if GASNETC_IBV_XRC_OFED
-  int rc = ibv_get_srq_num(srq, &result);
-  GASNETC_IBV_CHECK(rc, "from ibv_get_srq_num()" GASNETC_XRC_HELP_MSG);
-#elif GASNETC_IBV_XRC_MLNX
-  result = srq->xrc_srq_num;
-#endif
-  return result;
 }
 
 static void
