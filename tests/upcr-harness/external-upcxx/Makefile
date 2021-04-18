@@ -310,6 +310,7 @@ VPATH = \
 	$(UPCXX_BLDDIR)/test \
 	$(UPCXX_BLDDIR)/test/uts \
 	$(UPCXX_BLDDIR)/test/regression \
+	$(UPCXX_BLDDIR)/example \
 	$(UPCXX_BLDDIR)/example/prog-guide \
 	$(UPCXX_BLDDIR)/example/serialization \
 	$(UPCXX_BLDDIR)/bench \
