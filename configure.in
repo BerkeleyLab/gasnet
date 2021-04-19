@@ -1032,6 +1032,63 @@ case "$CC_FAMILY" in
 esac
 AC_SUBST(KEEPTMP_CFLAGS)      # flags to preserve intermediate file (,i, .s, etc.)
 
+# Global opt-in to (semi-)automatic RPATH support
+GASNET_IF_ENABLED(rpath,
+  [Build GASNet libraries using RPATH for dependent libraries (disabled by default)],
+  enabled_rpath=yes, enabled_rpath=no)
+warn_missing_rpath=''
+
+# Probe(s) of compiler/linker support for RPATH
+#
+# TODO: warning-sensitive linker probe prior to making this ON-by-default
+#   The logic below current uses `AC_TRY_LINK()` to test for support for
+#   linker flags.  However, this is not capable of rejecting flags which
+#   induce warnings rather than failure.  The most straight-forward approach
+#   to checking for warnings is susceptible to persistent warnings (such as
+#   for impending license expiration).  Therefore, before RPATH support can be
+#   ON by default, this probe should use `GASNET_TRY_LDFLAG()`, which does not
+#   *yet* exist, but would be analogous to `GASNET_TRY_CFLAG()`.
+#   Example scenarios where this would improve our behavior:
+#   + Compilers/linkers which don't recognize flags we attempt, but only warn.
+#     This would fail the probe, possibly allowing a later flag to be chosen.
+#   + Conflicts (such as hypothetically with `-static`) which generate
+#     warnings that an otherwise supported behavior is unavailable.
+#     This would probably fail *all* the probes, resulting in disabling a
+#     "non-feature" that only generates warnings.
+#   + Might check if multiple instances of the same directory generates a warning.
+#     However, we don't have a good solution in mind if this is ever the case.
+#
+pushdef([cache_var],cv_prefix[]cc_rpath_option)
+AC_MSG_CHECKING([for rpath option to \$CC])
+AC_CACHE_VAL(cache_var, [
+  cache_var='unknown'
+  if test "$CC_FAMILY$CC_SUBFAMILY" = 'GNUNVIDIA'; then
+    wl='-Xlinker '
+  else
+    wl='-Wl,'
+  fi
+  for opt in "${wl}-rpath," "${wl}-rpath=" "${wl}-rpath ${wl}"; do
+    GASNET_PUSHVAR(LDFLAGS,"$opt${TMPDIR:-/tmp}")
+    AC_TRY_LINK([ #include <stdio.h> ],
+                [ puts("hello"); ],
+                [ cache_var="$opt" ],
+               )
+    GASNET_POPVAR(LDFLAGS)
+    if test x"$cache_var" != xunknown; then
+      break
+    fi
+  done
+  unset wl
+])
+if test x"$cache_var" = 'xunknown'; then
+  AC_MSG_RESULT(unknown)
+  unset cc_rpath_option
+else
+  AC_MSG_RESULT("${cache_var}DIR") # explicit (visible) quotes are intentional
+  cc_rpath_option="$cache_var"
+fi
+popdef([cache_var])
+
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
 segconfig=""
 GASNET_IF_ENABLED(segment-fast, Build GASNet in the FAST shared segment configuration,
@@ -1564,7 +1621,8 @@ AC_DEFUN([GASNET_PACKAGE_CFLAGS],[
 
 dnl GASNET_PACKAGE_LDFLAGS(PREFIX, libnames, [extra flags], [noenv])
 dnl   Construct [PREFIX]_LDFLAGS to contain the proper "-L$[PREFIX]_HOME/lib{,32,64}" plus [extra flags]
-dnl   Special cases $[PREFIX]_HOME = "/usr" or "/" to omit the "-L..."
+dnl   Optionally includes an RPATH option, based on --enable-rpath and --(en|dis)able-[PREFIX]-rpath.
+dnl   Special cases $[PREFIX]_HOME = "/usr" or "/" to omit the "-L..." and rpath
 dnl The libnames arg is like AC_CHECK_LIB: just "foo" and "bar", not libfoo.a or libbar.so
 dnl If the optional [noenv] argument is non-empty then GASNET_ENV_DEFAULT in NOT used
 AC_DEFUN([GASNET_PACKAGE_LDFLAGS],[
@@ -1573,22 +1631,50 @@ AC_DEFUN([GASNET_PACKAGE_LDFLAGS],[
   pushdef([the_var],$1[]_LDFLAGS)
   pushdef([the_guess],$1[]_ldflags_guess)
   pushdef([extra_flags],ifelse(len([$3]),[0],[],[ $3]))  dnl prepends space only if non-empty
+  pushdef([rpath_opt],translit($1,'A-Z_','a-z-')-rpath)
+  pushdef([rpath_var],enable_[]translit($1,'A-Z-','a-z_')_rpath)
   dnl TODO - strengthen this if we can determine linker's default search path:
   case "$the_home" in
     /usr|/) the_guess='$3';;
-         *) for the_guess in "$the_home/lib${GASNETI_PTR_BITS}" "$the_home/lib"; do
+         *) for the_guess[]_dir in "$the_home/lib${GASNETI_PTR_BITS}" "$the_home/lib"; do
               for the_guess[]_lib in $2; do
                 for the_guess[]_suff in a so sl dylib la dll; do
-                  if test -r "$the_guess/lib$the_guess[]_lib.$the_guess[]_suff"; then break 3; fi
+                  if test -r "$the_guess[]_dir/lib$the_guess[]_lib.$the_guess[]_suff"; then break 3; fi
                 done
               done
             done
-            the_guess="-L$the_guess[]extra_flags";;
+            the_guess="-L$the_guess[]_dir[]"
+            pushdef([GASNET_SUPPRESSHELP],1) # deferred to appear after help for [PREFIX]_LDFLAGS
+            GASNET_IF_ENABLED_WITH_AUTO(rpath_opt, [N/A],
+              [rpath_var="$the_guess[]_dir"],
+              [rpath_var=''],
+              [if test -z "$rpath_var"; then
+                 if test "x$enabled_rpath" = xyes; then
+                   rpath_var="$the_guess[]_dir"
+                 else
+                   rpath_var=''
+                 fi
+               fi])
+            popdef([GASNET_SUPPRESSHELP])
+            if test -n "$rpath_var"; then
+              if test "${cc_rpath_option:+set}" = set; then
+                the_guess="$the_guess $cc_rpath_option$rpath_var"
+              else
+                warn_missing_rpath="$warn_missing_rpath translit($1,'A-Z-','a-z_')"
+              fi
+            fi
+            the_guess="${the_guess}extra_flags"
+            ;;
   esac
   ifelse(len([$4]),[0],[GASNET_ENV_DEFAULT(the_var, $the_guess)],[the_var=$the_guess])
+  AC_ARG_ENABLE(rpath_opt,GASNET_OPTION_HELP((en|dis)able-rpath_opt(=DIR),
+                       [Use RPATH in default the_var (enabled by default with --enable-rpath)]))
   unset the_guess
+  unset the_guess[]_dir
   unset the_guess[]_lib
   unset the_guess[]_suff
+  popdef([rpath_var])
+  popdef([rpath_opt])
   popdef([extra_flags])
   popdef([the_guess])
   popdef([the_var])
@@ -5391,6 +5477,12 @@ dnl GASNET_TOOLSONLY_FALSE_END
 ##
 ##  Final Output
 ##
+
+# TODO: exclude platforms where RPATH is "not a thing"
+if test -n "$warn_missing_rpath"; then
+  GASNET_MSG_WARN([I do not know how to encode an RPATH for your system.
+Had support been present, the following conduits or packages would have used an RPATH:$warn_missing_rpath.])
+fi
 
 GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
 GASNET_FIX_EXEC(ibv-conduit/contrib/gasnetrun_ibv)
