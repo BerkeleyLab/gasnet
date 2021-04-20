@@ -729,6 +729,7 @@ extern int gex_EP_Create(
   // TODO: formatted printing for capabilities
   GASNETI_TRACE_PRINTF(O,("gex_EP_Create: client='%s' capabilities=%d flags=%d",
                           client ? client->_name : "(NULL)", caps, flags));
+  GASNETI_CHECK_INJECT();
 
   if (! client) {
     gasneti_fatalerror("Invalid call to gex_EP_Create with NULL client");
