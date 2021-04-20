@@ -24,11 +24,14 @@ GASNet-EX ChangeLog
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
     local completion and payloads in (roughly) the 4KiB to 64KiB range.
+  - SEQ and PARSYNC builds now set MLX{4,5}_SINGLE_THREADED under
+    appropriate conditions to elide locking overheads in libibverbs.
   - NEW: configure option --with-ibv-fenced-puts=... can be used to set the
     default value for the GASNET_USE_FENCED_PUTS environment variable.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug3936: Problems with multi-rail and GASNET_{AM_CREDITS,NETWORKDEPTH}_PP
+  - bug4053: ibv: Default to setting MLX5_SINGLE_THREADED=1 for SEQ builds
   - bug4209: ibv: improve ALC with respect to bounce buffer use
   - bug4212: build failure for ibv conduit with "--with-ibv-max-hcas=1"
   - bug4213: trace AM handler registration
