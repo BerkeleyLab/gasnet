@@ -1316,6 +1316,29 @@ static int gasnetc_load_settings(void) {
     gasnetc_packedlong_limit = GASNETC_MAX_PACKEDLONG;
   }
 
+#if GASNETC_DYNAMIC_CONNECT
+  gasnetc_conn_static = gasneti_getenv_yesno_withdefault("GASNET_CONNECT_STATIC", 1);
+  gasnetc_conn_dynamic = gasneti_getenv_yesno_withdefault("GASNET_CONNECT_DYNAMIC", 1);
+  if (!gasnetc_conn_static && !gasnetc_conn_dynamic) {
+    if (!gasneti_mynode) {
+      gasneti_console_message("WARNING",
+              "Both GASNET_CONNECT_STATIC and GASNET_CONNECT_DYNAMIC are FALSE.  "
+              "Enabling dynamic connection support.");
+    }
+    gasnetc_conn_dynamic = 1;
+  }
+  gasnetc_connectfile_in  = gasneti_getenv_withdefault("GASNET_CONNECTFILE_IN", NULL);
+  if (gasnetc_connectfile_in && !gasnetc_connectfile_in[0]) { // empty string
+    gasnetc_connectfile_in = NULL;
+  }
+  gasnetc_connectfile_out = gasneti_getenv_withdefault("GASNET_CONNECTFILE_OUT", NULL);
+  if (gasnetc_connectfile_out && !gasnetc_connectfile_out[0]) { // empty string
+    gasnetc_connectfile_out = NULL;
+  }
+  gasnetc_connectfile_out_base =
+        gasneti_getenv_int_withdefault("GASNET_CONNECTFILE_BASE",
+                                       gasnetc_connectfile_out_base, 0);
+#endif
 
   /* Report */
   GASNETI_TRACE_PRINTF(I,("ibv-conduit build time configuration settings = {"));
@@ -2141,6 +2164,52 @@ static int gasnetc_init( gex_Client_t            *client_p,
   if (i != GASNET_OK) {
     return i;
   }
+
+#if GASNET_SEQ || GASNET_PARSYNC
+  {
+    // If possible, determine that this is truly a "single-threaded" run
+    // without AM recv thread or connection thread.  If so, then we
+    // set MLX5_SINGLE_THREADED=1 in the environment to potentially
+    // improve the performance of libibverbs.
+    // This setting must precede any ibv calls to be effective.
+    int st = 1; // Assume the best
+  #if GASNETC_USE_RCV_THREAD
+    if (gasnetc_use_rcv_thread) st = 0;
+  #endif
+  #if GASNETC_USE_CONN_THREAD
+    if (!gasnetc_conn_dynamic) {
+      // Dynamic connect disabled in environment
+    } else if (gasnetc_conn_static && !gasnetc_connectfile_in) {
+      // Static connect enabled w/o constraint by a connect file => fully connected
+      // NOTE: this is the default case
+    } else {
+      // Connection setup will spawn a dynamic connection thread *unless*
+      // connection file is used to specify a fully connected job, which we
+      // cannot reasonably detect here.
+      st = 0;
+    }
+  #endif
+    if (st) {
+      char *tmp;
+      if (NULL != (tmp = gasneti_getenv("MLX4_SINGLE_THREADED"))) {
+        gasneti_envstr_display("MLX4_SINGLE_THREADED", tmp, 0);
+        GASNETI_TRACE_PRINTF(I, ("Not overwriting MLX4_SINGLE_THREADED in environment"));
+      } else {
+        GASNETI_TRACE_PRINTF(I, ("Setting MLX4_SINGLE_THREADED=1 in environment"));
+        gasneti_envstr_display("MLX4_SINGLE_THREADED", "1", 1);
+        gasneti_setenv("MLX4_SINGLE_THREADED", "1");
+      }
+      if (NULL != (tmp = gasneti_getenv("MLX5_SINGLE_THREADED"))) {
+        gasneti_envstr_display("MLX5_SINGLE_THREADED", tmp, 0);
+        GASNETI_TRACE_PRINTF(I, ("Not overwriting MLX5_SINGLE_THREADED in environment"));
+      } else {
+        GASNETI_TRACE_PRINTF(I, ("Setting MLX5_SINGLE_THREADED=1 in environment"));
+        gasneti_envstr_display("MLX5_SINGLE_THREADED", "1", 1);
+        gasneti_setenv("MLX5_SINGLE_THREADED", "1");
+      }
+    }
+  }
+#endif
 
   /* Find the port(s) to use */
   gasnetc_probe_ports(gasnetc_num_qps);
