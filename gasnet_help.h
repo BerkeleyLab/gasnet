@@ -261,6 +261,8 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 //   + GASNETI_NBRHD_LOCAL()
 //   + GASNETI_NBRHD_LOCAL_ADDR()
 //   + GASNETI_NBRHD_LOCAL_ADDR_OR_NULL()
+//   + gasneti_jobrank_if_mappable()
+//   + gasnete_mapped_at()
 
 #if GASNET_DEBUG
   GASNETI_INLINE(gasneti_assertvalid_tm_pair)
