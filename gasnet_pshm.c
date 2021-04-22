@@ -1372,6 +1372,7 @@ int ampshm_prepare_inner(
 
   // Outputs consumed by commit
   sd->_void_p = msg;
+  sd->_flags = flags;
   sd->_pshm._pshmrank = pshmrank;
   sd->_pshm._jobrank = jobrank;
   GASNETI_AMPSHM_MSG_NUMARGS(msg) = nargs;
@@ -1441,7 +1442,9 @@ void ampshm_commit_inner(
         GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;
         gasneti_assert_uint( GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) ,==, nbytes ); // truncated?
         if (nbytes) {
-          int is_aux = gasneti_in_auxsegment(sd->_pshm._jobrank, dest_addr, nbytes);
+          gasneti_static_assert((int)GASNETI_FLAG_PEER_SEG_AUX); // else next line truncates
+          int is_aux = sd->_flags & GASNETI_FLAG_PEER_SEG_AUX;
+          gasneti_assert_uint(!!is_aux ,==, !!gasneti_in_auxsegment(sd->_pshm._jobrank, dest_addr, nbytes));
           void *data = gasneti_pshm_jobrank_addr2local(sd->_pshm._jobrank, dest_addr, is_aux);
           GASNETI_MEMCPY(data, sd->_addr, nbytes);
         }
