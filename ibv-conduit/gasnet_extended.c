@@ -767,7 +767,7 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
       barrier_data->barrier_peers[1+step].jobrank = jobrank;
     #if GASNET_PSHM
       if (gasneti_pshm_jobrank_in_supernode(jobrank)) {
-        barrier_data->barrier_peers[1+step].addr = (uintptr_t)gasneti_pshm_jobrank_addr2local(jobrank, addr);
+        barrier_data->barrier_peers[1+step].addr = (uintptr_t)gasneti_pshm_jobrank_addr2local(jobrank, addr, 1);
       } else
     #endif
       barrier_data->barrier_peers[1+step].addr = (uintptr_t)addr;

@@ -323,7 +323,8 @@ typedef union {
   #define _GASNETI_NBRHD_LOCAL(e_tm,rank) gasneti_pshm_in_supernode(e_tm,rank)
   #define _GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr) gasneti_pshm_addr2local(e_tm,rank,addr)
   #define _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank) gasneti_pshm_jobrank_in_supernode(jobrank)
-  #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr) gasneti_pshm_jobrank_addr2local(jobrank,addr)
+  // TODO: following defn does not handle aux seg
+  #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr) gasneti_pshm_jobrank_addr2local(jobrank,addr,0)
 #else
   #if GASNET_CONDUIT_SMP
     #define _GASNETI_NBRHD_LOCAL(e_tm,rank)             (1)
@@ -382,7 +383,8 @@ void *gasnete_mapped_at(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_addr) {
     gex_Rank_t _jobrank = gasneti_jobrank_if_mappable(_e_tm, _rank);
     if (_jobrank == GEX_RANK_INVALID) return NULL; // not mappable
 #if GASNET_PSHM
-    void *_result = gasneti_pshm_jobrank_addr2local(_jobrank, _addr);
+    int _is_aux = gasneti_in_auxsegment(_jobrank, _addr, 1);
+    void *_result = gasneti_pshm_jobrank_addr2local(_jobrank, _addr, _is_aux);
 #else
     gasneti_assert_uint(_jobrank ,==, gasneti_mynode);
     void *_result = (/*no const*/ void*)_addr; // loopback

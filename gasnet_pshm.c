@@ -1440,8 +1440,11 @@ void ampshm_commit_inner(
         GASNETI_AMPSHM_MSG_LONG_DATA(msg) = dest_addr;
         GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;
         gasneti_assert_uint( GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) ,==, nbytes ); // truncated?
-        void *data = gasneti_pshm_jobrank_addr2local(sd->_pshm._jobrank, dest_addr);
-        GASNETI_MEMCPY_SAFE_EMPTY(data, sd->_addr, nbytes);
+        if (nbytes) {
+          int is_aux = gasneti_in_auxsegment(sd->_pshm._jobrank, dest_addr, nbytes);
+          void *data = gasneti_pshm_jobrank_addr2local(sd->_pshm._jobrank, dest_addr, is_aux);
+          GASNETI_MEMCPY(data, sd->_addr, nbytes);
+        }
         break;
     }
     default: gasneti_unreachable_error(("Invalid category=%i",(int)category));

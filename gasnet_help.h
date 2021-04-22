@@ -1714,14 +1714,16 @@ GASNETI_PUREP(gasneti_pshm_jobrank_in_supernode)
 // + Relies on dense array of nodeinfo even though only supernode-local are non-zero
 // + Was designed for single segment and even auxseg is currently a hack
 GASNETI_INLINE(gasneti_pshm_jobrank_addr2local) GASNETI_PURE
-void *gasneti_pshm_jobrank_addr2local(gex_Rank_t _jobrank, const void *_addr) {
-#if 1 // TODO-EX: this is a hack!
-  // Properties of unsigned subtraction make the following oblivous to order of client vs aux segment
-  if_pf (((uintptr_t)_addr - (uintptr_t)gasneti_seginfo[_jobrank].addr) >= gasneti_seginfo[_jobrank].size)
-    return (void*)((uintptr_t)_addr + (uintptr_t)gasneti_nodeinfo[_jobrank].auxoffset);
-#endif
-  return  (void*)((uintptr_t)_addr
-                   + (uintptr_t)gasneti_nodeinfo[_jobrank].offset);
+void *gasneti_pshm_jobrank_addr2local(gex_Rank_t _jobrank, const void *_addr, int _is_aux) {
+  if (_is_aux) {
+    gasneti_assert(gasneti_in_auxsegment(_jobrank, _addr, 1));
+    return (void*)((uintptr_t)_addr + gasneti_nodeinfo[_jobrank].auxoffset);
+  } else {
+    // Any local address is OK, else must be in the primordial segment
+    gasneti_assert((_jobrank == gasneti_mynode) ||
+                   _gasneti_in_seginfo_t(_addr, 1, &gasneti_seginfo[_jobrank]));
+    return (void*)((uintptr_t)_addr + gasneti_nodeinfo[_jobrank].offset);
+  }
 } 
 GASNETI_PUREP(gasneti_pshm_jobrank_addr2local)
 #endif // GASNET_PSHM
@@ -1835,7 +1837,8 @@ GASNETI_PUREP(gasneti_pshm_in_supernode)
 GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
 void *gasneti_pshm_addr2local(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_addr) {
   gex_Rank_t _jobrank = gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
-  return gasneti_pshm_jobrank_addr2local(_jobrank, _addr);
+  int _is_aux = gasneti_in_auxsegment(_jobrank, _addr, 1);
+  return gasneti_pshm_jobrank_addr2local(_jobrank, _addr, _is_aux);
 } 
 GASNETI_PUREP(gasneti_pshm_addr2local)
 #endif // GASNET_PSHM
