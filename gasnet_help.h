@@ -1837,8 +1837,8 @@ GASNETI_PUREP(gasneti_pshm_in_supernode)
 GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
 void *gasneti_pshm_addr2local(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_addr) {
   gex_Rank_t _jobrank = gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
-  int _is_aux = gasneti_in_auxsegment(_jobrank, _addr, 1);
-  return gasneti_pshm_jobrank_addr2local(_jobrank, _addr, _is_aux);
+  gasneti_assert(! gasneti_in_auxsegment(_jobrank, _addr, 1));
+  return gasneti_pshm_jobrank_addr2local(_jobrank, _addr, 0);
 } 
 GASNETI_PUREP(gasneti_pshm_addr2local)
 #endif // GASNET_PSHM
