@@ -204,15 +204,18 @@ All GASNet conduit code is required to meet the following coding standards:
    - Do not use variable-length array declarations
    - Do not use zero-length structure fields (aka flexible array member)
    - Do not use compound literals or named struct field initializers
+   - Do not use a trailing comma in an enum definition
    - Do not use printf format specifiers added in C99, such as: ll,j,z,t,L,lf
      (Use portable_inttypes.h to get (u)int{64,ptr}_t and PRI[ud]{64,PTR,SZ,PD})
    - Do not use long long types explicitly, or assume that LL suffix constants
      are exactly 64-bit.  If a particular type width is required then use an intW_t 
      fixed-width type declaration and/or cast.
    - Do not include any header files introduced by C99 or any features they introduce
-   - Do not use restrict, __func__ or _Pragma/#pragma directly
-     (use GASNETI_RESTRICT, GASNETI_CURRENT_FUNCTION, and the various attribute
-      wrapper macros defined in gasnet_basic.h using configure detection)
+   - Do not use restrict, __func__, use GASNETI_RESTRICT, GASNETI_CURRENT_FUNCTION.
+   - Do not use __attribute__, __has_{builtin,attribute,cpp_attribute}, __assume, __builtin_*, 
+     or _Pragma/#pragma directly. Instead, use the various attribute and annotation 
+     wrapper macros defined in gasnet_basic.h using configure detection.
+   - Do not use #warning
    - Do not use other GNU or vendor extensions (unless properly #ifdef protected w/ fallback)
 
 * GASNet code should use full prototype declarations whenever possible:
@@ -273,9 +276,18 @@ All GASNet conduit code is required to meet the following coding standards:
   just like printf. NEVER use "gasneti_assert(0)" (it will be compiled away), 
   and gasneti_fatalerror() with a useful message is always preferable to abort().
 
+* Do not use printf/fprintf for console output, use gasneti_console_message instead.
+
+* Environment variable queries should use gasneti_getenv_*_withdefault() whereever
+  practical, to ensure proper verboseenv console reporting of settings/units/defaults.
+  Any calls to bare gasneti_getenv() should be followed by a call to the
+  appropriate gasneti_env*_display() function to ensure proper reporting.
+
 * Conditional compilation for platform-specific features should be done using
   the standardized platform macros provided by other/gasnet_portable_platform.h, 
-  not ad-hoc vendor or compiler-provided preprocessor macros.
+  not ad-hoc vendor or compiler-provided preprocessor macros. If a platform
+  identification macro is missing, report that as a bug or use a pull request
+  to add the missing identification.
 
 * Code should never make assumptions about integer data type sizes. In cases that
   call for a specific size integral type, the (u)int(sz)_t types provided by
@@ -313,6 +325,21 @@ All GASNet conduit code is required to meet the following coding standards:
   and if the outputs differ, then your changes include lines that have changed
   in only the whitespace characters.
 
+* Large code motion (more than a dozen lines mostly unchanged) should be
+  isolated in a commit by itself, whenever practical.
+
+* Commit messages should describe all the major changes in the commit.
+
+* Fixes to any defects appearing in an official release should appear in a surgical,
+  isolated commit whereever practical. This is mandatory whenever the fix is a
+  reasonable candidate for cherry-pick to the released version. The commit message 
+  for fixing a user-visible defect in a release must reference a bug number in
+  the public bug database (even if it means you enter the bug for that reason),
+  and the bug database should be updated to reference the PR/commit when merged.
+
+* Any user-visible changes relative to the last official release should be recorded
+  in the ChangeLog and appropriate README documents, ideally in a separate commit.
+
 * Do not make any conduit-specific changes to the files in the
   extended-ref or tests directories.  They do not have any Makefiles because they
   just provide a centralized place for files used in other directories.
@@ -323,18 +350,14 @@ All GASNet conduit code is required to meet the following coding standards:
   (this applies especially to gasnet_extended.h, gasnet_extended_help.h, and
   gasnet_extended_common.c. which should never be cloned).
 
-* Makefiles should never use GNU-make specific features (vanilla BSD make only).
+* Makefiles must never rely on features newer than the current GNU make version floor.
   Makefile commands and configure scripts should adhere strictly to simple
   Bourne shell usage (not bash).
-  Currently there are some violations of this rule, but these should NOT be
-  taken as license to create additional dependencies on GNU-make.
 
 * Perl code should only use features and modules available in all installations
   of Perl 5.005+.
 
 * Test code should follow these standards and also those listed in tests/README
-  Only the tests are currently using GNU-make specific features, and we'd stop
-  doing so if we could.
 
 GASNet porting guide
 ====================
