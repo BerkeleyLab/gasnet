@@ -331,14 +331,15 @@ void doit(int partner, int *partnerseg) {
     assert_always(!memcmp(p1,p2,sizeof(t1)));     \
   } while (0)
     
+  // Note: asymmetric use of `pu` avoids self-compare warnings
   #define assert_field_compat(t1, f1, t2, f2) do {     \
-    static union { t1 v1; t2 v2; } u;                  \
+    static union { t1 v1; t2 v2; } u, *pu = &u;        \
     static t1 v1;                                      \
     static t2 v2;                                      \
     test_static_assert(sizeof(t1) == sizeof(t2));      \
     assert_always((void*)&u.v1 == (void*)&u.v2);       \
     assert_always(sizeof(u.v1.f1) == sizeof(u.v2.f2)); \
-    assert_always(&u.v1.f1 == &u.v2.f2);               \
+    assert_always(&u.v1.f1 == &pu->v2.f2);             \
     v1.f1 = v2.f2; v2.f2 = v1.f1;                      \
   } while (0)
 
