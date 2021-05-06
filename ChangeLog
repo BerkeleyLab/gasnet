@@ -21,6 +21,11 @@ GASNet-EX ChangeLog
  ----------------------------------------------------------------------
  20XX.YY.ZZ: PENDING
 
+* General and Misc.
+  - NEW: configure options `--enable-rpath` and `--enable-[pkg]-rpath` can
+    request addition of directories containing required libraries to the
+    runtime library search path (a.k.a. "rpath") via `$(GASNET_LDFLAGS)`.
+
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
     local completion and payloads in (roughly) the 4KiB to 64KiB range.
@@ -33,6 +38,7 @@ GASNet-EX ChangeLog
   - Improved support for GCC 11 by suppressing spurious warnings.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug3420: use -rpath when linking
   - bug3936: Problems with multi-rail and GASNET_{AM_CREDITS,NETWORKDEPTH}_PP
   - bug4053: ibv: Default to setting MLX5_SINGLE_THREADED=1 for SEQ builds
   - bug4209: ibv: improve ALC with respect to bounce buffer use
