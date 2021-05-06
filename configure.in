@@ -4435,20 +4435,8 @@ elif test "$enable_pmi" != 'no'; then
   pmi_guess=/usr
   GASNET_ENV_DEFAULT(PMI_HOME, $pmi_guess, [Install prefix of PMI library])
 
-  case "$PMI_HOME" in
-    /usr|/) pmi_ldflags_guess='' ;;
-    *)
-      if test -d "$PMI_HOME/lib${GASNETI_PTR_BITS}"; then
-        pmi_ldflags_guess="-L$PMI_HOME/lib${GASNETI_PTR_BITS}"
-      else
-        pmi_ldflags_guess="-L$PMI_HOME/lib"
-      fi
-    ;;
-  esac
-
-  GASNET_ENV_DEFAULT(PMI_LDFLAGS, $pmi_ldflags_guess)
-  PMI_SPAWNER_LDFLAGS=$PMI_LDFLAGS
-  unset PMI_LDFLAGS
+  GASNET_PACKAGE_LDFLAGS(PMI, [pmi pmi2 pmix])
+  PMI_SPAWNER_LDFLAGS=$PMI_LDFLAGS; unset PMI_LDFLAGS
 
   # If user specifies one PMI version then disqualify the other
   GASNET_WITH(pmi-version, [PMI version (x, 1, or 2)] , [
