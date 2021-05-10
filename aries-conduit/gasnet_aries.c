@@ -969,6 +969,36 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
 }
 #endif
 
+#if GASNETC_USE_MULTI_DOMAIN
+void gasnetc_init_md(void)
+{
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  gasnetc_domain_count = gasneti_getenv_int_withdefault("GASNET_DOMAIN_COUNT",
+               GASNETC_DOMAIN_COUNT_DEFAULT,0);
+  gasnetc_poll_am_domain_mask = gasneti_getenv_int_withdefault("GASNET_AM_DOMAIN_POLL_MASK",
+               GASNETC_AM_DOMAIN_POLL_MASK_DEFAULT,0);
+  if (gasnetc_poll_am_domain_mask) {
+    for (unsigned int i=2; i<gasnetc_domain_count; i<<=1) {
+      gasnetc_poll_am_domain_mask = (gasnetc_poll_am_domain_mask << 1) | 1;
+    }
+  }
+  unsigned int *all_domain_counts = gasneti_malloc(gasneti_nodes * sizeof(unsigned int));
+  gasneti_spawner->Exchange(&gasnetc_domain_count, sizeof(unsigned int), all_domain_counts);
+  gasnetc_domain_count_max = gasnetc_domain_count;
+  for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+    gasnetc_domain_count_max = MAX(gasnetc_domain_count_max, all_domain_counts[i]);
+  }
+  gasneti_free(all_domain_counts);
+ #if (GASNETC_DOMAIN_THREAD_DISTRIBUTION == GASNETC_DOMAIN_THREAD_DISTRIBUTION_BULK)
+  gasnetc_threads_per_domain =  gasneti_getenv_int_withdefault("GASNET_GNI_PTHREADS_PER_DOMAIN",
+               GASNETC_PTHREADS_PER_DOMAIN_DEFAULT,0);
+ #endif
+  gasnetc_cdom_data = gasneti_malloc(gasnetc_domain_count * sizeof(communication_domain_struct_t));
+  for (unsigned int i=0; i<gasnetc_domain_count; i++)
+    reset_comm_data(gasnetc_cdom_data+i);
+}
+#endif
+
 uintptr_t gasnetc_init_messaging(void)
 {
   const gex_Rank_t remote_nodes = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
@@ -988,29 +1018,11 @@ uintptr_t gasnetc_init_messaging(void)
   gni_nic_handle_t nic_handle;
   gni_cq_handle_t bound_cq_handle;
   peer_struct_t *peer_data;
-  gasnetc_domain_count = gasneti_getenv_int_withdefault("GASNET_DOMAIN_COUNT",
-               GASNETC_DOMAIN_COUNT_DEFAULT,0);
-  gasnetc_poll_am_domain_mask = gasneti_getenv_int_withdefault("GASNET_AM_DOMAIN_POLL_MASK",
-               GASNETC_AM_DOMAIN_POLL_MASK_DEFAULT,0);
-  if (gasnetc_poll_am_domain_mask) {
-    for (i=2; i<gasnetc_domain_count; i<<=1) {
-      gasnetc_poll_am_domain_mask = (gasnetc_poll_am_domain_mask << 1) | 1;
-    }
-  }
-  unsigned int *all_domain_counts = gasneti_malloc(gasneti_nodes * sizeof(unsigned int));
-  gasneti_spawner->Exchange(&gasnetc_domain_count, sizeof(unsigned int), all_domain_counts);
-  gasnetc_domain_count_max = gasnetc_domain_count;
-  for (i = 0; i < gasneti_nodes; ++i) {
-    gasnetc_domain_count_max = MAX(gasnetc_domain_count_max, all_domain_counts[i]);
-  }
-  gasneti_free(all_domain_counts);
+
+  gasneti_assert(gasnetc_domain_count);
  #if (GASNETC_DOMAIN_THREAD_DISTRIBUTION == GASNETC_DOMAIN_THREAD_DISTRIBUTION_BULK)
-  gasnetc_threads_per_domain =  gasneti_getenv_int_withdefault("GASNET_GNI_PTHREADS_PER_DOMAIN",
-               GASNETC_PTHREADS_PER_DOMAIN_DEFAULT,0);
+  gasneti_assert(gasnetc_threads_per_domain);
  #endif
-  gasnetc_cdom_data = gasneti_malloc(gasnetc_domain_count * sizeof(communication_domain_struct_t));
-  for(i=0;i<gasnetc_domain_count;i++)
-    reset_comm_data(gasnetc_cdom_data+i);
 #endif
 
   // Process GASNET_GNI_FMA_SHARING, if supported
