@@ -178,18 +178,23 @@ static communication_domain_struct_t * gasnetc_cdom_data;
 #if (GASNETC_DOMAIN_THREAD_DISTRIBUTION == GASNETC_DOMAIN_THREAD_DISTRIBUTION_BULK)
 int gasnetc_get_domain_idx(gasnete_threadidx_t tidx)
 {
+  gasneti_assert(gasnetc_threads_per_domain);
+  gasneti_assert(gasnetc_domain_count);
   int didx = (tidx / gasnetc_threads_per_domain) % gasnetc_domain_count;
   return didx;
 }
 GASNETI_INLINE(gasnetc_get_domain_first_thread_idx)
 gasnete_threadidx_t gasnetc_get_domain_first_thread_idx(int didx)
 {
+  gasneti_assert(gasnetc_threads_per_domain);
+  gasneti_assert(gasnetc_domain_count);
   int tidx = didx * gasnetc_threads_per_domain;
   return tidx;
 }
 #else
 int gasnetc_get_domain_idx(gasnete_threadidx_t tidx)
 {
+  gasneti_assert(gasnetc_domain_count);
   int didx = tidx % gasnetc_domain_count;
   return didx;
 }
@@ -197,6 +202,7 @@ int gasnetc_get_domain_idx(gasnete_threadidx_t tidx)
 GASNETI_INLINE(gasnetc_get_domain_first_thread_idx)
 gasnete_threadidx_t gasnetc_get_domain_first_thread_idx(int didx)
 {
+  gasneti_assert(gasnetc_domain_count);
   int tidx = didx;
   return tidx;
 }
