@@ -975,6 +975,14 @@ void gasnetc_init_md(void)
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   gasnetc_domain_count = gasneti_getenv_int_withdefault("GASNET_DOMAIN_COUNT",
                GASNETC_DOMAIN_COUNT_DEFAULT,0);
+  if (! gasnetc_domain_count) {
+    gasneti_static_assert(GASNETC_DOMAIN_COUNT_DEFAULT != 0);
+    if (! gasneti_mynode) {
+      gasneti_console_message("WARNING",
+                              "Requested GASNET_DOMAIN_COUNT of 0 increased to 1");
+    }
+    gasnetc_domain_count = 1;
+  }
   gasnetc_poll_am_domain_mask = gasneti_getenv_int_withdefault("GASNET_AM_DOMAIN_POLL_MASK",
                GASNETC_AM_DOMAIN_POLL_MASK_DEFAULT,0);
   if (gasnetc_poll_am_domain_mask) {
@@ -992,6 +1000,14 @@ void gasnetc_init_md(void)
  #if (GASNETC_DOMAIN_THREAD_DISTRIBUTION == GASNETC_DOMAIN_THREAD_DISTRIBUTION_BULK)
   gasnetc_threads_per_domain =  gasneti_getenv_int_withdefault("GASNET_GNI_PTHREADS_PER_DOMAIN",
                GASNETC_PTHREADS_PER_DOMAIN_DEFAULT,0);
+  if (! gasnetc_threads_per_domain) {
+    gasneti_static_assert(GASNETC_PTHREADS_PER_DOMAIN_DEFAULT != 0);
+    if (! gasneti_mynode) {
+      gasneti_console_message("WARNING",
+                              "Requested GASNET_GNI_PTHREADS_PER_DOMAIN of 0 increased to 1");
+    }
+    gasnetc_threads_per_domain = 1;
+  }
  #endif
   gasnetc_cdom_data = gasneti_malloc(gasnetc_domain_count * sizeof(communication_domain_struct_t));
   for (unsigned int i=0; i<gasnetc_domain_count; i++)
