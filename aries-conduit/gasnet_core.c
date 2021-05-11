@@ -670,6 +670,11 @@ static int gasnetc_init( gex_Client_t            *client_p,
     #endif
   #endif
 
+  #if GASNETC_USE_MULTI_DOMAIN
+    // Must init multi-domain state prior to gex_EP_Create()
+    gasnetc_init_md();
+  #endif
+
   //  Create first Client, EP and TM *here*, for use in subsequent bootstrap collectives
   {
     //  allocate the client object
@@ -697,6 +702,8 @@ static int gasnetc_init( gex_Client_t            *client_p,
   #endif
 
   /* Now that messaging is available, use it for remaining bootstrap collectives */
+  // Note that the barrier synchronization by gasneti_spawner->Exchange() in
+  // gasnetc_init_messaging() ensure the necessary resources are ready globally.
   gasnetc_sys_coll_init();
 
   /* determine max pinnable */
