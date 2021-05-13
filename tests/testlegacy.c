@@ -18,7 +18,7 @@
 /* Define to get one big function that pushes the gcc inliner heursitics */
 #undef TESTGASNET_NO_SPLIT
 
-#if PLATFORM_COMPILER_PGI_CXX
+#if PLATFORM_COMPILER_PGI_CXX // Not reproducible with NVHPC compilers
   // suppress warnings on PGI C++ 19.10/macos about intentional constant controlling expressions
   #pragma diag_suppress 236
 #endif

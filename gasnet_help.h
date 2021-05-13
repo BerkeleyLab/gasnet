@@ -800,6 +800,7 @@ void gasneti_leaf_finish(gex_Event_t *_opt_val) {
    */
   #if PLATFORM_COMPILER_PGI_CXX
     // Add a redundant value use to avoid a 550 set-but-not-used warning 
+    // Not needed with NVHPC-branded releases
     #define _GASNETI_THREAD_POSTED (sizeof(_gasneti_threadinfo_available) > 1 \
                                     && !_gasneti_threadinfo_available)
   #else
