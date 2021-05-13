@@ -126,14 +126,17 @@
      */
     #define GASNETI_PGI_ASM_BUG2843 1
   #endif
-  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GE(17,0,0)
+  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GE(17,0,0) \
+                                && PLATFORM_COMPILER_VERSION_LT(19,1,0)
     // C++ compiler generates code that is consistent with having lost the volatile
     // qualifier from the integer member of the atomic type struct.
     #define GASNETI_PGI_ASM_BUG3674 1
   #endif
-  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GT(17,4,0)
+  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GT(17,4,0) \
+                                && PLATFORM_COMPILER_VERSION_LT(19,1,0)
     // C++ compiler generates code that promotes 8-bit asm output to
-    // 32-bits without clearing the other 24 bits.
+    // 32-bits without clearing the other 24 bits.  This was reported
+    // as a second issue within bug 3674.
     // The work-around is the same as for an older (unrelated) bug 1754.
     // Present in 17.10 and not in 17.4, but uncertain about in between.
     #define GASNETI_PGI_ASM_BUG1754 1
