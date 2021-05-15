@@ -2479,8 +2479,7 @@ int  gex_HSL_Trylock(gex_HSL_t *hsl);
 // opaque user-defined data type in the context of a reduction operation.
 //     GEX_DT_USER
 //
-// It is guaranteed that all GEX_DT_* values can be combined via bit-wise OR
-// without loss of information.
+// It is guaranteed that all GEX_DT_* values are represented by disjoint non-zero bits.
 //
 // Currently, Remote Atomics support all built-in data types listed above.
 // Currently, Reductions support all data types (built-in and user-defined)
@@ -2583,8 +2582,7 @@ typedef [some integer type] gex_DT_t;
 //    - Non-commutative User-Defined Reduction Operation
 //        GEX_OP_USER_NC
 //
-// It is guaranteed that all GEX_OP_* values can be combined via bit-wise OR without
-// loss of information.
+// It is guaranteed that all GEX_OP_* values are represented by disjoint non-zero bits.
 
 typedef [some integer type] gex_OP_t;
 #define GEX_OP_??? ((gex_OP_t)???) // For each GEX_OP_* above
