@@ -517,7 +517,7 @@ case "$CC_FAMILY" in
   ;;
   Intel) CCOPTFLAGS="-O3" ;;
   NVHPC)
-    CCOPTFLAGS="-O2" ;; # Default - TODO may lower to -O1 due to current bugs
+    CCOPTFLAGS="-O1" ;; # TODO: restore -O2 if/when bugs are resolved? (see bug 4158)
   PGI)
     CCOPTFLAGS="-O2"  # Default
     # Work-aroung bug 2842: bad code gen by pgcc 10.5-0 through 10.7-0 at -O2
@@ -3084,7 +3084,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
        # suppress large number of useless default warnings
        # get inline assembly and sign-extended widening
        MISC_CXXFLAGS="-w -Masmkeyword -Msignextend"
-       CXXOPTFLAGS="-O2" # Default - TODO may lower to -O1 due to current bugs
+       CXXOPTFLAGS="-O1" # TODO: restore -O2 if/when bugs are resolved? (see bug 4158)
        ;;
     PGI)   MISC_CXXFLAGS="-Masmkeyword -Msignextend"
            case "$GASNETI_PTR_BITS$target_os" in
