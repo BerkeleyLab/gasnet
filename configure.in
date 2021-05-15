@@ -315,6 +315,28 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                           [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wno-format-overflow"])
     GASNET_TRY_WNO_FLAG([$1],[$3-Wno-format-truncation],
                           [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wno-format-truncation"])
+
+    # compiler-specific DEVWARN disables
+    case "$2-$1" in
+      GNU-C) # GCC 11 appers to have analysis problems which yield bogus warnings (bug 4232)
+        GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
+        pushdef([cachevar],cv_prefix[]gcc_11_or_higher)
+        AC_CACHE_CHECK(
+          [for gcc 11 or higher],[cachevar],
+          AC_TRY_CPP([
+            #include "gasnet_portable_platform.h"
+            #if PLATFORM_COMPILER_VERSION_LT(11,0,0)
+            #error
+            #endif
+          ], [cachevar=yes], [cachevar=no]))
+        if test x$cachevar = xyes; then
+          GASNET_TRY_WNO_FLAG([C],[$3-Wno-array-bounds],
+                              [DEVWARN_CFLAGS="$DEVWARN_CFLAGS $3-Wno-array-bounds"])
+        fi
+        popdef([cachevar])
+        GASNET_POPVAR(CPPFLAGS)
+      ;;
+    esac
   fi
 
   # compiler-specific global warning disables
