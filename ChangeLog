@@ -29,6 +29,9 @@ GASNet-EX ChangeLog
   - NEW: configure option --with-ibv-fenced-puts=... can be used to set the
     default value for the GASNET_USE_FENCED_PUTS environment variable.
 
+* Platform support/portability
+  - Improved support for GCC 11 by suppressing spurious warnings.
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug3936: Problems with multi-rail and GASNET_{AM_CREDITS,NETWORKDEPTH}_PP
   - bug4053: ibv: Default to setting MLX5_SINGLE_THREADED=1 for SEQ builds
@@ -36,6 +39,7 @@ GASNet-EX ChangeLog
   - bug4212: build failure for ibv conduit with "--with-ibv-max-hcas=1"
   - bug4213: trace AM handler registration
   - bug4230: ssh-spawer de-duplication logic is flawed
+  - bug4232: Bogus array-bounds warning from GCC 11.1 on ILP32/NDEBUG
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release
