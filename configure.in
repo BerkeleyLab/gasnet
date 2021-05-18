@@ -315,28 +315,6 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                           [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wno-format-overflow"])
     GASNET_TRY_WNO_FLAG([$1],[$3-Wno-format-truncation],
                           [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wno-format-truncation"])
-
-    # compiler-specific DEVWARN disables
-    case "$2-$1" in
-      GNU-C) # GCC 11 appers to have analysis problems which yield bogus warnings (bug 4232)
-        GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
-        pushdef([cachevar],cv_prefix[]gcc_11_or_higher)
-        AC_CACHE_CHECK(
-          [for gcc 11 or higher],[cachevar],
-          AC_TRY_CPP([
-            #include "gasnet_portable_platform.h"
-            #if PLATFORM_COMPILER_VERSION_LT(11,0,0)
-            #error
-            #endif
-          ], [cachevar=yes], [cachevar=no]))
-        if test x$cachevar = xyes; then
-          GASNET_TRY_WNO_FLAG([C],[$3-Wno-array-bounds],
-                              [DEVWARN_CFLAGS="$DEVWARN_CFLAGS $3-Wno-array-bounds"])
-        fi
-        popdef([cachevar])
-        GASNET_POPVAR(CPPFLAGS)
-      ;;
-    esac
   fi
 
   # compiler-specific global warning disables
@@ -351,6 +329,26 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
         # Open64 strict aliasing complains about (void **)/(T **) aliasing, which we use in places
         GASNET_TRY_WNO_FLAG([$1],[$3-Wno-strict-aliasing],
                               [[$1]FLAGS="$[$1]FLAGS $3-Wno-strict-aliasing"])
+    ;;
+    GNU) # GCC 11 appears to have analysis problems which yield bogus warnings (bugs 4228,4231,4232)
+        dnl We do not use AC_CACHE_CHECK() here since doing so w/o additional changes
+        dnl would conflate CC and MPI_CC (and this is not a terribly expensive check).
+        AC_MSG_CHECKING(whether ifelse([$1],[CXX],[C++ compiler is g++],[C compiler is gcc]) 11 or higher)
+        GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
+        GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]),[
+          #include "gasnet_portable_platform.h"
+          #if PLATFORM_COMPILER_VERSION_LT(11,0,0)
+          #error
+          #endif
+        ],[],[ is_gcc11_or_higher=yes ],[ is_gcc11_or_higher=yes ],[ is_gcc11_or_higher=no ])
+        GASNET_POPVAR(CPPFLAGS)
+        AC_MSG_RESULT($is_gcc11_or_higher)
+        if test "$is_gcc11_or_higher" = yes; then
+          GASNET_TRY_WNO_FLAG([$1],[$3-Wno-array-bounds],
+                              [[$1]FLAGS="$[$1]FLAGS $3-Wno-array-bounds"])
+          GASNET_TRY_WNO_FLAG([$1],[$3-Wno-stringop-overflow],
+                              [[$1]FLAGS="$[$1]FLAGS $3-Wno-stringop-overflow"])
+        fi
     ;;
   esac
          # disable -Wformat if unsure we can support it for the printf implementation in use
