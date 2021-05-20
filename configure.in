@@ -3957,38 +3957,9 @@ if test "$enabled_aries" = yes; then
   GNI_LDFLAGS=
   GNI_LIBS=
 
-  # Look for pmi_cray.h, allowing for the possibility we are not using the wrapper compiler
-  # Setting $have_pmi_cray squashes a later probe for pmi.h.
-  # Therefore we perform the equivalent (but not quite identical) work here
-  pushdef([with_expanded_PMI_HOME],1)    dnl suppress help here, but permit later
-  pushdef([with_expanded_PMI_LDFLAGS],1)
-  pushdef([with_expanded_PMI_LIBS],1)
-  GASNET_ENV_DEFAULT(PMI_HOME, )
-  if test -n "$PMI_HOME"; then
-    GASNET_PACKAGE_CFLAGS(PMI, [], noenv)
-    GASNET_PACKAGE_LDFLAGS(PMI, pmi, [], noenv)
-  else
-    GASNET_ENV_DEFAULT(PMI_LDFLAGS, "$CRAY_PMI_POST_LINK_OPTS")
-  fi
-  GASNET_ENV_DEFAULT(PMI_LIBS, "-lpmi")
-  popdef([with_expanded_PMI_LIBS])
-  popdef([with_expanded_PMI_LDFLAGS])
-  popdef([with_expanded_PMI_HOME])
-
-  PMI_SPAWNER_CFLAGS=$PMI_CFLAGS;    unset PMI_CFLAGS
-  PMI_SPAWNER_LDFLAGS=$PMI_LDFLAGS;  unset PMI_LDFLAGS
-  PMI_SPAWNER_LIBS=$PMI_LIBS;        unset PMI_LIBS
-  GASNET_SPLIT_LINKER_OPTS(PMI_SPAWNER_LDFLAGS, PMI_SPAWNER_LIBS)
-
-  GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS $PMI_SPAWNER_CFLAGS")
-  GASNET_CHECK_CRAY_HEADER([pmi_cray.h],[CRAY_PMI_INCLUDE_OPTS],[
-      have_pmi_cray_h=yes
-      # Found in header search path (possibly due to PMI_SPAWNER_CFLAGS)
-    ],[
-      have_pmi_cray_h=yes
-      PMI_SPAWNER_CFLAGS="$PMI_SPAWNER_CFLAGS $CRAY_PMI_INCLUDE_OPTS"
-    ])
-  GASNET_POPVAR(CPPFLAGS)
+  # We previously setup PMI spawning here, but now the probe for Cray PMI
+  # support has been unified with the generic pmi-spawner probe.
+  # That logic will still ensure lack of Cray PMI will be fatal.
 
   # Look for gni_pub.h, allowing for the possibility we are not using the wrapper compiler
   GASNET_CHECK_CRAY_HEADER([gni_pub.h],[CRAY_GNI_HEADERS_INCLUDE_OPTS],[:],[
@@ -4020,24 +3991,25 @@ if test "$enabled_aries" = yes; then
 
   if test $have_aries = yes; then
     GASNET_SPLIT_LINKER_OPTS(GNI_LDFLAGS,GNI_LIBS)
-    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS ${GNI_LDFLAGS} $PMI_SPAWNER_LDFLAGS")
-    GASNET_PUSHVAR(LIBS,"$LIBS ${GNI_LIBS} $PMI_SPAWNER_LIBS")
-    GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS $GNI_CFLAGS $PMI_SPAWNER_CFLAGS")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS ${GNI_LDFLAGS}")
+    GASNET_PUSHVAR(LIBS,"$LIBS ${GNI_LIBS}")
+    GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS $GNI_CFLAGS")
     GASNET_TRY_CACHE_LINK(for working Aries configuration, aries_works, [
       #include <stddef.h>
       #include <stdint.h>
       #include <gni_pub.h>
-      #include <pmi_cray.h>
     ], [
       gni_cdm_handle_t cdm_hndl;
       gni_return_t rc = GNI_CdmDestroy(cdm_hndl);
-
-      int localranks;
-      int ret = PMI_Get_numpes_on_smp(&localranks); /* Cray extension */
     ], [ : ], [ have_aries=no; GASNET_ERR_SAVE() ] )
     GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
     GASNET_POPVAR(CPPFLAGS)
+  fi
+
+  if test $have_aries = yes; then
+    # require PMI spawner probe to find Cray's version
+    force_pmi=yes
   fi
 
   GASNET_IF_ENABLED_WITH_AUTO(aries-udreg,
@@ -4434,6 +4406,23 @@ AM_CONDITIONAL(HAVE_BOOTSTRAP_SSH, test "$have_fork" = yes)
 GASNET_IF_ENABLED_WITH_AUTO(pmi, [Enable/disable PMI support for job spawning],
   [enable_pmi=yes; force_pmi=yes], [enable_pmi=no], [enable_pmi=probe])
 
+# If user specifies a PMI version, then we will not probe for others
+unset using_pmi_version
+GASNET_WITH(pmi-version, [PMI version (x, 1, 2 or cray)] , [
+    case "$withval" in
+      1|2|x|cray) using_pmi_version="$withval";;
+      *) GASNET_MSG_ERROR([Argument to --with-pmi-version must be 'x', '1', '2', or 'cray']);;
+    esac
+], [
+    GASNET_MSG_WARN([Ignoring --without-pmi-version])
+])
+if test "$enabled_aries$have_aries" = yesyes; then
+  if test -n "$using_pmi_version" && test "$using_pmi_version" != 'cray'; then
+    GASNET_MSG_WARN([Ignoring --with-pmi-version=$using_pmi_version in favor of Cray PMI required by aries-conduit])
+  fi
+  using_pmi_version=cray
+fi
+
 # Check for header matching the selected lib
 # TODO: fragile if multiple PMI libs are installed
 AC_DEFUN([GASNET_PMI_SPAWNER_CFLAGS], [
@@ -4454,34 +4443,73 @@ AC_DEFUN([GASNET_PMI_SPAWNER_CFLAGS], [
 ])
 
 have_pmi=no
-if test -n "$have_pmi_cray_h"; then
-  with_pmi='no'
-  have_pmi='yes'
-  pmi_version=' (Cray)'
-elif test "$enable_pmi" != 'no'; then
-  pmi_guess=/usr
+if test "$enable_pmi" != 'no'; then
+  # On a Cray EX the module is named 'cray-pmi', which is sufficiently unique:
+  expr ":${LOADEDMODULES}" : ".*:cray-pmi/" >/dev/null 2>&1
+  loaded_cray_pmi=$?  # 0 is success
+  # On a Cray XC the module is named 'pmi', which is insufficiently unique, so we look for
+  # both 'pmi' and 'craype'.
+  ( expr ":${LOADEDMODULES}" : ".*:pmi/" && \
+    expr ":${LOADEDMODULES}" : ".*:craype/" ) >/dev/null 2>&1
+  loaded_pmi_plus_craype=$?  # 0 is success
+  # Auto-detect Cray PMI prefix if either environment module loaded, *unless* non-Cray version requested
+  if ( test "$loaded_cray_pmi" = 0 || test "$loaded_pmi_plus_craype" = 0 ) && \
+     ( test "$using_pmi_version" = 'cray' || test -z "$using_pmi_version" ); then
+    # Several places to look.
+    for dir in `expr "x${CRAY_PMI_INCLUDE_OPTS}" : 'x-I\([[^ ]]*\)' 2>/dev/null` \
+               `expr "x${CRAY_PMI_POST_LINK_OPTS}" : 'x-L\([[^ ]]*\)' 2>/dev/null` \
+               "$CRAY_PMI_PREFIX/dummy" '/opt/cray/pe/pmi/default/dummy'; do
+      if test -n "$dir"; then
+        pmi_guess=`dirname "$dir" 2>/dev/null`
+        if test -e "$pmi_guess/include/pmi_cray.h"; then
+          break
+        fi
+      fi
+    done
+  else
+    pmi_guess='/usr'
+  fi
   GASNET_ENV_DEFAULT(PMI_HOME, $pmi_guess, [Install prefix of PMI library])
 
   GASNET_PACKAGE_LDFLAGS(PMI, [pmi pmi2 pmix])
   PMI_SPAWNER_LDFLAGS=$PMI_LDFLAGS; unset PMI_LDFLAGS
 
-  # If user specifies one PMI version then disqualify the other
-  GASNET_WITH(pmi-version, [PMI version (x, 1, or 2)] , [
-    case "$withval" in
-      1) use_pmi1=yes;;
-      2) use_pmi2=yes;;
-      x) use_pmix=yes;;
-      *) GASNET_MSG_ERROR([Argument to --with-pmi-version must be 'x', '1' or '2']);;
-    esac
-    with_pmi_version="$withval"
-  ], [
-    GASNET_MSG_WARN([Ignoring --without-pmi-version])
-  ])
-
-  # Check for libs unless disqualifed by --with-pmi-version=
+  # Check for various implementations' libs unless disqualifed by --with-pmi-version=
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LDFLAGS")
   GASNET_ENV_DEFAULT(PMI_LIBS, probe)
-  if test -z "${use_pmi1+set}" && test -z "${use_pmi2+set}"; then
+  ## Cray PMI
+  if test "$using_pmi_version" = 'cray' || test -z "$using_pmi_version"; then
+    GASNET_PUSHVAR(LIBS,"")
+    if test "$PMI_LIBS" = 'probe'; then
+      # At the time of writting, XC systems use libpmi and EX systems use libpmi2.
+      # Use of AC_SEARCH_LIBS() will yield a "none required" result when using
+      # Cray's `cc` wrapper, which could then require pmi environment module to
+      # be loaded at application link time.  The following "just works" because,
+      # when using the wrapper, it reduces to checking if the library exists.
+      AC_CHECK_LIB(pmi2, PMI_Get_nidlist_ptr,
+                   [have_pmi=yes; LIBS="-lpmi2"],
+                   [AC_CHECK_LIB(pmi, PMI_Get_nidlist_ptr,
+                                 [have_pmi=yes; LIBS="-lpmi"])])
+    else
+      LIBS="$PMI_LIBS"
+      AC_CHECK_FUNC(PMI_Get_nidlist_ptr, [have_pmi=yes])
+    fi
+    if test "$have_pmi" = 'yes'; then
+      GASNET_PMI_SPAWNER_CFLAGS([pmi_cray.h])
+    fi
+    if test "$have_pmi" = 'yes'; then
+      using_pmi_version=cray
+      pretty_pmi_version=' (Cray)'
+      AC_DEFINE(HAVE_PMI_CRAY_H)
+      PMI_SPAWNER_LIBS="$LIBS"
+      GASNET_IF_DISABLED_NOHELP(cray-post-link-rewrite,[],
+        [GASNET_CRAY_FIX_LINK_OPTS([pmi],[PMI_SPAWNER_LDFLAGS])]
+      )
+    fi
+    GASNET_POPVAR(LIBS)
+  fi
+  ## PMIx
+  if test "$using_pmi_version" = 'x' || test -z "$using_pmi_version"; then
     GASNET_PUSHVAR(LIBS,"")
     if test "$PMI_LIBS" = 'probe'; then
       AC_SEARCH_LIBS(PMIx_Init, [pmix], [have_pmi=yes])
@@ -4517,14 +4545,15 @@ elif test "$enable_pmi" != 'no'; then
       GASNET_POPVAR(CFLAGS)
     fi
     if test "$have_pmi" = 'yes'; then
-      use_pmix=yes
-      pmi_version=' (version=x)'
+      using_pmi_version=x
+      pretty_pmi_version=' (version=x)'
       AC_DEFINE(HAVE_PMIX_H)
       PMI_SPAWNER_LIBS="$LIBS"
     fi
     GASNET_POPVAR(LIBS)
   fi
-  if test -z "${use_pmi1+set}" && test -z "${use_pmix+set}"; then
+  ## PMI2
+  if test "$using_pmi_version" = '2' || test -z "$using_pmi_version"; then
     GASNET_PUSHVAR(LIBS,"")
     if test "$PMI_LIBS" = 'probe'; then
       AC_SEARCH_LIBS(PMI2_Init, [pmi2 mpich], [have_pmi=yes])
@@ -4536,8 +4565,8 @@ elif test "$enable_pmi" != 'no'; then
       GASNET_PMI_SPAWNER_CFLAGS([pmi2.h])
     fi
     if test "$have_pmi" = 'yes'; then
-      use_pmi2=yes
-      pmi_version=' (version=2)'
+      using_pmi_version=2
+      pretty_pmi_version=' (version=2)'
       AC_DEFINE(HAVE_PMI2_H)
       PMI_SPAWNER_LIBS="$LIBS"
       GASNET_IF_ENABLED(pmi2-fast-barrier, Use PMI2_KVS_fence as barrier. This may not work with all PMI2 implementations,
@@ -4545,7 +4574,8 @@ elif test "$enable_pmi" != 'no'; then
     fi
     GASNET_POPVAR(LIBS)
   fi
-  if test -z "${use_pmi2+set}" && test -z "${use_pmix+set}"; then
+  ## PMI (aka PMI1)
+  if test "$using_pmi_version" = '1' || test -z "$using_pmi_version"; then
     GASNET_PUSHVAR(LIBS,"")
     if test "$PMI_LIBS" = 'probe'; then
       AC_SEARCH_LIBS(PMI_Init, [pmi mpich portals_runtime], [have_pmi=yes])
@@ -4557,8 +4587,8 @@ elif test "$enable_pmi" != 'no'; then
       GASNET_PMI_SPAWNER_CFLAGS([pmi.h])
     fi
     if test "$have_pmi" = 'yes'; then
-      use_pmi1=yes
-      pmi_version=' (version=1)'
+      using_pmi_version=1
+      pretty_pmi_version=' (version=1)'
       AC_DEFINE(HAVE_PMI_H)
       PMI_SPAWNER_LIBS="$LIBS"
     fi
@@ -4605,9 +4635,12 @@ elif test -z "$force_pmi"; then
   PMI_SPAWNER_LIBS=""
   PMI_SPAWNER_LDFLAGS=""
   PMI_SPAWNER_CFLAGS=""
-elif test -n "${with_pmi_version+set}"; then
+elif test "$enabled_aries$have_aries" = yesyes; then
   AC_MSG_RESULT(no)
-  GASNET_MSG_ERROR([Requested PMI version $with_pmi_version could not be found])
+  GASNET_MSG_ERROR([Cray PMI could not be found, but is required by aries-conduit])
+elif test -n "${using_pmi_version+set}"; then
+  AC_MSG_RESULT(no)
+  GASNET_MSG_ERROR([Requested PMI version $using_pmi_version could not be found])
 else
   AC_MSG_RESULT(no)
   GASNET_MSG_ERROR([Requested PMI support could not be found])
@@ -5520,7 +5553,7 @@ cat >>$CONDUIT_LIST <<EOF
   Segment config:         $segconfig
   PSHM support:           $with_pshm
   Atomics support:        $atomics_config
-  PMI support:            $have_pmi$pmi_version
+  PMI support:            $have_pmi$pretty_pmi_version
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF
