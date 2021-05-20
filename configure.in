@@ -1697,10 +1697,16 @@ AC_DEFUN([GASNET_PACKAGE_LDFLAGS],[
 
 ########################################################################
 ##
-## Modify CRAY_[LIB]_POST_LINK_OPTS envvars to reference the 'default'
+## GASNET_CRAY_FIX_LINK_OPTS(lib [, envvar])
 ##
-AC_DEFUN([GASNET_CRAY_POST_LINK_OPTS],[
-  pushdef([varname],CRAY_[]translit($1,'a-z','A-Z')[]_POST_LINK_OPTS)
+## Modify CRAY_[LIB]_POST_LINK_OPTS envvars to reference the 'default'
+## rather than the versioned directory normally set by environment modules
+##    lib: short name ('foo', not 'libfoo')
+## envvar: defaults to CRAY_[upcase(lib)]_POST_LINK_OPTS
+##
+AC_DEFUN([GASNET_CRAY_FIX_LINK_OPTS],[
+  GASNET_FUN_BEGIN([$0($@)])
+  pushdef([varname],ifelse(len([$2]),[0],[CRAY_[]translit($1,'a-z','A-Z')[]_POST_LINK_OPTS],[$2]))
   if test -n x"$varname"; then
     cplo_tmp=`$PERL -e "\\\$_='$varname'; s,/$1/[[^/]]*/lib,/$1/default/lib,g; print;"`
     cplo_dir=`$PERL -e "\\\$_='$cplo_tmp'; m,-L([[^ ]]*/$1/[[^ ]]*),; print \\\$[]1;"`
@@ -1711,12 +1717,14 @@ AC_DEFUN([GASNET_CRAY_POST_LINK_OPTS],[
     fi
   fi
   popdef([varname])
+  GASNET_FUN_END([$0])
 ])
+# Fix the POST_LINK_OPTS for libs required by aries-conduit
 GASNET_IF_DISABLED_NOHELP(cray-post-link-rewrite,[],[
-  GASNET_CRAY_POST_LINK_OPTS([pmi])
-  GASNET_CRAY_POST_LINK_OPTS([udreg])
-  GASNET_CRAY_POST_LINK_OPTS([ugni])
-  GASNET_CRAY_POST_LINK_OPTS([xpmem])
+  GASNET_CRAY_FIX_LINK_OPTS([pmi])
+  GASNET_CRAY_FIX_LINK_OPTS([udreg])
+  GASNET_CRAY_FIX_LINK_OPTS([ugni])
+  GASNET_CRAY_FIX_LINK_OPTS([xpmem])
 ])
 
 ########################################################################
