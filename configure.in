@@ -4437,14 +4437,19 @@ GASNET_IF_ENABLED_WITH_AUTO(pmi, [Enable/disable PMI support for job spawning],
 # Check for header matching the selected lib
 # TODO: fragile if multiple PMI libs are installed
 AC_DEFUN([GASNET_PMI_SPAWNER_CFLAGS], [
+    GASNET_FUN_BEGIN([$0($@)])
+    AC_MSG_CHECKING(for location of $1)
     for pmi_headers in "$PMI_HOME/include/slurm" "$PMI_HOME/include/portals4" "$PMI_HOME/include" 'no'; do
       test -f "${pmi_headers}/$1" && break
     done
     if test "${pmi_headers}" = no; then
       have_pmi=no
+      pmi_headers='not found'
     elif test "${pmi_headers}" != '/usr/include'; then
       PMI_SPAWNER_CFLAGS="-I${pmi_headers}"
     fi
+    AC_MSG_RESULT(${pmi_headers})
+    GASNET_FUN_END([$0])
 ])
 
 have_pmi=no
