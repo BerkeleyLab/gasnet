@@ -1350,7 +1350,9 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
       struct stat tmpstat;
       while (!gasneti_bt_complete_flag) {
         i++;
-        gasneti_sched_yield(); /* sched_yield seems to be friendlier than sleep() for stack-walkers */
+        // sched_yield seems to be friendlier than sleep() for stack-walkers 
+        // additionally, use a non-error checking call to avoid possible recursive failures
+        _gasneti_sched_yield();
       }
       /* awakened */
       gasneti_bt_complete_flag = 0;
