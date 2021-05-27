@@ -192,11 +192,7 @@ typedef struct gasnetc_xrc_snd_qp_s {
 } gasnetc_xrc_snd_qp_t;
 
 static gasnetc_xrc_snd_qp_t *gasnetc_xrc_snd_qp = NULL;
-#if GASNET_MAXNODES <= 65535
-static uint16_t *gasnetc_xrcd_map = NULL;
-#else
 static uint32_t *gasnetc_xrcd_map = NULL;
-#endif
 static int gasnetc_xrcd_simple;
 
 static gasnetc_xrc_snd_qp_t *
@@ -379,7 +375,6 @@ static int _gasnetc_xrc_compare_keys(gex_Rank_t a_r, gex_Rank_t b_r) {
                 sizeof(uint16_t) * gasnetc_num_ports);
 }
 static int _gasnetc_xrc_compare_fn(const void *a_p, const void *b_p) {
-  gasneti_static_assert(GASNET_MAXNODES < INT_MAX);
   gex_Rank_t a_r = *(gex_Rank_t *)a_p;
   gex_Rank_t b_r = *(gex_Rank_t *)b_p;
 
@@ -388,7 +383,7 @@ static int _gasnetc_xrc_compare_fn(const void *a_p, const void *b_p) {
   if (result) return result;
 
   // tie-break using the rank itself
-  return (int)a_r - (int)b_r;
+  return (a_r == b_r) ? 0 : (a_r < b_r ? -1 : 1);
 }
 
 // Compute XRC domain mebership
@@ -1221,8 +1216,8 @@ typedef enum {
   GASNETC_CONN_CMD_ACK
 } gasnetc_conn_cmd_t;
 
-#define GASNETC_CONN_CMD_MASK  0x0f
-#define GASNETC_CONN_IS_ORIG   0x10
+#define GASNETC_CONN_CMD_MASK  0x7
+#define GASNETC_CONN_IS_ORIG   0x8
 
 static gasnetc_ud_snd_desc_t *
 conn_get_snd_desc(uint32_t flags)
@@ -1230,7 +1225,9 @@ conn_get_snd_desc(uint32_t flags)
   gasnetc_ud_snd_desc_t *desc;
   GASNETI_SPIN_UNTIL_TRACE((desc = gasneti_lifo_pop(&conn_snd_freelist)),
                            C, CONN_STALL_DESC, conn_snd_poll());
-  desc->wr.imm_data = flags | (gasneti_mynode << 16);
+  gasneti_assert_uint((flags >> 4) ,==, 0);
+  gasneti_assert_uint(gasneti_mynode ,<, (1 << 28));
+  desc->wr.imm_data = flags | (gasneti_mynode << 4);
   return desc;
 }
 
@@ -1934,7 +1931,7 @@ gasnetc_conn_rcv_wc(struct ibv_wc *comp)
   gasnetc_ud_rcv_desc_t *desc = (gasnetc_ud_rcv_desc_t *)(1 ^ (uintptr_t)comp->wr_id);
   gasnetc_conn_cmd_t cmd = (gasnetc_conn_cmd_t)(comp->imm_data & GASNETC_CONN_CMD_MASK);
   uint32_t is_orig = comp->imm_data & GASNETC_CONN_IS_ORIG;
-  gex_Rank_t node = (comp->imm_data >> 16) & 0xffff;
+  gex_Rank_t node = (comp->imm_data >> 4) & 0x0fffffff;
   gasneti_tick_t now = gasneti_ticks_now();
 
 #if GASNET_DEBUG /* Drop 1 in N to aid debugging */

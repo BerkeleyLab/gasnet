@@ -529,17 +529,17 @@ typedef struct {
  * gasnetc_epid_d is node and qp encoded together
  * passing just a node (the default) means any qp to that node
  */
-typedef uint32_t gasnetc_epid_t;
+typedef uint64_t gasnetc_epid_t;
 
-/* The 'epid' type holds 'node' in the low 16 bits.
- * The upper 16 bits holds a qp index (qpi).
+/* The 'epid' type holds 'node' in the low 32 bits.
+ * The upper 32 bits holds a qp index (qpi).
  * A qpi of zero is a wildcard (an 'unbound' epid).
  * Therefore, setting epid=node means "use any qp for that node".
  * Non-zero qpi is 1 + the array index of the desired queue pair.
  */
-#define gasnetc_epid2node(E)	((E)&0xffff)
-#define gasnetc_epid2qpi(E)	((E)>>16)
-#define gasnetc_epid(N,Q)	((N)|(((Q)+1)<<16))
+#define gasnetc_epid2node(E)	GASNETI_LOWORD(E)
+#define gasnetc_epid2qpi(E)	GASNETI_HIWORD(E)
+#define gasnetc_epid(N,Q)	GASNETI_MAKEWORD((Q)+1,(N))
 
 /* Forward decl */
 struct gasnetc_cep_t_;
@@ -638,7 +638,7 @@ struct gasnetc_cep_t_ {
   // This is total size of R/W fields, with possible trailing padding prior to R/O fields,
   // correct independent of GASNETI_THREADS
   #define _GASNETC_CEP_RW_BYTES GASNETI_ALIGNUP_NOASSERT(_GASNETC_CEP_RW_EARLY+sizeof(gasnetc_sema_t),\
-                                                         sizeof(void *))
+                                                         sizeof(uint64_t))
 
   //
   // Read-only fields
@@ -647,8 +647,8 @@ struct gasnetc_cep_t_ {
   // These are sorted by size to get dense packing
 
   // 64-bit fields
-  // None currently
-  // Change _GASNETC_CEP_RW_BYTES's alignment to 8 if any are added
+  gasnetc_epid_t        epid;           // == uint64_t
+  #define _GASNETC_CEP_64_0 8
 
   // Pointer-width fields
   gasnetc_hca_t         *hca;
@@ -673,8 +673,7 @@ struct gasnetc_cep_t_ {
 #endif
 
   // 32-bit fields
-  gasnetc_epid_t        epid;           // == uint32_t
-  #define _GASNETC_CEP_32_0 4
+  #define _GASNETC_CEP_32_0 0           // Placeholder for unconditional fields above
 #if GASNETC_PIN_SEGMENT
   uint32_t              rkey;           // Copy of hca->rkeys[gasnetc_epid2node(epid)]
   #define _GASNETC_CEP_32_1 1*4
@@ -704,6 +703,7 @@ struct gasnetc_cep_t_ {
 
 #define _GASNETC_CEP_TO_PAD (\
     _GASNETC_CEP_RW_BYTES + \
+    _GASNETC_CEP_64_0 + \
     _GASNETC_CEP_PTR_0+_GASNETC_CEP_PTR_1+_GASNETC_CEP_PTR_2 + \
     _GASNETC_CEP_32_0+_GASNETC_CEP_32_1+_GASNETC_CEP_32_2+_GASNETC_CEP_32_3+_GASNETC_CEP_32_4)
 #if GASNETI_THREADS
