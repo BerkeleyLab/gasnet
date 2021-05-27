@@ -93,9 +93,6 @@ in aries-conduit/gasnet_aries.c:
 
 int gasnetc_poll_burst = 10;   /* number of rdma completions to get at once */
 
-Sets the number of events for arriving active messages taken at once
-#define AM_BURST 20
-
 Configuring job launch:
 ----------------------
 
