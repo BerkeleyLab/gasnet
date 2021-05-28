@@ -4439,10 +4439,11 @@ GASNET_IF_ENABLED_WITH_AUTO(pmi, [Enable/disable PMI support for job spawning],
 AC_DEFUN([GASNET_PMI_SPAWNER_CFLAGS], [
     GASNET_FUN_BEGIN([$0($@)])
     AC_MSG_CHECKING(for location of $1)
-    for pmi_headers in "$PMI_HOME/include/slurm" "$PMI_HOME/include/portals4" "$PMI_HOME/include" 'no'; do
+    for pmi_headers in "$PMI_HOME/include/slurm" "$PMI_HOME/include/portals4" "$PMI_HOME/include" ''; do
+      test -z "${pmi_headers}" && break
       test -f "${pmi_headers}/$1" && break
     done
-    if test "${pmi_headers}" = no; then
+    if test -z "${pmi_headers}"; then
       have_pmi=no
       pmi_headers='not found'
     elif test "${pmi_headers}" != '/usr/include'; then
