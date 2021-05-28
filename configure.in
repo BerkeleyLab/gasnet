@@ -1636,13 +1636,15 @@ AC_DEFUN([GASNET_PACKAGE_LDFLAGS],[
   dnl TODO - strengthen this if we can determine linker's default search path:
   case "$the_home" in
     /usr|/) the_guess='$3';;
-         *) for the_guess[]_dir in "$the_home/lib${GASNETI_PTR_BITS}" "$the_home/lib"; do
+         *) for the_guess[]_dir in "$the_home/lib${GASNETI_PTR_BITS}" "$the_home/lib" ''; do
+              test -z "$the_guess[]_dir[]" && break
               for the_guess[]_lib in $2; do
                 for the_guess[]_suff in a so sl dylib la dll; do
                   if test -r "$the_guess[]_dir/lib$the_guess[]_lib.$the_guess[]_suff"; then break 3; fi
                 done
               done
             done
+          if test -n "$the_guess[]_dir[]"; then
             the_guess="-L$the_guess[]_dir[]"
             pushdef([GASNET_SUPPRESSHELP],1) # deferred to appear after help for [PREFIX]_LDFLAGS
             GASNET_IF_ENABLED_WITH_AUTO(rpath_opt, [N/A],
@@ -1664,6 +1666,9 @@ AC_DEFUN([GASNET_PACKAGE_LDFLAGS],[
               fi
             fi
             the_guess="${the_guess}extra_flags"
+          else
+            the_guess='$3'
+          fi
             ;;
   esac
   dnl show_rpath_help captures whether with_expanded_[PKG]_LDFLAGS is defined
