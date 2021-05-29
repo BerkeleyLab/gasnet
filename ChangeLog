@@ -38,6 +38,9 @@ GASNet-EX ChangeLog
   - Improved support for GCC 11 by suppressing spurious warnings.
   - Made Cray PMI support conduit-independent, allowing it to function on
     non-aries Cray systems like the new "HPE Cray XE" (aka Shasta).
+  - This release introduces identification of the NVHPC (NVIDIA HPC SDK)
+    compiler family, as a prerequisite for anticipated support for this
+    compiler in a future release.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug3420: use -rpath when linking
