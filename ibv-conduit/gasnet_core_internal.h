@@ -72,6 +72,21 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* May eventually be a hash? */
 #define GASNETC_NODE2CEP(_ep,_node) ((_ep)->cep_table[_node])
 
+#if (PLATFORM_COMPILER_INTEL && PLATFORM_COMPILER_VERSION_LT(19,0,20180800))
+  // Some Intel C prior to 2019.0.117 (builddate 20180804) issue a buggy warning
+  // about side effects in an __assume(), and these versions predate Intel's
+  // support for __builtin_assume, which avoids the warning.
+  #define gasnetc_assume_leaf_is_pointer(lc_opt) do { \
+    GASNETI_PRAGMA(warning push);                     \
+    GASNETI_PRAGMA(warning disable 2261);             \
+    gasneti_assume(gasneti_leaf_is_pointer(lc_opt));  \
+    GASNETI_PRAGMA(warning pop);                      \
+  } while (1)
+#else
+  #define gasnetc_assume_leaf_is_pointer(lc_opt) \
+          gasneti_assume(gasneti_leaf_is_pointer(lc_opt))
+#endif
+
 
 /*
  * In theory all resources should be recovered automatically at process exit.
@@ -614,7 +629,7 @@ typedef enum {
 #if GASNETC_PIN_SEGMENT && GASNETC_FH_OPTIONAL
 	GASNETC_OP_GET_BOUNCE,
 #endif
-#if GASNETC_IB_MAX_HCAS > 1
+#if GASNETC_HAVE_FENCED_PUTS
 	GASNETC_OP_FENCE,
 #endif
 #if !GASNETC_PIN_SEGMENT
@@ -695,7 +710,7 @@ typedef struct gasnetc_sreq_t_ {
     struct { /* AM buffer */
       gasnetc_buffer_t		*buff;
     } am;
-#if GASNETC_IB_MAX_HCAS > 1
+#if GASNETC_HAVE_FENCED_PUTS
     struct { // Atomic used to fence a multi-rail Put
       struct gasnetc_sreq_t_    *sreq;
     } fence;
@@ -898,20 +913,26 @@ extern int		gasnetc_op_oust_pp;
 extern int		gasnetc_am_oust_limit;
 extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_bbuf_limit;
+extern int              gasnetc_conn_static;
 #if GASNETC_DYNAMIC_CONNECT
+  extern int            gasnetc_conn_dynamic;
   extern int		gasnetc_ud_rcvs;
   extern int		gasnetc_ud_snds;
 #else
   #define		gasnetc_ud_rcvs 0
   #define		gasnetc_ud_snds 0
 #endif
+extern const char *     gasnetc_connectfile_in;
+extern const char *     gasnetc_connectfile_out;
+extern int              gasnetc_connectfile_out_base;
+
 extern int		gasnetc_use_rcv_thread;
 extern int		gasnetc_am_credits_slack;
 extern int		gasnetc_alloc_qps;    /* Number of QPs per node in gasnetc_ceps[] */
 extern int		gasnetc_num_qps;      /* How many QPs to use per peer */
 extern size_t		gasnetc_packedlong_limit;
 extern size_t		gasnetc_inline_limit;
-extern size_t		gasnetc_bounce_limit;
+extern size_t		gasnetc_nonbulk_bounce_limit;
 #if !GASNETC_PIN_SEGMENT
   extern size_t		gasnetc_putinmove_limit;
 #endif

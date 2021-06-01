@@ -36,7 +36,7 @@
 size_t					gasnetc_fh_align;
 size_t					gasnetc_fh_align_mask;
 size_t                                  gasnetc_inline_limit;
-size_t                   		gasnetc_bounce_limit;
+size_t                   		gasnetc_nonbulk_bounce_limit;
 size_t					gasnetc_packedlong_limit; // TODO-EX: adjust w/ nargs?
 size_t                                  gasnetc_put_stripe_sz, gasnetc_put_stripe_split;
 size_t                                  gasnetc_get_stripe_sz, gasnetc_get_stripe_split;
@@ -56,7 +56,7 @@ int					gasnetc_use_rcv_thread = GASNETC_USE_RCV_THREAD;
 #if GASNETC_IBV_ODP
   int					gasnetc_use_odp = 1;
 #endif
-#if (GASNETC_IB_MAX_HCAS > 1)
+#if GASNETC_HAVE_FENCED_PUTS
   int                                   gasnetc_use_fenced_puts = 0;
 #endif
 int					gasnetc_am_credits_slack;
@@ -779,7 +779,7 @@ static int gasnetc_snd_reap(int limit) {
 	    }
 	    break;
 
-          #if GASNETC_IB_MAX_HCAS > 1
+          #if GASNETC_HAVE_FENCED_PUTS
           case GASNETC_OP_FENCE:        // Atomic after PUT, with descriptor chaining
 	    gasneti_assert(comp.opcode == IBV_WC_FETCH_ADD);
             sreq->opcode = GASNETC_OP_FREE;
@@ -2168,8 +2168,9 @@ size_t gasnetc_fh_put_helper(
    * done by the put-in-move optimization, under the assumption that
    * the original request len is representative of future requests.
    */
+  int is_nonbulk = (sreq->fh_lc_cb == gasnetc_cb_counter); // GEX_EVENT_NOW
   if ((len <= gasnetc_inline_limit) ||
-	((local_cnt != NULL) && (len <= gasnetc_bounce_limit))) {
+	(is_nonbulk && (len <= gasnetc_nonbulk_bounce_limit))) {
     sreq->fh_count = 1; /* Just the remote one */
   } else {
     size_t new_len = gasnetc_get_local_fh(sreq, loc_addr, len);
@@ -2219,7 +2220,7 @@ size_t gasnetc_fh_put_helper(
       if (remote_cnt != NULL) {
 	++(*remote_cnt);
       }
-    } else if ((nbytes <= gasnetc_bounce_limit) && (local_cnt != NULL)) {
+    } else if (is_nonbulk && (nbytes <= gasnetc_nonbulk_bounce_limit)) {
       /* Bounce buffer use for non-bulk puts (upto a limit) */
       sreq->opcode = is_long_payload ? GASNETC_OP_LONG_BOUNCE : GASNETC_OP_PUT_BOUNCE;
       if_pf (fh_rem == NULL) { /* Memory will be copied asynchronously */
@@ -2309,6 +2310,11 @@ size_t gasnetc_fh_get_helper(gasnetc_EP_t ep, gasnetc_epid_t epid,
 }
 #endif
 
+GASNETI_INLINE(idiv_round_up)
+int idiv_round_up(int numerator, int denominator) {
+  return (numerator + denominator - 1) / denominator;
+}
+
 /* ------------------------------------------------------------------------------------ *
  *  Externally visible functions                                                        *
  * ------------------------------------------------------------------------------------ */
@@ -2361,7 +2367,7 @@ extern int gasnetc_sndrcv_limits(void) {
       gasnetc_op_oust_per_qp = MIN(gasnetc_op_oust_per_qp, (tmp / gasnetc_hca[h].qps));
     }
   } else {
-    gasnetc_op_oust_per_qp = MIN(GASNETI_ATOMIC_MAX, gasnetc_op_oust_limit) / gasnetc_num_qps;
+    gasnetc_op_oust_per_qp = idiv_round_up(MIN(GASNETI_ATOMIC_MAX, gasnetc_op_oust_limit), gasnetc_num_qps);
     GASNETC_FOR_ALL_HCA(hca) {
       int tmp = hca->qps * gasnetc_op_oust_per_qp;
       if (tmp > hca->hca_cap.max_cqe) {
@@ -2369,7 +2375,7 @@ extern int gasnetc_sndrcv_limits(void) {
       }
     }
   }
-  gasnetc_op_oust_pp /= gasnetc_num_qps;
+  gasnetc_op_oust_pp = idiv_round_up(gasnetc_op_oust_pp, gasnetc_num_qps);
   gasnetc_op_oust_per_qp = MIN(gasnetc_op_oust_per_qp, gasnetc_op_oust_pp*gasneti_nodes);
   gasnetc_op_oust_limit = gasnetc_num_qps * gasnetc_op_oust_per_qp;
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_NETWORKDEPTH_TOTAL = %d", gasnetc_op_oust_limit));
@@ -2381,16 +2387,16 @@ extern int gasnetc_sndrcv_limits(void) {
    * (3) (gasnetc_am_oust_pp * hca->max_qps) used to catch Replies
    * However distribution over QPs and SRQ may each reduce the second two.
    */
-  gasnetc_am_oust_pp /= gasnetc_num_qps;
+  gasnetc_am_oust_pp = idiv_round_up(gasnetc_am_oust_pp, gasnetc_num_qps);
   gasnetc_am_rqst_per_qp = gasnetc_am_oust_pp * (gasneti_nodes - 1);
 
   // Compute gasnetc_am_oust_pp (and report GASNET_AM_CREDITS_PP)
   GASNETC_FOR_ALL_HCA(hca) {
     int tmp = hca->hca_cap.max_cqe - gasnetc_rbuf_spares;
-    tmp /= 2 * hca->qps; // Remainder to be split between Request and Reply, spread over the qps
+    tmp = idiv_round_up(tmp, 2 * hca->qps); // Remainder to be split between Request and Reply, spread over the qps
     gasnetc_am_rqst_per_qp = MIN(gasnetc_am_rqst_per_qp, tmp);
   }
-  gasnetc_am_oust_pp = gasnetc_am_rqst_per_qp / MAX(1, (gasneti_nodes - 1));
+  gasnetc_am_oust_pp = idiv_round_up(gasnetc_am_rqst_per_qp, MAX(1, (gasneti_nodes - 1)));
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_AM_CREDITS_PP = %d", gasnetc_am_oust_pp * gasnetc_num_qps));
 
   // Compute gasnetc_am_oust_limit (and report GASNET_AM_CREDITS_TOTAL)
@@ -3158,7 +3164,8 @@ extern int gasnetc_rdma_put(
     // Also use bounce buffers if (firehose disabled AND src is in neither the client
     // nor aux segment) OR zero copy fails such as for read-only memory (bug 3338).
     size_t to_xfer = nbytes;
-    if ((nbytes <= gasnetc_bounce_limit) ||
+    int is_nonbulk = (local_cb == gasnetc_cb_counter); // GEX_EVENT_NOW
+    if ((is_nonbulk && (nbytes <= gasnetc_nonbulk_bounce_limit)) ||
         (!GASNETC_USE_FIREHOSE &&
          !gasnetc_in_bound_segment(ep, (uintptr_t)src_ptr, nbytes) &&
          !gasneti_in_local_auxsegment((gasneti_EP_t)ep, src_ptr, nbytes)) ||
@@ -3225,7 +3232,8 @@ extern int gasnetc_rdma_long_put(
   // Also use bounce buffers if (firehose disabled AND src is in neither the client
   // nor aux segment) OR zero copy fails such as for read-only memory (bug 3338).
   size_t to_xfer = nbytes;
-  if ((nbytes <= gasnetc_bounce_limit) ||
+  int is_nonbulk = (local_cb == gasnetc_cb_counter); // GEX_EVENT_NOW
+  if ((is_nonbulk && (nbytes <= gasnetc_nonbulk_bounce_limit)) ||
       (!GASNETC_USE_FIREHOSE &&
        !gasnetc_in_bound_segment(ep, (uintptr_t)src_ptr, nbytes) &&
        !gasneti_in_local_auxsegment((gasneti_EP_t)ep, src_ptr, nbytes)) ||

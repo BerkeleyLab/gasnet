@@ -1996,8 +1996,8 @@ int gasnete_coll_barrier_result(gasnete_coll_team_t team, int *id GASNETI_THREAD
  */
 
 void gasnet_barrier_notify(int id, int flags) {
-  GASNETI_CHECK_INJECT();
   GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(team=GASNET_TEAM_ALL,id=%i,flags=%i)", id, flags));
+  GASNETI_CHECK_INJECT();
   #if GASNETI_STATS_OR_TRACE
     gasnete_barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
@@ -2008,12 +2008,12 @@ void gasnet_barrier_notify(int id, int flags) {
 }
 
 int gasnet_barrier_wait(int id, int flags) {
-  GASNETI_CHECK_INJECT();
   #if GASNETI_STATS_OR_TRACE
     gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
   int retval;
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
+  GASNETI_CHECK_INJECT();
   
   gasneti_assert(GASNET_TEAM_ALL->barrier_wait);
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_ALL));
@@ -2036,8 +2036,8 @@ int gasnet_barrier_try(int id, int flags) {
 }
 
 int gasnet_barrier(int id, int flags) {
-  GASNETI_CHECK_INJECT();
   GASNETI_TRACE_PRINTF(B, ("BARRIER(team=GASNET_TEAM_ALL,id=%i,flags=%i)", id, flags));
+  GASNETI_CHECK_INJECT();
 
   gasneti_assert(GASNET_TEAM_ALL->barrier);
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_ALL));

@@ -130,7 +130,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_primary(void) {
+extern int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
@@ -166,63 +166,32 @@ static int gasnetc_attach_primary(void) {
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
-                                  gex_TM_t                      tm,
-                                  uintptr_t                     segsize,
-                                  gex_Flags_t                   flags) {
-  /* ------------------------------------------------------------------------------------ */
-  /*  register client segment  */
+int gasnetc_segment_create_hook(gex_Segment_t e_segment)
+{
+  // (###) If needed, implement conduit-specific "create" of the given segment,
+  // and define GASNETC_SEGMENT_CREATE_HOOK in gasnet_core_fwd.h
+  // Otherwise, this function may be removed.
 
-  (void) gasneti_segmentAttach(segment_p, tm, segsize, flags);
-
-  /* (###) do any client-specific pinning/registration of the client segment */
+  // Register/pin the segment
+  (###)
 
   return GASNET_OK;
 }
-/* ------------------------------------------------------------------------------------ */
-// TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
-extern int gasnetc_attach( gex_TM_t               _tm,
-                           gasnet_handlerentry_t  *table,
-                           int                    numentries,
-                           uintptr_t              segsize)
+
+int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 {
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
-                          numentries, segsize));
-  gasneti_TM_t tm = gasneti_import_tm_nonpair(_tm);
-  gasneti_EP_t ep = tm->_ep;
+  // (###) If needed, implement conduit-specific "attach" of the given segment
+  // over the given team and define GASNETC_SEGMENT_ATTACH_HOOK in gasnet_core_fwd.h
+  // Otherwise, this function may be removed.
 
-  if (!gasneti_init_done) 
-    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
-  if (gasneti_attach_done) 
-    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already attached");
+#if !GASNET_SEGMENT_EVERYTHING
+  // Register/pin the segment
+  // recommended:  gasneti_assert_zeroret( gasnetc_segment_create_hook(e_segment) );
+  (###)
 
-  /*  check argument sanity */
-  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    if ((segsize % GASNET_PAGESIZE) != 0) 
-      GASNETI_RETURN_ERRR(BAD_ARG, "segsize not page-aligned");
-    if (segsize > gasneti_MaxLocalSegmentSize) 
-      GASNETI_RETURN_ERRR(BAD_ARG, "segsize too large");
-  #else
-    segsize = 0;
-  #endif
-
-  /*  primary attach  */
-  if (GASNET_OK != gasnetc_attach_primary())
-    GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
-
-  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    /*  register client segment  */
-    gex_Segment_t seg; // g2ex segment is automatically saved by a hook
-    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, GASNETI_FLAG_INIT_LEGACY))
-      GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
-  #endif
-
-  /*  register client handlers */
-  if (table && gasneti_amregister_legacy(ep, table, numentries) != GASNET_OK)
-    GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
-
-  /* ensure everything is initialized across all nodes */
-  gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
+  // Exchange registration info
+  (###)
+#endif
 
   return GASNET_OK;
 }
@@ -282,53 +251,6 @@ extern int gasnetc_Client_Init(
   }
 
   return GASNET_OK;
-}
-
-extern int gasnetc_Segment_Attach(
-                gex_Segment_t          *segment_p,
-                gex_TM_t               tm,
-                uintptr_t              length)
-{
-  gasneti_assert(segment_p);
-
-  #if GASNET_SEGMENT_EVERYTHING
-    *segment_p = GEX_SEGMENT_INVALID;
-    gex_Event_Wait(gex_Coll_BarrierNB(tm, 0));
-    return GASNET_OK; 
-  #endif
-
-  /* (###) add code to create a segment collectively */
-  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, 0))
-    GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
-
-  return GASNET_OK;
-}
-
-extern int gasnetc_Segment_Create(
-                gex_Segment_t           *segment_p,
-                gex_Client_t            client,
-                gex_Addr_t              address,
-                uintptr_t               length,
-                gex_MK_t                kind,
-                gex_Flags_t             flags)
-{
-  gasneti_assert(segment_p);
-
-  // Create the Segment object, allocating memory if appropriate
-  gasneti_Client_t i_client = gasneti_import_client(client);
-  int rc = gasneti_segmentCreate(segment_p, i_client, address, length, kind, flags);
-
-  if (rc == GASNET_OK) {
-    // (###) add code for any conduit-specific registration or similar
-  }
-
-  return rc;
-}
-
-extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
-                                       gex_AM_Entry_t          *table,
-                                       size_t                  numentries) {
-  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
 

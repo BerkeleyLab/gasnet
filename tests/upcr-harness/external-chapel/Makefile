@@ -9,6 +9,9 @@ CHAPEL_PATH_PRE   ?=# empty - if set must end with :
 CHAPEL_PATH_POST  ?=# empty - if set must start with :
 CHAPEL_SHELL      ?= $(shell test -n "$${ZSH_VERSION+set}$${BASH_VERSION+set}" && echo bash || echo sh)
 
+# Since some time in late April 2021, unset is no longer acceptable in general
+CHPL_LLVM ?= none
+
 HARNESS_LOGDIR    ?= .
 LOGFILE           ?= $(HARNESS_LOGDIR)/chapel.log
 
@@ -97,7 +100,8 @@ clone-launcher: force
 	$(PERL) -pi -e 's/_$(SRC_CONDUIT)/_$(DST_CONDUIT)/g' -- $$dst/*
 .PHONY: chapel-launcher clone-launcher
 
-COMMON_ENV = PATH=$(CHAPEL_PATH_PRE)$$PATH$(CHAPEL_PATH_POST)
+COMMON_ENV = PATH=$(CHAPEL_PATH_PRE)$$PATH$(CHAPEL_PATH_POST) \
+             CHPL_LLVM=$(CHPL_LLVM)
 
 CONFIG_ENV = $(COMMON_ENV) $(chapel_launcher_opt) \
              CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT)
