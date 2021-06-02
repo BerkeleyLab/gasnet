@@ -516,6 +516,8 @@ case "$CC_FAMILY" in
     done
   ;;
   Intel) CCOPTFLAGS="-O3" ;;
+  NVHPC)
+    CCOPTFLAGS="-O1" ;; # TODO: restore -O2 if/when bugs are resolved? (see bug 4158)
   PGI)
     CCOPTFLAGS="-O2"  # Default
     # Work-aroung bug 2842: bad code gen by pgcc 10.5-0 through 10.7-0 at -O2
@@ -782,7 +784,13 @@ case "$CC_FAMILY" in
          GASNET_TRY_CFLAG([-wd1572],
                           [MISC_CFLAGS="$MISC_CFLAGS -wd1572"])
          ;;
-  PGI) MISC_CFLAGS="-Masmkeyword -Msignextend" # get inline assembly and sign-extended narrowing
+  NVHPC)
+       # TODO: are either `-M` options, inherited from PGI, still required?
+       # suppress large number of useless default warnings
+       # get inline assembly and sign-extended widening
+       MISC_CFLAGS="-w -Masmkeyword -Msignextend"
+       ;;
+  PGI) MISC_CFLAGS="-Masmkeyword -Msignextend" # get inline assembly and sign-extended widening
        # The following looks backwards, but is not.
        # PGI 20.1 introduced fine-grained warning control at the same time as
        # default-enabling a large number of useless warnings (on the level of
@@ -845,6 +853,7 @@ case "$CC_FAMILY" in
    Sun) gasnet_c99_flags="-xc99=all";;
   Cray) gasnet_c99_flags="'-h c99'";;
    PGI) gasnet_c99_flags="-c99 -c9x" ;;
+ NVHPC) gasnet_c99_flags="-c99" ;;
   # One of these should work for the rest:
   # std=c99 requests strict C99 conformance from gcc and look-alikes, whereas
   # std=gnu99 additionally requests GNU-specific language extensions.
@@ -1024,7 +1033,7 @@ case "$CC_FAMILY" in
   Pathscale) KEEPTMP_CFLAGS="-keep" ;;
   Open64) KEEPTMP_CFLAGS="-keep" ;;
   XLC) KEEPTMP_CFLAGS="-qlist" ;; # XXX: generates .lst w/ asm.  Can't find a way to preserve .i
-  PGI) KEEPTMP_CFLAGS="-Mkeepasm" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
+  PGI|NVHPC) KEEPTMP_CFLAGS="-Mkeepasm" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
   Intel) KEEPTMP_CFLAGS="-save-temps" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
   Sun) KEEPTMP_CFLAGS="-keeptmp" ;;
   Cray) KEEPTMP_CFLAGS="-hkeepfiles" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
@@ -1219,7 +1228,7 @@ Sun)
 XLC)
     GASNET_CHECK_GCC_ASM($1, $2)
   ;;
-GNU|Intel|Pathscale|Open64|Clang|PGI|TINY)
+GNU|Intel|Pathscale|Open64|Clang|NVHPC|PGI|TINY)
     # Currently believe all of these support GCC-style inline ASM on all CPUs
     # where we use it.  If that is ever *not* the case then one should split
     # off the case for the relevant compiler and apply banlists or probes.
@@ -2252,7 +2261,8 @@ if test "$cross_compiling" = 'no' -o "$GASNETI_HAVE_X86_CMPXCHG16B" = 'probe' ; 
   #if PLATFORM_ARCH_X86_64
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
         PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
-        PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG
+        PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG || \
+        PLATFORM_COMPILER_NVHPC
 
 	unsigned long *array[3];
 	volatile unsigned long *p = (void *)(((unsigned long)array + 15) & ~(unsigned long)15);
@@ -2301,6 +2311,7 @@ GASNET_TRY_CACHE_CHECK(for x86 EBX register, x86_ebx, [
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
         PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
         PLATFORM_COMPILER_OPEN64 || \
+        PLATFORM_COMPILER_NVHPC || \
         PLATFORM_COMPILER_CLANG
       __asm__ __volatile__ ("push %0" : : "b" (0));
     #else
@@ -2908,7 +2919,7 @@ AC_DEFUN([GASNET_FH_CFLAGS],[
                ;;
         Intel) fh_cflags_default="-no-ansi-alias";;
           Sun) fh_cflags_default="-xalias_level=any";;
-          PGI) fh_cflags_default="-alias=traditional";;
+    NVHPC|PGI) fh_cflags_default="-alias=traditional";;
   esac
   GASNET_ENV_DEFAULT(FH_CFLAGS, [$fh_cflags_default], [C flags for building the Firehose memory registration library])
   AC_SUBST(FH_CFLAGS)
@@ -3068,6 +3079,13 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
        CXXDEBUGFLAGS="$CXXFLAGS"
        GASNET_POPVAR(CXXFLAGS)
     ;;
+  NVHPC)
+       # TODO: are either `-M` options, inherited from PGI, still required?
+       # suppress large number of useless default warnings
+       # get inline assembly and sign-extended widening
+       MISC_CXXFLAGS="-w -Masmkeyword -Msignextend"
+       CXXOPTFLAGS="-O1" # TODO: restore -O2 if/when bugs are resolved? (see bug 4158)
+       ;;
     PGI)   MISC_CXXFLAGS="-Masmkeyword -Msignextend"
            case "$GASNETI_PTR_BITS$target_os" in
              64darwin*) # PGI seems to have a different ABI

@@ -702,7 +702,7 @@ gex_Token_t gasnetc_nbrhd_token_init(
 {
     gasneti_assert(!((uintptr_t)real_token & 1));
     //gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(src_jobrank)); // allow VIS PC to fake a remote token using this routine
-  #if !PLATFORM_COMPILER_PGI // Bug 3587
+  #if !(PLATFORM_COMPILER_PGI && PLATFORM_COMPILER_VERSION_LT(17,9,0)) // Bug 3587
     // generic msgsource() requires srcrank first
     gasneti_assert(!offsetof(gasnetc_nbrhd_token_t,ti.gex_srcrank));
   #endif
