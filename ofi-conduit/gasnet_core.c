@@ -166,11 +166,6 @@ extern int gasnetc_attach_primary(void) {
 /* ------------------------------------------------------------------------------------ */
 int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 {
-  // TODO: remove this "once" hack when gasnetc_segment_register() manages multiple keys.
-  static int once = 0;
-  if (once) return GASNET_OK;
-  once = 1;
-
   // Register the segment
   gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
   return gasnetc_segment_register(segment);

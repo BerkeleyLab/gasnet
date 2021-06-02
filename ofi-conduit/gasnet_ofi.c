@@ -97,10 +97,11 @@ static uint64_t* gasnetc_ofi_target_aux_keys;
 
 #define OFI_WRITE(ep, src_addr, nbytes, dest, dest_addr, ctxt_ptr)\
     do {\
-        int _is_auxseg = GASNETC_OFI_IS_AUX(dest_addr, dest); /* also the SCALABLE key */\
+        int _is_auxseg = GASNETC_OFI_IS_AUX(dest_addr, dest); \
         if (GASNETC_OFI_HAS_MR_SCALABLE){\
+            uint64_t key = !_is_auxseg; \
             ret = fi_write(ep, src_addr, nbytes, NULL, GET_RDMA_DEST(dest), \
-                GET_REMOTEADDR_AUX(dest_addr, dest, _is_auxseg), _is_auxseg, ctxt_ptr);\
+                GET_REMOTEADDR_AUX(dest_addr, dest, _is_auxseg), key, ctxt_ptr);\
         }\
         else {\
             ret = fi_write(ep, src_addr, nbytes, NULL, GET_RDMA_DEST(dest), \
@@ -110,10 +111,11 @@ static uint64_t* gasnetc_ofi_target_aux_keys;
 
 #define OFI_READ(ep, dest_buf, nbytes, src, src_addr, ctxt_ptr)\
     do {\
-        int _is_auxseg = GASNETC_OFI_IS_AUX(src_addr, src); /* also the SCALABLE key */\
+        int _is_auxseg = GASNETC_OFI_IS_AUX(src_addr, src); \
         if (GASNETC_OFI_HAS_MR_SCALABLE) {\
+            uint64_t key = !_is_auxseg; \
             ret = fi_read(ep, dest_buf, nbytes, NULL, GET_RDMA_DEST(src), \
-                GET_REMOTEADDR_AUX(src_addr, src, _is_auxseg), _is_auxseg, ctxt_ptr);\
+                GET_REMOTEADDR_AUX(src_addr, src, _is_auxseg), key, ctxt_ptr);\
         }\
         else {\
             ret = fi_read(ep, dest_buf, nbytes, NULL, GET_RDMA_DEST(src), \
@@ -1025,8 +1027,10 @@ int gasnetc_segment_register(gasnetc_Segment_t segment)
                            "is needed.\n");
     }
 #endif
+    static gasneti_weakatomic64_t key_counter = gasneti_weakatomic64_init(0);
+    uint64_t key = gasneti_weakatomic64_add(&key_counter, 1, 0);
     int ret = fi_mr_reg(gasnetc_ofi_domainfd, segbase, segsize,
-                        FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL,
+                        FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, key, 0ULL,
                         mrfd_p, NULL);
     if (FI_SUCCESS != ret) {
       gasneti_fatalerror("fi_mr_reg for rdma failed: %d(%s)\n", ret, fi_strerror(-ret));
@@ -1057,6 +1061,7 @@ void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
     if (! segment) continue;
     p->loc.gex_rank = gasneti_mynode;
     p->loc.gex_ep_index = gex_EP_QueryIndex(ep);
+    gasneti_assert(segment->mrfd);
     p->mr_key = fi_mr_key(segment->mrfd);
     ++p;
   }
@@ -1085,7 +1090,7 @@ void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
 void gasnetc_auxseg_register(gasnet_seginfo_t si)
 {
   int ret = fi_mr_reg(gasnetc_ofi_domainfd, si.addr, si.size,
-                      FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 1ULL, 0ULL,
+                      FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL,
                       &gasnetc_auxseg_mrfd, NULL);
   if (FI_SUCCESS != ret) {
     gasneti_fatalerror("fi_mr_reg for aux_seg failed: %d(%s)\n", ret, fi_strerror(-ret));
