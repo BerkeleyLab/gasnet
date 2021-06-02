@@ -81,7 +81,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
     GASNETI_PRAGMA(warning disable 2261);             \
     gasneti_assume(gasneti_leaf_is_pointer(lc_opt));  \
     GASNETI_PRAGMA(warning pop);                      \
-  } while (1)
+  } while (0)
 #else
   #define gasnetc_assume_leaf_is_pointer(lc_opt) \
           gasneti_assume(gasneti_leaf_is_pointer(lc_opt))
