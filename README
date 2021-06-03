@@ -686,6 +686,11 @@ application-specific support.
  GASNET_BACKTRACE. The default value (visible via GASNET_VERBOSEENV) includes
  all mechanisms detected as supported on the current platform.
 
+* GASNET_BACKTRACE_MT - Boolean value requesting multi-threaded backtraces when
+  supported by the backtrace mechanism. This overrides the default, which is
+  generally 1 for thread-safe builds and SEQ builds with conduit-internal
+  threads. Otherwise, the default is 0.
+
 * GASNET_DISABLE_ENVDECODE/GASNET_DISABLE_ARGDECODE - disable the automatic decoding 
  of environment variable values/command-line arguments. Some GASNet spawners 
  automatically encode shell meta-characters passing through non-GASNet spawn scripts, 

@@ -1391,6 +1391,7 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
 #define GASNETI_BT_PATHSZ PATH_MAX
 #endif
 
+static int gasneti_backtrace_mt;
 static char gasneti_exename_bt[GASNETI_BT_PATHSZ];
 
 static const char *gasneti_tmpdir_bt = "/tmp";
@@ -1427,12 +1428,14 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 
 #ifdef GASNETI_BT_IDB
   static int gasneti_bt_idb(int fd) {
-    #if GASNETI_THREADS
-      const char fmt[] = "echo 'set $stoponattach; attach %d; where thread all; quit' | %s -dbx -quiet '%s'"; 
-    #else
-      const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s -dbx -quiet '%s'"; 
-    #endif
-    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
+    const char mt_fmt[] = "echo 'set $stoponattach; attach %d; where thread all; quit' | %s -dbx -quiet '%s'";
+    const char st_fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s -dbx -quiet '%s'";
+    const char *fmt = gasneti_backtrace_mt ? mt_fmt : st_fmt;
+
+    // Size cmd[] to the larger *_fmt:
+    gasneti_static_assert(sizeof(mt_fmt) >= sizeof(st_fmt));
+    static char cmd[sizeof(mt_fmt) + 2*GASNETI_BT_PATHSZ];
+
     const char *idb = (access(IDB_PATH, X_OK) ? "idb" : IDB_PATH);
     int rc = snprintf(cmd, sizeof(cmd), fmt, (int)getpid(), idb, gasneti_exename_bt);
     if ((rc < 0) || (rc >= sizeof(cmd))) return -10;
@@ -1442,12 +1445,14 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 
 #ifdef GASNETI_BT_PGDBG
   static int gasneti_bt_pgdbg(int fd) {
-    #if GASNETI_THREADS
-      const char fmt[] = "%s -text -c 'attach %i %s ; threads ; [all] where ; detach ; quit'";
-    #else
-      const char fmt[] = "%s -text -c 'attach %i %s ; where ; detach ; quit'";
-    #endif
-    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
+    const char mt_fmt[] = "%s -text -c 'attach %i %s ; threads ; [all] where ; detach ; quit'";
+    const char st_fmt[] = "%s -text -c 'attach %i %s ; where ; detach ; quit'";
+    const char *fmt = gasneti_backtrace_mt ? mt_fmt : st_fmt;
+
+    // Size cmd[] to the larger *_fmt:
+    gasneti_static_assert(sizeof(mt_fmt) >= sizeof(st_fmt));
+    static char cmd[sizeof(mt_fmt) + 2*GASNETI_BT_PATHSZ];
+
     const char *pgdbg = (access(PGDBG_PATH, X_OK) ? "pgdbg" : PGDBG_PATH);
     int rc = snprintf(cmd, sizeof(cmd), fmt, pgdbg, (int)getpid(), gasneti_exename_bt);
     if ((rc < 0) || (rc >= sizeof(cmd))) return -10;
@@ -1489,14 +1494,16 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 #ifdef GASNETI_BT_GDB
   static int gasneti_bt_gdb(int fd) {
     /* Change "backtrace" to "backtrace full" to also see local vars from each frame */
-    #if GASNETI_THREADS
-      const char commands[] = "\ninfo threads\nthread apply all backtrace 50\ndetach\nquit\n";
-    #elif PLATFORM_OS_CYGWIN 
+    const char mt_commands[] = "\ninfo threads\nthread apply all backtrace 50\ndetach\nquit\n";
+    #if PLATFORM_OS_CYGWIN 
       /* bug1848: cygwin is always multi-threaded, user thread is usually (always?) #1 */
-      const char commands[] = "\nthread 1\nbacktrace 50\ndetach\nquit\n";
+      const char st_commands[] = "\nthread 1\nbacktrace 50\ndetach\nquit\n";
     #else
-      const char commands[] = "\nbacktrace 50\ndetach\nquit\n";
+      const char st_commands[] = "\nbacktrace 50\ndetach\nquit\n";
     #endif
+    const char *commands = gasneti_backtrace_mt ? mt_commands         : st_commands;
+    size_t   commands_sz = gasneti_backtrace_mt ? sizeof(mt_commands) : sizeof(st_commands);
+
     const char shell_rm[]  = "shell /bin/rm -f ";
     const char fmt[] = "%s -nx -batch -x %s '%s' %d";
     static char cmd[sizeof(fmt) + 3*GASNETI_BT_PATHSZ];
@@ -1517,7 +1524,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
       len = strlen(filename);
       if (len != write(tmpfd, filename, len)) { rc = -13; goto out; }
 
-      len = sizeof(commands) - 1;
+      len = commands_sz - 1;
       if (len != write(tmpfd, commands, len)) { rc = -14; goto out; }
 
       if (0 != close(tmpfd)) { rc = -15; goto out; }
@@ -1696,6 +1703,13 @@ extern void gasneti_backtrace_init(const char *exename) {
     gasneti_backtrace_userdisabled = 1;
   }
 #endif
+
+#if GASNETI_THREADS
+  #define GASNETI_BACKTRACE_MT_DEFAULT 1
+#else
+  #define GASNETI_BACKTRACE_MT_DEFAULT 0
+#endif
+  gasneti_backtrace_mt = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE_MT", GASNETI_BACKTRACE_MT_DEFAULT);
 
   gasneti_tmpdir_bt = gasneti_tmpdir();
   if (!gasneti_tmpdir_bt) {
