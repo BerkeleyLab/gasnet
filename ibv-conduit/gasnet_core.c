@@ -648,6 +648,14 @@ static void gasnetc_check_config(void) {
   gasneti_assert_always(offsetof(gasnetc_medmsg_t,args) == GASNETC_MEDIUM_HDRSZ);
   gasneti_assert_always(offsetof(gasnetc_longmsg_t,args) == GASNETC_LONG_HDRSZ);
   gasneti_assert_always(GASNETI_POWEROFTWO(GASNETC_BUFSZ));
+
+#if GASNETI_THREADS
+  // Verify cache-aligned size of gasnetc_cep_t
+  gasneti_static_assert(sizeof(gasnetc_cep_t) % GASNETI_CACHE_LINE_BYTES == 0);
+#else
+  // Verify elements of (unused) cache alignment computation
+  gasneti_static_assert(sizeof(gasnetc_cep_t) == _GASNETC_CEP_TO_PAD + sizeof(gasnetc_sema_t));
+#endif
 }
 
 extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
