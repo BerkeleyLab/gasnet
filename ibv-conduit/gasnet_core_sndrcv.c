@@ -699,7 +699,7 @@ static int gasnetc_snd_reap(int limit) {
         } else
       #endif
         if_pt (sreq) {
-	  gasnetc_sema_up(sreq->cep->snd_cq_sema_p);
+	  gasnetc_sema_up(hca->snd_cq_sema_p);
         again:
 	  gasnetc_sema_up(GASNETC_CEP_SQ_SEMA(sreq->cep));
 
@@ -2753,7 +2753,7 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
   for (int i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
     gasnetc_hca_t *hca = cep->hca;
     cep->epid = gasnetc_epid(node, i);
-    cep->snd_cq_sema_p = &gasnetc_cq_semas[GASNETC_HCA_IDX(cep)];
+    cep->snd_cq_sema_p = hca->snd_cq_sema_p;
 
   #if GASNETC_IB_MAX_HCAS > 1
     /* "Cache" the local keys associated w/ this cep */
