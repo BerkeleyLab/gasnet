@@ -46,6 +46,7 @@ GASNet-EX ChangeLog
   - bug3420: use -rpath when linking
   - bug3936: Problems with multi-rail and GASNET_{AM_CREDITS,NETWORKDEPTH}_PP
   - bug4053: ibv: Default to setting MLX5_SINGLE_THREADED=1 for SEQ builds
+  - bug4178: ofi: testsegment crash with MR_BASIC
   - bug4209: ibv: improve ALC with respect to bounce buffer use
   - bug4212: build failure for ibv conduit with "--with-ibv-max-hcas=1"
   - bug4213: trace AM handler registration
