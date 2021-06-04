@@ -780,7 +780,7 @@ extern void gasneti_error_abort(void) {
   #endif /* intentional fall-thru */
     abort();
 
-  const char err[] = "ERROR: abort() returned!\n";
+  static const char err[] = "ERROR: abort() returned!\n";
   gasneti_rc_unused = write(2 /*stderr*/, err, sizeof(err));
   (void)fsync(2);
 
@@ -1396,7 +1396,7 @@ static char gasneti_exename_bt[GASNETI_BT_PATHSZ];
 
 static const char *gasneti_tmpdir_bt = "/tmp";
 static int gasneti_bt_mkstemp(char *filename, int limit) {
-  const char template[] = "/gasnet_XXXXXX";
+  static const char template[] = "/gasnet_XXXXXX";
   char *p;
   int len;
 
@@ -1417,7 +1417,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 #ifdef GASNETI_BT_DBX
   static int gasneti_bt_dbx(int fd) {
     /* dbx's thread support is poor and not easily scriptable */
-    const char fmt[] = "echo 'attach %d; where; quit' | %s '%s'";  
+    static const char fmt[] = "echo 'attach %d; where; quit' | %s '%s'";  
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *dbx = (access(DBX_PATH, X_OK) ? "dbx" : DBX_PATH);
     int rc = snprintf(cmd, sizeof(cmd), fmt, (int)getpid(), dbx, gasneti_exename_bt);
@@ -1428,8 +1428,8 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 
 #ifdef GASNETI_BT_IDB
   static int gasneti_bt_idb(int fd) {
-    const char mt_fmt[] = "echo 'set $stoponattach; attach %d; where thread all; quit' | %s -dbx -quiet '%s'";
-    const char st_fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s -dbx -quiet '%s'";
+    static const char mt_fmt[] = "echo 'set $stoponattach; attach %d; where thread all; quit' | %s -dbx -quiet '%s'";
+    static const char st_fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s -dbx -quiet '%s'";
     const char *fmt = gasneti_backtrace_mt ? mt_fmt : st_fmt;
 
     // Size cmd[] to the larger *_fmt:
@@ -1445,8 +1445,8 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 
 #ifdef GASNETI_BT_PGDBG
   static int gasneti_bt_pgdbg(int fd) {
-    const char mt_fmt[] = "%s -text -c 'attach %i %s ; threads ; [all] where ; detach ; quit'";
-    const char st_fmt[] = "%s -text -c 'attach %i %s ; where ; detach ; quit'";
+    static const char mt_fmt[] = "%s -text -c 'attach %i %s ; threads ; [all] where ; detach ; quit'";
+    static const char st_fmt[] = "%s -text -c 'attach %i %s ; where ; detach ; quit'";
     const char *fmt = gasneti_backtrace_mt ? mt_fmt : st_fmt;
 
     // Size cmd[] to the larger *_fmt:
@@ -1462,7 +1462,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 
 #ifdef GASNETI_BT_LLDB
   static int gasneti_bt_lldb(int fd) {
-    const char fmt[] = "%s -p %d -o 'bt all' -o quit";
+    static const char fmt[] = "%s -p %d -o 'bt all' -o quit";
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *lldb = (access(LLDB_PATH, X_OK) ? "lldb" : LLDB_PATH);
     int rc = snprintf(cmd, sizeof(cmd), fmt, lldb, (int)getpid());
@@ -1494,18 +1494,18 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 #ifdef GASNETI_BT_GDB
   static int gasneti_bt_gdb(int fd) {
     /* Change "backtrace" to "backtrace full" to also see local vars from each frame */
-    const char mt_commands[] = "\ninfo threads\nthread apply all backtrace 50\ndetach\nquit\n";
+    static const char mt_commands[] = "\ninfo threads\nthread apply all backtrace 50\ndetach\nquit\n";
     #if PLATFORM_OS_CYGWIN 
       /* bug1848: cygwin is always multi-threaded, user thread is usually (always?) #1 */
-      const char st_commands[] = "\nthread 1\nbacktrace 50\ndetach\nquit\n";
+      static const char st_commands[] = "\nthread 1\nbacktrace 50\ndetach\nquit\n";
     #else
-      const char st_commands[] = "\nbacktrace 50\ndetach\nquit\n";
+      static const char st_commands[] = "\nbacktrace 50\ndetach\nquit\n";
     #endif
     const char *commands = gasneti_backtrace_mt ? mt_commands         : st_commands;
     size_t   commands_sz = gasneti_backtrace_mt ? sizeof(mt_commands) : sizeof(st_commands);
 
-    const char shell_rm[]  = "shell /bin/rm -f ";
-    const char fmt[] = "%s -nx -batch -x %s '%s' %d";
+    static const char shell_rm[]  = "shell /bin/rm -f ";
+    static const char fmt[] = "%s -nx -batch -x %s '%s' %d";
     static char cmd[sizeof(fmt) + 3*GASNETI_BT_PATHSZ];
     char filename[GASNETI_BT_PATHSZ];
     const char *gdb = (access(GDB_PATH, X_OK) ? "gdb" : GDB_PATH);
@@ -1565,7 +1565,7 @@ out:
     #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
       // volatile below to avoid an optimizer bug observed on icc 17.0.2
       const char * volatile addr2line_path = (access(ADDR2LINE_PATH, X_OK) ? "addr2line" : ADDR2LINE_PATH);
-      const char fmt[] = "%s -f -e '%s' %p";
+      static const char fmt[] = "%s -f -e '%s' %p";
       static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ + 10];
       #define XLBUF 64 /* even as short as 2 bytes is still safe */
       static char xlstr[XLBUF];
