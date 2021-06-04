@@ -527,9 +527,15 @@ struct gasnetc_cep_t_ {
 
   // In a GASNETI_THREADS build, the type gasnetc_sema_t contains internal padding to make
   // it occupy a full cacheline (or a multiple thereof).
+
   // This is how much data came *before* the semaphore (assuming gasnetc_atomic_t alignment)
-  #define _GASNETC_CEP_RW_EXTRA GASNETI_ALIGNUP_NOASSERT(sizeof(int)+sizeof(gasnetc_atomic_t),\
+  #define _GASNETC_CEP_RW_EARLY GASNETI_ALIGNUP_NOASSERT(sizeof(int)+sizeof(gasnetc_atomic_t),\
                                                          sizeof(gasneti_weakatomic_t))
+
+  // This is total size of R/W fields, with possible trailing padding prior to R/O fields,
+  // correct independent of GASNETI_THREADS
+  #define _GASNETC_CEP_RW_BYTES GASNETI_ALIGNUP_NOASSERT(_GASNETC_CEP_RW_EARLY+sizeof(gasnetc_sema_t),\
+                                                         sizeof(void *))
 
   //
   // Read-only fields
@@ -539,6 +545,7 @@ struct gasnetc_cep_t_ {
 
   // 64-bit fields
   // None currently
+  // Change _GASNETC_CEP_RW_BYTES's alignment to 8 if any are added
 
   // Pointer-width fields
   gasnetc_hca_t         *hca;
@@ -593,7 +600,7 @@ struct gasnetc_cep_t_ {
 #endif
 
 #define _GASNETC_CEP_TO_PAD (\
-    _GASNETC_CEP_RW_EXTRA + \
+    _GASNETC_CEP_RW_BYTES + \
     _GASNETC_CEP_PTR_0+_GASNETC_CEP_PTR_1+_GASNETC_CEP_PTR_2 + \
     _GASNETC_CEP_32_0+_GASNETC_CEP_32_1+_GASNETC_CEP_32_2+_GASNETC_CEP_32_3+_GASNETC_CEP_32_4)
 #if GASNETI_THREADS

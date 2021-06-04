@@ -654,7 +654,8 @@ static void gasnetc_check_config(void) {
   gasneti_static_assert(sizeof(gasnetc_cep_t) % GASNETI_CACHE_LINE_BYTES == 0);
 #else
   // Verify elements of (unused) cache alignment computation
-  gasneti_static_assert(sizeof(gasnetc_cep_t) == _GASNETC_CEP_TO_PAD + sizeof(gasnetc_sema_t));
+  // If you break the following line the compiler may not print the entirety on failure!
+  gasneti_static_assert(sizeof(gasnetc_cep_t) == GASNETI_ALIGNUP_NOASSERT(_GASNETC_CEP_TO_PAD, sizeof(void*)));
 #endif
 }
 
