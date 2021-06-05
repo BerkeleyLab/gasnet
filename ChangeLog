@@ -25,6 +25,8 @@ GASNet-EX ChangeLog
   - NEW: configure options `--enable-rpath` and `--enable-[pkg]-rpath` can
     request addition of directories containing required libraries to the
     runtime library search path (a.k.a. "rpath") via `$(GASNET_LDFLAGS)`.
+  - Environment variable GASNET_BACKTRACE_MT is now available to force
+    multi-threaded or single-threaded backtraces (where supported).
 
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
@@ -53,6 +55,7 @@ GASNet-EX ChangeLog
   - bug4213: trace AM handler registration
   - bug4230: ssh-spawer de-duplication logic is flawed
   - bug4232: Bogus array-bounds warning from GCC 11.1 on ILP32/NDEBUG
+  - bug4237: Option for backtrace to provide the stack on all threads even in threadmode=seq
   - bug4240: ibv: optimize layout of gasnetc_cep_t
 
 ----------------------------------------------------------------------
