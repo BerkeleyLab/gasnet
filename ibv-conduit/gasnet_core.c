@@ -1353,11 +1353,6 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(I,("ibv-conduit build time configuration settings = {"));
   GASNETI_TRACE_PRINTF(I,("  AM receives in internal thread %sabled (GASNETC_IBV_RCV_THREAD)",
 				GASNETC_USE_RCV_THREAD ? "en" : "dis"));
-#if GASNETC_IBV_POLL_LOCK
-  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            YES (--enable-ibv-poll-lock)"));
-#else
-  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            NO (default)"));
-#endif
   GASNETI_TRACE_PRINTF(I,("  Max. snd completions per poll  %d (GASNETC_SND_REAP_LIMIT)",
 				GASNETC_SND_REAP_LIMIT));
   GASNETI_TRACE_PRINTF(I,("  Max. rcv completions per poll  %d (GASNETC_RCV_REAP_LIMIT)",
