@@ -1,5 +1,5 @@
 CHAPEL_GIT_REPO   ?= chapel-lang/chapel
-CHAPEL_GIT_COMMIT ?= master
+CHAPEL_GIT_COMMIT ?= main # was 'master' prior to June 21, 2021
 CHAPEL_MAKE_ARGS  ?= -j4
 CHAPEL_BLDDIR     ?= $(TOP_BUILDDIR)/chapel
 CHAPEL_TMPDIR     ?= $(TOP_BUILDDIR)/chapel-tmp
