@@ -322,6 +322,7 @@ gasnetc_create_cq(struct ibv_context * hca_hndl, int req_size,
   }
 }
 
+
 #if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_HCA_IDX(_cep)		((_cep)->hca_index)
 #else
@@ -686,7 +687,9 @@ static int gasnetc_snd_reap(int limit) {
   gasneti_assert(limit <= GASNETC_SND_REAP_LIMIT);
 
   for (count = 0; count < limit; ++count) {
+    if (GASNETC_POLL_CQ_TRYDOWN_SND(hca)) break;
     int rc = ibv_poll_cq(hca->snd_cq, 1, &comp);
+    GASNETC_POLL_CQ_UP_SND(hca);
     if_pt (rc == 0) {
       /* CQ empty - we are done */
       break;
@@ -1050,7 +1053,9 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, const int limit, gasnetc_rbuf_t 
   int count;
 
   for (count = 0; count < limit; ++count) {
+    if (GASNETC_POLL_CQ_TRYDOWN_RCV(hca)) break;
     int rc = ibv_poll_cq(hca->rcv_cq, 1, &comp);
+    GASNETC_POLL_CQ_UP_RCV(hca);
     if_pt (rc == 0) {
       /* CQ empty - we are done */
       break;
@@ -2659,6 +2664,10 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
         hca->rcv_thread_priv = gasnetc_lifo_pop(&hca->rbuf_freelist);
         gasneti_assert(hca->rcv_thread_priv != NULL);
       }
+#endif
+#if GASNETC_SERIALIZE_POLL_CQ
+      gasnetc_atomic_set(&hca->poll_cq_semas.snd,0,0);
+      gasnetc_atomic_set(&hca->poll_cq_semas.rcv,0,0);
 #endif
     }
   }

@@ -142,6 +142,11 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   or
      other/{ssh,mpi,pmi}-spawner/README (source).
 
+  By default, ibv-conduit serializes calls to `ibv_poll_cq()` in a manner which
+  reduces time spent blocked on the mutex internal to its implementation.  One
+  can configure using `--disable-ibv-serialize-poll-cq` to disable this
+  behavior.
+
 @ Section: Job Spawning @
 
   If using UPC, Titanium, etc. the language-specific commands should be used
