@@ -541,10 +541,8 @@ int main(int argc, char **argv) {
         ERR("failed signed wrap-around at GASNETT_ATOMIC_SIGNED_MIN");
 
     #if defined(GASNETT_HAVE_ATOMIC_CAS)
-    { /* Use a couple temporaries to avoid warnings
-         about our intentional overflow/underflow. */
+    { // Use a temporary to avoid warnings about intentional overflow/underflow.
       gasnett_atomic_val_t utemp;
-      gasnett_atomic_sval_t stemp;
 
       /* Verify expected wrap-around properties of "oldval" in c-a-s */
       gasnett_atomic_set(&var, GASNETT_ATOMIC_MAX, 0);
@@ -558,13 +556,13 @@ int main(int argc, char **argv) {
         ERR("gasnett_atomic_compare_and_swap failed unsigned wrap-around at oldval=MAX+1");
 
       gasnett_atomic_set(&var, GASNETT_ATOMIC_SIGNED_MAX, 0);
-      stemp = GASNETT_ATOMIC_SIGNED_MIN;
-      if (!gasnett_atomic_compare_and_swap(&var, stemp - 1, 0, 0))
+      utemp = (gasnett_atomic_val_t)GASNETT_ATOMIC_SIGNED_MIN;
+      if (!gasnett_atomic_compare_and_swap(&var, utemp - 1, 0, 0))
         ERR("gasnett_atomic_compare_and_swap failed signed wrap-around at oldval=SIGNED_MIN-1");
 
       gasnett_atomic_set(&var, (gasnett_atomic_val_t)GASNETT_ATOMIC_SIGNED_MIN, 0);
-      stemp = GASNETT_ATOMIC_SIGNED_MAX;
-      if (!gasnett_atomic_compare_and_swap(&var, stemp + 1, 0, 0))
+      utemp = (gasnett_atomic_val_t)GASNETT_ATOMIC_SIGNED_MAX;
+      if (!gasnett_atomic_compare_and_swap(&var, utemp + 1, 0, 0))
         ERR("gasnett_atomic_compare_and_swap failed signed wrap-around at oldval=SIGNED_MAX+1");
     }
     #endif

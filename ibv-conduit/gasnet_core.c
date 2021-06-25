@@ -648,6 +648,15 @@ static void gasnetc_check_config(void) {
   gasneti_assert_always(offsetof(gasnetc_medmsg_t,args) == GASNETC_MEDIUM_HDRSZ);
   gasneti_assert_always(offsetof(gasnetc_longmsg_t,args) == GASNETC_LONG_HDRSZ);
   gasneti_assert_always(GASNETI_POWEROFTWO(GASNETC_BUFSZ));
+
+#if GASNETI_THREADS
+  // Verify cache-aligned size of gasnetc_cep_t
+  gasneti_static_assert(sizeof(gasnetc_cep_t) % GASNETI_CACHE_LINE_BYTES == 0);
+#else
+  // Verify elements of (unused) cache alignment computation
+  // If you break the following line the compiler may not print the entirety on failure!
+  gasneti_static_assert(sizeof(gasnetc_cep_t) == GASNETI_ALIGNUP_NOASSERT(_GASNETC_CEP_TO_PAD, sizeof(void*)));
+#endif
 }
 
 extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
@@ -1344,11 +1353,6 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(I,("ibv-conduit build time configuration settings = {"));
   GASNETI_TRACE_PRINTF(I,("  AM receives in internal thread %sabled (GASNETC_IBV_RCV_THREAD)",
 				GASNETC_USE_RCV_THREAD ? "en" : "dis"));
-#if GASNETC_IBV_POLL_LOCK
-  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            YES (--enable-ibv-poll-lock)"));
-#else
-  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            NO (default)"));
-#endif
   GASNETI_TRACE_PRINTF(I,("  Max. snd completions per poll  %d (GASNETC_SND_REAP_LIMIT)",
 				GASNETC_SND_REAP_LIMIT));
   GASNETI_TRACE_PRINTF(I,("  Max. rcv completions per poll  %d (GASNETC_RCV_REAP_LIMIT)",

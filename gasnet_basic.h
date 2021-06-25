@@ -874,6 +874,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 // See also: gasnetc_{AM,Token}_Max*() macros.
 
 #if PLATFORM_COMPILER_PGI
+  // Not needed with NVHPC-branded releases
   GASNETI_INLINE(gasneti_empty_function)
   void gasneti_empty_function(void) {}
   #define GASNETI_UNUSED_ARG_PRE_ gasneti_empty_function(),

@@ -29,6 +29,8 @@
 #ifdef GASNETI_USE_ALLOCA
   // Keep defn
 #elif HAVE_ALLOCA && !PLATFORM_COMPILER_PGI
+  // This is the work-around for Bug 2079.  However, the need has not been
+  // revalidated with recent PGI compilers nor the "nvhpc" branded ones.
   #define GASNETI_USE_ALLOCA 1
 #endif
 #if GASNETI_USE_ALLOCA && HAVE_ALLOC_H

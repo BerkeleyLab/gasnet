@@ -25,10 +25,13 @@ GASNet-EX ChangeLog
   - NEW: configure options `--enable-rpath` and `--enable-[pkg]-rpath` can
     request addition of directories containing required libraries to the
     runtime library search path (a.k.a. "rpath") via `$(GASNET_LDFLAGS)`.
+  - Environment variable GASNET_BACKTRACE_MT is now available to force
+    multi-threaded or single-threaded backtraces (where supported).
 
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
     local completion and payloads in (roughly) the 4KiB to 64KiB range.
+  - Improved memory utilization at large scale.
   - SEQ and PARSYNC builds now set MLX{4,5}_SINGLE_THREADED under
     appropriate conditions to elide locking overheads in libibverbs.
   - NEW: configure option --with-ibv-fenced-puts=... can be used to set the
@@ -38,16 +41,22 @@ GASNet-EX ChangeLog
   - Improved support for GCC 11 by suppressing spurious warnings.
   - Made Cray PMI support conduit-independent, allowing it to function on
     non-aries Cray systems like the new "HPE Cray XE" (aka Shasta).
+  - This release introduces identification of the NVHPC (NVIDIA HPC SDK)
+    compiler family, as a prerequisite for anticipated support for this
+    compiler in a future release.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug3420: use -rpath when linking
   - bug3936: Problems with multi-rail and GASNET_{AM_CREDITS,NETWORKDEPTH}_PP
   - bug4053: ibv: Default to setting MLX5_SINGLE_THREADED=1 for SEQ builds
+  - bug4178: ofi: testsegment crash with MR_BASIC
   - bug4209: ibv: improve ALC with respect to bounce buffer use
   - bug4212: build failure for ibv conduit with "--with-ibv-max-hcas=1"
   - bug4213: trace AM handler registration
   - bug4230: ssh-spawer de-duplication logic is flawed
   - bug4232: Bogus array-bounds warning from GCC 11.1 on ILP32/NDEBUG
+  - bug4237: Option for backtrace to provide the stack on all threads even in threadmode=seq
+  - bug4240: ibv: optimize layout of gasnetc_cep_t
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release
