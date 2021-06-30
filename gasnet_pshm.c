@@ -1286,19 +1286,27 @@ static void * ampshm_buf_alloc(
        Lock serializes allocation so small messages can't starve large ones */
     gasneti_mutex_t *lock = &vnet->alloc_lock;
 
+    // Like gasneti_pollwhile(), but with a specialized poll and without RMB
+    // If reply, will only poll reply network to avoid deadlock
+    #define gasneti_pshm_pollwhile(cnd) do { \
+      if (cnd) {                             \
+        while (1) {                          \
+          if (isReq) gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE); /* No progress functions */ \
+          else gasneti_AMPSHMPoll(1 GASNETI_THREAD_PASS); \
+          if (!(cnd)) break;                 \
+          GASNETI_WAITHOOK();                \
+        }                                    \
+      }                                      \
+    } while (0)
+
     void *msg;
     if (flags & GEX_FLAG_IMMEDIATE) {
       if (gasneti_mutex_trylock(lock)) return NULL;
       msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, target);
       if (!msg) goto out_immediate;
     } else {
-      gasneti_mutex_lock(lock);
-      while (!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, target))) {
-        /* If reply, only poll reply network: avoids deadlock  */
-        if (isReq) gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE); /* No progress functions */
-        else gasneti_AMPSHMPoll(1 GASNETI_THREAD_PASS);
-        GASNETI_WAITHOOK();
-      }
+      gasneti_pshm_pollwhile(gasneti_mutex_trylock(lock));
+      gasneti_pshm_pollwhile(!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, target)));
     }
 out_immediate:
     gasneti_mutex_unlock(lock);
