@@ -323,6 +323,30 @@ gasnetc_create_cq(struct ibv_context * hca_hndl, int req_size,
 }
 
 
+// Simple round-robin (w/ a harmless multi-thread race)
+// Note use of casts to volatile ensure the compiler will not move the accesses
+// (reads earlier, or writes later) so as to defeat the entire purpose of
+// advancing a counter to be observed by other threads.
+#if GASNETC_ANY_PAR
+  #define GASNETC_WEAK_COUNTER_DECL(var,val) \
+    static struct {                                     \
+       char pad0[GASNETI_CACHE_LINE_BYTES];             \
+       int  cntr;                                       \
+       char pad1[GASNETI_CACHE_LINE_BYTES-sizeof(int)]; \
+    } var = {{0},(val),{0}}
+  #define GASNETC_WEAK_COUNTER_READ(var) \
+    (*(volatile int *)(&(var).cntr))
+  #define GASNETC_WEAK_COUNTER_WRITE(var,val) \
+    do { *(volatile int *)(&(var).cntr) = (val); } while (0)
+#else
+  #define GASNETC_WEAK_COUNTER_DECL(var,val) \
+    static int var = (val)
+  #define GASNETC_WEAK_COUNTER_READ(var) \
+    (*(volatile int *)&(var))
+  #define GASNETC_WEAK_COUNTER_WRITE(var,val) \
+    do { *(volatile int *)&(var) = (val); } while (0)
+#endif
+
 #if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_HCA_IDX(_cep)		((_cep)->hca_index)
 #else
@@ -674,11 +698,9 @@ static int gasnetc_snd_reap(int limit) {
   #endif
 
   #if GASNETC_IB_MAX_HCAS > 1
-    /* Simple round-robin (w/ a harmless multi-thread race) */
-    /* Note use of casts to volatile are require to work around bug 1586 */
-    static int index = 0;
-    int tmp = *(volatile int *)(&index);
-    *(volatile int *)(&index) = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
+    GASNETC_WEAK_COUNTER_DECL(index, 0);
+    int tmp = GASNETC_WEAK_COUNTER_READ(index);
+    GASNETC_WEAK_COUNTER_WRITE(index, ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1);
     gasnetc_hca_t *hca = &gasnetc_hca[tmp];
   #else
     gasnetc_hca_t *hca = &gasnetc_hca[0];
@@ -858,12 +880,10 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid)
       }
     }
  #else
-    /* Simple round-robin (w/ a harmless multi-thread race) */
-    /* Note use of casts to volatile are require to work around bug 1586 */
-    static int prev = 0;
-    qpi = *(volatile int *)(&prev);
+    GASNETC_WEAK_COUNTER_DECL(prev, 0);
+    qpi = GASNETC_WEAK_COUNTER_READ(prev);
     qpi = ((qpi == 0) ? gasnetc_num_qps : qpi) - 1;
-    *(volatile int *)(&prev) = qpi;
+    GASNETC_WEAK_COUNTER_WRITE(prev, qpi);
  #endif
     gasneti_assert(qpi < gasnetc_num_qps);
   } else {
@@ -1112,11 +1132,9 @@ void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI
 
 void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG) {
   #if GASNETC_IB_MAX_HCAS > 1
-    /* Simple round-robin (w/ a harmless multi-thread race) */
-    /* Note use of casts to volatile are require to work around bug 1586 */
-    static int index = 0;
-    int tmp = *(volatile int *)(&index);
-    *(volatile int *)(&index) = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
+    GASNETC_WEAK_COUNTER_DECL(index, 0);
+    int tmp = GASNETC_WEAK_COUNTER_READ(index);
+    GASNETC_WEAK_COUNTER_WRITE(index, ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1);
     gasnetc_hca_t *hca = &gasnetc_hca[tmp];
   #else
     gasnetc_hca_t *hca = &gasnetc_hca[0];
