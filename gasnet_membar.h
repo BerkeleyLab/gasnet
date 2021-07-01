@@ -406,7 +406,7 @@
    */
    #define gasneti_spinloop_hint() GASNETI_ASM(GASNETI_PAUSE_INSTRUCTION)
  #else
-   #define gasneti_spinloop_hint() ((void)0)
+   #define gasneti_spinloop_hint() gasneti_compiler_fence()
  #endif
 #endif
 

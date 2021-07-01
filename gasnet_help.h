@@ -1367,12 +1367,11 @@ typedef void (*gasneti_progressfn_t)(void);
  */
 extern int gasneti_wait_mode; /* current waitmode hint */
 #define GASNETI_WAITHOOK() do {                                       \
-    if (gasneti_wait_mode != GASNET_WAIT_SPIN) gasneti_sched_yield(); \
     /* prevent optimizer from hoisting the condition check out of */  \
     /* the enclosing spin loop - this is our way of telling the */    \
     /* optimizer "the whole world could change here" */               \
-    gasneti_compiler_fence();                                         \
-    gasneti_spinloop_hint();                                          \
+    gasneti_spinloop_hint(); /* pause instruction or compiler fence */\
+    if_pf (gasneti_wait_mode != GASNET_WAIT_SPIN) gasneti_sched_yield(); \
   } while (0)
 
 /* busy-waits, with no implicit polling (cnd should include an embedded poll)
