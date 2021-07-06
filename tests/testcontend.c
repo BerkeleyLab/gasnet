@@ -37,8 +37,15 @@ int amactive;
 int peer = -1;
 char *peerseg = NULL;
 int threads;
-gasnett_atomic_t pong;
-volatile int signal_done = 0;
+struct {
+  char pad0[GASNETT_CACHE_LINE_BYTES];
+  gasnett_atomic_t _pong;
+  char pad1[GASNETT_CACHE_LINE_BYTES - sizeof(gasnett_atomic_t)];
+  volatile int _signal_done;
+  char pad2[GASNETT_CACHE_LINE_BYTES - sizeof(int)];
+} globals = {{0}, gasnett_atomic_init(0), {0}, 0, {0}};
+#define pong globals._pong
+#define signal_done globals._signal_done
 #define thread_barrier() PTHREAD_BARRIER(threads)
 
 int revthreads = 0;
@@ -133,7 +140,11 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
 
 #define PUTGETPINGPONG(fnname, POLLUNTIL, putgetstmt)                                   \
   void * fnname(void *args) {                                                           \
-    int64_t tmp = 0;                                                                    \
+    struct {                                                                            \
+      char pad0[GASNETT_CACHE_LINE_BYTES];                                              \
+      int64_t datum;                                                                    \
+      char pad1[GASNETT_CACHE_LINE_BYTES-sizeof(int64_t)];                              \
+    } locals = {{0}, 0, {0}};                                                           \
     int mythread = ARG2THREAD(args);                                                    \
     static int nonzero_present = 0;                                                     \
     gasnett_tick_t start, end;                                                          \
@@ -164,17 +175,21 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
     return NULL;                                                                        \
   }
 
-PUTGETPINGPONG(put_poll_active, SPINPOLL_UNTIL, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
-PUTGETPINGPONG(get_poll_active, SPINPOLL_UNTIL, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
-PUTGETPINGPONG(put_block_active, GASNET_BLOCKUNTIL, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
-PUTGETPINGPONG(get_block_active, GASNET_BLOCKUNTIL, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
+PUTGETPINGPONG(put_poll_active, SPINPOLL_UNTIL, gex_RMA_PutBlocking(myteam, peer, peerseg, &locals.datum, 8, 0))
+PUTGETPINGPONG(get_poll_active, SPINPOLL_UNTIL, gex_RMA_GetBlocking(myteam, &locals.datum, peer, peerseg, 8, 0))
+PUTGETPINGPONG(put_block_active, GASNET_BLOCKUNTIL, gex_RMA_PutBlocking(myteam, peer, peerseg, &locals.datum, 8, 0))
+PUTGETPINGPONG(get_block_active, GASNET_BLOCKUNTIL, gex_RMA_GetBlocking(myteam, &locals.datum, peer, peerseg, 8, 0))
 
-PUTGETPINGPONG(put_barrier_active, BARRIER_UNTIL, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
-PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
+PUTGETPINGPONG(put_barrier_active, BARRIER_UNTIL, gex_RMA_PutBlocking(myteam, peer, peerseg, &locals.datum, 8, 0))
+PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gex_RMA_GetBlocking(myteam, &locals.datum, peer, peerseg, 8, 0))
 
 #define PGFIGHT(fnname, putgetstmt_loner, putgetstmt_rest)                              \
   void * fnname(void *args) {                                                           \
-    int64_t tmp = 0;                                                                    \
+    struct {                                                                            \
+      char pad0[GASNETT_CACHE_LINE_BYTES];                                              \
+      int64_t datum;                                                                    \
+      char pad1[GASNETT_CACHE_LINE_BYTES-sizeof(int64_t)];                              \
+    } locals = {{0}, 0, {0}};                                                           \
     int mythread = ARG2THREAD(args);                                                    \
     gasnett_tick_t start, end;                                                          \
     signal_done = 0;                                                                    \
@@ -198,10 +213,10 @@ PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gex_RMA_GetBlocking(myteam, &t
     return NULL;                                                                        \
   }                                                                                     \
 
-PGFIGHT(put_put_active, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0), gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
-PGFIGHT(put_get_active, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0), gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
-PGFIGHT(get_put_active, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0), gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
-PGFIGHT(get_get_active, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0), gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
+PGFIGHT(put_put_active, gex_RMA_PutBlocking(myteam, peer, peerseg, &locals.datum, 8, 0), gex_RMA_PutBlocking(myteam, peer, peerseg, &locals.datum, 8, 0))
+PGFIGHT(put_get_active, gex_RMA_PutBlocking(myteam, peer, peerseg, &locals.datum, 8, 0), gex_RMA_GetBlocking(myteam, &locals.datum, peer, peerseg, 8, 0))
+PGFIGHT(get_put_active, gex_RMA_GetBlocking(myteam, &locals.datum, peer, peerseg, 8, 0), gex_RMA_PutBlocking(myteam, peer, peerseg, &locals.datum, 8, 0))
+PGFIGHT(get_get_active, gex_RMA_GetBlocking(myteam, &locals.datum, peer, peerseg, 8, 0), gex_RMA_GetBlocking(myteam, &locals.datum, peer, peerseg, 8, 0))
 
 void * poll_passive(void *args) {
   int mythread = ARG2THREAD(args);
