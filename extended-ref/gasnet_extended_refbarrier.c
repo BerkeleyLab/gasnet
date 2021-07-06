@@ -1136,24 +1136,35 @@ static void gasnete_amdbarrier_init(gasnete_coll_team_t team) {
  */
 
 #if !GASNETI_THREADS
-  #define GASNETE_RMDBARRIER_LOCK(_var)		/* empty */
+  #define gasnete_rmdbarrier_lock_t             %%%error%%%
   #define gasnete_rmdbarrier_lock_init(_var)	((void)0)
   #define gasnete_rmdbarrier_trylock(_var)	(0/*success*/)
   #define gasnete_rmdbarrier_unlock(_var)	((void)0)
 #elif GASNETI_HAVE_SPINLOCK
-  #define GASNETE_RMDBARRIER_LOCK(_var)		gasneti_atomic_t _var;
+  #define gasnete_rmdbarrier_lock_t             gasneti_atomic_t
   #define gasnete_rmdbarrier_lock_init(_var)	gasneti_spinlock_init(_var)
   #define gasnete_rmdbarrier_trylock(_var)	gasneti_spinlock_trylock(_var)
   #define gasnete_rmdbarrier_unlock(_var)	gasneti_spinlock_unlock(_var)
 #else
-  #define GASNETE_RMDBARRIER_LOCK(_var)		gasneti_mutex_t _var;
+  #define gasnete_rmdbarrier_lock_t             gasneti_mutex_t
   #define gasnete_rmdbarrier_lock_init(_var)	gasneti_mutex_init(_var)
   #define gasnete_rmdbarrier_trylock(_var)	gasneti_mutex_trylock(_var)
   #define gasnete_rmdbarrier_unlock(_var)	gasneti_mutex_unlock(_var)
 #endif
 
 typedef struct {
-  GASNETE_RMDBARRIER_LOCK(barrier_lock) /* no semicolon */
+  // Read/write data (note that struct is allocated cache-aligned)
+#if GASNETI_THREADS
+  gasnete_rmdbarrier_lock_t barrier_lock;
+  char _pad0[GASNETI_CACHE_PAD(sizeof(gasnete_rmdbarrier_lock_t))];
+#endif
+  int volatile barrier_state; /*  (step << 1) | phase, where step is 1-based (0 is pshm notify) */
+  int volatile barrier_value; /*  barrier value (evolves from local value) */
+  int volatile barrier_flags; /*  barrier flags (evolves from local value) */
+#if GASNETI_THREADS
+  char _pad1[GASNETI_CACHE_PAD(3 * sizeof(int))];
+#endif
+  // Read-only data
   struct {
     gex_Rank_t    jobrank;
     uintptr_t     addr;
@@ -1164,9 +1175,6 @@ typedef struct {
 #endif
   int barrier_size;           /*  ceil(lg(nodes)) */
   int barrier_goal;           /*  (1+ceil(lg(nodes)) << 1) == final barrier_state for phase=0 */
-  int volatile barrier_state; /*  (step << 1) | phase, where step is 1-based (0 is pshm notify) */
-  int volatile barrier_value; /*  barrier value (evolves from local value) */
-  int volatile barrier_flags; /*  barrier flags (evolves from local value) */
   void *barrier_inbox;        /*  in-segment memory to recv notifications */
 #if !GASNETI_THREADS
   gex_Event_t *barrier_events; /* array of events for non-blocking puts */
