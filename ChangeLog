@@ -46,6 +46,10 @@ GASNet-EX ChangeLog
     compiler family, as a prerequisite for anticipated support for this
     compiler in a future release.
 
+* GASNet tools
+  - gasnett_spinloop_hint() now includes a compiler fence on all CPU
+    architectures, not just those with a "pause" instruction (or similar).
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug3420: use -rpath when linking
   - bug3936: Problems with multi-rail and GASNET_{AM_CREDITS,NETWORKDEPTH}_PP
