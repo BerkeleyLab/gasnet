@@ -4175,10 +4175,9 @@ void gasnetc_am_sema_poll(gasnetc_sema_t * const sema,
                           gasnetc_EP_t ep
                           GASNETI_THREAD_FARG))
 {
-  do {
-    GASNETI_WAITHOOK();
-    gasnetc_poll_rcv_all(ep, 1 GASNETI_THREAD_PASS);
-  } while (!gasnetc_sema_trydown(sema));
+  // Since callers have already failed a trydown, this loop is a "DOUNTIL"
+  GASNETI_SPIN_DOUNTIL(gasnetc_sema_trydown(sema),
+                       gasnetc_poll_rcv_all(ep, 1 GASNETI_THREAD_PASS));
 }
 
 // Helper for allocation of flow-control credit

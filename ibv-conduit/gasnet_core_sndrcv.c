@@ -902,14 +902,14 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
     }
   #endif
 
-    do {
-      if (!gasnetc_snd_reap(1)) {
-        GASNETI_WAITHOOK();
-      }
-      /* Redo load balancing choice */
-      qpi = gasnetc_epid_select_qpi(ceps, epid);
-      cep = &ceps[qpi];
-    } while (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)));
+    GASNETI_SPIN_DOUNTIL(
+      gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)),
+      {
+        gasnetc_snd_reap(1);
+        /* Redo load balancing choice */
+        qpi = gasnetc_epid_select_qpi(ceps, epid);
+        cep = &ceps[qpi];
+      });
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ);
   }
   cep->used = 1;
@@ -1210,17 +1210,17 @@ gasnetc_buffer_t *gasnetc_get_bbuf(int block GASNETI_THREAD_FARG) {
   GASNETC_STAT_EVENT(GET_BBUF);
 
   bbuf = gasnetc_lifo_pop(&gasnetc_bbuf_freelist);
-  if_pf (!bbuf) {
-    gasnetc_poll_snd();
-    bbuf = gasnetc_lifo_pop(&gasnetc_bbuf_freelist);
-    if (block) {
-      while (!bbuf) {
-        GASNETI_WAITHOOK();
+  if_pt (bbuf) {
+    // done
+  } else if (block) {
+    GASNETI_SPIN_DOUNTIL(bbuf, {
         gasnetc_poll_snd();
         bbuf = gasnetc_lifo_pop(&gasnetc_bbuf_freelist);
-      }
-      GASNETC_TRACE_WAIT_END(GET_BBUF_STALL);
-    }
+      });
+    GASNETC_TRACE_WAIT_END(GET_BBUF_STALL);
+  } else {
+    gasnetc_poll_snd();
+    bbuf = gasnetc_lifo_pop(&gasnetc_bbuf_freelist);
   }
   gasneti_assert((bbuf != NULL) || !block);
 
@@ -1338,14 +1338,8 @@ gasnetc_snd_post_inner(gasnetc_cep_t * const cep, struct ibv_send_wr *sr_desc, i
   // Loop until space is available for 1 new entry on the CQ.
   // If we hold the last one then threads sending to ANY node will stall.
   // So this is the last resource to acquire
-  if_pf (!gasnetc_sema_trydown(cep->snd_cq_sema_p)) {
-    GASNETC_TRACE_WAIT_BEGIN();
-    do {
-      GASNETI_WAITHOOK();
-      gasnetc_poll_snd();
-    } while (!gasnetc_sema_trydown(cep->snd_cq_sema_p));
-    GASNETC_TRACE_WAIT_END(POST_SR_STALL_CQ);
-  }
+  GASNETI_SPIN_UNTIL_TRACE(gasnetc_sema_trydown(cep->snd_cq_sema_p),
+                           C, POST_SR_STALL_CQ, gasnetc_poll_snd());
 
   // Post the operation
   struct ibv_send_wr *bad_wr;
@@ -1443,13 +1437,8 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
       sr_desc = amo_sr_desc;
       is_inline = 0;
       // Now we spin to obtain a SQ slot for just the Atomic operation
-      if_pf (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
-        GASNETC_TRACE_WAIT_BEGIN();
-        do {
-          if (!gasnetc_snd_reap(1)) GASNETI_WAITHOOK();
-        } while (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)));
-        GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ2);
-      }
+      GASNETI_SPIN_UNTIL_TRACE(gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)),
+                               C, POST_SR_STALL_SQ2, gasnetc_snd_reap(1));
     }
   }
 #endif
@@ -2920,10 +2909,8 @@ gasnetc_sndrcv_quiesce(void) {
       for (qpi = qpi_offset, cep += qpi_offset; qpi < gasnetc_alloc_qps; ++qpi, ++cep) {
         int remain = gasnetc_am_oust_pp;
         gasnetc_sema_t *sema = &cep->am_rem;
-        while (0 != (remain -= gasnetc_sema_trydown_partial(sema, remain))) {
-          GASNETI_WAITHOOK();
-          gasnetc_poll_both();
-        }
+        GASNETI_SPIN_WHILE((remain -= gasnetc_sema_trydown_partial(sema, remain)),
+                           gasnetc_poll_both());
       }
     }
   }
@@ -2943,10 +2930,7 @@ gasnetc_sndrcv_quiesce(void) {
         /* OK if some other AM Request gets in this gap; we'll block for the reply. */
         gasnetc_RequestSysShort(cep->epid, &dummy, gasneti_handleridx(gasnetc_sys_close_reqh), 0);
       }
-      while (! gasnetc_close_recvd[shift]) {
-        GASNETI_WAITHOOK();
-        gasnetc_poll_both();
-      }
+      GASNETI_SPIN_UNTIL(gasnetc_close_recvd[shift], gasnetc_poll_both());
       gasnetc_close_recvd[shift] = 0;
     }
   }
@@ -2955,11 +2939,8 @@ gasnetc_sndrcv_quiesce(void) {
   GASNETC_FOR_ALL_HCA(hca) {
     int remain = hca->snd_cq->cqe;
     gasnetc_sema_t *sema = hca->snd_cq_sema_p;
-
-    while (0 != (remain -= gasnetc_sema_trydown_partial(sema, remain))) {
-      GASNETI_WAITHOOK();
-      gasnetc_poll_both();
-    }
+    GASNETI_SPIN_WHILE((remain -= gasnetc_sema_trydown_partial(sema, remain)),
+                       gasnetc_poll_both());
   }
 
   /* Resume credit coallescing (in any) */
@@ -3046,18 +3027,15 @@ extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_con
   const gasnetc_atomic_val_t initiated = (counter->initiated & GASNETI_ATOMIC_MAX);
   gasnetc_atomic_t * const completed = &counter->completed;
 
+  // caller has checked that (initiated != completed)
+  // so the spin loops below are "DOUNTIL"
   if (handler_context) {
-    do {
-      /* must not poll rcv queue in hander context */
-      GASNETI_WAITHOOK();
-      gasnetc_poll_snd();
-    } while (initiated != gasnetc_atomic_read(completed, 0));
+    // must not poll rcv queue in hander context
+    GASNETI_SPIN_DOUNTIL((initiated == gasnetc_atomic_read(completed, 0)),
+                         gasnetc_poll_snd());
   } else {
-    do {
-      GASNETI_WAITHOOK();
-      gasnetc_poll_both();
-      GASNETI_PROGRESSFNS_RUN();
-    } while (initiated != gasnetc_atomic_read(completed, 0));
+    GASNETI_SPIN_DOUNTIL((initiated == gasnetc_atomic_read(completed, 0)),
+                         { gasnetc_poll_both(); GASNETI_PROGRESSFNS_RUN(); });
   }
 }
 
