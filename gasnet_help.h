@@ -1366,6 +1366,34 @@ typedef void (*gasneti_progressfn_t)(void);
  * of date.
  */
 extern int gasneti_wait_mode; /* current waitmode hint */
+
+// GASNETI_WAITHOOK is used to improve performance of various spinloop
+// constructs, implementing the policy selected using `gasnet_set_waitmode()`
+// and invoking `gasneti_spinloop_hint()`.  Since one or both of these can
+// result in non-trivial delay, this hook should only be used after the loop
+// termination condition is known to be false.  This is typically ensured by
+// "peeling" the first iteration of the loop.
+// Additionally, since the implementation of `gasneti_spinloop_hint()` via the
+// x86 `pause` instruction disables speculative execution, this hook should
+// immediately follow the conditional which continues the spin.
+//
+// See `gasneti_pollwhile()` for one example embodying of these recommendations.
+//
+// Here is another example:
+//   p = pop(&freelist);
+//   if_pf (!p) {
+//     while (1) {
+//       progress(); // Can refill the freelist
+//       p = pop(&freelist);
+//       if (p) break;
+//       GASNETI_WAITHOOK();
+//     }
+//   }
+// In this example note that `GASNETI_WAITHOOK` is only reached if `pop` fails a
+// second time with a `progress` between the first and second attempts ( the
+// "loop peeling" recommendation.)  Also note that `GASNETI_WAITHOOK`
+// immediately follows the conditional `break` that eventually terminates the
+// loop.
 #define GASNETI_WAITHOOK() do {                                       \
     /* prevent optimizer from hoisting the condition check out of */  \
     /* the enclosing spin loop - this is our way of telling the */    \
@@ -1374,10 +1402,10 @@ extern int gasneti_wait_mode; /* current waitmode hint */
     if_pf (gasneti_wait_mode != GASNET_WAIT_SPIN) gasneti_sched_yield(); \
   } while (0)
 
-/* busy-waits, with no implicit polling (cnd should include an embedded poll)
-   differs from GASNET_BLOCKUNTIL because it may be waiting for an event
-     caused by the receipt of a non-AM message
- */
+// busy-waits, *without* implicit polling (thus `cnd` should include any
+// necessary polling for progress)
+// Differs from GASNET_BLOCKUNTIL because it may be waiting for an event caused
+// by the receipt of a non-AM message
 #ifndef gasneti_waitwhile
   #define gasneti_waitwhile(cnd) do { \
     while (cnd) GASNETI_WAITHOOK();   \
