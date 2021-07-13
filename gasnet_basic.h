@@ -116,7 +116,9 @@
 #if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_LT(3,6,0)
   // bug3801: old clangs report __has_attribute(__fallthrough__)=1, but incorrectly implement the attribute
   // in a way that leads to empty statement warnings when used as per GNU instructions
+  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH
   #define GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH 0
+  #endif
 #endif
 
 #if PLATFORM_COMPILER_INTEL && PLATFORM_COMPILER_VERSION_GE(20,21,20210228) && !__INTEL_CLANG_COMPILER
