@@ -461,6 +461,8 @@ typedef struct {
     /* Initialized by client: */
     void                    (*fn)(struct ibv_wc *, void *);
     void                    *fn_arg;
+    gasnetc_atomic_t        *serialize_poll;
+    gasnetc_atomic_t        *exclusive_poll;
   } gasnetc_progress_thread_t;
 #else
   typedef void gasnetc_progress_thread_t;
