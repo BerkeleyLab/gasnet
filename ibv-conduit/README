@@ -145,7 +145,8 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   By default, ibv-conduit serializes calls to `ibv_poll_cq()` in a manner which
   reduces time spent blocked on the mutex internal to its implementation.  One
   can configure using `--disable-ibv-serialize-poll-cq` to disable this
-  behavior.
+  behavior.  For more information, see the `GASNET_RCV_THREAD_POLL_MODE`
+  environment variable documentation, below.
 
 @ Section: Job Spawning @
 
@@ -567,6 +568,35 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The default value is 0, which means no limit is imposed.
     NOTE: A future release may implement GASNET_RCV_THREAD_LOAD to
     impose a limit on the *fraction* of time the thread spends awake.
+
+  + GASNET_RCV_THREAD_POLL_MODE
+    If GASNET_RCV_THREAD is enabled, then this setting determines if/how the
+    AM receive thread participates in the serialization of calls to
+    `ibv_poll_cq()`.  This serialization can improve the throughput of
+    clients with multiple threads (the AM receive thread included) by reducing
+    the time spent blocked while polling.
+    The following values (case-insensitive) are recognized:
+      * 'serialized' - The AM receive thread will poll the completion queue
+        for AM arrivals while participating in the same serialization protocol
+        as client threads.  (default)
+      * 'unserialized' - The AM receive thread will poll the completion queue
+        for AM arrivals without regard to the serialization protocol observed
+        by client threads.
+      * 'exclusive' - The AM receive thread will utilize the serialization
+        protocol observed by client threads to become the only poller of the
+        completion queue for AM arrivals.
+    The default is "serialized".
+    The value "exclusive" is the only option which directly affects the
+    behavior of application threads.  The others have only an indirect affect
+    via the degree of contention they may experience due to the receive thread.
+    If the AM receive thread is disabled (via `'--disable-ibv-rcv-thread` at
+    configure time or via the `GASNET_RCV_THREAD` environment variable), then
+    this setting is ignored.  In particular, setting `GASNET_RCV_THREAD=0`
+    and `GASNET_RCV_THREAD_POLL_MODE=exclusive` does not prevent application
+    threads from polling the completion queue for AM arrivals.
+    If serialization of calls to `ibv_poll_cq()` was disabled at configure
+    time via `--disable-ibv-serialize-poll-cq`, then this setting is ignored
+    and the behavior is equivalent to "unserialized".
 
   Pinnable memory probe configuration:
   -----------------------------------

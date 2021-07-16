@@ -63,6 +63,10 @@ int					gasnetc_am_credits_slack;
 int					gasnetc_am_credits_slack_orig;
 int					gasnetc_alloc_qps;
 int					gasnetc_num_qps;
+#if GASNETC_USE_RCV_THREAD && GASNETC_SERIALIZE_POLL_CQ
+int                                     gasnetc_rcv_thread_poll_serialize = -1;
+int                                     gasnetc_rcv_thread_poll_exclusive = -1;
+#endif
 
 #if GASNETC_PIN_SEGMENT
   // Rkeys for non-primordial remote EPs
@@ -1501,7 +1505,13 @@ static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
     /* Handler might have queued work for firehose */
     firehose_poll();
   #endif 
-    GASNETI_PROGRESSFNS_RUN();
+  #if GASNETC_SERIALIZE_POLL_CQ
+    // In exclusive mode it is not safe to run progress functions, because
+    // AM Request injection within a progress function cannot poll for credits.
+    // TODO: revisit if/when non-communicating progress functions are separated.
+    if (! gasnetc_rcv_thread_poll_exclusive)
+  #endif 
+      GASNETI_PROGRESSFNS_RUN();
   }
 }
 #endif /* GASNETC_USE_RCV_THREAD */
@@ -3021,6 +3031,15 @@ extern void gasnetc_sndrcv_start_thread(void) {
       if (rcv_max_rate > 0) {
         hca->rcv_thread.min_ns = ((uint64_t)1E9) / rcv_max_rate;
       }
+    #if GASNETC_SERIALIZE_POLL_CQ
+      gasneti_assert(!gasnetc_rcv_thread_poll_exclusive ||
+                     !gasnetc_rcv_thread_poll_serialize); // mutually exclusive
+      if (gasnetc_rcv_thread_poll_exclusive) {
+        hca->rcv_thread.exclusive_poll = &hca->poll_cq_semas.rcv;
+      } else if (gasnetc_rcv_thread_poll_serialize) {
+        hca->rcv_thread.serialize_poll = &hca->poll_cq_semas.rcv;
+      }
+    #endif
     #if GASNETI_THREADINFO_OPT
       hca->rcv_threadinfo = NULL;
     #endif
