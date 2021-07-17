@@ -1311,8 +1311,9 @@ gasnett_spinloop_hint()
 
    Some processors get measurably better performance when a special instruction
    is inserted in spin-loops (eg to avoid a memory hazard stall on spin loop exit 
-   and reduce power consumption). This macro issues such an instruction, if an
-   appropriate instruction exists for this architecture.
+   and reduce power consumption).  If such an instruction exists for this
+   architecture, this macro issues the instruction and a compiler fence.
+   Otherwise, this macro expands to the same as gasnett_compiler_fence().
 
 int gasnett_maximize_rlimits();
 int gasnett_maximize_rlimit(int res, const char *lim_desc);

@@ -1136,7 +1136,8 @@ void * thread_fn(void *arg) {
       /* Now try spinlock construct */
       THREAD_BARRIER();
       for (gasnett_atomic_val_t i=0;i<share;i++) {
-	while (!gasnett_atomic_compare_and_swap(&counter2, oldval, ~oldval, 0)) {};
+	while (!gasnett_atomic_compare_and_swap(&counter2, oldval, ~oldval, 0))
+          gasnett_spinloop_hint();
         gasnett_local_rmb(); /* Acquire */
 	shared_counter ++;
         gasnett_local_wmb(); /* Release */
@@ -1149,7 +1150,8 @@ void * thread_fn(void *arg) {
       /* Now try spinlock construct using mb() */
       THREAD_BARRIER();
       for (gasnett_atomic_val_t i=0;i<share;i++) {
-	while (!gasnett_atomic_compare_and_swap(&counter2, oldval, ~oldval, 0)) {};
+	while (!gasnett_atomic_compare_and_swap(&counter2, oldval, ~oldval, 0))
+          gasnett_spinloop_hint();
         gasnett_local_mb(); /* Acquire */
 	shared_counter --;
         gasnett_local_mb(); /* Release */
