@@ -137,6 +137,10 @@ void gasneti_AD_Create(
   gasneti_assert((dt != GEX_DT_DBL) || sizeof(double) == 8);
 #endif
 
+  // Lacking a subsystem init call, this is as good a place as any for these checks:
+  gasneti_static_assert(GEX_FLAG_AD_ACQ == GASNETI_ATOMIC_ACQ);
+  gasneti_static_assert(GEX_FLAG_AD_REL == GASNETI_ATOMIC_REL);
+
   gasneti_AD_t real_ad = gasneti_alloc_ad(real_tm, dt, ops, flags);
 
   // Algorithm selection:

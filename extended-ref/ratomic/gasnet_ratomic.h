@@ -614,10 +614,13 @@ gex_Rank_t gasnete_ratomic_self(gasneti_AD_t _ad, gex_Flags_t _flags) {
 // Note that _GASNETE_RATOMIC_DISP_TOOLS_SAFE has unusually "flow" in that it
 // EITHER completes the operation synchronously using tools and *returns*
 // OR it continues through to the next statement.
+// Also note that the computation of _fences is correct only because
+//   (GEX_FLAG_AD_ACQ == GASNETI_ATOMIC_ACQ)
+//   (GEX_FLAG_AD_REL == GASNETI_ATOMIC_REL)
+// as checked via gasneti_static_assert() elsewhere.
 #define _GASNETE_RATOMIC_DISP_TOOLS_SAFE(dtcode,type,retdone) do { \
         _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode)                            \
-        const int _fences = ((_flags & GEX_FLAG_AD_ACQ) ? GASNETI_ATOMIC_ACQ : 0) \
-                          | ((_flags & GEX_FLAG_AD_REL) ? GASNETI_ATOMIC_REL : 0);\
+        const int _fences = (_flags) & (GEX_FLAG_AD_ACQ | GEX_FLAG_AD_REL);  \
         type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
                                                  _operand1, _operand2,       \
                                                  _opcode, _fences);          \
