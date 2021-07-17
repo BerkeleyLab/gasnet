@@ -46,7 +46,8 @@ GASNet-EX ChangeLog
     compiler family, as a prerequisite for anticipated support for this
     compiler in a future release.
 
-* GASNet tools
+* GASNet tools (spec v1.18): (details in README-tools)
+  - Add gasnett_assume, for exposing annotations to guide optimization
   - gasnett_spinloop_hint() now includes a compiler fence on all CPU
     architectures, not just those with a "pause" instruction (or similar).
 

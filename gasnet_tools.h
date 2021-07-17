@@ -157,6 +157,8 @@ GASNETI_BEGIN_NOWARN
 
 #define gasnett_unreachable             gasneti_unreachable
 
+#define gasnett_assume                  gasneti_assume
+
 /* ------------------------------------------------------------------------------------ */
 /* discard macro aguments w/ compiler-specific warning supression */
 #define GASNETT_UNUSED_ARGS1            GASNETI_UNUSED_ARGS1

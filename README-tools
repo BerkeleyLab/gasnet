@@ -708,6 +708,16 @@ gasnett_unreachable()
   This annotation marks the current code location as unreachable (using compiler-specific
   mechanisms), to assist optimization of surrounding code.
 
+gasnett_assume(cond)
+
+  States simple expression cond is always true, as an annotation directive to guide compiler analysis.
+  Becomes an assertion in DEBUG mode and an analysis directive (when available) in NDEBUG mode.
+  This notably differs from typical assertions in that the expression must remain valid in NDEBUG mode
+  (because it is not preprocessed away), and furthermore may or may not be evaluated at runtime.
+  To ensure portability and performance, cond should NOT contain any function calls or side-effects.
+  WARNING: passing a cond which is ever false in NDEBUG mode could lead the compiler 
+  to mis-optimize surrounding code in unintuitive/unexpected ways.
+
 GASNETT_FALLTHROUGH
 
  This annotation is used to annotate a deliberate/explicit fallthrough of control from
