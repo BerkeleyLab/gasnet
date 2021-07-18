@@ -630,12 +630,18 @@ gex_Rank_t gasnete_ratomic_self(gasneti_AD_t _ad, gex_Flags_t _flags) {
         return retdone;                                                      \
     } while (0)
 #if GASNET_PSHM
+  #if GASNET_CONDUIT_SMP
+    // With smp-conduit there is only a single nbrhd
+    #define _GASNETE_RATOMIC_DISP_MY_NBRHD_FLAG(_flags) 1
+  #else
+    #define _GASNETE_RATOMIC_DISP_MY_NBRHD_FLAG(_flags) (_flags & GEX_FLAG_AD_MY_NBRHD)
+  #endif
   #define _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode) \
     if (_flags & GEX_FLAG_AD_MY_RANK) {                                  \
         gasneti_assert(_tgt_rank == gasnete_ratomic_self(_real_ad,_flags));\
         /* Will use tools */                                             \
     } else if (GASNETE_RATOMIC_PSHMSAFE##dtcode) {                       \
-        if (_flags & GEX_FLAG_AD_MY_NBRHD) {                             \
+        if (_GASNETE_RATOMIC_DISP_MY_NBRHD_FLAG(_flags)) {               \
             gex_TM_t _tm = gasnete_ratomic_e_tm(_real_ad,_flags);        \
             gasneti_assert(GASNETI_NBRHD_LOCAL(_tm,_tgt_rank));          \
             _tgt_addr = GASNETI_NBRHD_LOCAL_ADDR(_tm,_tgt_rank,_tgt_addr);\
@@ -651,8 +657,16 @@ gex_Rank_t gasnete_ratomic_self(gasneti_AD_t _ad, gex_Flags_t _flags) {
        break; /* Leave enclosing do/while w/o using tools */             \
     }
 #else
+  #if GASNET_CONDUIT_SMP
+    // With smp-conduit (and w/o PSHM) there is only a single process
+    #define _GASNETE_RATOMIC_DISP_MY_RANK_FLAG(_flags) 1
+  #else
+    // Without PSHM, GEX_FLAG_AD_MY_NBRHD implies GEX_FLAG_AD_MY_RANK
+    #define _GASNETE_RATOMIC_DISP_MY_RANK_FLAG(_flags) \
+            (_flags & (GEX_FLAG_AD_MY_RANK|GEX_FLAG_AD_MY_NBRHD))
+  #endif
   #define _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode) \
-    if ((_flags & (GEX_FLAG_AD_MY_RANK|GEX_FLAG_AD_MY_NBRHD)) ||         \
+    if (_GASNETE_RATOMIC_DISP_MY_RANK_FLAG(_flags) ||                    \
         (_tgt_rank == gasnete_ratomic_self(_real_ad,_flags))) {          \
         gasneti_assert(_tgt_rank == gasnete_ratomic_self(_real_ad,_flags));\
         /* Will use tools */                                             \
