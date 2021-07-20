@@ -476,7 +476,6 @@ static int gasnetc_register_udreg(gasnetc_post_descriptor_t *gpd, uint32_t memre
         continue;
       } else if (UDREG_RC_NO_MATCH == rc) {
         GASNETC_UNLOCK_UDREG();
-        GASNETI_WAITHOOK();
         gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
         GASNETC_LOCK_UDREG();
       } else {
@@ -553,7 +552,6 @@ first:
       GASNETC_STAT_EVENT_VAL(MEM_REG_RETRY, trial);
       return 1;
     } else if (status == GNI_RC_ERROR_RESOURCE) {
-      GASNETI_WAITHOOK();
       gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
       ++trial;
     } else if (status == GNI_RC_INVALID_PARAM) {
@@ -1685,7 +1683,6 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
       return GASNET_ERR_RESOURCE;
     }
 
-    GASNETI_WAITHOOK();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
     GASNETC_LOCK_GNI();
   }
@@ -1763,7 +1760,6 @@ int send_ctrl(peer_struct_t * const peer, uint32_t value, gasneti_weakatomic_t *
       return GASNET_ERR_RESOURCE;
     }
 
-    GASNETI_WAITHOOK();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   }
 
@@ -2933,7 +2929,6 @@ gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd, int 
         return GNI_RC_SUCCESS;
       }
       if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
-      GASNETI_WAITHOOK();
       gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   } while (++trial < GASNETC_RESOURCE_RETRIES);
   if (status == GNI_RC_ERROR_RESOURCE) {
@@ -2963,7 +2958,6 @@ gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd, int l
         return GNI_RC_SUCCESS;
       }
       if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
-      GASNETI_WAITHOOK();
       gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   } while (++trial < GASNETC_RESOURCE_RETRIES);
   if (status == GNI_RC_ERROR_RESOURCE) {
@@ -3621,7 +3615,6 @@ void gasnetc_rdma_put_long(
       return; // Normal exit path
     }
     if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
-    GASNETI_WAITHOOK();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   } while (++trial < GASNETC_RESOURCE_RETRIES);
  } // End of scope: 'trial', 'ep' and 'instid'
