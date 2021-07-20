@@ -1532,10 +1532,6 @@ void gasnetc_shutdown(void)
         }
       }
       if (!left) break;
-#if 0
-      GASNETI_WAITHOOK();
-      gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-#endif
     }
     if_pf (left > 0) {
       gasnetc_GNIT_Log("at shutdown: %d endpoints left after 10 tries", left);
