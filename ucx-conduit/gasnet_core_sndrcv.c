@@ -144,15 +144,12 @@ extern void gasnetc_counter_wait(gasnetc_counter_t *counter,
 
   if_pf (!gasnetc_counter_done(counter)) {
     if (outside_handler_context) {
-      do {
-        GASNETI_WAITHOOK();
-        gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
-      } while (initiated != gasnetc_atomic_read(completed, 0));
+      GASNETI_SPIN_DOUNTIL(initiated == gasnetc_atomic_read(completed, 0),
+                           gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS));
     } else {
-      do {
-        GASNETI_WAITHOOK();
-        gasnetc_poll_snd(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
-      } while (initiated != gasnetc_atomic_read(completed, 0));
+      // must not poll rcv queue in hander context
+      GASNETI_SPIN_DOUNTIL(initiated == gasnetc_atomic_read(completed, 0),
+                           gasnetc_poll_snd(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS));
     }
   }
 }
@@ -1090,12 +1087,11 @@ exit:
 void gasnetc_send_list_wait(gasnetc_lock_mode_t lmode GASNETI_THREAD_FARG)
 {
   size_t send_size;
-  do {
-    GASNETI_WAITHOOK();
+  GASNETI_SPIN_DOWHILE(send_size, {
     GASNETC_LOCK_ACQUIRE(lmode);
     gasnetc_poll_sndrcv(GASNETC_LOCK_INLINE GASNETI_THREAD_PASS);
     send_size = gasneti_list_size(&gasneti_ucx_module.send_queue);
     GASNETC_LOCK_RELEASE(lmode);
-  } while (send_size);
+  });
 }
 /* ------------------------------------------------------------------------------------ */
