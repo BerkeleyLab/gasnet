@@ -1066,17 +1066,12 @@ static int gasnete_gdbarrier_wait(gasnete_coll_team_t team, int id, int flags) {
   if (barrier_data->barrier_state >= barrier_data->barrier_goal) {
     /* completed asynchronously before wait (via progressfns or try) */
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
+    gasneti_sync_reads(); /* ensure correct state will be read */
   } else {
-    /* kick once, and if still necessary, wait for a response */
-    gasnete_gdbarrier_kick(team);
-    /* cannot BLOCKUNTIL since progess may occur on non-AM events */
-    while (barrier_data->barrier_state < barrier_data->barrier_goal) {
-      GASNETI_WAITHOOK();
-      GASNETI_SAFE(gasneti_AMPoll());
-      gasnete_gdbarrier_kick(team);
-    }
+    // kick once (eliding AMPoll), and if still necessary, spin poll for progress
+    // IOW: kick, test, (poll, kick, test)*N
+    gasneti_pollwhile((gasnete_gdbarrier_kick(team), (barrier_data->barrier_state < barrier_data->barrier_goal)));
   }
-  gasneti_sync_reads(); /* ensure correct state will be read */
 
   /* determine return value */
   if_pf (barrier_data->barrier_flags & GASNET_BARRIERFLAG_MISMATCH) {
