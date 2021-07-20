@@ -119,6 +119,12 @@ int main(int argc, char **argv)
   } else {
     MSG("CUDA_VISIBLE_DEVICES is unset");
   }
+  const char *nvd = getenv("NVIDIA_VISIBLE_DEVICES"); // Intentionally NOT gasnet_getenv()
+  if (nvd) {
+    MSG("NVIDIA_VISIBLE_DEVICES='%s'", nvd);
+  } else {
+    MSG("NVIDIA_VISIBLE_DEVICES is unset");
+  }
 
   TEST_BCAST(&seed, 0, &seed, sizeof(seed));
   TEST_SRAND(seed);
