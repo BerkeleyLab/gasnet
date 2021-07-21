@@ -2413,18 +2413,14 @@ gasnete_tm_reduce_nb_default(
       gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz == %"PRIuSZ") is TOO LARGE for this implementation",
                          dt_sz);
     }
-    if ( !(flags & GASNETI_FLAG_COLL_SUBORDINATE)) {
-      GASNETE_COLL_CHECK_NO_SCRATCH(team);
-    }
   }
   
   // TODO-EX: stop abusing implementation_t argument to pass the geom
-  int coll_flags = (flags & GASNETI_FLAG_COLL_SUBORDINATE) ? GASNETE_COLL_SUBORDINATE : 0;
   gex_Event_t result =
          (*alg)(e_tm, root, dst, src,
                 dt, dt_sz, dt_cnt,
                 opcode, user_fnptr, user_cdata,
-                coll_flags, (void*)geom, sequence GASNETI_THREAD_PASS);
+                /*flags*/0, (void*)geom, sequence GASNETI_THREAD_PASS);
 
   gasneti_AMPoll(); // No progress made until now
   return result;
