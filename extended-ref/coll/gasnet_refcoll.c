@@ -940,7 +940,7 @@ extern void gasnete_coll_p2p_med_reqh(gex_Token_t token, void *buf, size_t nbyte
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
   int i;
 
-  if (size) {
+  if (nbytes) {
     GASNETE_FAST_UNALIGNED_MEMCPY(p2p->data + offset*size, buf, nbytes);
     gasneti_sync_writes();
   }
@@ -958,7 +958,7 @@ extern void gasnete_coll_p2p_med_counting_reqh(gex_Token_t token, void *buf, siz
                                                gex_AM_Arg_t size) {
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
   
-  if (size) {
+  if (nbytes) {
     GASNETE_FAST_UNALIGNED_MEMCPY(p2p->data + offset*size, buf, nbytes);
     gasneti_sync_writes();
   }
