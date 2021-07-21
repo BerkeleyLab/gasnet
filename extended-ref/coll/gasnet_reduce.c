@@ -389,7 +389,6 @@ static int gasnete_coll_pf_tm_reduce_BinomialEagerSeg(gasnete_coll_op_t *op GASN
       comms_done:
       // Comms are done, reduction might be too
       if (pdata->last) {
-        result = GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE;
         goto done;
       }
 

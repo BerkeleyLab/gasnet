@@ -2398,7 +2398,6 @@ gasnete_tm_reduce_nb_default(
       (nbytes <= gex_AM_LUBRequestMedium())) {
     alg = &gasnete_tm_reduce_BinomialEager;
   } else {
-    gasnete_coll_team_t team = i_tm->_coll_team;
     const size_t smallest_scratch = team->scratch_size;
     geom = gasnete_coll_local_tree_geom_fetch(gasnetc_tm_reduce_tree_type, root, team);
     const gex_Rank_t max_radix = geom->max_radix;
