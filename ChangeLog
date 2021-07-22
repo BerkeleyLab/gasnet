@@ -67,6 +67,7 @@ GASNet-EX ChangeLog
   - bug4263: remove "AD_MY_NBRHD" check on smp-conduit
   - bug4264: simplify implementation of GEX_FLAG_AD_{ACQ,REL}
   - bug4265: Collective scratch management is not thread safe
+  - bug4266: gex_Coll_ReduceToAllNB is not thread safe
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release
