@@ -34,6 +34,7 @@ GASNet-EX ChangeLog
   - Improved memory utilization at large scale.
   - SEQ and PARSYNC builds now set MLX{4,5}_SINGLE_THREADED under
     appropriate conditions to elide locking overheads in libibverbs.
+  - Improved scaling with large thread counts by serializing CQ polling.
   - NEW: configure option --with-ibv-fenced-puts=... can be used to set the
     default value for the GASNET_USE_FENCED_PUTS environment variable.
 
