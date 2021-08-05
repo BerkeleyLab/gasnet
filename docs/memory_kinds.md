@@ -38,10 +38,10 @@ For brevity, this will be referenced as simply "the API Proposal".
 By default, the `configure` script does not enable support for
 any non-host memory kinds.  Use of new configure option `--enable-memory-kinds`
 enables probes for the necessary headers and libraries for all available device
-"kinds" (presently only "CUDA_UVA") and enables the prototype implementation of
+"kinds" (presently "CUDA_UVA" and "HIP") and enables the prototype implementation of
 memory kinds if such support is found.  This is the recommended mechanism to
 enable memory kinds support, since it will enable additional kinds as they are
-added.  For more detailed control for a given kind (such as "cuda-uva") the
+added.  For more detailed control for a given kind (such as "cuda-uva" or "hip") the
 following take precedence over `--(en|dis)able-memory-kinds`:
 
   + `--disable-kind-[name]` disables probing for support for the named kind.
@@ -61,23 +61,38 @@ probe if needed:
   + `--with-cuda-libs=...` or `CUDA_LIBS`
   + `--with-cuda-ldflags=...` or `CUDA_LDFLAGS`
 
+  + `--with-hip-home=...` or `HIP_HOME`
+  + `--with-hip-cflags=...` or `HIP_CFLAGS`
+  + `--with-hip-libs=...` or `HIP_LIBS`
+  + `--with-hip-ldflags=...` or `HIP_LDFLAGS`
+
 Generally, it is sufficient to provide the installation prefix of the CUDA
-toolkit using either `--with-cuda-home=...` or `CUDA_HOME`, since the others
+or HIP installation using the `--with-...-home` option or the corresponding
+environment variable, since the remaining settings
 all have sensible defaults once the installation prefix is known.
 
 Clients can use the preprocessor identifier `GASNET_HAVE_MK_CLASS_CUDA_UVA`
 (defined to `1` or undefined) to determine if support for the CUDA_UVA memory
 kind was detected at configure time.
 
+Clients can use the preprocessor identifier `GASNET_HAVE_MK_CLASS_HIP`
+(defined to `1` or undefined) to determine if support for the HIP memory
+kind was detected at configure time.
+
 The preprocessor identifier `GASNET_HAVE_MK_CLASS_MULTIPLE` is more general,
 providing the client with an indication if configure detected support for *any*
-memory kinds other than host memory.
+memory kinds other than host memory.  Again the value is either defined to `1`
+or undefined.
 
 # Supported Configurations
 
-All current memory kinds implementation work is limited to devices with the
-CUDA Device API and Unified Virtual Addressing (UVA).  This should include
-all modern NVIDIA GPUs and CUDA Toolkit versions.
+All current memory kinds implementation work is limited to two types of devices:
+
+1. Devices with the CUDA Device API and Unified Virtual Addressing (UVA).
+   This should include all modern NVIDIA GPUs and CUDA Toolkit versions.
+
+2. Devices with the HIP API, which should include all AMD GPUs supported by AMD ROCm.
+   Please consult the ROCm documentation for information on supported devices.
 
 Support is further limited to ibv-conduit on Linux and only when using Mellanox
 InfiniBand hardware and drivers with support for "GPUDirect RDMA" (GDR).  In
@@ -94,13 +109,14 @@ the `--enable-segment-fast` option.  To be clear: `--enable-segment-large` and
 the memory kinds work in the current implementation.
 
 To the best of our knowledge, Mellanox currently disclaims support for GPUDirect
-RDMA on aarch64 (aka ARM64 or ARMv8) and NVIDIA does not support UVA on ILP32
-platforms.  Therefore, this work currently supports only x86-64 and ppc64le.
+RDMA on aarch64 (aka ARM64 or ARMv8).  NVIDIA does not support UVA on ILP32
+platforms, and AMD does not claim any 32-bit CPU support at all.
+Therefore, this work currently supports only x86-64 and ppc64le.
 
 For any configurations that do not meet all of the configure-testable
 requirements outlined above, the memory kinds support in the current prototype
-implementation will be disabled (or `configure` will fail if it was passed
-`--enable-kind-cuda-uva`).  Specifically, `GASNET_HAVE_MK_CLASS_CUDA_UVA` will be
+implementation will be disabled (or `configure` will fail if it was passed a
+failing `--enable-kind-[kind]`).  Specifically, `GASNET_HAVE_MK_CLASS_[KIND]` will be
 undefined and attempts to create device segments will fail at runtime.  Future
 releases are expected to eventually include a "reference implementation" that
 will allow creation of device segments on a wider range of platforms and
@@ -113,15 +129,31 @@ to determine at runtime if GDR support is present or not.  If it is not, then
 
 ## Limits on GPU segment size
 
-Modern NVIDIA GPUs with GPUDirect utilize a "Base Address Register" mechanism
+Modern GPUs with GPUDirect utilize a "Base Address Register" mechanism
 to map the device memory into the PCIe address space.  The amount of memory
-which can be mapped by GASNet-EX as a GPU segment is limited by the `BAR1`
+which can be mapped by GASNet-EX as a GPU segment is limited by the `BAR`
 capability of your GPU, which can also be severely limited by the motherboard
 and/or BIOS.
 
-To query the BAR1 capability of your GPU, run `nvidia-smi -q` and look for the
+To query the BAR capability of an NVIDIA GPU, run `nvidia-smi -q` and look for the
 "Total" value in the "BAR1 Memory Usage" section for an (optimistic) maximum on
-the amount of memory which can be mapped.  This limit is per GPU across all
+the amount of memory which can be mapped.
+
+We are not currently aware of a programatic means to query the BAR capability of
+an AMD GPU.  However, the Linux kernel boot messages (sometimes available via
+the `dmesg` utility or in `/var/log/boot`, or similar) may contain lines like
+the following:
+```
+[  115.169185] amdgpu 0000:03:00.0: amdgpu: VRAM: 32752M 0x0000008000000000 - 0x00000087FEFFFFFF (32752M used)
+[  115.169188] amdgpu 0000:03:00.0: amdgpu: GART: 512M 0x0000000000000000 - 0x000000001FFFFFFF
+[  115.169190] amdgpu 0000:03:00.0: amdgpu: AGP: 267780096M 0x000000A000000000 - 0x0000FFFFFFFFFFFF
+[  115.169201] [drm] Detected VRAM RAM=32752M, BAR=32768M
+```
+Which in this case shows slightly under 32GB of VRAM and a BAR size of a full
+32GB.  In this instance, the VRAM size of `32752M` is the relavant size and,
+just like the NVIDIA case, is an (optimistic) maximum limit on mappable memory.
+
+For either GPU vendor, these limits are per GPU across all
 process and runtimes on a given node.  Thus a portion is consumed by each
 GASNet-EX segment created on a given node, as well as by other uses of
 GPUDirect RDMA such as an MPI implementation.  Typically a few tens of MB are
@@ -140,7 +172,7 @@ mechanisms are documented in `ibv-conduit/README`.
 For the most up-to-date information on this issue see
 [bug 4148](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4148)
 
-Additionally, the BAR1 usage (described earlier in this document) has been
+Additionally, the BAR usage (described earlier in this document) has been
 observed to be *per-HCA* and thus use of multiple rails may limit the size of
 GPU segments.
 
@@ -153,7 +185,8 @@ supported in the future.
 It should be noted that this temporary limitation precludes use of GASNet for
 transfers which could alternatively be performed using `cudaMemcpy()`, or
 `cuMemcpy{DtoH,HtoD,DtoD}()` (possibly with some CUDA calls to enable
-peer-to-peer access).  Therefore, it is recommended practice (and will
+peer-to-peer access), or by using the `hipMemcpy*()` equivalents.
+Therefore, it is recommended practice (and will
 *continue* to be so when this limitation is removed) that clients bypass
 GASNet-EX to perform such transfers.
 
@@ -240,7 +273,14 @@ Dirac:
   + Mellanox ConnectX-5 HCAs
   + NVIDIA Maxwell-class GPUs
 
-Eventual minimum requirements may be lower than those of either platform, or
+AMD GPU systems:
+
+  + x86_64 (Intel Rome and Milan families)
+  + ROCm 4.0 though 4.2
+  + Mellanox ConnectX-5 and ConnectX-6 HCAs
+  + AMD Instinct-class (MI50 and MI100) GPUs
+
+Eventual minimum requirements may be lower than on the platforms listed above, or
 possibly higher.
 
 # Implementation Status Summary
@@ -252,7 +292,8 @@ previously noted temporary prohibitions on loopback and intra-nbrhd transfers).
 
 Please note that all error checking has been elided from this example.  Proper
 checking of return codes, if any, is especially important when using this
-prototype.
+prototype.  Modifications for `GEX_MK_CLASS_HIP` are straight-forward, requiring
+only changes to the initialization of `args`.
 
 ```
   // Bootstrap and establish host memory segment for the primordial endpoints
@@ -304,6 +345,16 @@ APIs, it is impossible to completely avoid forward references.
 The preprocessor identifier `GASNET_HAVE_MK_CLASS_MULTIPLE` is defined to `1` if
 support has been compiled in for any memory kinds other than host memory.
 
+HIP support is entirely new since the API proposal.  Its feature macro is
+`GASNET_HAVE_MK_CLASS_HIP`.  Its value in the `gex_MK_Class_t` enumerated type
+is `GEX_MK_CLASS_HIP`, and its member in the `gex_args` union in
+`gex_MK_Create_args_t` is as follows:
+```
+        struct {
+            int                    gex_hipDevice;
+        }                    gex_class_hip;
+```
+
 ## Renames:
 
 Some types, constants and functions have been renamed relative to their first
@@ -345,7 +396,7 @@ On ibv-conduit, specifically, the implementation of this API is believed to be
 complete with respect to the API Proposal.  In particular, it is capable of
 creating segments of both client-allocated and GASNet-allocated memory, using
 either the defined `kind` value `GEX_MK_HOST` or a kind created using
-`gex_MK_Create()` with a class of `GEX_MK_CLASS_CUDA_UVA`.
+`gex_MK_Create()` with a class of `GEX_MK_CLASS_CUDA_UVA` or `GEX_MK_CLASS_HIP`.
 
 Notably lacking from both specification and implementation is a means to request
 or demand allocation of memory suitable for intra-nbrhd cross-mapping via PSHM.
@@ -422,14 +473,16 @@ Not implemented.
 This API is implemented as described in the API Proposal (with some renames
 relative to their first appearance, as detailed earlier in this document), This
 includes the conditional definition (defined to `1` or undefined) of
-`GASNET_HAVE_MK_CLASS_CUDA_UVA`, which is currently defined only when the
-necessary headers and libs were located at configure time *and* one is using
-ibv-conduit in FAST segment mode.  In all other circumstances
-`GASNET_HAVE_MK_CLASS_CUDA_UVA` will be undefined.
+`GASNET_HAVE_MK_CLASS_CUDA_UVA` and/or `GASNET_HAVE_MK_CLASS_HIP`, each of
+which is defined only when the respective
+headers and libs were located at configure time *and* one is using
+ibv-conduit in FAST segment mode.  Otherwise these feature
+macros will be undefined.
 
-While `GASNET_HAVE_MK_CLASS_CUDA_UVA` has only a conditional definition, the
-enum value `GEX_MK_CLASS_CUDA_UVA` is defined unconditionally in `gasnet-mk.h`.
-Any calls to `gex_MK_Create()` specifying this class when *not* supported will
+While these feature macros have only a conditional definition, the
+enum values `GEX_MK_CLASS_CUDA_UVA` and `GEX_MK_CLASS_HIP` are both
+defined unconditionally in `gasnet_mk.h`.
+Any calls to `gex_MK_Create()` specifying a class when *not* supported will
 return `GASNET_ERR_BAD_ARG`, as documented in the API Proposal.
 
 ## `gex_MK_Destroy()`
