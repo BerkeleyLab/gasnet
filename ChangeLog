@@ -32,6 +32,10 @@ GASNet-EX ChangeLog
   - Improved code factorization to ease addition of new network conduits.
   - Improved latency for shared-memory RMA operations in all conduits.
 
+* Memory Kinds (support for non-host memory)
+  - This release adds Memory Kinds support for AMD GPUs via the HIP API.
+    See docs/memory_kinds.md for more information.
+
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
     local completion and payloads in (roughly) the 4KiB to 64KiB range.
