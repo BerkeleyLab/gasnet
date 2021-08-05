@@ -3662,7 +3662,7 @@ else
     CONDUIT_HOME([UCX library], [ucx_info], [/opt/mellanox/ucx], [include/ucp/api/ucp.h])
     CONDUIT_CFLAGS
     GASNET_ENV_DEFAULT(UCX_LIBS, -lucp -lucs -luct -lucm)
-    CONDUIT_LDFLAGS(ucx)
+    CONDUIT_LDFLAGS(ucp)
     GASNET_SPLIT_LINKER_OPTS(UCX_LDFLAGS,UCX_LIBS)
 
     # Try to compile and link a basic UCX program
