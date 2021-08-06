@@ -18,7 +18,7 @@ void gasnete_coll_put_nb(gasnete_coll_generic_data_t *data,
                          gex_TM_t tm, gex_Rank_t rank, void *dst, const void *src,
                          size_t nbytes GASNETI_THREAD_FARG)
 {
-  void *local_dst = GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(tm, rank, dst);
+  void *local_dst = GASNETI_NBRHD_MAPPED_ADDR_OR_NULL(tm, rank, dst);
   if (local_dst) {
     gasneti_assert(data->handle == GEX_EVENT_INVALID);
     GASNETI_MEMCPY(local_dst, src, nbytes);
@@ -32,7 +32,7 @@ static
 void gasnete_coll_put_nbi(gex_TM_t tm, gex_Rank_t rank, void *dst, const void *src,
                           size_t nbytes GASNETI_THREAD_FARG)
 {
-  void *local_dst = GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(tm, rank, dst);
+  void *local_dst = GASNETI_NBRHD_MAPPED_ADDR_OR_NULL(tm, rank, dst);
   if (local_dst) {
     GASNETI_MEMCPY(local_dst, src, nbytes);
   } else {
@@ -45,7 +45,7 @@ void gasnete_coll_get_nb(gasnete_coll_generic_data_t *data,
                          gex_TM_t tm, void *dst, gex_Rank_t rank, void *src,
                          size_t nbytes GASNETI_THREAD_FARG)
 {
-  void *local_src = GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(tm, rank, src);
+  void *local_src = GASNETI_NBRHD_MAPPED_ADDR_OR_NULL(tm, rank, src);
   if (local_src) {
     gasneti_assert(data->handle == GEX_EVENT_INVALID);
     GASNETI_MEMCPY(dst, local_src, nbytes);
