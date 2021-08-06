@@ -258,9 +258,12 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 //   + gasneti_pshm_local_rank()
 //   + gasneti_pshm_in_supernode()
 //   + gasneti_pshm_addr2local()
-//   + GASNETI_NBRHD_LOCAL()
-//   + GASNETI_NBRHD_LOCAL_ADDR()
-//   + GASNETI_NBRHD_LOCAL_ADDR_OR_NULL()
+//   + GASNETI_NBRHD_LOCAL() [DEPRECATED]
+//   + GASNETI_NBRHD_LOCAL_ADDR() [DEPRECATED]
+//   + GASNETI_NBRHD_LOCAL_ADDR_OR_NULL() [DEPRECATED]
+//   + GASNETI_NBRHD_MAPPED()
+//   + GASNETI_NBRHD_MAPPED_ADDR()
+//   + GASNETI_NBRHD_MAPPED_ADDR_OR_NULL()
 //   + gasneti_jobrank_if_mappable()
 //   + gasnete_mapped_at()
 
@@ -1739,6 +1742,43 @@ GASNETI_PUREP(gasneti_pshm_jobrank_addr2local)
 #endif
 
 // Helper for other queries (both with PSHM and without)
+// Returns a jobrank or GEX_RANK_INVALID depending on whether the target
+// endpoint named by (tm,rank) is a cross-mapped primordial segment.
+// Erroneous to call for a (tm,rank) naming an endpoint which does not
+// exist or has no a bound segment.
+GASNETI_INLINE(gasneti_nbrhd_mapped_helper) GASNETI_PURE
+gex_Rank_t gasneti_nbrhd_mapped_helper(gex_TM_t _e_tm, gex_Rank_t _rank) {
+  gasneti_TM_t _i_tm = gasneti_import_tm(_e_tm);
+  gasneti_check_i_tm_rank(_i_tm, _rank);
+
+#if !GASNET_SEGMENT_EVERYTHING
+  // Check that target segment exists by looking for non-NULL addr in seginfo table
+  // TODO-EX: update if/when scalable storage replaces gasneti_seginfo[]
+  // TODO-EX: update if/when it is possible to have a primordial segment which is NOT cross-mapped
+  gasneti_assert(gasneti_seginfo[gasneti_e_tm_rank_to_jobrank(_e_tm,_rank)].addr);
+#endif
+
+  if (gasneti_is_tm0(_i_tm)) {
+    // fast path for TM0, which can only include primordial segments
+    gasneti_assume(_rank != GEX_RANK_INVALID); // may improve codegen in caller
+    return GASNETI_MAPPABLE_JOBRANK_P(_rank) ? _rank : GEX_RANK_INVALID;
+  }
+
+  gex_EP_Location_t _loc = gasneti_i_tm_rank_to_location(_i_tm, _rank, 0);
+  gex_Rank_t _jobrank = _loc.gex_rank;
+
+  // Fail unless target rank is in-nbrhd or self, as appropriate
+  if (! GASNETI_MAPPABLE_JOBRANK_P(_jobrank)) return GEX_RANK_INVALID;
+
+  // Fail unless target ep is primordial
+  if (_loc.gex_ep_index != 0) return GEX_RANK_INVALID;
+
+  gasneti_assume(_jobrank != GEX_RANK_INVALID); // may improve codegen in caller
+  return _jobrank;
+}
+GASNETI_PUREP(gasneti_nbrhd_mapped_helper)
+
+// Helper for other queries (both with PSHM and without)
 // Returns a jobrank or GEX_RANK_INVALID depending on whether the initiator and
 // target endpoints named by (tm,rank) are both "eligible" to be mapped for
 // load/store access.  This is inclusive of the check on the jobrank being
@@ -1834,13 +1874,29 @@ int gasneti_pshm_in_supernode(gex_TM_t _e_tm, gex_Rank_t _rank) {
 }
 GASNETI_PUREP(gasneti_pshm_in_supernode)
 
+// Valid only for primordial segment
 GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
 void *gasneti_pshm_addr2local(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_addr) {
+#if GASNET_DEBUG
+  gex_EP_Location_t _loc = gasneti_e_tm_rank_to_location(_e_tm, _rank, 0);
+  gex_Rank_t _jobrank = _loc.gex_rank;
+  gasneti_assert_uint(_loc.gex_ep_index ,==, 0); // primordial
+#else
   gex_Rank_t _jobrank = gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
+#endif
   gasneti_assert(! gasneti_in_auxsegment(_jobrank, _addr, 1));
   return gasneti_pshm_jobrank_addr2local(_jobrank, _addr, 0);
 } 
 GASNETI_PUREP(gasneti_pshm_addr2local)
+
+// Valid only for an aux segment
+GASNETI_INLINE(gasneti_pshm_aux2local) GASNETI_PURE
+void *gasneti_pshm_aux2local(gex_Rank_t _jobrank, const void *_addr) {
+  gasneti_assert(gasneti_in_auxsegment(_jobrank, _addr, 1));
+  return gasneti_pshm_jobrank_addr2local(_jobrank, _addr, 1);
+}
+GASNETI_PUREP(gasneti_pshm_aux2local)
+
 #endif // GASNET_PSHM
 
 /* ------------------------------------------------------------------------------------ */

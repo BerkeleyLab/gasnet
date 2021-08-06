@@ -303,28 +303,85 @@ typedef union {
 #endif
 
 // GASNETI_NBRHD_* convenience macros
-// These have the same semantics both w/ and w/o PSHM, and correctly handle TM-pair and multi-EP.
-//    LOCAL(e_tm,rank)                   -> non-zero iff the indicated rank is in caller's neighborhood
-//    LOCAL_ADDR(e_tm,rank,addr)         -> address in caller's address space if the indicated rank is
-//                                        in caller's neighborhood, and undefined otherwise.
-//                                        input addr must be non-NULL
-//    LOCAL_ADDR_OR_NULL(e_tm,rank,addr) -> address in caller's address space if the indicated rank is
-//                                        in caller's neighborhood, and NULL otherwise.
-//                                        input addr must be non-NULL
-// Equivalents for callers using jobrank
-// Due to use of only the jobrank, these are not multi-EP aware and therefore cannot be used
-// alone to determine if a address is cross-mapped.
-//    JOBRANK_IS_LOCAL(jobrank)
-//    JOBRANK_LOCAL_ADDR(jobrank,addr) [DEPRECATED]
-// TODO-EX:
-//   + GASNETI_NBRHD_JOBRANK_LOCAL_ADDR needs a replacement
 //
+// All macros described here have the same semantics both with and without PSHM.
+// Those taking (e_tm,rank) correctly handle TM-pair and multi-EP.
+// Those taking only a jobrank are *not* multi-EP aware and therefore cannot be used
+// alone to determine if a address is cross-mapped.
+//
+// NOTE: all macros may evalute their arguments zero, one or more times.
+//
+// Queries on process membership in caller's NBRHD
+//
+// + GASNETI_NBRHD_LOCAL(e_tm,rank)
+// + GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)
+//     These return non-zero iff the indicated rank is in caller's neighborhood.
+//     Note that while these can (at least currently) be used to reliably determine
+//     if a primordial or aux segment is cross-mapped, they are not useful for
+//     non-primordial segments.
+//
+// Queries on cross-mapped client segments
+//
+// + For all three of the following GASNETI_NBRHD_MAPPED* macros, it is required
+//   that the EP exists and has a bound segment. If either of these requirements
+//   is not satisfied, then the behavior of the call is undefined.
+//
+// + GASNETI_NBRHD_MAPPED(e_tm,rank)
+//     This Boolean query determines if the target EP's bound segment is
+//     cross-mapped into the calling process. This notably does NOT query
+//     anything about the local EP such as whether it has a bound host-memory
+//     segment.
+//
+// + GASNETI_NBRHD_MAPPED_ADDR(e_tm,rank,addr)
+//     Returns the address in the caller's address space for the given
+//     (non-NULL) address in the target EP's bound segment, if that segment is
+//     cross-mapped and the address lies within that segment. If the address is
+//     NULL or otherwise outside the target segment, the behavior is undefined.
+//     If the target segment is not cross-mapped the behavior is undefined.
+//
+// + GASNETI_NBRHD_MAPPED_ADDR_OR_NULL(e_tm,rank,addr)
+//     This query is identical to GASNETI_NBRHD_MAPPED_ADDR except that if the
+//     target segment is not cross-mapped the return value is NULL (as opposed
+//     to undefined behavior). The implementation may be more efficient than
+//     naive composition of the two functions above.
+//
+// Queries on cross-mapped aux segments
+//
+// + GASNETI_NBRHD_AUXSEG(jobrank)
+// + GASNETI_NBRHD_AUXSEG_ADDR(jobrank,addr)
+// + GASNETI_NBRHD_AUXSEG_ADDR_OR_NULL(jobrank,addr)
+//     These are analogous to GASNETI_NBRHD_MAPPED*(), above, but dealing with
+//     the target process's aux segment rather than a bound segment. As with
+//     the "MAPPED_ADDR*" calls, an address of NULL or outside the target
+//     process's aux segment yields undefined behavior. Behavior when given a
+//     jobrank outside the caller's nbrhd follows the behavior of the
+//     corresponding "MAPPED" calls in the presence of bound segments which are
+//     not cross-mapped: False, U.B. and NULL, respectively.
+//     Note: GASNETI_NBRHD_AUXSEG is an alias for
+//     GASNETI_NBRHD_JOBRANK_IS_LOCAL, provided to help clarify the caller's
+//     intent.
+//
+// Deprecated macros:
+//
+// + GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr)
+// + GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(e_tm,rank,addr)
+//    These are deprecated in favor of the corresponding "MAPPED" or "AUGSEG"
+//    calls. Where these two macros implicitly accept auxseg addresses (at the
+//    cost of a compare/branch in the critical path), the alternative calls
+//    force the caller to sort out client vs auxseg.  The expectations is that
+//    this in most cases this is either decidable statically, or the check can
+//    be productively hoisted/factored.
+//
+// + GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr)
+//    This macro is not multi-EP aware and so should be replaced with use of
+//    something from the newer "MAPPED" family or similar.
+
 #if GASNET_PSHM
-  // TODO: following _ADDR macros do NOT currently accept auxseg addresses
   #define _GASNETI_NBRHD_LOCAL(e_tm,rank) gasneti_pshm_in_supernode(e_tm,rank)
-  #define _GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr) gasneti_pshm_addr2local(e_tm,rank,addr)
+  #define _GASNETI_NBRHD_MAPPED_ADDR(e_tm,rank,addr) gasneti_pshm_addr2local(e_tm,rank,addr)
+  #define _GASNETI_NBRHD_AUXSEG_ADDR(jobrank,addr) gasneti_pshm_aux2local(jobrank,addr)
   #define _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank) gasneti_pshm_jobrank_in_supernode(jobrank)
-  #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr) gasneti_pshm_jobrank_addr2local(jobrank,addr,0)
+  #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr,isaux) gasneti_pshm_jobrank_addr2local(jobrank,addr,isaux)
 #else
   #if GASNET_CONDUIT_SMP
     #define _GASNETI_NBRHD_LOCAL(e_tm,rank)             (1)
@@ -333,41 +390,66 @@ typedef union {
     #define _GASNETI_NBRHD_LOCAL(e_tm,rank)             (gasneti_e_tm_rank_to_jobrank(e_tm,rank) == gasneti_mynode)
     #define _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)    ((jobrank) == gasneti_mynode)
   #endif
-  #define _GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr)        (addr)
-  #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr)  (addr)
+  #define _GASNETI_NBRHD_MAPPED_ADDR(e_tm,rank,addr) \
+          (gasneti_assert(gasneti_in_local_clientsegment(gasneti_e_tm_to_i_ep(e_tm),(void*)(addr),1)), (addr))
+  #define _GASNETI_NBRHD_AUXSEG_ADDR(e_tm,rank,addr) \
+          (gasneti_assert(gasneti_in_local_auxsegment(gasneti_e_tm_to_i_ep(e_tm),(void*)(addr),1)), (addr))
+  // TODO: bounds check addr passed to _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(), possibly in the caller
+  #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr,isaux)  (addr)
 #endif
 
-GASNETI_INLINE(gasneti_nbrhd_jobrank_local_addr_or_null) GASNETI_PURE
-void *gasneti_nbrhd_jobrank_local_addr_or_null(gex_Rank_t _jobrank, void *_addr) {
-  return _GASNETI_NBRHD_JOBRANK_IS_LOCAL(_jobrank)
-             ? _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(_jobrank,_addr)
-             : NULL;
+GASNETI_INLINE(gasneti_nbrhd_mapped_addr_or_null) GASNETI_PURE
+void *gasneti_nbrhd_mapped_addr_or_null(gex_TM_t _e_tm, gex_Rank_t _rank, void *_addr) {
+  gex_Rank_t _jobrank = gasneti_nbrhd_mapped_helper(_e_tm,_rank);
+  if (_jobrank == GEX_RANK_INVALID) return NULL; // not cross-mapped
+  return _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(_jobrank,_addr,0);
 }
-GASNETI_PUREP(gasneti_nbrhd_jobrank_local_addr_or_null)
+GASNETI_PUREP(gasneti_nbrhd_mapped_addr_or_null)
 
-GASNETI_INLINE(gasneti_nbrhd_local_addr_or_null) GASNETI_PURE
-void *gasneti_nbrhd_local_addr_or_null(gex_TM_t _e_tm, gex_Rank_t _rank, void *_addr) {
-  gex_Rank_t _jobrank = gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
-  return gasneti_nbrhd_jobrank_local_addr_or_null(_jobrank, _addr);
-}
-GASNETI_PUREP(gasneti_nbrhd_local_addr_or_null)
-
+// NBRHD membership queries
 #define GASNETI_NBRHD_LOCAL(e_tm,rank) \
         (gasneti_check_e_tm_rank((e_tm),(rank)), \
-         _GASNETI_NBRHD_LOCAL(e_tm,rank))
-#define GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr)\
-        (gasneti_check_e_tm_rank((e_tm),(rank)), gasneti_assert(addr), \
-         _GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr))
-#define GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(e_tm,rank,addr) \
-        (gasneti_check_e_tm_rank((e_tm),(rank)), gasneti_assert(addr), \
-         gasneti_nbrhd_local_addr_or_null(e_tm,rank,addr))
-
+         _GASNETI_NBRHD_LOCAL((e_tm),(rank)))
 #define GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)\
         (gasneti_assert((jobrank) < gasneti_nodes), \
          _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank))
-#define GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr)\
+
+// Client segment mapping queries
+#define GASNETI_NBRHD_MAPPED(e_tm,rank) \
+        (gasneti_nbrhd_mapped_helper((e_tm),(rank)) != GEX_RANK_INVALID)
+#define GASNETI_NBRHD_MAPPED_ADDR(e_tm,rank,addr) \
+        (gasneti_assert(addr), \
+         gasneti_assert(GASNETI_NBRHD_MAPPED((e_tm),(rank))), \
+         _GASNETI_NBRHD_MAPPED_ADDR((e_tm),(rank),addr))
+#define GASNETI_NBRHD_MAPPED_ADDR_OR_NULL(e_tm,rank,addr) \
+        (gasneti_assert(addr), \
+         gasneti_nbrhd_mapped_addr_or_null((e_tm),(rank),addr))
+
+// AUGSEG mapping queries
+#define GASNETI_NBRHD_AUXSEG(jobrank) \
+        GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)
+#define GASNETI_NBRHD_AUXSEG_ADDR(jobrank,addr) \
+        (gasneti_assert(addr), \
+         gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)), \
+         _GASNETI_NBRHD_AUXSEG_ADDR(jobrank,addr))
+#define GASNETI_NBRHD_AUXSEG_ADDR_OR_NULL(jobrank,addr) \
+        (gasneti_assert(addr), \
+         (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank) \
+             ? _GASNETI_NBRHD_AUXSEG_ADDR((jobrank),(addr),1) \
+             : NULL))
+
+// The following is DEPRECATED.
+// Do not introduce any new callers.
+// TODO: remove existing ones
+#define GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr) \
         (gasneti_assert((jobrank) < gasneti_nodes), gasneti_assert(addr), \
-         _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr))
+         _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr,0))
+
+// The following are DEPRECATED aliases.
+// However, the aliasing means calls with auxseg addresses are erroneous.
+// So, new code should use "MAPPED" or "AUXSEG" macros explicitly.
+#define GASNETI_NBRHD_LOCAL_ADDR         GASNETI_NBRHD_MAPPED_ADDR
+#define GASNETI_NBRHD_LOCAL_ADDR_OR_NULL GASNETI_NBRHD_MAPPED_ADDR_OR_NULL
 
 
 // gasnete_mapped_at() is used by put/get fns to decide whether memory in 
