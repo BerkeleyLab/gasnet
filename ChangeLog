@@ -59,6 +59,9 @@ GASNet-EX ChangeLog
   - This release adds NVHPC (NVIDIA HPC SDK) as a supported compiler family
     on x86-64 and ppc64le, starting at version 20.9.
 
+* GASNet-EX Spec v0.14: (details in docs/GASNet-EX.txt)
+  - Allow mixing of root and leaf events in array-based NB event APIs.
+
 * GASNet tools (spec v1.18): (details in README-tools)
   - Add gasnett_assume, for exposing annotations to guide optimization
   - gasnett_spinloop_hint() now includes a compiler fence on all CPU
@@ -76,6 +79,7 @@ GASNet-EX ChangeLog
   - bug4212: build failure for ibv conduit with "--with-ibv-max-hcas=1"
   - bug4213: trace AM handler registration
   - bug4215: testslice enhancements to test cross-nbrhd RMA
+  - bug4218: Support root/leaf mixing in array-based NB event APIs 
   - bug4228: Bogus stringop-overflow warnings from GCC-11.1 LTO
   - bug4230: ssh-spawer de-duplication logic is flawed
   - bug4232: Bogus array-bounds warning from GCC 11.1 on ILP32/NDEBUG
