@@ -62,6 +62,7 @@ GASNet-EX ChangeLog
   - bug4232: Bogus array-bounds warning from GCC 11.1 on ILP32/NDEBUG
   - bug4237: Option for backtrace to provide the stack on all threads even in threadmode=seq
   - bug4240: ibv: optimize layout of gasnetc_cep_t
+  - bug4259/4260/4261/4262: update spinloop constructs in native conduits
   - bug4263: remove "AD_MY_NBRHD" check on smp-conduit
   - bug4264: simplify implementation of GEX_FLAG_AD_{ACQ,REL}
 
