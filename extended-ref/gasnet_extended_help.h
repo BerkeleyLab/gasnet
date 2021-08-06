@@ -360,21 +360,6 @@ typedef union {
 //     Note: GASNETI_NBRHD_AUXSEG is an alias for
 //     GASNETI_NBRHD_JOBRANK_IS_LOCAL, provided to help clarify the caller's
 //     intent.
-//
-// Deprecated macros:
-//
-// + GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr)
-// + GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(e_tm,rank,addr)
-//    These are deprecated in favor of the corresponding "MAPPED" or "AUGSEG"
-//    calls. Where these two macros implicitly accept auxseg addresses (at the
-//    cost of a compare/branch in the critical path), the alternative calls
-//    force the caller to sort out client vs auxseg.  The expectations is that
-//    this in most cases this is either decidable statically, or the check can
-//    be productively hoisted/factored.
-//
-// + GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr)
-//    This macro is not multi-EP aware and so should be replaced with use of
-//    something from the newer "MAPPED" family or similar.
 
 #if GASNET_PSHM
   #define _GASNETI_NBRHD_LOCAL(e_tm,rank) gasneti_pshm_in_supernode(e_tm,rank)
@@ -437,20 +422,6 @@ GASNETI_PUREP(gasneti_nbrhd_mapped_addr_or_null)
          (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank) \
              ? _GASNETI_NBRHD_AUXSEG_ADDR((jobrank),(addr),1) \
              : NULL))
-
-// The following is DEPRECATED.
-// Do not introduce any new callers.
-// TODO: remove existing ones
-#define GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr) \
-        (gasneti_assert((jobrank) < gasneti_nodes), gasneti_assert(addr), \
-         _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr,0))
-
-// The following are DEPRECATED aliases.
-// However, the aliasing means calls with auxseg addresses are erroneous.
-// So, new code should use "MAPPED" or "AUXSEG" macros explicitly.
-#define GASNETI_NBRHD_LOCAL_ADDR         GASNETI_NBRHD_MAPPED_ADDR
-#define GASNETI_NBRHD_LOCAL_ADDR_OR_NULL GASNETI_NBRHD_MAPPED_ADDR_OR_NULL
-
 
 // gasnete_mapped_at() is used by put/get fns to decide whether memory in 
 // a given process is "mapped" locally (memory one can memcpy() to/from).

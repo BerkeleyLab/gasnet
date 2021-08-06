@@ -258,9 +258,6 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 //   + gasneti_pshm_local_rank()
 //   + gasneti_pshm_in_supernode()
 //   + gasneti_pshm_addr2local()
-//   + GASNETI_NBRHD_LOCAL() [DEPRECATED]
-//   + GASNETI_NBRHD_LOCAL_ADDR() [DEPRECATED]
-//   + GASNETI_NBRHD_LOCAL_ADDR_OR_NULL() [DEPRECATED]
 //   + GASNETI_NBRHD_MAPPED()
 //   + GASNETI_NBRHD_MAPPED_ADDR()
 //   + GASNETI_NBRHD_MAPPED_ADDR_OR_NULL()
