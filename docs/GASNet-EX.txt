@@ -2259,13 +2259,23 @@ gex_Event_t gex_NBI_EndAccessRegion(gex_Flags_t flags);
 // The operation is indicated by the suffix
 //  + _Test: no Poll call is made, returns zero on success, and non-zero otherwise.
 //  + _Wait: Polls until success, void return
+//
+// In general it is not permitted to test or wait on a leaf event after
+// synchronization of its corresponding root event because synchronization of a
+// root event *implicitly* synchronizes any/all leaves.
+// However, when using NB event array APIs gex_Event_{Test,Wait}{Some,All}()
+// one may mix leaf events with their corresponding root events in the same
+// array without concern for their relative order.  In other words, placement
+// of a leaf event later in the array than its corresponding root event is
+// not "test or wait on a leaf event after synchronization of its corresponding
+// root event".
 
 // Completion of a single NB event
 // Success is defined as when the passed event is complete.
 int  gex_Event_Test (gex_Event_t event);
 void gex_Event_Wait (gex_Event_t event);
 
-// Completion of an event array - "some"
+// Completion of an NB event array - "some"
 // Success is defined as one or more events have been completed, OR
 // the input array contains only GEX_EVENT_INVALID (which are otherwise ignored).
 // Completed events, if any, are overwritten with GEX_EVENT_INVALID.
