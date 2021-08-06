@@ -328,6 +328,20 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     By default 'GASNET_IBV_PORTS_TYPE' is "Socket" and all other variables in
     this family are unset.
 
+  + GASNET_IBV_PORTS_VERBOSE
+    This integer setting controls the detail of any warnings printed when there
+    are non-fatal issues related to the selection of HCAs and ports to be used.
+    A value of 0 supresses the warnings entirely.
+    A value of 1 (the default) or higher will warn if one or more HCAs are
+    excluded from consideration other than due to failure to match
+    GASNET_IBV_PORTS (or the numerically suffixed variants).  In particular, a
+    warning is issued if more HCAs are detected than supported by
+    '--with-ibv-max-hcas=N' (where N defaults to 2 when configured using
+    `--enable-ibv-multirail`, and 1 otherwise).
+    Values of 2 or higher are reserved to request printing additional
+    details in future releases.
+    This setting defaults to 1.
+
   + GASNET_IBV_LIST_PORTS
     The value is a boolean: "0" to disable or "1" to enable the reporting of
     all detectable HCAs and and the status of their ports.

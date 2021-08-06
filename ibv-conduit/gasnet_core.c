@@ -191,6 +191,7 @@ typedef struct gasnetc_pin_info_t_ {
 static gasnetc_pin_info_t gasnetc_pin_info;
 
 static char *gasnetc_ibv_ports;
+static int gasnetc_ibv_ports_verbose;
 
 #if GASNET_TRACE
   static unsigned int	gasnetc_pinned_blocks = 0;
@@ -1202,6 +1203,7 @@ static int gasnetc_load_settings(void) {
   }
 
   gasnetc_ibv_ports = gasneti_getenv_hwloc_withdefault("GASNET_IBV_PORTS", GASNETC_DEFAULT_IBV_PORTS, "Socket");
+  gasnetc_ibv_ports_verbose = gasneti_getenv_int_withdefault("GASNET_IBV_PORTS_VERBOSE",1,0);
 
   #define GASNETC_ENVINT(program_var, env_key, default_val, minval, is_mem) do {     \
       int64_t _tmp = gasneti_getenv_int_withdefault(#env_key, default_val, is_mem);  \
@@ -1679,7 +1681,7 @@ static void gasnetc_probe_ports(int max_ports) {
   }
 #endif
 
-  if ((ib_hcas > GASNETC_IB_MAX_HCAS) && (gasnetc_port_list == NULL)) {
+  if ((ib_hcas > GASNETC_IB_MAX_HCAS) && (gasnetc_port_list == NULL) && gasnetc_ibv_ports_verbose) {
 #if GASNETC_IBV_MAX_HCAS_CONFIGURE
     const char *current = "with '--with-ibv-max-hcas=" _STRINGIFY(GASNETC_IB_MAX_HCAS) "'";
 #else
@@ -1689,7 +1691,9 @@ static void gasnetc_probe_ports(int max_ports) {
 		    "To utilize all your HCAs, you should "
 		    "reconfigure GASNet using '--with-ibv-max-hcas=%d'.  You can silence this warning "
 		    "by setting the environment variable GASNET_IBV_PORTS as described in the file "
-		    "'gasnet/ibv-conduit/README'.\n", num_hcas, current, num_hcas);
+		    "'gasnet/ibv-conduit/README' to specify the desired HCA(s), or by setting the "
+                    "environment variable GASNETC_IBV_PORTS_VERBOSE=0 to use the default.\n",
+                    num_hcas, current, num_hcas);
   }
 
   int16_t pkey = get_pkey();
