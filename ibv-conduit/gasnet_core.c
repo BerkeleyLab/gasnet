@@ -1692,7 +1692,7 @@ static void gasnetc_probe_ports(int max_ports) {
 		    "reconfigure GASNet using '--with-ibv-max-hcas=%d'.  You can silence this warning "
 		    "by setting the environment variable GASNET_IBV_PORTS as described in the file "
 		    "'gasnet/ibv-conduit/README' to specify the desired HCA(s), or by setting the "
-                    "environment variable GASNETC_IBV_PORTS_VERBOSE=0 to use the default.\n",
+                    "environment variable GASNET_IBV_PORTS_VERBOSE=0 to use the default.\n",
                     num_hcas, current, num_hcas);
   }
 
