@@ -1377,15 +1377,6 @@ static void gasnetc_exit_reph(gex_Token_t token) {
   gasneti_atomic_increment(&gasnetc_exit_reps, 0);
 }
 
-// TODO-EX:
-// This conduit curently uses the extended-ref for all RMA.  That, in turn,
-// uses AMs in an NBI access region.  Unfortunately, that means one cannot run
-// progress functions that may communicate using NBI (or accurately then cannot
-// call gex_NB_Test()).  Otherwise, assertions regarding access regions result.
-//
-// This avoids the problem by omitting progress functions on entry to AMRequest.
-#define GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flag) \
-        do { if (GASNETC_IMMEDIATE_WOULD_POLL(flag)) gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE); } while (0)
 /* ------------------------------------------------------------------------------------ */
 /*
   Misc. Active Message Functions
@@ -1572,7 +1563,7 @@ extern int gasnetc_AMRequestShortM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
-  GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flags); /* (###) poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1639,7 +1630,7 @@ extern int gasnetc_AMRequestMediumM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flags); /* (###) poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1865,7 +1856,7 @@ extern int gasnetc_AMRequestLongM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flags); /* (###) poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
