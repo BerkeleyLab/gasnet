@@ -618,10 +618,9 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
       } else {
         // Launch payload put and stall for remote completion prior to sending the header
         // See bug 4155 for the motivation
-        // TODO: NULL for local_{cnt,cb} doesn't work.  Why?
         gasnetc_counter_t rc_counter = GASNETC_COUNTER_INITIALIZER;
         gasnetc_ucx_putget_inner(1, jobrank, src_addr, nbytes, dst_addr,
-            local_cnt, local_cb, &rc_counter.initiated, gasnetc_cb_counter);
+            NULL, NULL, &rc_counter.initiated, gasnetc_cb_counter);
         GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
         gasnetc_counter_wait(&rc_counter, is_request GASNETI_THREAD_PASS);
         GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
@@ -641,6 +640,8 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
         am_req->buffer.long_bytes_used = nbytes;
         gasnetc_req_add_iov(am_req, am_req->buffer.long_data_ptr, nbytes);
       }
+      gasneti_assume(local_cnt == NULL);
+      gasneti_assume(local_cb == NULL);
 #endif
       break;
   }
@@ -669,9 +670,11 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
                              GASNETI_THREAD_FARG)
 {
   int retval;
+  gasnete_eop_t *eop = NULL;
   gasnetc_counter_t *counter_ptr = NULL;
   gasnetc_cbfunc_t cbfunc = NULL;
   gasnetc_atomic_val_t *local_cnt = NULL;
+  gasnetc_atomic_val_t start_cnt;
   uint8_t is_sync = is_request;
 #if GASNETC_PIN_SEGMENT
   gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
@@ -682,8 +685,9 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
     gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      gasnete_eop_t *eop = gasnete_eop_new(mythread);
+      eop = _gasnete_eop_new(mythread);
       GASNETE_EOP_LC_START(eop);
+      start_cnt = eop->initiated_alc;
       local_cnt = &eop->initiated_alc;
       cbfunc = gasnetc_cb_eop_alc;
       *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
@@ -708,12 +712,25 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
                                    numargs, argptr, src_addr, nbytes, dst_addr,
                                    local_cnt, cbfunc
                                    GASNETI_THREAD_PASS);
+  gasneti_assert(!retval); // at least until IMMEDIATE support is added
 
-  if (!retval && counter_ptr) {
-    gasneti_assert_ptr(GEX_EVENT_NOW ,==, lc_opt);
-    gasneti_assert_uint(GASNETC_UCX_AM_LONG ,==, am_type);
-    gasnetc_counter_wait(counter_ptr, is_request GASNETI_THREAD_PASS);
+#if GASNETC_PIN_SEGMENT
+  if (GASNETC_UCX_AM_LONG == am_type) {
+    if (counter_ptr) {
+      gasneti_assert_ptr(GEX_EVENT_NOW ,==, lc_opt);
+      gasnetc_counter_wait(counter_ptr, is_request GASNETI_THREAD_PASS);
+    } else if (eop) {
+      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (like ibv bug 3756)
+      if (start_cnt == eop->initiated_alc) {
+        // Synchronous LC - reset LC state and pass-back INVALID_HANDLE
+        GASNETE_EOP_LC_FINISH(eop);
+        *lc_opt = GEX_EVENT_INVALID;
+        gasnete_eop_free(eop GASNETI_THREAD_PASS);
+      }
+    }
   }
+#endif
+
   return retval;
 }
 

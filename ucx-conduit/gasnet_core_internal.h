@@ -138,6 +138,21 @@ extern gasneti_spawnerfn_t const *gasneti_spawner;
 extern int gasnetc_exit_running;
 extern gasnete_threadidx_t gasnetc_exit_thread;
 
+#if (PLATFORM_COMPILER_INTEL && PLATFORM_COMPILER_VERSION_LT(19,0,20180800))
+  // Some Intel C prior to 2019.0.117 (builddate 20180804) issue a buggy warning
+  // about side effects in an __assume(), and these versions predate Intel's
+  // support for __builtin_assume, which avoids the warning.
+  #define gasnetc_assume_leaf_is_pointer(lc_opt) do { \
+    GASNETI_PRAGMA(warning push);                     \
+    GASNETI_PRAGMA(warning disable 2261);             \
+    gasneti_assume(gasneti_leaf_is_pointer(lc_opt));  \
+    GASNETI_PRAGMA(warning pop);                      \
+  } while (0)
+#else
+  #define gasnetc_assume_leaf_is_pointer(lc_opt) \
+          gasneti_assume(gasneti_leaf_is_pointer(lc_opt))
+#endif
+
 #ifdef GASNETC_UCX_THREADS
 #define GASNETC_MY_THREADIDX (GASNETI_MYTHREAD->threadidx)
 
