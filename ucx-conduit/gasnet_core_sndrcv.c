@@ -402,14 +402,6 @@ int gasnetc_ucx_putget_inner(int is_put, gex_Rank_t jobrank,
   return immediate;
 }
 
-GASNETI_INLINE(gasnetc_ucx_am_put)
-int gasnetc_ucx_am_put(gex_Rank_t jobrank, void *src_addr,
-                       uint32_t nbytes, void *dest_addr,
-                       gasnetc_atomic_val_t *cnt, gasnetc_cbfunc_t cbfunc)
-{
-  return gasnetc_ucx_putget_inner(1, jobrank, src_addr, nbytes, dest_addr,
-                                  cnt, cbfunc, NULL, NULL);
-}
 /* ------------------------------------------------------------------------------------ */
 /*
   Send/recv requests
@@ -601,15 +593,31 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
       gasneti_assert(src_addr);
       gasneti_assert(dst_addr);
 #if GASNETC_PIN_SEGMENT
-      {
-        int status;
-        __am_req_format(0);
-        status = gasnetc_ucx_am_put(jobrank, src_addr, nbytes, dst_addr,
-            local_cnt, local_cb);
-        /* reset a local completion for next operation, it is already handled */
-        local_cnt = NULL;
-        local_cb = NULL;
+      // TODO: packed Long
+      // TODO: configure or environment override for in_order??
+  #if GASNET_PSHM
+      const int in_order = 1; // PSHM for intra-node.  Assume in-order network
+  #else
+      const int in_order = 0; // UCX for intra-node.  Do NOT assume in-order network
+      // TODO: locality check would permit in-order assumption for off-node
+  #endif
+      __am_req_format(0);
+      if (in_order) {
+        // Launch payload put with no stall prior to sending header
+        gasnetc_ucx_putget_inner(1, jobrank, src_addr, nbytes, dst_addr,
+            local_cnt, local_cb, NULL, NULL);
+      } else {
+        // Launch payload put and stall for remote completion prior to sending the header
+        // TODO: NULL for local_{cnt,cb} doesn't work.  Why?
+        gasnetc_counter_t rc_counter = GASNETC_COUNTER_INITIALIZER;
+        gasnetc_ucx_putget_inner(1, jobrank, src_addr, nbytes, dst_addr,
+            local_cnt, local_cb, &rc_counter.initiated, gasnetc_cb_counter);
+        GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
+        gasnetc_counter_wait(&rc_counter, is_request GASNETI_THREAD_PASS);
+        GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
       }
+      // Do not delay LC for header send:
+      local_cnt = NULL; local_cb = NULL;
 #else
       __am_req_format(1);
       if (nbytes <= GASNETC_MAX_MED_(numargs)) {
