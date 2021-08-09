@@ -663,10 +663,12 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
   gasnetc_cbfunc_t cbfunc = NULL;
   gasnetc_atomic_val_t *local_cnt = NULL;
   uint8_t is_sync = is_request;
+#if GASNETC_PIN_SEGMENT
+  gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
+#endif
 
   if (GASNETC_UCX_AM_LONG == am_type) {
 #if GASNETC_PIN_SEGMENT
-    gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
     gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
 
     counter_ptr = &counter;
