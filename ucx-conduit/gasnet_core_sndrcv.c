@@ -610,13 +610,6 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
         /* reset a local completion for next operation, it is already handled */
         local_cnt = NULL;
         local_cb = NULL;
-        /* checking if put status is completed inline */
-        if (!status && is_sync) {
-          gasneti_assert(counter);
-          GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
-          gasnetc_counter_wait(counter, is_request GASNETI_THREAD_PASS);
-          GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
-        }
       }
 #else
       __am_req_format(1);
@@ -699,6 +692,12 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
                                    numargs, argptr, src_addr, nbytes, dst_addr,
                                    local_cnt, cbfunc,
                                    counter_ptr GASNETI_THREAD_PASS);
+
+  if (!retval && is_sync && counter_ptr) {
+    gasneti_assert_ptr(GEX_EVENT_NOW ,==, lc_opt);
+    gasneti_assert_uint(GASNETC_UCX_AM_LONG ,==, am_type);
+    gasnetc_counter_wait(counter_ptr, is_request GASNETI_THREAD_PASS);
+  }
   return retval;
 }
 
