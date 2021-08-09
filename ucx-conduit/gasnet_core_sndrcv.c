@@ -647,6 +647,8 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
   }
 
 send:
+  // NOTE: local_cnt/local_cb here are NOT used for Longs.
+  // Rather they provide LC stall for Short headers during shutdown
   req = gasnetc_send_req(am_req, is_sync, local_cnt, local_cb);
   GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
 

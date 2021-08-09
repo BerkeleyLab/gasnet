@@ -1312,7 +1312,6 @@ static void gasnetc_exit_reqh(gex_Token_t token, gex_AM_Arg_t arg0) {
   (void)gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_MEMBER, 0);
 
   /* Send a reply so the leader knows we are reachable */
-  gasnetc_counter_inc(&gasnetc_exit_repl_oust);
   GASNETI_SAFE(gasnetc_ReplySysShort(token, &gasnetc_exit_repl_oust,
            gasneti_handleridx(gasnetc_exit_reph), /* no args */ 0));
   gasneti_sync_writes(); /* For non-atomic portion of gasnetc_exit_repl_oust */
@@ -1481,7 +1480,6 @@ extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
     retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, jobrank, handler,
                                             NULL, 0, NULL,
                                             0, numargs, argptr GASNETI_THREAD_PASS);
-    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
     gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
     gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
@@ -1508,7 +1506,6 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
     retval = gasnetc_nbrhd_ReplyGeneric ( gasneti_Short, token, handler,
                                           NULL, 0, NULL,
                                           0, numargs, argptr);
-    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
     gex_Rank_t jobrank = gasnetc_msgsource(token);
     gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
