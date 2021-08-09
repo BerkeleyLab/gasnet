@@ -563,8 +563,7 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
            uint32_t nbytes,
            void *dst_addr,
            gasnetc_atomic_val_t *local_cnt,
-           gasnetc_cbfunc_t local_cb,
-           gasnetc_counter_t *counter
+           gasnetc_cbfunc_t local_cb
            GASNETI_THREAD_FARG)
 {
   gasnetc_am_req_t *am_req;
@@ -664,8 +663,6 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
 #if GASNETC_PIN_SEGMENT
     gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
 
-    counter_ptr = &counter;
-
     if (gasneti_leaf_is_pointer(lc_opt)) {
       gasnete_eop_t *eop = gasnete_eop_new(mythread);
       GASNETE_EOP_LC_START(eop);
@@ -682,6 +679,7 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
       gasneti_assert(lc_opt == GEX_EVENT_NOW);
       local_cnt = &counter.initiated;
       cbfunc = gasnetc_cb_counter;
+      counter_ptr = &counter;
       is_sync = 1;
     }
 #else
@@ -690,10 +688,10 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
   }
   retval = gasnetc_am_reqrep_inner(am_type, jobrank, handler, flags, is_request, is_sync,
                                    numargs, argptr, src_addr, nbytes, dst_addr,
-                                   local_cnt, cbfunc,
-                                   counter_ptr GASNETI_THREAD_PASS);
+                                   local_cnt, cbfunc
+                                   GASNETI_THREAD_PASS);
 
-  if (!retval && is_sync && counter_ptr) {
+  if (!retval && counter_ptr) {
     gasneti_assert_ptr(GEX_EVENT_NOW ,==, lc_opt);
     gasneti_assert_uint(GASNETC_UCX_AM_LONG ,==, am_type);
     gasnetc_counter_wait(counter_ptr, is_request GASNETI_THREAD_PASS);

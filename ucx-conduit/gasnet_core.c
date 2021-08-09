@@ -1483,18 +1483,12 @@ extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
                                             0, numargs, argptr GASNETI_THREAD_PASS);
     if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
-    gasnetc_counter_t *counter_ptr = NULL;
-    gasnetc_cbfunc_t cbfunc = NULL;
-    gasnetc_atomic_val_t *local_cnt = NULL;
-    if (counter) {
-      counter_ptr = counter;
-      cbfunc = gasnetc_cb_counter;
-      local_cnt = &counter->initiated;
-    }
+    gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
+    gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
                                      1, 0, numargs, argptr, NULL, 0, NULL,
-                                     local_cnt, cbfunc,
-                                     counter_ptr GASNETI_THREAD_PASS);
+                                     local_cnt, cbfunc
+                                     GASNETI_THREAD_PASS);
   }
   va_end(argptr);
   return retval;
@@ -1517,18 +1511,12 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
     if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
     gex_Rank_t jobrank = gasnetc_msgsource(token);
-    gasnetc_counter_t *counter_ptr = NULL;
-    gasnetc_cbfunc_t cbfunc = NULL;
-    gasnetc_atomic_val_t *local_cnt = NULL;
-    if (counter) {
-      counter_ptr = counter;
-      cbfunc = gasnetc_cb_counter;
-      local_cnt = &counter->initiated;
-    }
+    gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
+    gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
                                      0, 0, numargs, argptr, NULL, 0, NULL,
-                                     local_cnt, cbfunc,
-                                     counter_ptr GASNETI_THREAD_PASS);
+                                     local_cnt, cbfunc
+                                     GASNETI_THREAD_PASS);
   }
 
   va_end(argptr);
