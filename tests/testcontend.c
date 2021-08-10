@@ -84,6 +84,7 @@ gex_AM_Entry_t htable[] = {
     
 int _havereport = 0;
 char _reportstr[644];
+static gasnett_atomic_t pgcounter = gasnett_atomic_init(0);
 const char *getreport(void) {
   if (_havereport) {
     _havereport = 0;
@@ -92,9 +93,12 @@ const char *getreport(void) {
 }
 void report(gasnett_tick_t ticks) {
   double timeus = (double)gasnett_ticks_to_us(ticks);
+  char pgcount[32] = {0};
+  gasnett_atomic_val_t count = gasnett_atomic_swap(&pgcounter,0,0);
+  if (count) snprintf(pgcount, sizeof(pgcount), "%12lu ops/s", (unsigned long)(count/(timeus*1e-6)));
   snprintf(_reportstr, sizeof(_reportstr),
-     "%7.3f us\t%5.3f sec", 
-     timeus/iters, timeus/1000000);
+     "%7.3f us\t%5.3f sec%s", 
+     timeus/iters, timeus/1000000, pgcount);
   _havereport = 1;
 }
 
@@ -193,6 +197,7 @@ PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gex_RMA_GetBlocking(myteam, &l
     int mythread = ARG2THREAD(args);                                                    \
     gasnett_tick_t start, end;                                                          \
     signal_done = 0;                                                                    \
+    if (mythread == 0) gasnett_atomic_set(&pgcounter,0,0);                              \
     thread_barrier();                                                                   \
     if (mythread == 0) {                                                                \
       int i;                                                                            \
@@ -203,10 +208,14 @@ PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gex_RMA_GetBlocking(myteam, &l
       end = gasnett_ticks_now();                                                        \
       gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
       gex_AM_RequestShort0(myteam, myrank, hidx_markdone_shorthandler, 0); \
+      gasnett_atomic_add(&pgcounter,iters,0);                                           \
     } else {                                                                            \
+      gasnett_atomic_val_t count = 0;                                                   \
       while(!signal_done) {                                                             \
         putgetstmt_rest;                                                                \
+        count++;                                                                        \
       }                                                                                 \
+      gasnett_atomic_add(&pgcounter,count,0);                                           \
     }                                                                                   \
     thread_barrier();                                                                   \
     if (mythread == 0 && amactive) report(end-start);                                   \
