@@ -27,6 +27,8 @@ GASNet-EX ChangeLog
     runtime library search path (a.k.a. "rpath") via `$(GASNET_LDFLAGS)`.
   - Environment variable GASNET_BACKTRACE_MT is now available to force
     multi-threaded or single-threaded backtraces (where supported).
+  - Improved performance of the conduit-independent RDMA-based barrier,
+    used by default by ucx-conduit, in multi-threaded runs.
 
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
