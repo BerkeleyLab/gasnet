@@ -591,20 +591,15 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
     goto send;
   }
 
-  switch (am_type) {
-    case GASNETC_UCX_AM_SHORT :
-      /* only to silence the warning */
-      break;
-    case GASNETC_UCX_AM_MEDIUM: {
+  if (GASNETC_UCX_AM_MEDIUM == am_type ) {
       __am_req_format(0);
       gasneti_assert(src_addr);
       gasneti_assert(nbytes <= GASNETC_MAX_MED);
       /* pack payload */
       GASNETI_MEMCPY(GASNETC_BUF_PTR(am_req->buffer), src_addr, nbytes);
       GASNETC_BUF_ADD_SEND_BYTES(am_req, nbytes);
-      break;
-    }
-    case GASNETC_UCX_AM_LONG:
+  } else {
+      gasneti_assert(GASNETC_UCX_AM_LONG == am_type);
       gasneti_assert(src_addr);
       gasneti_assert(dst_addr);
 #if GASNETC_PIN_SEGMENT
@@ -643,7 +638,6 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
       gasneti_assume(local_cnt == NULL);
       gasneti_assume(local_cb == NULL);
 #endif
-      break;
   }
 
 send:
