@@ -158,6 +158,10 @@ extern void gasnetc_counter_wait(gasnetc_counter_t *counter,
   Req/Mem pool functions
   ======================
 */
+
+// May AM Long logic assume in-order delivery?
+static int gasnetc_am_in_order = 1;
+
 void gasnetc_send_init(void)
 {
   gasnetc_am_req_t *am_req;
@@ -171,6 +175,17 @@ void gasnetc_send_init(void)
                                                  GASNETC_MAX_MED);
     GASNETC_BUF_RESET(am_req->buffer);
     gasneti_list_enq(&gasneti_ucx_module.sreq_free, am_req);
+  }
+
+  { // AM Long logic may assume in-order if nbhrd contains all proc on this host.
+    // TODO: if !one_nbrhd, might parse UCX_GASNET_TLS (or UCX_TLS) to check
+    //       for a setting which excludes use of UCX shared memory transports.
+    // See bug 4155 for the issue this helps us address
+#if !GASNET_PSHM
+    gasneti_assert_uint(gasneti_mysupernode.node_count ,==, 1);
+#endif
+    const int one_nbrhd = (gasneti_mysupernode.node_count == gasneti_myhost.node_count);
+    gasnetc_am_in_order = gasneti_getenv_yesno_withdefault("GASNET_UCX_AM_ORDERED_TLS", one_nbrhd);
   }
 }
 
@@ -594,20 +609,15 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
       gasneti_assert(dst_addr);
 #if GASNETC_PIN_SEGMENT
       // TODO: packed Long
-      // TODO: configure or environment override for in_order??
-  #if GASNET_PSHM
-      const int in_order = 1; // PSHM for intra-node.  Assume in-order network
-  #else
-      const int in_order = 0; // UCX for intra-node.  Do NOT assume in-order network
       // TODO: locality check would permit in-order assumption for off-node
-  #endif
       __am_req_format(0);
-      if (in_order) {
+      if (gasnetc_am_in_order) {
         // Launch payload put with no stall prior to sending header
         gasnetc_ucx_putget_inner(1, jobrank, src_addr, nbytes, dst_addr,
             local_cnt, local_cb, NULL, NULL);
       } else {
         // Launch payload put and stall for remote completion prior to sending the header
+        // See bug 4155 for the motivation
         // TODO: NULL for local_{cnt,cb} doesn't work.  Why?
         gasnetc_counter_t rc_counter = GASNETC_COUNTER_INITIALIZER;
         gasnetc_ucx_putget_inner(1, jobrank, src_addr, nbytes, dst_addr,
