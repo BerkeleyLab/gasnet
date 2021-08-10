@@ -540,8 +540,8 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   node, but doing so may not be useful.
 
   + GASNET_RCV_THREAD
-    This gives a boolean: "0" to disable, or "1" to enable, the use of
-    an extra thread that blocks waiting for an Active Message Request
+    This gives a boolean: "0" to disable, or "1" to enable, the use of an
+    extra thread per-HCA port to block waiting for an Active Message Request
     or Reply to arrive.  This allows ibv-conduit to remain attentive
     to incoming AM traffic even while the application is not making any
     calls to GASNet.  The down side is that when this thread wakes it
