@@ -83,6 +83,11 @@ precedence.
 
 @ Section: Runtime Configuration @
 
+Ucx-conduit supports all of the standard GASNet environment variables
+and the optional GASNET_EXITTIMEOUT family of environment variables.
+See GASNet's top-level README for documentation.
+
+
   In order to control UCX parameters (i.e. device or transport selection), environment
   variables are used. 
   
