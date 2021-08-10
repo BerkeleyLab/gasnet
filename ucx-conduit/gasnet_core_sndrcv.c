@@ -174,6 +174,9 @@ void gasnetc_send_init(void)
     am_req->buffer.data = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT,
                                                  GASNETC_MAX_MED);
     GASNETC_BUF_RESET(am_req->buffer);
+#if !GASNETC_PIN_SEGMENT
+    am_req->buffer.long_data_ptr = NULL;
+#endif
     gasneti_list_enq(&gasneti_ucx_module.sreq_free, am_req);
   }
 
