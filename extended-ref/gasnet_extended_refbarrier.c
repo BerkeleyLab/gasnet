@@ -1234,9 +1234,11 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
   payload->flags2 = ~flags;
   payload->value2 = ~value;
 
-  /* Here we use NBI bulk puts in a recursive NBI access region, which avoids
-   * consuming any of the 65535 explicit events promised to the client.
-   */
+  // Below we unconditionally use NBI bulk puts in a recursive NBI access
+  // region.  This was written to avoid consuming any of the 65535 explicit
+  // events promised to the client in GASNet-1.  However, that limit does not
+  // exist for GASNet-EX and it might be profitable to specialize for step==1.
+  // TODO: update the injection loop below (see bug 4278)
 
   gasnete_begin_nbi_accessregion(0,1 GASNETI_THREAD_PASS);
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
@@ -1248,7 +1250,11 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
   event = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
 
 #if GASNETI_THREADS
-  /* sync the new ops, since we can't know this thread will re-enter the barrier code */
+  // Below we sync the new ops, since in GASNet-1 handles were thread-specific
+  // and we could not know that this thread would ever re-enter the barrier
+  // code.  In GASNet-EX events are NOT thread-specific and this stall could
+  // be removed.
+  // TODO: remove the stall below (see bug 4278)
   gasnete_wait(event GASNETI_THREAD_PASS);
 #else
   /* save the new ops to sync after the barrier is complete */
