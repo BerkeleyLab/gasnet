@@ -2301,7 +2301,7 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
       }
       if (notyet && verbose > 0) { /* dump cached values */ 
         for (p = displaylist; p; p = p->next) {
-          fputs(displaystr, stderr);
+          fputs(p->displaystr, stderr);
           fflush(stderr);
           free((void *)p->displaystr);
           p->displaystr = NULL;
