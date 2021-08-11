@@ -1275,6 +1275,29 @@ static int gasnetc_load_settings(void) {
     }
   #endif
   gasnetc_use_rcv_thread = gasneti_getenv_yesno_withdefault("GASNET_RCV_THREAD", 0);
+#if GASNETC_USE_RCV_THREAD && GASNETC_SERIALIZE_POLL_CQ
+  if (gasnetc_use_rcv_thread) {
+    tmp = gasneti_getenv_withdefault("GASNET_RCV_THREAD_POLL_MODE", "SERIALIZED");
+    size_t len = strlen(tmp);
+    // TODO: replace the following with strcasecmp() if/when available
+    char *mode = gasneti_malloc(len + 1);
+    for (size_t i = 0; i < len; ++i) mode[i] = toupper(tmp[i]);
+    mode[len] = '\0';
+    if (! strcmp(mode, "EXCLUSIVE")) {
+      gasnetc_rcv_thread_poll_serialize = 0;
+      gasnetc_rcv_thread_poll_exclusive = 1;
+    } else if (! strcmp(mode, "UNSERIALIZED")) {
+      gasnetc_rcv_thread_poll_serialize = 0;
+      gasnetc_rcv_thread_poll_exclusive = 0;
+    } else if (! strcmp(mode, "SERIALIZED")) {
+      gasnetc_rcv_thread_poll_serialize = 1;
+      gasnetc_rcv_thread_poll_exclusive = 0;
+    } else {
+      gasneti_fatalerror("GASNET_RCV_THREAD_POLL_MODE \"%s\" is not valid", tmp);
+    }
+    gasneti_free(mode);
+  }
+#endif
 
   /* Verify correctness/sanity of values */
   if (gasnetc_use_rcv_thread && !GASNETC_USE_RCV_THREAD) {

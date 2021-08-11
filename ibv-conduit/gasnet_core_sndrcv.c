@@ -63,6 +63,10 @@ int					gasnetc_am_credits_slack;
 int					gasnetc_am_credits_slack_orig;
 int					gasnetc_alloc_qps;
 int					gasnetc_num_qps;
+#if GASNETC_USE_RCV_THREAD && GASNETC_SERIALIZE_POLL_CQ
+int                                     gasnetc_rcv_thread_poll_serialize = -1;
+int                                     gasnetc_rcv_thread_poll_exclusive = -1;
+#endif
 
 #if GASNETC_PIN_SEGMENT
   // Rkeys for non-primordial remote EPs
@@ -321,6 +325,31 @@ gasnetc_create_cq(struct ibv_context * hca_hndl, int req_size,
     return 1;
   }
 }
+
+
+// Simple round-robin (w/ a harmless multi-thread race)
+// Note use of casts to volatile ensure the compiler will not move the accesses
+// (reads earlier, or writes later) so as to defeat the entire purpose of
+// advancing a counter to be observed by other threads.
+#if GASNETC_ANY_PAR
+  #define GASNETC_WEAK_COUNTER_DECL(var,val) \
+    static struct {                                     \
+       char pad0[GASNETI_CACHE_LINE_BYTES];             \
+       int  cntr;                                       \
+       char pad1[GASNETI_CACHE_LINE_BYTES-sizeof(int)]; \
+    } var = {{0},(val),{0}}
+  #define GASNETC_WEAK_COUNTER_READ(var) \
+    (*(volatile int *)(&(var).cntr))
+  #define GASNETC_WEAK_COUNTER_WRITE(var,val) \
+    do { *(volatile int *)(&(var).cntr) = (val); } while (0)
+#else
+  #define GASNETC_WEAK_COUNTER_DECL(var,val) \
+    static int var = (val)
+  #define GASNETC_WEAK_COUNTER_READ(var) \
+    (*(volatile int *)&(var))
+  #define GASNETC_WEAK_COUNTER_WRITE(var,val) \
+    do { *(volatile int *)&(var) = (val); } while (0)
+#endif
 
 #if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_HCA_IDX(_cep)		((_cep)->hca_index)
@@ -673,11 +702,9 @@ static int gasnetc_snd_reap(int limit) {
   #endif
 
   #if GASNETC_IB_MAX_HCAS > 1
-    /* Simple round-robin (w/ a harmless multi-thread race) */
-    /* Note use of casts to volatile are require to work around bug 1586 */
-    static int index = 0;
-    int tmp = *(volatile int *)(&index);
-    *(volatile int *)(&index) = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
+    GASNETC_WEAK_COUNTER_DECL(index, 0);
+    int tmp = GASNETC_WEAK_COUNTER_READ(index);
+    GASNETC_WEAK_COUNTER_WRITE(index, ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1);
     gasnetc_hca_t *hca = &gasnetc_hca[tmp];
   #else
     gasnetc_hca_t *hca = &gasnetc_hca[0];
@@ -686,7 +713,9 @@ static int gasnetc_snd_reap(int limit) {
   gasneti_assert(limit <= GASNETC_SND_REAP_LIMIT);
 
   for (count = 0; count < limit; ++count) {
+    if (GASNETC_POLL_CQ_TRYDOWN_SND(hca)) break;
     int rc = ibv_poll_cq(hca->snd_cq, 1, &comp);
+    GASNETC_POLL_CQ_UP_SND(hca);
     if_pt (rc == 0) {
       /* CQ empty - we are done */
       break;
@@ -855,12 +884,10 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid)
       }
     }
  #else
-    /* Simple round-robin (w/ a harmless multi-thread race) */
-    /* Note use of casts to volatile are require to work around bug 1586 */
-    static int prev = 0;
-    qpi = *(volatile int *)(&prev);
+    GASNETC_WEAK_COUNTER_DECL(prev, 0);
+    qpi = GASNETC_WEAK_COUNTER_READ(prev);
     qpi = ((qpi == 0) ? gasnetc_num_qps : qpi) - 1;
-    *(volatile int *)(&prev) = qpi;
+    GASNETC_WEAK_COUNTER_WRITE(prev, qpi);
  #endif
     gasneti_assert(qpi < gasnetc_num_qps);
   } else {
@@ -1050,7 +1077,9 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, const int limit, gasnetc_rbuf_t 
   int count;
 
   for (count = 0; count < limit; ++count) {
+    if (GASNETC_POLL_CQ_TRYDOWN_RCV(hca)) break;
     int rc = ibv_poll_cq(hca->rcv_cq, 1, &comp);
+    GASNETC_POLL_CQ_UP_RCV(hca);
     if_pt (rc == 0) {
       /* CQ empty - we are done */
       break;
@@ -1107,11 +1136,9 @@ void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI
 
 void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG) {
   #if GASNETC_IB_MAX_HCAS > 1
-    /* Simple round-robin (w/ a harmless multi-thread race) */
-    /* Note use of casts to volatile are require to work around bug 1586 */
-    static int index = 0;
-    int tmp = *(volatile int *)(&index);
-    *(volatile int *)(&index) = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
+    GASNETC_WEAK_COUNTER_DECL(index, 0);
+    int tmp = GASNETC_WEAK_COUNTER_READ(index);
+    GASNETC_WEAK_COUNTER_WRITE(index, ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1);
     gasnetc_hca_t *hca = &gasnetc_hca[tmp];
   #else
     gasnetc_hca_t *hca = &gasnetc_hca[0];
@@ -1478,7 +1505,13 @@ static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
     /* Handler might have queued work for firehose */
     firehose_poll();
   #endif 
-    GASNETI_PROGRESSFNS_RUN();
+  #if GASNETC_SERIALIZE_POLL_CQ
+    // In exclusive mode it is not safe to run progress functions, because
+    // AM Request injection within a progress function cannot poll for credits.
+    // TODO: revisit if/when non-communicating progress functions are separated.
+    if (! gasnetc_rcv_thread_poll_exclusive)
+  #endif 
+      GASNETI_PROGRESSFNS_RUN();
   }
 }
 #endif /* GASNETC_USE_RCV_THREAD */
@@ -2660,6 +2693,10 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
         gasneti_assert(hca->rcv_thread_priv != NULL);
       }
 #endif
+#if GASNETC_SERIALIZE_POLL_CQ
+      gasnetc_atomic_set(&hca->poll_cq_semas.snd,0,0);
+      gasnetc_atomic_set(&hca->poll_cq_semas.rcv,0,0);
+#endif
     }
   }
 
@@ -2994,6 +3031,15 @@ extern void gasnetc_sndrcv_start_thread(void) {
       if (rcv_max_rate > 0) {
         hca->rcv_thread.min_ns = ((uint64_t)1E9) / rcv_max_rate;
       }
+    #if GASNETC_SERIALIZE_POLL_CQ
+      gasneti_assert(!gasnetc_rcv_thread_poll_exclusive ||
+                     !gasnetc_rcv_thread_poll_serialize); // mutually exclusive
+      if (gasnetc_rcv_thread_poll_exclusive) {
+        hca->rcv_thread.exclusive_poll = &hca->poll_cq_semas.rcv;
+      } else if (gasnetc_rcv_thread_poll_serialize) {
+        hca->rcv_thread.serialize_poll = &hca->poll_cq_semas.rcv;
+      }
+    #endif
     #if GASNETI_THREADINFO_OPT
       hca->rcv_threadinfo = NULL;
     #endif

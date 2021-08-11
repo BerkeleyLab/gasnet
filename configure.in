@@ -3917,6 +3917,10 @@ if test "$enabled_ibv" = yes; then
         fi
       fi
 
+    GASNET_IF_DISABLED([ibv-serialize-poll-cq],
+                       [Disable serialization of CQ polling in ibv-conduit (enabled by default)],
+                       [:], [AC_DEFINE(GASNETC_IBV_SERIALIZE_POLL_CQ_CONFIGURE)])
+
     GASNET_WITH(ibv-max-medium,
        [Specify gasnet_AMMaxMedium() for ibv-conduit (default 65536)],
        [case "$withval" in

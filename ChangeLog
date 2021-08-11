@@ -27,6 +27,8 @@ GASNet-EX ChangeLog
     runtime library search path (a.k.a. "rpath") via `$(GASNET_LDFLAGS)`.
   - Environment variable GASNET_BACKTRACE_MT is now available to force
     multi-threaded or single-threaded backtraces (where supported).
+  - Improved performance of the conduit-independent RDMA-based barrier,
+    used by default by ucx-conduit, in multi-threaded runs.
 
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
@@ -34,6 +36,7 @@ GASNet-EX ChangeLog
   - Improved memory utilization at large scale.
   - SEQ and PARSYNC builds now set MLX{4,5}_SINGLE_THREADED under
     appropriate conditions to elide locking overheads in libibverbs.
+  - Improved scaling with large thread counts by serializing CQ polling.
   - NEW: configure option --with-ibv-fenced-puts=... can be used to set the
     default value for the GASNET_USE_FENCED_PUTS environment variable.
 

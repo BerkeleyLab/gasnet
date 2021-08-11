@@ -338,6 +338,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 /* IB-specific RDMA-based Dissemination implementation of barrier
  * This is a minor variation on the "rmd" barrier in extended-ref.
  * Key differences:
+ *  + GASNETC_ANY_PAR replaces GASNETI_THREADS to enable cache padding
  *  + no complications due to thread-specific events
  *  + no eop completion latency
  * TODO: factor the common elements
@@ -346,7 +347,20 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 /* Reusing gasnete_coll_rmdbarrier_inbox_t from the reference implementation */
 
 typedef struct {
-  GASNETE_RMDBARRIER_LOCK(barrier_lock) /* no semicolon */
+  // Read/write data (note that struct is allocated cache-aligned)
+#if GASNETI_THREADS
+  gasnete_rmdbarrier_lock_t barrier_lock;
+#endif
+#if GASNETC_ANY_PAR
+  char _pad0[GASNETI_CACHE_PAD(sizeof(gasnete_rmdbarrier_lock_t))];
+#endif
+  int volatile barrier_state; /*  (step << 1) | phase, where step is 1-based (0 is pshm notify) */
+  int volatile barrier_value; /*  barrier value (evolves from local value) */
+  int volatile barrier_flags; /*  barrier flags (evolves from local value) */
+#if GASNETC_ANY_PAR
+  char _pad1[GASNETI_CACHE_PAD(3 * sizeof(int))];
+#endif
+  // Read-only data
   struct {
     gex_Rank_t    jobrank;
     uintptr_t     addr;
@@ -357,9 +371,6 @@ typedef struct {
 #endif
   int barrier_size;           /*  ceil(lg(nodes)) */
   int barrier_goal;           /*  (1+ceil(lg(nodes)) << 1) == final barrier_state for phase=0 */
-  int volatile barrier_state; /*  (step << 1) | phase, where step is 1-based (0 is pshm notify) */
-  int volatile barrier_value; /*  barrier value (evolves from local value) */
-  int volatile barrier_flags; /*  barrier flags (evolves from local value) */
   void *barrier_inbox;        /*  in-segment memory to recv notifications */
 } gasnete_coll_ibdbarrier_t;
 
