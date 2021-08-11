@@ -72,6 +72,7 @@ GASNet-EX ChangeLog
   - bug4264: simplify implementation of GEX_FLAG_AD_{ACQ,REL}
   - bug4265: Collective scratch management is not thread safe
   - bug4266: gex_Coll_ReduceToAllNB is not thread safe
+  - bug4277: ucx testam hang with Cray and AMD compilers
   - bug4281: Display glitch in VERBOSEENV console reporting
 
 ----------------------------------------------------------------------
