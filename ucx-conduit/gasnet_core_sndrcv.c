@@ -649,6 +649,7 @@ send:
   req = gasnetc_send_req(am_req, is_sync, local_cnt, local_cb);
   GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
 
+  // TODO: revisit this stall as described in bug 4280
   if (req && is_sync) {
     gasnetc_req_wait(req, is_request GASNETI_THREAD_PASS);
   }
