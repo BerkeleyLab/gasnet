@@ -72,21 +72,6 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* May eventually be a hash? */
 #define GASNETC_NODE2CEP(_ep,_node) ((_ep)->cep_table[_node])
 
-#if (PLATFORM_COMPILER_INTEL && PLATFORM_COMPILER_VERSION_LT(19,0,20180800))
-  // Some Intel C prior to 2019.0.117 (builddate 20180804) issue a buggy warning
-  // about side effects in an __assume(), and these versions predate Intel's
-  // support for __builtin_assume, which avoids the warning.
-  #define gasnetc_assume_leaf_is_pointer(lc_opt) do { \
-    GASNETI_PRAGMA(warning push);                     \
-    GASNETI_PRAGMA(warning disable 2261);             \
-    gasneti_assume(gasneti_leaf_is_pointer(lc_opt));  \
-    GASNETI_PRAGMA(warning pop);                      \
-  } while (0)
-#else
-  #define gasnetc_assume_leaf_is_pointer(lc_opt) \
-          gasneti_assume(gasneti_leaf_is_pointer(lc_opt))
-#endif
-
 
 /*
  * In theory all resources should be recovered automatically at process exit.

@@ -719,7 +719,7 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
       gasneti_assert_ptr(GEX_EVENT_NOW ,==, lc_opt);
       gasnetc_counter_wait(counter_ptr, is_request GASNETI_THREAD_PASS);
     } else if (eop) {
-      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (like ibv bug 3756)
+      gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (like ibv bug 3756)
       if (start_cnt == eop->initiated_alc) {
         // Synchronous LC - reset LC state and pass-back INVALID_HANDLE
         GASNETE_EOP_LC_FINISH(eop);

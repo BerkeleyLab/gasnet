@@ -4807,7 +4807,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                    argptr GASNETI_THREAD_PASS);
 
     if (eop) {
-      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+      gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
       if (start_cnt == eop->initiated_alc) {
         // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
         GASNETE_EOP_LC_FINISH(eop);
@@ -4895,7 +4895,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
     } else if (eop) {
-      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+      gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
       if (start_cnt == eop->initiated_alc) {
         // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
         GASNETE_EOP_LC_FINISH(eop);
@@ -4980,7 +4980,7 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
     gasneti_assert(!rbuf->rbuf_needReply || (flags & GEX_FLAG_IMMEDIATE));
 
     if (eop) {
-      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+      gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
       if (start_cnt == eop->initiated_alc) {
         // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
         GASNETE_EOP_LC_FINISH(eop);
@@ -5068,7 +5068,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
     } else if (eop) {
-      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+      gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
       if (start_cnt == eop->initiated_alc) {
         // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
         GASNETE_EOP_LC_FINISH(eop);
@@ -5265,7 +5265,7 @@ void gasnetc_commit_common(
                      GASNETI_THREAD_PASS);
 
   if (eop) {
-    gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+    gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
     if (start_cnt == eop->initiated_alc) {
       // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
       GASNETE_EOP_LC_FINISH(eop);
