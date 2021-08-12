@@ -685,8 +685,7 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
     gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      eop = _gasnete_eop_new(mythread);
-      GASNETE_EOP_LC_START(eop);
+      eop = gasnete_eop_new_alc(mythread);
       start_cnt = eop->initiated_alc;
       local_cnt = &eop->initiated_alc;
       cbfunc = gasnetc_cb_eop_alc;

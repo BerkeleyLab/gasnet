@@ -4783,9 +4783,8 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
     gasnete_eop_t        *eop = NULL;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+      eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
       *lc_opt = (gex_Event_t)eop;
-      GASNETE_EOP_LC_START(eop);
       start_cnt = eop->initiated_alc;
       local_cnt = &eop->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;
@@ -4867,9 +4866,8 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
           local_cb = gasnetc_cb_eop_alc;
         }
       } else {
-        eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+        eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
         *lc_opt = (gex_Event_t)eop;
-        GASNETE_EOP_LC_START(eop);
         start_cnt = eop->initiated_alc;
         local_cnt = &eop->initiated_alc;
         local_cb = gasnetc_cb_eop_alc;
@@ -4960,9 +4958,8 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
     gasnete_eop_t        *eop = NULL;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+      eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
       *lc_opt = (gex_Event_t)eop;
-      GASNETE_EOP_LC_START(eop);
       start_cnt = eop->initiated_alc;
       local_cnt = &eop->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;
@@ -5044,9 +5041,8 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
           local_cb = gasnetc_cb_eop_alc;
         }
       } else {
-        eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+        eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
         *lc_opt = (gex_Event_t)eop;
-        GASNETE_EOP_LC_START(eop);
         start_cnt = eop->initiated_alc;
         local_cnt = &eop->initiated_alc;
         local_cb = gasnetc_cb_eop_alc;
@@ -5196,9 +5192,8 @@ void gasnetc_commit_common(
   if (is_cbuf) {
     gasneti_assert(lc_opt);
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+      eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
       *lc_opt = (gex_Event_t)eop;
-      GASNETE_EOP_LC_START(eop);
       start_cnt = eop->initiated_alc;
       local_cnt = &eop->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;
