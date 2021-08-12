@@ -40,6 +40,12 @@ GASNet-EX ChangeLog
   - NEW: configure option --with-ibv-fenced-puts=... can be used to set the
     default value for the GASNET_USE_FENCED_PUTS environment variable.
 
+* Unified Communication X framework (ucx-conduit) [EXPERIMENTAL]
+  - Improvements to AM Long payload handling
+    + Fix corruption when using UCX-level shared memory communication (bug 4155)
+    + Fix crashes when using synchronous local completion (bug 4277)
+  - Improved handing of non-collective exits
+
 * Platform support/portability
   - Improved support for GCC 11 by suppressing spurious warnings.
   - Made Cray PMI support conduit-independent, allowing it to function on
