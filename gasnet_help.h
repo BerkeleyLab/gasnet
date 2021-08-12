@@ -616,7 +616,22 @@ GASNETI_INLINE(gasneti_leaf_finish)
 void gasneti_leaf_finish(gex_Event_t *_opt_val) {
   if (gasneti_leaf_is_pointer(_opt_val)) *_opt_val = GEX_EVENT_INVALID;
 }
+
+#if (PLATFORM_COMPILER_INTEL && PLATFORM_COMPILER_VERSION_LT(19,0,20180800))
+  // Some Intel C prior to 2019.0.117 (builddate 20180804) issue a buggy warning
+  // about side effects in an __assume(), and these versions predate Intel's
+  // support for __builtin_assume, which avoids the warning.
+  #define gasneti_assume_leaf_is_pointer(lc_opt) do { \
+    GASNETI_PRAGMA(warning push);                     \
+    GASNETI_PRAGMA(warning disable 2261);             \
+    gasneti_assume(gasneti_leaf_is_pointer(lc_opt));  \
+    GASNETI_PRAGMA(warning pop);                      \
+  } while (0)
+#else
+  #define gasneti_assume_leaf_is_pointer(lc_opt) \
+          gasneti_assume(gasneti_leaf_is_pointer(lc_opt))
 #endif
+#endif // _GEX_EVENT_T
 
 /* ------------------------------------------------------------------------------------ */
 /* semi-portable spinlocks using gasneti_atomic_t

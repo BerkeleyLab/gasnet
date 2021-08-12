@@ -1312,7 +1312,6 @@ static void gasnetc_exit_reqh(gex_Token_t token, gex_AM_Arg_t arg0) {
   (void)gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_MEMBER, 0);
 
   /* Send a reply so the leader knows we are reachable */
-  gasnetc_counter_inc(&gasnetc_exit_repl_oust);
   GASNETI_SAFE(gasnetc_ReplySysShort(token, &gasnetc_exit_repl_oust,
            gasneti_handleridx(gasnetc_exit_reph), /* no args */ 0));
   gasneti_sync_writes(); /* For non-atomic portion of gasnetc_exit_repl_oust */
@@ -1481,20 +1480,13 @@ extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
     retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, jobrank, handler,
                                             NULL, 0, NULL,
                                             0, numargs, argptr GASNETI_THREAD_PASS);
-    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
-    gasnetc_counter_t *counter_ptr = NULL;
-    gasnetc_cbfunc_t cbfunc = NULL;
-    gasnetc_atomic_val_t *local_cnt = NULL;
-    if (counter) {
-      counter_ptr = counter;
-      cbfunc = gasnetc_cb_counter;
-      local_cnt = &counter->initiated;
-    }
+    gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
+    gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
-                                     0, 0, numargs, argptr, NULL, 0, NULL,
-                                     local_cnt, cbfunc,
-                                     counter_ptr GASNETI_THREAD_PASS);
+                                     1, 0, numargs, argptr, NULL, 0, NULL,
+                                     local_cnt, cbfunc
+                                     GASNETI_THREAD_PASS);
   }
   va_end(argptr);
   return retval;
@@ -1514,21 +1506,14 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
     retval = gasnetc_nbrhd_ReplyGeneric ( gasneti_Short, token, handler,
                                           NULL, 0, NULL,
                                           0, numargs, argptr);
-    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
     gex_Rank_t jobrank = gasnetc_msgsource(token);
-    gasnetc_counter_t *counter_ptr = NULL;
-    gasnetc_cbfunc_t cbfunc = NULL;
-    gasnetc_atomic_val_t *local_cnt = NULL;
-    if (counter) {
-      counter_ptr = counter;
-      cbfunc = gasnetc_cb_counter;
-      local_cnt = &counter->initiated;
-    }
+    gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
+    gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
                                      0, 0, numargs, argptr, NULL, 0, NULL,
-                                     local_cnt, cbfunc,
-                                     counter_ptr GASNETI_THREAD_PASS);
+                                     local_cnt, cbfunc
+                                     GASNETI_THREAD_PASS);
   }
 
   va_end(argptr);

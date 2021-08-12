@@ -140,7 +140,7 @@ gex_Event_t gasnete_put_nb(
   } else if (lc_opt == GEX_EVENT_DEFER) {
     GASNETC_RDMA_PUT(NULL, NULL);
   } else {
-    gasnetc_assume_leaf_is_pointer(lc_opt);
+    gasneti_assume_leaf_is_pointer(lc_opt);
     GASNETE_EOP_LC_START(op);
     gasnetc_atomic_val_t start_cnt = op->initiated_alc;
     GASNETC_RDMA_PUT(&op->initiated_alc, gasnetc_cb_eop_alc);
