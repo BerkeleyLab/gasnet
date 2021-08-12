@@ -92,10 +92,10 @@ const char *getreport(void) {
   } else return NULL;
 }
 void report(gasnett_tick_t ticks) {
-  double timeus = (double)gasnett_ticks_to_us(ticks);
+  double timeus = (double)gasnett_ticks_to_ns(ticks)/1000;
   char pgcount[32] = {0};
   gasnett_atomic_val_t count = gasnett_atomic_swap(&pgcounter,0,0);
-  if (count) snprintf(pgcount, sizeof(pgcount), "%12lu ops/s", (unsigned long)(count/(timeus*1e-6)));
+  if (count && (timeus > 0.)) snprintf(pgcount, sizeof(pgcount), "%12lu ops/s", (unsigned long)(count/(timeus*1e-6)));
   snprintf(_reportstr, sizeof(_reportstr),
      "%7.3f us\t%5.3f sec%s", 
      timeus/iters, timeus/1000000, pgcount);
