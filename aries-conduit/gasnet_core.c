@@ -1415,10 +1415,9 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
       uint32_t gpd_flags;
       void *completion;
       if (gasneti_leaf_is_pointer(lc_opt)) {
-        gasnete_eop_t *eop = gasnete_eop_new(mythread);
-        GASNETE_EOP_LC_START(eop);
+        gasnete_eop_t *eop = gasnete_eop_new_alc(mythread);
         eop->initiated_alc += 1;
-        *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
+        *lc_opt = (gex_Event_t) eop;
         gpd_flags = GC_POST_COMPLETION_EAM;
         completion = (void *) eop;
       } else if (lc_opt == GEX_EVENT_GROUP) {
@@ -1663,10 +1662,9 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
       uint32_t gpd_flags;
       void *completion;
       if (gasneti_leaf_is_pointer(lc_opt)) {
-        gasnete_eop_t *eop = gasnete_eop_new(mythread);
-        GASNETE_EOP_LC_START(eop);
+        gasnete_eop_t *eop = gasnete_eop_new_alc(mythread);
         eop->initiated_alc += 1;
-        *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
+        *lc_opt = (gex_Event_t) eop;
         gpd_flags = GC_POST_COMPLETION_EAM;
         completion = (void *) eop;
       } else {
