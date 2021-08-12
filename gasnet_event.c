@@ -676,7 +676,9 @@ extern gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD
 #ifndef gasnete_Event_QueryLeaf
 #if GASNET_DEBUG
 static void _gasnete_get_leaf_check(gasnete_op_t *op, gex_EC_t event_id) {
-  gasneti_assert(! gasneti_event_idx(op));
+  if (gasneti_event_idx(op)) {
+    gasneti_fatalerror("Non-root event passed to gex_Event_QueryLeaf()");
+  }
   switch (OPTYPE(op)) {
     case OPTYPE_IMPLICIT: {
       gasnete_iop_t *iop = (gasnete_iop_t*)op;
