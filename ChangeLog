@@ -56,9 +56,8 @@ GASNet-EX ChangeLog
   - Made Cray PMI support conduit-independent, allowing it to function on
     non-aries Cray systems like the new "HPE Cray EX" (aka Shasta).
   - This release adds Intel oneAPI as a supported compiler family.
-  - This release introduces identification of the NVHPC (NVIDIA HPC SDK)
-    compiler family, as a prerequisite for anticipated support for this
-    compiler in a future release.
+  - This release adds NVHPC (NVIDIA HPC SDK) as a supported compiler family
+    on x86-64 and ppc64le, starting at version 20.9.
 
 * GASNet tools (spec v1.18): (details in README-tools)
   - Add gasnett_assume, for exposing annotations to guide optimization
