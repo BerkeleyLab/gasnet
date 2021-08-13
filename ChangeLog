@@ -19,7 +19,7 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
  ----------------------------------------------------------------------
- 20XX.YY.ZZ: PENDING
+ 2021-08-16: GASNet-EX 2021.8.0-snapshot
 
 * General and Misc.
   - NEW: configure options `--enable-rpath` and `--enable-[pkg]-rpath` can
