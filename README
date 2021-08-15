@@ -494,13 +494,13 @@ Platforms where GASNet and Berkeley UPC have been successfully tested include:
     * Linux/x86/IntelC/32:           smp, mpi, udp
     * Linux/x86/PortlandGroupC/32:   smp, mpi, udp
     * Linux/x86_64-Ethernet/{gcc,clang,PGI}/{32,64}: smp, mpi, udp, ofi
-    * Linux/x86_64-Mellanox/{gcc,clang,PathScale,IntelC}/64: smp, mpi, udp, ibv
+    * Linux/x86_64-Mellanox/{gcc,clang,PathScale,NVHPC,IntelC,Intel oneAPI}/64: smp, mpi, udp, ibv
     * Linux/x86_64-OmniPath/gcc/64: smp, mpi, udp, ofi
     * Linux/x86_64/x86-Open64/64:   smp, udp, #
 
     * Linux/PowerPC-Ethernet/{gcc,clang}/{32,64}: smp, mpi, udp
     * Linux/PowerPC-HFI/gcc/32: smp, mpi, udp &
-    * Linux/PPC64le/{gcc,clang,pgi,xlc}/64:     smp, mpi, udp, ibv #
+    * Linux/PPC64le/{gcc,clang,pgi,NVHPC,xlc}/64:     smp, mpi, udp, ibv #
 
     * Linux/MIPS/gcc/{32,n32,64}:       smp, udp, #
     * Linux/MIPS64el/gcc/{32,n32,64}:   smp, udp, #
@@ -551,8 +551,9 @@ although we generally recommend the vendor C compiler for performance reasons.
 
 The following compilers are believed to work on platforms listed above, 
 with the provided minimum version:
-Gnu (gcc 3.0+), LLVM (clang 3.6+), Apple (Xcode 7.1+), Intel (icc 16+), 
-PGI (pgcc 10.9+), IBM XL (xlc 13+), Cray (CCE 8.6+)
+Gnu (gcc 3.0+), LLVM (clang 3.6+), Apple (Xcode 7.1+), PGI (pgcc 10.9 to 20.4),
+NVHPC (20.9+), Intel (icc 16+), Intel oneAPI (icx 21+), IBM XL (xlc 13+),
+Cray (CCE 8.6+)
 
 Recognized Environment Variables
 ================================

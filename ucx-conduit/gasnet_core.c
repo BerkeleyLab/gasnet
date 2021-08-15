@@ -1312,7 +1312,6 @@ static void gasnetc_exit_reqh(gex_Token_t token, gex_AM_Arg_t arg0) {
   (void)gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_MEMBER, 0);
 
   /* Send a reply so the leader knows we are reachable */
-  gasnetc_counter_inc(&gasnetc_exit_repl_oust);
   GASNETI_SAFE(gasnetc_ReplySysShort(token, &gasnetc_exit_repl_oust,
            gasneti_handleridx(gasnetc_exit_reph), /* no args */ 0));
   gasneti_sync_writes(); /* For non-atomic portion of gasnetc_exit_repl_oust */
@@ -1377,15 +1376,6 @@ static void gasnetc_exit_reph(gex_Token_t token) {
   gasneti_atomic_increment(&gasnetc_exit_reps, 0);
 }
 
-// TODO-EX:
-// This conduit curently uses the extended-ref for all RMA.  That, in turn,
-// uses AMs in an NBI access region.  Unfortunately, that means one cannot run
-// progress functions that may communicate using NBI (or accurately then cannot
-// call gex_NB_Test()).  Otherwise, assertions regarding access regions result.
-//
-// This avoids the problem by omitting progress functions on entry to AMRequest.
-#define GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flag) \
-        do { if (GASNETC_IMMEDIATE_WOULD_POLL(flag)) gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE); } while (0)
 /* ------------------------------------------------------------------------------------ */
 /*
   Misc. Active Message Functions
@@ -1490,20 +1480,13 @@ extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
     retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, jobrank, handler,
                                             NULL, 0, NULL,
                                             0, numargs, argptr GASNETI_THREAD_PASS);
-    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
-    gasnetc_counter_t *counter_ptr = NULL;
-    gasnetc_cbfunc_t cbfunc = NULL;
-    gasnetc_atomic_val_t *local_cnt = NULL;
-    if (counter) {
-      counter_ptr = counter;
-      cbfunc = gasnetc_cb_counter;
-      local_cnt = &counter->initiated;
-    }
+    gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
+    gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
-                                     0, 0, numargs, argptr, NULL, 0, NULL,
-                                     local_cnt, cbfunc,
-                                     counter_ptr GASNETI_THREAD_PASS);
+                                     1, 0, numargs, argptr, NULL, 0, NULL,
+                                     local_cnt, cbfunc
+                                     GASNETI_THREAD_PASS);
   }
   va_end(argptr);
   return retval;
@@ -1523,21 +1506,14 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
     retval = gasnetc_nbrhd_ReplyGeneric ( gasneti_Short, token, handler,
                                           NULL, 0, NULL,
                                           0, numargs, argptr);
-    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
     gex_Rank_t jobrank = gasnetc_msgsource(token);
-    gasnetc_counter_t *counter_ptr = NULL;
-    gasnetc_cbfunc_t cbfunc = NULL;
-    gasnetc_atomic_val_t *local_cnt = NULL;
-    if (counter) {
-      counter_ptr = counter;
-      cbfunc = gasnetc_cb_counter;
-      local_cnt = &counter->initiated;
-    }
+    gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
+    gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
                                      0, 0, numargs, argptr, NULL, 0, NULL,
-                                     local_cnt, cbfunc,
-                                     counter_ptr GASNETI_THREAD_PASS);
+                                     local_cnt, cbfunc
+                                     GASNETI_THREAD_PASS);
   }
 
   va_end(argptr);
@@ -1572,7 +1548,7 @@ extern int gasnetc_AMRequestShortM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
-  GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flags); /* (###) poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1639,7 +1615,7 @@ extern int gasnetc_AMRequestMediumM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flags); /* (###) poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1865,7 +1841,7 @@ extern int gasnetc_AMRequestLongM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flags); /* (###) poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -2201,7 +2177,6 @@ extern void gasnetc_hsl_lock   (gex_HSL_t *hsl) {
       if_pf (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
         if (gasneti_wait_mode == GASNET_WAIT_SPIN) {
           while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
-            gasneti_compiler_fence();
             gasneti_spinloop_hint();
           }
         } else {

@@ -191,6 +191,7 @@ typedef struct gasnetc_pin_info_t_ {
 static gasnetc_pin_info_t gasnetc_pin_info;
 
 static char *gasnetc_ibv_ports;
+static int gasnetc_ibv_ports_verbose;
 
 #if GASNET_TRACE
   static unsigned int	gasnetc_pinned_blocks = 0;
@@ -1202,6 +1203,7 @@ static int gasnetc_load_settings(void) {
   }
 
   gasnetc_ibv_ports = gasneti_getenv_hwloc_withdefault("GASNET_IBV_PORTS", GASNETC_DEFAULT_IBV_PORTS, "Socket");
+  gasnetc_ibv_ports_verbose = gasneti_getenv_int_withdefault("GASNET_IBV_PORTS_VERBOSE",1,0);
 
   #define GASNETC_ENVINT(program_var, env_key, default_val, minval, is_mem) do {     \
       int64_t _tmp = gasneti_getenv_int_withdefault(#env_key, default_val, is_mem);  \
@@ -1273,6 +1275,29 @@ static int gasnetc_load_settings(void) {
     }
   #endif
   gasnetc_use_rcv_thread = gasneti_getenv_yesno_withdefault("GASNET_RCV_THREAD", 0);
+#if GASNETC_USE_RCV_THREAD && GASNETC_SERIALIZE_POLL_CQ
+  if (gasnetc_use_rcv_thread) {
+    tmp = gasneti_getenv_withdefault("GASNET_RCV_THREAD_POLL_MODE", "SERIALIZED");
+    size_t len = strlen(tmp);
+    // TODO: replace the following with strcasecmp() if/when available
+    char *mode = gasneti_malloc(len + 1);
+    for (size_t i = 0; i < len; ++i) mode[i] = toupper(tmp[i]);
+    mode[len] = '\0';
+    if (! strcmp(mode, "EXCLUSIVE")) {
+      gasnetc_rcv_thread_poll_serialize = 0;
+      gasnetc_rcv_thread_poll_exclusive = 1;
+    } else if (! strcmp(mode, "UNSERIALIZED")) {
+      gasnetc_rcv_thread_poll_serialize = 0;
+      gasnetc_rcv_thread_poll_exclusive = 0;
+    } else if (! strcmp(mode, "SERIALIZED")) {
+      gasnetc_rcv_thread_poll_serialize = 1;
+      gasnetc_rcv_thread_poll_exclusive = 0;
+    } else {
+      gasneti_fatalerror("GASNET_RCV_THREAD_POLL_MODE \"%s\" is not valid", tmp);
+    }
+    gasneti_free(mode);
+  }
+#endif
 
   /* Verify correctness/sanity of values */
   if (gasnetc_use_rcv_thread && !GASNETC_USE_RCV_THREAD) {
@@ -1679,7 +1704,7 @@ static void gasnetc_probe_ports(int max_ports) {
   }
 #endif
 
-  if ((ib_hcas > GASNETC_IB_MAX_HCAS) && (gasnetc_port_list == NULL)) {
+  if ((ib_hcas > GASNETC_IB_MAX_HCAS) && (gasnetc_port_list == NULL) && gasnetc_ibv_ports_verbose) {
 #if GASNETC_IBV_MAX_HCAS_CONFIGURE
     const char *current = "with '--with-ibv-max-hcas=" _STRINGIFY(GASNETC_IB_MAX_HCAS) "'";
 #else
@@ -1689,7 +1714,9 @@ static void gasnetc_probe_ports(int max_ports) {
 		    "To utilize all your HCAs, you should "
 		    "reconfigure GASNet using '--with-ibv-max-hcas=%d'.  You can silence this warning "
 		    "by setting the environment variable GASNET_IBV_PORTS as described in the file "
-		    "'gasnet/ibv-conduit/README'.\n", num_hcas, current, num_hcas);
+		    "'gasnet/ibv-conduit/README' to specify the desired HCA(s), or by setting the "
+                    "environment variable GASNET_IBV_PORTS_VERBOSE=0 to use the default.\n",
+                    num_hcas, current, num_hcas);
   }
 
   int16_t pkey = get_pkey();
@@ -4175,10 +4202,9 @@ void gasnetc_am_sema_poll(gasnetc_sema_t * const sema,
                           gasnetc_EP_t ep
                           GASNETI_THREAD_FARG))
 {
-  do {
-    GASNETI_WAITHOOK();
-    gasnetc_poll_rcv_all(ep, 1 GASNETI_THREAD_PASS);
-  } while (!gasnetc_sema_trydown(sema));
+  // Since callers have already failed a trydown, this loop is a "DOUNTIL"
+  GASNETI_SPIN_DOUNTIL(gasnetc_sema_trydown(sema),
+                       gasnetc_poll_rcv_all(ep, 1 GASNETI_THREAD_PASS));
 }
 
 // Helper for allocation of flow-control credit
@@ -4757,9 +4783,8 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
     gasnete_eop_t        *eop = NULL;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+      eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
       *lc_opt = (gex_Event_t)eop;
-      GASNETE_EOP_LC_START(eop);
       start_cnt = eop->initiated_alc;
       local_cnt = &eop->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;
@@ -4781,7 +4806,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                    argptr GASNETI_THREAD_PASS);
 
     if (eop) {
-      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+      gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
       if (start_cnt == eop->initiated_alc) {
         // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
         GASNETE_EOP_LC_FINISH(eop);
@@ -4841,9 +4866,8 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
           local_cb = gasnetc_cb_eop_alc;
         }
       } else {
-        eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+        eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
         *lc_opt = (gex_Event_t)eop;
-        GASNETE_EOP_LC_START(eop);
         start_cnt = eop->initiated_alc;
         local_cnt = &eop->initiated_alc;
         local_cb = gasnetc_cb_eop_alc;
@@ -4869,7 +4893,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
     } else if (eop) {
-      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+      gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
       if (start_cnt == eop->initiated_alc) {
         // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
         GASNETE_EOP_LC_FINISH(eop);
@@ -4934,9 +4958,8 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
     gasnete_eop_t        *eop = NULL;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+      eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
       *lc_opt = (gex_Event_t)eop;
-      GASNETE_EOP_LC_START(eop);
       start_cnt = eop->initiated_alc;
       local_cnt = &eop->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;
@@ -4954,7 +4977,7 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
     gasneti_assert(!rbuf->rbuf_needReply || (flags & GEX_FLAG_IMMEDIATE));
 
     if (eop) {
-      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+      gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
       if (start_cnt == eop->initiated_alc) {
         // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
         GASNETE_EOP_LC_FINISH(eop);
@@ -5018,9 +5041,8 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
           local_cb = gasnetc_cb_eop_alc;
         }
       } else {
-        eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+        eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
         *lc_opt = (gex_Event_t)eop;
-        GASNETE_EOP_LC_START(eop);
         start_cnt = eop->initiated_alc;
         local_cnt = &eop->initiated_alc;
         local_cb = gasnetc_cb_eop_alc;
@@ -5042,7 +5064,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
     } else if (eop) {
-      gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+      gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
       if (start_cnt == eop->initiated_alc) {
         // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
         GASNETE_EOP_LC_FINISH(eop);
@@ -5170,9 +5192,8 @@ void gasnetc_commit_common(
   if (is_cbuf) {
     gasneti_assert(lc_opt);
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+      eop = gasnete_eop_new_alc(GASNETI_MYTHREAD);
       *lc_opt = (gex_Event_t)eop;
-      GASNETE_EOP_LC_START(eop);
       start_cnt = eop->initiated_alc;
       local_cnt = &eop->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;
@@ -5239,7 +5260,7 @@ void gasnetc_commit_common(
                      GASNETI_THREAD_PASS);
 
   if (eop) {
-    gasnetc_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
+    gasneti_assume_leaf_is_pointer(lc_opt); // avoid maybe-uninitialized warning (bug 3756)
     if (start_cnt == eop->initiated_alc) {
       // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
       GASNETE_EOP_LC_FINISH(eop);
@@ -5796,7 +5817,6 @@ extern void gasnetc_hsl_lock   (gex_HSL_t *hsl) {
       if_pf (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
         if (gasneti_wait_mode == GASNET_WAIT_SPIN) {
           while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
-            gasneti_compiler_fence();
             gasneti_spinloop_hint();
           }
         } else {

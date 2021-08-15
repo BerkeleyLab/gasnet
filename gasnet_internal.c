@@ -1547,7 +1547,7 @@ static void gasneti_check_architecture(void) { // check for bad build configurat
       : 0;
     #endif
     if (warning && gasneti_mynode == 0) {
-      fprintf(stderr, warning);
+      fputs(warning, stderr);
       fflush(stderr);
     }
   }

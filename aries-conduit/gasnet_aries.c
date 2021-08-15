@@ -476,7 +476,6 @@ static int gasnetc_register_udreg(gasnetc_post_descriptor_t *gpd, uint32_t memre
         continue;
       } else if (UDREG_RC_NO_MATCH == rc) {
         GASNETC_UNLOCK_UDREG();
-        GASNETI_WAITHOOK();
         gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
         GASNETC_LOCK_UDREG();
       } else {
@@ -527,20 +526,17 @@ static int gasnetc_register_gni(gasnetc_post_descriptor_t *gpd, uint32_t memreg_
   int trial = 0;
   gni_return_t status;
 
-  if_pf (gasnetc_reg_credit_max &&
-         !gasnetc_weakatomic_dec_if_positive(&gasnetc_reg_credit)) {
+  if (gasnetc_reg_credit_max &&
+      !gasnetc_weakatomic_dec_if_positive(&gasnetc_reg_credit)) {
     /* We may simple not have polled the Cq recently.
        So, WAITHOOK and STALL tracing only if still nothing after first poll */
     GASNETC_TRACE_WAIT_BEGIN();
     int stall = 0;
-    goto first;
-    do {
-      GASNETI_WAITHOOK();
-      stall = 1;
-first:
-      gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-    } while (!gasnetc_weakatomic_dec_if_positive(&gasnetc_reg_credit));
-    if_pf (stall) GASNETC_TRACE_WAIT_END(MEM_REG_STALL);
+    gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+    GASNETI_SPIN_UNTIL(gasnetc_weakatomic_dec_if_positive(&gasnetc_reg_credit), {
+      stall = 1; gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+    });
+    if (stall) GASNETC_TRACE_WAIT_END(MEM_REG_STALL);
   }
 
   memreg_flags |= gasnetc_memreg_flags;
@@ -553,7 +549,6 @@ first:
       GASNETC_STAT_EVENT_VAL(MEM_REG_RETRY, trial);
       return 1;
     } else if (status == GNI_RC_ERROR_RESOURCE) {
-      GASNETI_WAITHOOK();
       gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
       ++trial;
     } else if (status == GNI_RC_INVALID_PARAM) {
@@ -1532,10 +1527,6 @@ void gasnetc_shutdown(void)
         }
       }
       if (!left) break;
-#if 0
-      GASNETI_WAITHOOK();
-      gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-#endif
     }
     if_pf (left > 0) {
       gasnetc_GNIT_Log("at shutdown: %d endpoints left after 10 tries", left);
@@ -1631,18 +1622,15 @@ void *gasnetc_alloc_bounce_buffer(gex_Flags_t flags GASNETC_DIDX_FARG)
 {
   gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(bounce_buffer_pool);
   void *buf = gasneti_lifo_pop(pool_p);
-  if_pf (!buf) {
+  if (!buf) {
     /* We may simple not have polled the Cq recently.
        So, WAITHOOK and STALL tracing only if still nothing after first poll */
     GASNETC_TRACE_WAIT_BEGIN();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
     buf = gasneti_lifo_pop(pool_p);
-    if_pf (!buf && !(flags & GEX_FLAG_IMMEDIATE)) {
-      do {
-        GASNETI_WAITHOOK();
-        gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-        buf = gasneti_lifo_pop(pool_p);
-      } while (!buf);
+    if (!buf && !(flags & GEX_FLAG_IMMEDIATE)) {
+      GASNETI_SPIN_DOUNTIL((buf = gasneti_lifo_pop(pool_p)),
+                           gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE));
       GASNETC_TRACE_WAIT_END(ALLOC_BB_STALL);
     }
   }
@@ -1689,7 +1677,6 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
       return GASNET_ERR_RESOURCE;
     }
 
-    GASNETI_WAITHOOK();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
     GASNETC_LOCK_GNI();
   }
@@ -1767,7 +1754,6 @@ int send_ctrl(peer_struct_t * const peer, uint32_t value, gasneti_weakatomic_t *
       return GASNET_ERR_RESOURCE;
     }
 
-    GASNETI_WAITHOOK();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   }
 
@@ -2011,7 +1997,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
     if (imm_flag) goto out_immediate_1;
     do {
       GASNETC_UNLOCK_AM_BUFFER();
-      while (peer->remote_request_lock) GASNETI_WAITHOOK();
+      GASNETI_SPIN_WHILE(peer->remote_request_lock,((void)0));
       GASNETC_LOCK_AM_BUFFER();
     } while (peer->remote_request_lock);
   }
@@ -2937,7 +2923,6 @@ gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd, int 
         return GNI_RC_SUCCESS;
       }
       if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
-      GASNETI_WAITHOOK();
       gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   } while (++trial < GASNETC_RESOURCE_RETRIES);
   if (status == GNI_RC_ERROR_RESOURCE) {
@@ -2967,7 +2952,6 @@ gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd, int l
         return GNI_RC_SUCCESS;
       }
       if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
-      GASNETI_WAITHOOK();
       gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   } while (++trial < GASNETC_RESOURCE_RETRIES);
   if (status == GNI_RC_ERROR_RESOURCE) {
@@ -3589,10 +3573,8 @@ void gasnetc_rdma_put_long(
         gpd->gpd_flags = gpd_flags | GC_POST_UNBOUNCE;
 
         // Stall
-        while (initiated != gasneti_weakatomic_read(&completed, 0)) {
-          GASNETI_WAITHOOK();
-          gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-        }
+        GASNETI_SPIN_UNTIL(initiated == gasneti_weakatomic_read(&completed, 0),
+                           gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE));
 
         // Fall through to inject final chunk
       } else {
@@ -3625,7 +3607,6 @@ void gasnetc_rdma_put_long(
       return; // Normal exit path
     }
     if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
-    GASNETI_WAITHOOK();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   } while (++trial < GASNETC_RESOURCE_RETRIES);
  } // End of scope: 'trial', 'ep' and 'instid'
@@ -4153,7 +4134,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(gex_Flags_t flags GASNE
 {
   gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(post_descriptor_pool);
   gasnetc_post_descriptor_t *gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
-  if_pf (!gpd) {
+  if (!gpd) {
     /* We may simple not have polled the Cq recently.
        So, WAITHOOK and STALL tracing only if still nothing after first poll */
     GASNETC_TRACE_WAIT_BEGIN();
@@ -4164,11 +4145,8 @@ gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(gex_Flags_t flags GASNE
     } else if (flags & GEX_FLAG_IMMEDIATE) {
       return NULL;
     } else {
-      do {
-        GASNETI_WAITHOOK();
-        gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-        gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
-      } while (!gpd);
+      GASNETI_SPIN_DOUNTIL((gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p)),
+                           gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE));
       GASNETC_TRACE_WAIT_END(ALLOC_PD_STALL);
     }
   }

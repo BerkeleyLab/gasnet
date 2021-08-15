@@ -1339,18 +1339,10 @@ void gasnetc_put_long_payload(gex_TM_t tm, gex_Rank_t rank,
     if (! *done_p) {
       if (is_req) {
         // May safely progress everything, including AMs and progress functions
-        gasneti_AMPoll();
-        while (! *done_p) {
-          GASNETI_WAITHOOK();
-          gasneti_AMPoll();
-        }
+        GASNETI_SPIN_DOUNTIL(*done_p, gasneti_AMPoll());
       } else {
         // Running in handler context and thus may safely only progress local queue
-        gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-        while (! *done_p) {
-          GASNETI_WAITHOOK();
-          gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-        }
+        GASNETI_SPIN_DOUNTIL(*done_p, gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE));
       }
     }
   }
@@ -1864,7 +1856,6 @@ extern void gasnetc_hsl_lock   (gex_HSL_t *hsl) {
       if_pf (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
         if (gasneti_wait_mode == GASNET_WAIT_SPIN) {
           while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
-            gasneti_compiler_fence();
             gasneti_spinloop_hint();
           }
         } else {

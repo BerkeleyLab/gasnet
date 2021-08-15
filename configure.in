@@ -3662,7 +3662,7 @@ else
     CONDUIT_HOME([UCX library], [ucx_info], [/opt/mellanox/ucx], [include/ucp/api/ucp.h])
     CONDUIT_CFLAGS
     GASNET_ENV_DEFAULT(UCX_LIBS, -lucp -lucs -luct -lucm)
-    CONDUIT_LDFLAGS(ucx)
+    CONDUIT_LDFLAGS(ucp)
     GASNET_SPLIT_LINKER_OPTS(UCX_LDFLAGS,UCX_LIBS)
 
     # Try to compile and link a basic UCX program
@@ -3916,6 +3916,10 @@ if test "$enabled_ibv" = yes; then
           AC_DEFINE(GASNETC_IBV_ODP)
         fi
       fi
+
+    GASNET_IF_DISABLED([ibv-serialize-poll-cq],
+                       [Disable serialization of CQ polling in ibv-conduit (enabled by default)],
+                       [:], [AC_DEFINE(GASNETC_IBV_SERIALIZE_POLL_CQ_CONFIGURE)])
 
     GASNET_WITH(ibv-max-medium,
        [Specify gasnet_AMMaxMedium() for ibv-conduit (default 65536)],

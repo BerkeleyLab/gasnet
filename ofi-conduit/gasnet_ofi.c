@@ -140,11 +140,10 @@ static int rdma_periodic_poll_threshold; /* Set via environment variable in init
 #define OFI_INJECT_RETRY(lock, fxn, poll_type)\
     do {\
         GASNETC_OFI_LOCK_EXPR(lock, fxn);\
-        while (ret == -FI_EAGAIN) {\
-            GASNETI_WAITHOOK();\
-            GASNETC_OFI_POLL_SELECTIVE(poll_type);\
-            GASNETC_OFI_LOCK_EXPR(lock, fxn);\
-        }\
+        GASNETI_SPIN_WHILE(ret == -FI_EAGAIN, {\
+          GASNETC_OFI_POLL_SELECTIVE(poll_type);\
+          GASNETC_OFI_LOCK_EXPR(lock, fxn);\
+        });\
     }while(0)
 
 static gasneti_lifo_head_t ofi_am_request_pool = GASNETI_LIFO_INITIALIZER;
@@ -750,12 +749,9 @@ void gasnetc_ofi_exit(void)
   // Attempt to obtain (and *never* release) the big_lock in bounded time
   const uint64_t timeout_ns = 10 * 1000000000L; // TODO: arbitrary 10s
   const gasneti_tick_t t_start = gasneti_ticks_now();
-  while (EBUSY == GASNETC_OFI_TRYLOCK(&gasnetc_ofi_locks.big_lock)) {
-    if (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - t_start)) {
-      return; // Give up after time out
-    }
-    GASNETI_WAITHOOK();
-  }
+  GASNETI_SPIN_WHILE(EBUSY == GASNETC_OFI_TRYLOCK(&gasnetc_ofi_locks.big_lock), {
+    if (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - t_start)) return;
+  });
 #endif
 
     for(i = 0; i < num_multirecv_buffs; i++) {
@@ -972,11 +968,9 @@ gasnetc_ofi_am_buf_t *gasnetc_ofi_am_header(int isreq GASNETI_THREAD_FARG)
     }
 ofi_spin_for_buffer:
     poll_type = isreq ? OFI_POLL_ALL : OFI_POLL_REPLY;
-    do {
-        GASNETC_OFI_POLL_SELECTIVE(poll_type);
-        GASNETI_WAITHOOK();
-        header = gasneti_lifo_pop(pool);
-    } while(NULL == header);
+    // This is "DOUNTIL" since already know buffer pool is oversubscribed.  
+    GASNETI_SPIN_DOUNTIL((header = gasneti_lifo_pop(pool)),
+                         GASNETC_OFI_POLL_SELECTIVE(poll_type));
     return header;
 }
 
