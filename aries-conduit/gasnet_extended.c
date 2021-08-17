@@ -745,7 +745,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 /* GNI-specific RDMA-based Dissemination implementation of barrier
  * This is an adaptation of the "rmd" barrier in exteneded-ref.
  * Key differences:
- *  + no complications due to thread-specific events
+ *  + neither eop nor iop allocation/completion overheads
  *  + simple 64-bit put since (aligned) 64-bit puts are atomic
  */
 
