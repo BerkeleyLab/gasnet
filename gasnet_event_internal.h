@@ -435,11 +435,9 @@ gasnete_eop_t *gasnete_eop_new_alc(gasneti_threaddata_t * const thread) {
 }
 #endif // GASNETE_HAVE_LC
 
-#if GASNET_DEBUG
 /*  query an iop for completeness -
  *  this means all catagories (puts, gets, LC, etc.)
- *  TODO-EX: DEPRECATE/REMOVE?
- *   Only used (via GASNETE_IOP_ISDONE) to assert in gasnete_free_threaddata().
+ *  Only used (via GASNETE_IOP_ISDONE) to check state in gasnete_free_threaddata().
  */
 static
 int gasnete_iop_isdone(gasnete_iop_t *iop) {
@@ -455,7 +453,6 @@ int gasnete_iop_isdone(gasnete_iop_t *iop) {
   }
   return result;
 }
-#endif // GASNET_DEBUG
 
 /*  mark an op done - isget ignored for explicit ops */
 // TODO-EX: DEPRECATED

@@ -122,9 +122,10 @@ static int gasnete_free_threaddata(gasneti_threaddata_t *thread) {
     /* active iop */                                                            \
     gasnete_iop_t *iop = thread->current_iop;                                   \
     gasneti_assert(iop->next == NULL); /* not inside an NBI access region */    \
-    gasneti_assert(GASNETE_IOP_ISDONE(iop)); /* no outstanding NBI ops */       \
-    gasneti_free(iop);                                                          \
-    missing--;                                                                  \
+    if (GASNETE_IOP_ISDONE(iop)){ /* no outstanding NBI ops */                  \
+       gasneti_free(iop);                                                       \
+       missing--;                                                               \
+    }                                                                           \
                                                                                 \
     /* iop free lists */                                                        \
     for (int i = 0; i < 2; ++i) {                                               \
