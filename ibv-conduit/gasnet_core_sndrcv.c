@@ -792,8 +792,7 @@ static int gasnetc_snd_reap(int limit) {
 	    break;
 
 	  case GASNETC_OP_AM:		/* AM send */
-	    gasneti_assert((comp.opcode == IBV_WC_SEND) ||
-			   (comp.opcode == IBV_WC_RDMA_WRITE));
+	    gasneti_assert(comp.opcode == IBV_WC_SEND);
 	    if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
 	    }
