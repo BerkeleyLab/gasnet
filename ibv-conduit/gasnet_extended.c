@@ -339,8 +339,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
  * This is a minor variation on the "rmd" barrier in extended-ref.
  * Key differences:
  *  + GASNETC_ANY_PAR replaces GASNETI_THREADS to enable cache padding
- *  + no complications due to thread-specific events
- *  + no eop completion latency
+ *  + neither eop nor iop allocation/completion overheads
  * TODO: factor the common elements
  */
 

@@ -28,7 +28,7 @@ GASNet-EX ChangeLog
   - Environment variable GASNET_BACKTRACE_MT is now available to force
     multi-threaded or single-threaded backtraces (where supported).
   - Improved performance of the conduit-independent RDMA-based barrier,
-    used by default by ucx-conduit, in multi-threaded runs.
+    used by default by ucx-conduit.
   - Improved code factorization to ease addition of new network conduits.
 
 * InfiniBand Verbs (details in ibv-conduit README)
@@ -89,6 +89,7 @@ GASNet-EX ChangeLog
   - bug4265: Collective scratch management is not thread safe
   - bug4266: gex_Coll_ReduceToAllNB is not thread safe
   - bug4277: ucx testam hang with Cray and AMD compilers
+  - bug4278: improvements to RDMADISSEM barrier
   - bug4281: Display glitch in VERBOSEENV console reporting
 
 ----------------------------------------------------------------------
