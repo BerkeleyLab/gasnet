@@ -203,7 +203,8 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   #define gasnete_event_check(_h) do { \
     gasneti_assert(_h != GEX_EVENT_INVALID);              \
     gasneti_assert(_h != GEX_EVENT_NO_OP);                \
-    gasneti_assert_uint(gasneti_event_idx(_h) ,<, GASNETE_OP_EVENTS); \
+    unsigned int _event_idx = gasneti_event_idx(_h);           \
+    gasneti_assert_uint(_event_idx ,<, GASNETE_OP_EVENTS);     \
     gasnete_op_t *_op = gasneti_event_op(_h);                  \
     switch (EVENT_TYPE(_op,0)) {                               \
       case gasnete_event_type_eop:                             \
@@ -213,12 +214,18 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
         gasnete_iop_check((gasnete_iop_t*)_op);                \
         break;                                                 \
       case gasnete_event_type_free_eop:                        \
-      case gasnete_event_type_pendingfree_eop:                 \
         gasneti_fatalerror("Invalid use of free eop");         \
         break;                                                 \
+      case gasnete_event_type_pendingfree_eop:                 \
+        if (!_event_idx) /* leaf use OK while root pending */  \
+          gasneti_fatalerror("Invalid use of pendingfree eop");\
+        break;                                                 \
       case gasnete_event_type_free_iop:                        \
-      case gasnete_event_type_pendingfree_iop:                 \
         gasneti_fatalerror("Invalid use of free iop");         \
+        break;                                                 \
+      case gasnete_event_type_pendingfree_iop:                 \
+        if (!_event_idx) /* leaf use OK while root pending */  \
+          gasneti_fatalerror("Invalid use of pendingfree iop");\
         break;                                                 \
       default:                                                 \
         gasneti_fatalerror("Event has invalid type %d",        \
