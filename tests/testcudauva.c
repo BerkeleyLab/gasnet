@@ -44,6 +44,34 @@ static gex_Segment_t mysegment;
 static gex_Rank_t    myrank;
 static gex_Rank_t    nranks;
 
+static uint8_t *cmp_buffer;
+static int equalDH(uint8_t *d_ptr, uint8_t *h_ptr, size_t len) {
+  cuMemcpyDtoH(cmp_buffer, (CUdeviceptr)d_ptr, len);
+  int result = !memcmp(cmp_buffer, h_ptr, len);
+  if (!result) {
+    // Restore expected content to avoid cascading failures
+    cuMemcpyHtoD((CUdeviceptr)d_ptr, h_ptr, len);
+  }
+  return result;
+}
+
+#define CHECK_DEVICE(label,d_ptr,h_ptr,len) \
+  do {                                            \
+    if (! equalDH(d_ptr,h_ptr,len)) {             \
+       ERR(label " verification failed"); \
+    } else {                                      \
+       MSG(label " verification passed"); \
+    }                                             \
+  } while (0)
+
+#define CHECK_HOST(label,h_ptr1,h_ptr2,len) \
+  do {                                            \
+    if (memcmp(h_ptr1,h_ptr2,len)) {              \
+       ERR(label " verification failed"); \
+    } else {                                      \
+       MSG(label " verification passed"); \
+    }                                             \
+  } while (0)
 
 int main(int argc, char **argv)
 {
@@ -94,7 +122,9 @@ int main(int argc, char **argv)
 
   if (argi < argc || help) test_usage();
 
-  uint8_t *tmp = test_malloc(len);
+  cmp_buffer = test_malloc(len);
+  uint8_t *loc1 = test_malloc(len);
+  uint8_t *loc2 = test_malloc(len);
   uint8_t *array1 = test_malloc(len);
   uint8_t *array2 = test_malloc(len);
 
@@ -136,7 +166,7 @@ int main(int argc, char **argv)
 
   BARRIER();
 
-  gex_EP_t gpu_ep;
+  gex_EP_t gpu1_ep, gpu2_ep;
   gex_MK_t kind;
   gex_MK_Create_args_t args;
 
@@ -166,81 +196,102 @@ int main(int argc, char **argv)
       check_cudacall( cuDevicePrimaryCtxRetain(&ctx, 0) );
       check_cudacall( cuCtxPushCurrent(ctx) );
 
-      CUdeviceptr dptr;
-      uint8_t *client_gpu = NULL;
+      uint8_t *client_gpu1 = NULL;
+      uint8_t *client_gpu2 = NULL;
       if (client_segment) {
+        CUdeviceptr dptr;
         check_cudacall( cuMemAlloc(&dptr, TEST_SEGSZ_REQUEST) );
-        client_gpu = (uint8_t *) dptr;
+        client_gpu1 = (uint8_t *) dptr;
+        check_cudacall( cuMemAlloc(&dptr, TEST_SEGSZ_REQUEST) );
+        client_gpu2 = (uint8_t *) dptr;
       }
 
+      // Create the Kind
+      // TODO: if multiple devices, this should optionally create kinds using two devices
       GASNET_Safe( gex_MK_Create(&kind, myclient, &args, 0) );
-      gex_Segment_t d_segment = GEX_SEGMENT_INVALID;
-      GASNET_Safe( gex_Segment_Create(&d_segment, myclient, client_gpu, TEST_SEGSZ_REQUEST, kind, 0));
-      uint8_t *loc_gpu = gex_Segment_QueryAddr(d_segment);
-      if (client_segment) assert_always(loc_gpu == client_gpu);
 
-      GASNET_Safe( gex_EP_Create(&gpu_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
-      gex_EP_BindSegment(gpu_ep, d_segment, 0);
-      GASNET_Safe( gex_EP_PublishBoundSegment(myteam, &gpu_ep, 1, 0) );
+      // Create and the first GPU segment
+      gex_Segment_t d_segment1 = GEX_SEGMENT_INVALID;
+      GASNET_Safe( gex_Segment_Create(&d_segment1, myclient, client_gpu1, TEST_SEGSZ_REQUEST, kind, 0));
+      uint8_t *loc_gpu1 = gex_Segment_QueryAddr(d_segment1);
+      if (client_segment) assert_always(loc_gpu1 == client_gpu1);
 
-      // TM (3 of 4 being pairs) for the four possible pairings
+      // Create first GPU endpoint and bind its segment
+      GASNET_Safe( gex_EP_Create(&gpu1_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
+      gex_EP_BindSegment(gpu1_ep, d_segment1, 0);
+      GASNET_Safe( gex_EP_PublishBoundSegment(myteam, &gpu1_ep, 1, 0) );
+
+      // Repeat to create a second local GPU segment
+      gex_Segment_t d_segment2 = GEX_SEGMENT_INVALID;
+      GASNET_Safe( gex_Segment_Create(&d_segment2, myclient, client_gpu2, TEST_SEGSZ_REQUEST, kind, 0));
+      uint8_t *loc_gpu2 = gex_Segment_QueryAddr(d_segment2);
+      if (client_segment) assert_always(loc_gpu2 == client_gpu2);
+      GASNET_Safe( gex_EP_Create(&gpu2_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
+      gex_EP_BindSegment(gpu2_ep, d_segment2, 0);
+      GASNET_Safe( gex_EP_PublishBoundSegment(myteam, &gpu2_ep, 1, 0) );
+
+      // TM pairs for several possible pairings
       gex_EP_Index_t host_epidx = gex_EP_QueryIndex(myep);
-      gex_EP_Index_t gpu_epidx  = gex_EP_QueryIndex(gpu_ep);
+      gex_EP_Index_t gpu1_epidx = gex_EP_QueryIndex(gpu1_ep);
+      gex_EP_Index_t gpu2_epidx = gex_EP_QueryIndex(gpu2_ep);
       assert_always(host_epidx == 0);
-      assert_always(gpu_epidx  == 1);
-      gex_TM_t LH_RH = myteam;
-      gex_TM_t LH_RG = gex_TM_Pair(myep,   gpu_epidx);
-      gex_TM_t LG_RH = gex_TM_Pair(gpu_ep, host_epidx);
-      gex_TM_t LG_RG = gex_TM_Pair(gpu_ep, gpu_epidx);
+      assert_always(gpu1_epidx == 1);
+      assert_always(gpu2_epidx == 2);
+      gex_TM_t LH_RG1  = gex_TM_Pair(myep,    gpu1_epidx);
+      gex_TM_t LH_RG2  = gex_TM_Pair(myep,    gpu2_epidx);
+      gex_TM_t LG1_RG1 = gex_TM_Pair(gpu1_ep, gpu1_epidx);
+      gex_TM_t LG2_RG2 = gex_TM_Pair(gpu2_ep, gpu2_epidx);
+      gex_TM_t LG1_RG2 = gex_TM_Pair(gpu1_ep, gpu2_epidx);
+      gex_TM_t LG2_RG1 = gex_TM_Pair(gpu2_ep, gpu1_epidx);
 
-      uint8_t *rem_gpu;
+      uint8_t *rem_gpu1;
       size_t queried_len;
-      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(LH_RG, peer, (void**)&rem_gpu, NULL, &queried_len, 0) );
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(LH_RG1, peer, (void**)&rem_gpu1, NULL, &queried_len, 0) );
       assert_always(queried_len == TEST_SEGSZ_REQUEST);
-      
-// Case 1. Put - local host to remote gpu
-      gex_RMA_PutBlocking(LH_RG, peer, rem_gpu, array1, len, 0);
-      BARRIER();
-      cuMemcpyDtoH(tmp, (CUdeviceptr)loc_gpu, len);
-      if (memcmp(tmp, array1, len)) {
-         ERR("Case 1 verification failed");
-         cuMemcpyHtoD((CUdeviceptr)loc_gpu, array1, len);
-      } else {
-         MSG("Case 1 verification passed");
-      }
 
-// Case 2. Get - remote gpu to local host
-      memset(tmp, 0, len);
-      gex_RMA_GetBlocking(LH_RG, tmp, peer, rem_gpu, len, 0);
-      if (memcmp(tmp, array1, len)) {
-         ERR("Case 2 verification failed");
-      } else {
-         MSG("Case 2 verification passed");
-      }
+      uint8_t *rem_gpu2;
+      gex_Event_Wait( gex_EP_QueryBoundSegmentNB(LH_RG2, peer, (void**)&rem_gpu2, NULL, &queried_len, 0) );
+      assert_always(queried_len == TEST_SEGSZ_REQUEST);
+
+// Case 1. Puts - local host to remote gpus
+//   BEFORE:  GPU1=uninit:uninit    GPU2=uninit:uninit
+//   AFTER:   GPU1=array1:uninit    GPU2=array2:uninit
+      gex_RMA_PutNBI(LH_RG1, peer, rem_gpu1, array1, len, GEX_EVENT_DEFER, 0);
+      gex_RMA_PutNBI(LH_RG2, peer, rem_gpu2, array2, len, GEX_EVENT_DEFER, 0);
+      gex_NBI_Wait(GEX_EC_PUT,0);
+      BARRIER();
+      CHECK_DEVICE("Case 1a", loc_gpu1, array1, len);
+      CHECK_DEVICE("Case 1b", loc_gpu2, array2, len);
+
+// Case 2. Gets - remote gpus to local host
+//   BEFORE:  GPU1=array1:uninit    GPU2=array2:uninit
+//   AFTER:   GPU1=array1:uninit    GPU2=array2:uninit
+      gex_Event_t get_events[2] = {
+              gex_RMA_GetNB(LH_RG1, loc1, peer, rem_gpu1, len, 0),
+              gex_RMA_GetNB(LH_RG2, loc2, peer, rem_gpu2, len, 0)
+          };
+      gex_Event_WaitAll(get_events, 2, 0);
+      CHECK_HOST("Case 2a", loc1, array1, len);
+      CHECK_HOST("Case 2b", loc2, array2, len);
       BARRIER();
 
-// Case 3. Put - local gpu to remote gpu
-      gex_RMA_PutBlocking(LG_RG, peer, rem_gpu+len, loc_gpu, len, 0);
+// Case 3. Put - local gpus to remote gpus "cross over"
+//   BEFORE:  GPU1=array1:uninit    GPU2=array2:uninit
+//   AFTER:   GPU1=array1:array2    GPU2=array2:array1
+      gex_RMA_PutBlocking(LG1_RG2, peer, rem_gpu2+len, loc_gpu1, len, 0);
       BARRIER();
-      cuMemcpyDtoH(tmp, (CUdeviceptr)loc_gpu+len, len);
-      if (memcmp(tmp, array1, len)) {
-         ERR("Case 3 verification failed");
-         cuMemcpyHtoD((CUdeviceptr)loc_gpu+len, array1, len);
-      } else {
-         MSG("Case 3 verification passed");
-      }
+      CHECK_DEVICE("Case 3a", loc_gpu2+len, array1, len);
+      gex_RMA_PutBlocking(LG2_RG1, peer, rem_gpu1+len, loc_gpu2, len, 0);
+      BARRIER();
+      CHECK_DEVICE("Case 3b", loc_gpu1+len, array2, len);
 
-// Case 4. Get - remote gpu to local gpu
-      cuMemcpyHtoD((CUdeviceptr)loc_gpu, array2, len);
-      BARRIER();
-      gex_RMA_GetBlocking(LG_RG, loc_gpu+len, peer, rem_gpu, len, 0);
-      cuMemcpyDtoH(tmp, (CUdeviceptr)loc_gpu+len, len);
-      if (memcmp(tmp, array2, len)) {
-         ERR("Case 4 verification failed");
-         cuMemcpyHtoD((CUdeviceptr)loc_gpu+len, array2, len);
-      } else {
-         MSG("Case 4 verification passed");
-      }
+// Case 4. Get - remote gpus to local gpus
+//   BEFORE:  GPU1=array1:array2    GPU2=array2:array1
+//   AFTER:   GPU1=array1:array1    GPU2=array2:array2
+      gex_RMA_GetBlocking(LG1_RG1, loc_gpu1+len, peer, rem_gpu1, len, 0);
+      CHECK_DEVICE("Case 4a", loc_gpu1+len, array1, len);
+      gex_RMA_GetBlocking(LG2_RG2, loc_gpu2+len, peer, rem_gpu2, len, 0);
+      CHECK_DEVICE("Case 4b", loc_gpu2+len, array2, len);
 
       if (!test_errs) MSG("GEX_MK_CLASS_CUDA_UVA: success");
 
@@ -260,6 +311,12 @@ int main(int argc, char **argv)
   // Just to ensure these exist:
   args.gex_class = GEX_MK_CLASS_HOST;
   kind = GEX_MK_HOST;
+
+  test_free(array2);
+  test_free(array1);
+  test_free(loc2);
+  test_free(loc1);
+  test_free(cmp_buffer);
 
   MSG("done.");
 
