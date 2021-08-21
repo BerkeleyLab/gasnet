@@ -362,7 +362,7 @@ void gasnetc_req_add_iov(gasnetc_am_req_t *am_req, void *buffer, size_t nbytes)
 
 GASNETI_INLINE(gasnetc_am_req_format)
 void gasnetc_am_req_format(gasnetc_am_req_t *am_req,
-                           gasnetc_ucx_am_type_t am_type, gex_Rank_t rank,
+                           gasnetc_ucx_am_type_t am_type,
                            gex_AM_Index_t handler, uint8_t is_packed,
                            uint8_t is_req, int numargs,
                            va_list argptr, uint32_t nbytes,
@@ -380,14 +380,12 @@ void gasnetc_am_req_format(gasnetc_am_req_t *am_req,
 
   GASNETC_BUF_ADD_SEND_BYTES(am_req, sizeof(gasnetc_sreq_hdr_t));
 
-#if GASNET_DEBUG
-  am_req->am_hdr->magic = GASNETC_HDR_MAGIC;
-#endif
   am_req->am_hdr->am_type  = am_type;
   am_req->am_hdr->handler  = handler;
+#if !GASNETC_PIN_SEGMENT
   am_req->am_hdr->is_packed = is_packed;
+#endif
   am_req->am_hdr->is_req   = is_req;
-  am_req->am_hdr->dst      = rank;
   am_req->am_hdr->src      = gasneti_mynode;
   am_req->am_hdr->numargs  = numargs;
   am_req->am_hdr->payload_size = nbytes;
@@ -578,18 +576,16 @@ void gasnetc_req_wait(gasnetc_ucx_request_t *req, uint8_t is_request
 
 GASNETI_INLINE(gasnetc_send_req)
 gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
+                                        gex_Rank_t jobrank,
                                         uint8_t block,
                                         gasnetc_atomic_val_t *local_cnt,
                                         gasnetc_cbfunc_t local_cb)
 {
   gasnetc_ucx_request_t *request = NULL;
-  ucp_ep_h server_ep =
-      gasneti_ucx_module.ep_tbl[am_req->am_hdr->dst].server_ep;
+  ucp_ep_h server_ep = gasneti_ucx_module.ep_tbl[jobrank].server_ep;
   void *src_ptr;
   size_t count;
   ucp_datatype_t datatype;
-
-  server_ep = gasneti_ucx_module.ep_tbl[am_req->am_hdr->dst].server_ep;
 
 #if GASNETC_PIN_SEGMENT
   src_ptr = (void*)GASNETC_BUF_DATA(am_req->buffer);
@@ -666,7 +662,7 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
   gasneti_assert(am_req);
 
 #define __am_req_format(__is_packed) \
-  gasnetc_am_req_format(am_req, am_type, jobrank, handler, __is_packed, \
+  gasnetc_am_req_format(am_req, am_type, handler, __is_packed, \
                         is_request, numargs, argptr, nbytes, dst_addr \
                         GASNETI_THREAD_PASS)
 
@@ -728,7 +724,7 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
 send:
   // NOTE: local_cnt/local_cb here are NOT used for Longs.
   // Rather they provide LC stall for Short headers during shutdown
-  req = gasnetc_send_req(am_req, is_sync, local_cnt, local_cb);
+  req = gasnetc_send_req(am_req, jobrank, is_sync, local_cnt, local_cb);
   GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
 
   // TODO: revisit this stall as described in bug 4280
