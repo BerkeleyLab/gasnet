@@ -45,6 +45,8 @@ static gex_Rank_t    myrank;
 static gex_Rank_t    nranks;
 
 static uint8_t *cmp_buffer;
+
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA
 static int equalDH(uint8_t *d_ptr, uint8_t *h_ptr, size_t len) {
   cuMemcpyDtoH(cmp_buffer, (CUdeviceptr)d_ptr, len);
   int result = !memcmp(cmp_buffer, h_ptr, len);
@@ -54,6 +56,7 @@ static int equalDH(uint8_t *d_ptr, uint8_t *h_ptr, size_t len) {
   }
   return result;
 }
+#endif
 
 #define CHECK_DEVICE(label,d_ptr,h_ptr,len) \
   do {                                            \
