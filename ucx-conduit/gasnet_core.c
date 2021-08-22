@@ -124,8 +124,6 @@ static void gasnetc_check_config(void) {
 
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
-
-  gasneti_static_assert(GASNETC_UCX_HDR_SIZE == sizeof(gasnetc_sreq_hdr_t));
 }
 
 GASNETI_INLINE(gasnetc_msgsource)
@@ -580,7 +578,7 @@ static int gasnetc_init(
                          "See ucx-conduit README for more details.",
                          lub_medium);
     }
-    size_t max_med_overhead = GASNETI_ALIGNUP(GASNETC_UCX_HDR_SIZE + GASNETC_MAX_ARGS_SIZE, 8);
+    size_t max_med_overhead = GASNETC_UCX_MED_HDR_SIZE_PADDED(GASNETC_MAX_ARGS);
     gasnetc_ammed_bufsz = lub_medium + max_med_overhead;
   }
 

@@ -39,9 +39,11 @@ typedef struct {
   uint8_t               is_packed;
 #endif
   uint32_t              size;
+// END OF SHORT
   uint32_t              payload_size;
-  /* for Long AM only */
+// END OF MEDUIM
   void                 *dst_addr;
+// END OF LONG
 } gasnetc_sreq_hdr_t;
 
 typedef struct {
