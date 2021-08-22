@@ -280,15 +280,6 @@ typedef struct _gasneti_ucx_module {
 #endif
 } gasneti_ucx_module_t;
 
-typedef struct {
-  gex_Rank_t source;
-  const gex_AM_Entry_t *entry;
-  int is_request;
-#if GASNETI_THREADINFO_OPT
-  gasnet_threadinfo_t threadinfo;
-#endif
-} gasnetc_token_t;
-
 // Conduit-specific Segment type
 typedef struct gasnetc_Segment_t_ {
   GASNETI_SEGMENT_COMMON // conduit-indep part as prefix
