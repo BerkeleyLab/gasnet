@@ -95,6 +95,7 @@ GASNet-EX ChangeLog
   - bug4277: ucx testam hang with Cray and AMD compilers
   - bug4278: improvements to RDMADISSEM barrier
   - bug4281: Display glitch in VERBOSEENV console reporting
+  - bug4291: Configure barfs on balanced double-quotes in arguments
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release
