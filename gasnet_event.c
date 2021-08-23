@@ -325,6 +325,17 @@ gasneti_aop_t *gasneti_aop_pop(GASNETI_THREAD_FARG_ALONE) {
   return (gasneti_aop_t*) gasnete_aop_pop(mythread);
 }
 
+// DO NOT USE THIS!
+// This exists only to permit "safe" testing in gasnet_diagnostic.c.
+void gasneti_nbi_ff_drain_(GASNETI_THREAD_FARG_ALONE)
+{
+  gasneti_aop_t *aop = GASNETI_MYTHREAD->nbi_ff_aop;
+  if (aop) {
+    gex_Event_Wait( gasneti_aop_to_event(aop) );
+    GASNETI_MYTHREAD->nbi_ff_aop = NULL;
+  }
+}
+
 
 // TODO-EX: EOP_INTERFACE
 //   These next two are a stop-gap pending proper generalization.

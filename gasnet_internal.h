@@ -985,6 +985,10 @@ typedef struct _gasneti_threaddata_t {
   gasnete_eop_t *foreign_eops;
   gasnete_iop_t *foreign_iops;
 
+  // For use by conduit-independent logic desiring fire-and-forget implict ops.
+  // This includes, at least, the RDMADISSEM barrier.
+  gasneti_aop_t *nbi_ff_aop;
+
   //
   // Conduit-specific data
   // Owned by [CONDUIT]-conduie/gasnet_extended_fwd.h
@@ -993,6 +997,31 @@ typedef struct _gasneti_threaddata_t {
   GASNETE_CONDUIT_THREADDATA_FIELDS
   #endif
 } gasneti_threaddata_t;
+
+/* ------------------------------------------------------------------------------------ */
+// A "NBI fire-and-forget" facility using aops is provided for convenience of
+// conduit-independent logic with no need to test or wait for completions.
+
+GASNETI_INLINE(gasneti_begin_nbi_ff)
+void gasneti_begin_nbi_ff(GASNETI_THREAD_FARG_ALONE)
+{
+  gasneti_aop_t *aop = GASNETI_MYTHREAD->nbi_ff_aop;
+  if_pf (aop == NULL) {
+    aop = gasneti_aop_create(GASNETI_THREAD_PASS_ALONE);
+    GASNETI_MYTHREAD->nbi_ff_aop = aop;
+  }
+  gasneti_aop_push(aop GASNETI_THREAD_PASS);
+}
+GASNETI_INLINE(gasneti_end_nbi_ff)
+void gasneti_end_nbi_ff(GASNETI_THREAD_FARG_ALONE)
+{
+  gasneti_aop_t *aop = gasneti_aop_pop(GASNETI_THREAD_PASS_ALONE);
+  gasneti_assert(aop == GASNETI_MYTHREAD->nbi_ff_aop);
+}
+
+// DO NOT USE THIS!
+// This exists only to permit "safe" testing in gasnet_diagnostic.c.
+extern void gasneti_nbi_ff_drain_(GASNETI_THREAD_FARG_ALONE);
 
 /* ------------------------------------------------------------------------------------ */
 /* Simple container of segments

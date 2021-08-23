@@ -127,6 +127,18 @@ static int gasnete_free_threaddata(gasneti_threaddata_t *thread) {
        missing--;                                                               \
     }                                                                           \
                                                                                 \
+    /* fire-and-forget iop */                                                   \
+    gasneti_aop_t *aop = thread->nbi_ff_aop;                                    \
+    if (aop) {                                                                  \
+      /* first balance counters, otherwise can never become "done" */           \
+      iop = (gasnete_iop_t *) gasneti_aop_to_event(aop);                        \
+      if (GASNETE_IOP_ISDONE(iop)) {                                            \
+        thread->nbi_ff_aop = NULL;                                              \
+        gasneti_free(iop);                                                      \
+        missing--;                                                              \
+      }                                                                         \
+    }                                                                           \
+                                                                                \
     /* iop free lists */                                                        \
     for (int i = 0; i < 2; ++i) {                                               \
       if (i) {                                                                  \
