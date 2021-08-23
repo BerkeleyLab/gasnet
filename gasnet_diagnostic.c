@@ -1221,6 +1221,16 @@ static void op_test(int id) {
       #undef RAND_EVENT
     }
     PTHREAD_LOCALBARRIER(num_threads);
+    { // Test "aop" interfaces
+      gex_NBI_Wait(GEX_EC_ALL,0);
+      gasneti_aop_t *aop = gasneti_aop_create(GASNETI_THREAD_PASS_ALONE);
+      gasneti_aop_push(aop GASNETI_THREAD_PASS);
+      gasneti_assert_always_ptr(aop ,==, gasneti_aop_pop(GASNETI_THREAD_PASS_ALONE));
+      gasneti_assert_always_int(gex_NBI_Test(GEX_EC_ALL,0) ,==, GASNET_OK);
+      gex_Event_t ev = gasneti_aop_to_event(aop);
+      gasneti_assert_always_int(gex_Event_Test(ev) ,==, GASNET_OK);
+    }
+    PTHREAD_LOCALBARRIER(num_threads);
     if (!id) { test_free(share); share = NULL; }
   }
   PTHREAD_BARRIER(num_threads);
