@@ -188,8 +188,12 @@ TEST_PARAMS=                    					\
    $(MANUAL_TESTPARAMS) dummy=1 ;
 
 # omit tests that are supposed to fail or known to cause failures
+# testexit: requires special handling, provided by run-testexit
+# testreadonly: known to fail on multiple system (at least bugs 4008, 4009, 4046 and 4179)
+# MPI_TESTS_*: lack infrastructure here to launch via mpirun vs $(CONDUIT_RUNCMD)
 testprograms_err =      \
         testexit        \
+        testreadonly    \
 	$(MPI_TESTS_SEQ) \
 	$(MPI_TESTS_PAR)
 
