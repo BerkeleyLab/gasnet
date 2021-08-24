@@ -42,10 +42,14 @@ GASNet-EX ChangeLog
     default value for the GASNET_USE_FENCED_PUTS environment variable.
   - Added feature macros to advertise multi-rail configuration to clients.
 
+* Cray XC uGNI (details in aries-conduit README)
+  - Fix leak of gex_Event_t for explicit-event local completion of AM Long (bug 4292)
+
 * Unified Communication X framework (ucx-conduit) [EXPERIMENTAL]
   - Improvements to AM Long payload handling
     + Fix corruption when using UCX-level shared memory communication (bug 4155)
     + Fix crashes when using synchronous local completion (bug 4277)
+    + Fix leak of gex_Event_t for explicit-event local completion (bug 4292)
   - Improved handing of non-collective exits
 
 * Shared-memory without a network (smp-conduit)
@@ -96,6 +100,7 @@ GASNet-EX ChangeLog
   - bug4278: improvements to RDMADISSEM barrier
   - bug4281: Display glitch in VERBOSEENV console reporting
   - bug4291: Configure barfs on balanced double-quotes in arguments
+  - bug4292: ucx and aries can leak events from AM Long
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release

@@ -689,7 +689,7 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
       start_cnt = eop->initiated_alc;
       local_cnt = &eop->initiated_alc;
       cbfunc = gasnetc_cb_eop_alc;
-      *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
+      *lc_opt = eop;
       is_sync = 0;
     } else if (lc_opt == GEX_EVENT_GROUP) {
       gasnete_iop_t *iop = mythread->current_iop;
