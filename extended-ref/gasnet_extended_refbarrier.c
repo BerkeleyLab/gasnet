@@ -1231,17 +1231,17 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
   payload->flags2 = ~flags;
   payload->value2 = ~value;
 
-  // Here we use NBI puts to achieve a "fire and forget" Put operation.
-  // We do so *without* use of a recursive access region, thus using the
-  // current thread's active access region (if any) or the implicit iop.
-  // This has no correctness impact, but may result in small additional
-  // delays in the client thread's subsequent Wait.
+  // Here we use NBI puts inside a "fire and forget" region to avoid any
+  // need to sync the operation later, and without bleeding into the client's
+  // current iop.
+  gasneti_begin_nbi_ff(GASNETI_THREAD_PASS_ALONE);
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gex_Rank_t jobrank = barrier_data->barrier_peers[step].jobrank;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
     gasnete_put_nbi(gasneti_THUNK_TM, jobrank, addr, payload, sizeof(*payload),
                     GEX_EVENT_DEFER, 0 GASNETI_THREAD_PASS);
   }
+  gasneti_end_nbi_ff(GASNETI_THREAD_PASS_ALONE);
 }
 
 #if GASNETI_PSHM_BARRIER_HIER

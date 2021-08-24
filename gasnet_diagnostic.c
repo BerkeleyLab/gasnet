@@ -1004,11 +1004,14 @@ static void progressfns_test(int id) {
 #endif
 }
 /* ------------------------------------------------------------------------------------ */
+static void noop_reqh(gex_Token_t token, void *buf, size_t nbytes) { /* empty */ }
 static void op_test(int id) {
   int iter;
   GASNET_BEGIN_FUNCTION();
   PTHREAD_BARRIER(num_threads);
   TEST_HEADER("internal op interface test"); else return;
+  size_t max_medium = gasnetc_AM_MaxRequestMedium(myteam,peer,GEX_EVENT_GROUP,0,0);
+  size_t max_long = gasnetc_AM_MaxRequestLong(myteam,peer,GEX_EVENT_GROUP,0,0);
   for (iter=0; iter < iters0; iter++) {
     static const void **share = NULL;
     int peerid = ( id + 1 ) % num_threads;
@@ -1221,8 +1224,46 @@ static void op_test(int id) {
       #undef RAND_EVENT
     }
     PTHREAD_LOCALBARRIER(num_threads);
+    { // Test "aop" interfaces
+      gex_NBI_Wait(GEX_EC_ALL,0);
+      gasneti_aop_t *aop = gasneti_aop_create(GASNETI_THREAD_PASS_ALONE);
+      gasneti_aop_push(aop GASNETI_THREAD_PASS);
+      gasneti_assert_always_ptr(aop ,==, gasneti_aop_pop(GASNETI_THREAD_PASS_ALONE));
+      gasneti_assert_always_int(gex_NBI_Test(GEX_EC_ALL,0) ,==, GASNET_OK);
+      gex_Event_t ev = gasneti_aop_to_event(aop);
+      gasneti_assert_always_int(gex_Event_Test(ev) ,==, GASNET_OK);
+    }
+    PTHREAD_LOCALBARRIER(num_threads);
+    { // Test NBI fire-and-forget regions
+      gex_NBI_Wait(GEX_EC_ALL,0);
+      gasneti_begin_nbi_ff(GASNETI_THREAD_PASS_ALONE);
+      for (size_t sz = 1; sz <= MIN(128*1024,TEST_SEGSZ/2); sz = (sz < 64?sz*2:sz*8)) {
+        gex_RMA_PutNBI(myteam, peer, peersegmid, myseg, sz, GEX_EVENT_DEFER, 0);
+        gex_RMA_GetNBI(myteam, myseg, peer, peersegmid, sz, 0);
+        if (sz <= max_medium) {
+          gex_AM_RequestMedium0(myteam, peer, gasneti_diag_hidx_base + 2, myseg, sz, GEX_EVENT_GROUP, 0);
+        }
+        if (sz <= max_long) {
+          gex_AM_RequestLong0(myteam, peer, gasneti_diag_hidx_base + 2, myseg, sz, peersegmid, GEX_EVENT_GROUP, 0);
+        }
+      }
+      gasneti_end_nbi_ff(GASNETI_THREAD_PASS_ALONE);
+      gasneti_assert_always_int(gex_NBI_Test(GEX_EC_PUT,0) ,==, GASNET_OK);
+      gasneti_assert_always_int(gex_NBI_Test(GEX_EC_GET,0) ,==, GASNET_OK);
+      gasneti_assert_always_int(gex_NBI_Test(GEX_EC_AM,0) ,==, GASNET_OK);
+      gasneti_assert_always_int(gex_NBI_Test(GEX_EC_ALL,0) ,==, GASNET_OK);
+    }
+    PTHREAD_LOCALBARRIER(num_threads);
     if (!id) { test_free(share); share = NULL; }
   }
+
+  // Avert you eyes.  The following call prevents this subtest from leaving
+  // NBI operations in-flight that may still be modifying memory in such a way
+  // as to interfere with later tests.
+  // TODO: Reserve some portion of the segment for the exclusive use of the
+  // fire-and-forget tests and remove this call.
+  gasneti_nbi_ff_drain_(GASNETI_THREAD_PASS_ALONE);
+
   PTHREAD_BARRIER(num_threads);
 }
 /* ------------------------------------------------------------------------------------ */
@@ -1567,7 +1608,8 @@ static gex_AM_Entry_t gasneti_diag_handlers[] = {
   #endif
 
   { gasneti_diag_hidx_base + 0, (gex_AM_Fn_t)progressfn_reqh, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDLONG, 0 },
-  { gasneti_diag_hidx_base + 1, (gex_AM_Fn_t)progressfn_reph, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 0 }
+  { gasneti_diag_hidx_base + 1, (gex_AM_Fn_t)progressfn_reph, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 0 },
+  { gasneti_diag_hidx_base + 2, (gex_AM_Fn_t)noop_reqh, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDLONG, 0 }
 };
 
 
