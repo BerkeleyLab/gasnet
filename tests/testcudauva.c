@@ -118,7 +118,7 @@ int main(int argc, char **argv)
   }
 
   if (argi < argc) { len = atol(argv[argi]); ++argi; }
-  if (len == 0) { len = 16*1024*1024; }
+  if (len == 0) { len = 8*1024*1024; }
 
   if (argi < argc) { seed = atoi(argv[argi]); ++argi; }
   if (seed == 0) { seed = (((unsigned int)TIME()) & 0xFFFF); }
