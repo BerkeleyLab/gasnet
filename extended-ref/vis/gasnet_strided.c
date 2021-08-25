@@ -949,7 +949,6 @@ void gasnete_puts_AMPipeline1_reqh_inner(gex_Token_t token,
     gasneti_assert_uint(psrc - (uint8_t *)addr ,==, nbytes);
   #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
-  /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
   gex_AM_ReplyShort(token, gasneti_handleridx(gasnete_puts_AMPipeline1_reph), 0, PACK(op));
 }
 MEDIUM_HANDLER(gasnete_puts_AMPipeline1_reqh,4,6, 
@@ -1136,7 +1135,10 @@ gex_Event_t gasnete_gets_AMPipeline(gasneti_vis_smd_t * const smd,
 
     gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
 
-    gasnete_begin_nbi_accessregion(0,1 GASNETI_THREAD_PASS); // AOP used for AM LC
+    // Use the fire-and-forget AOP to handle AM LC
+    // This is safe because the source buffer resides in the visop which isn't freed
+    // until the last AMReply handler, guaranteeing all the Requests have reached LC
+    gasneti_begin_nbi_ff(GASNETI_THREAD_PASS_ALONE);
     for (size_t initchunk = 0; initchunk < totalchunks; initchunk += chunksperpacket) {
       size_t const remaining = totalchunks - initchunk;
       size_t const packetchunks = MIN(chunksperpacket, remaining);
@@ -1146,8 +1148,7 @@ gex_Event_t gasnete_gets_AMPipeline(gasneti_vis_smd_t * const smd,
                       PACK(visop), PACK(srcaddr), PACK((uintptr_t)initchunk), stridelevels, chunksz, packetchunks);
 
     }
-    gex_Event_t am_aop = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
-    gasnete_wait(am_aop GASNETI_THREAD_PASS); // TODO-EX: could delay this until a progress function
+    gasneti_end_nbi_ff(GASNETI_THREAD_PASS_ALONE);
   }
   GASNETE_VISOP_RETURN_VOLATILE(eop, synctype);
 }
