@@ -949,7 +949,6 @@ void gasnete_puts_AMPipeline1_reqh_inner(gex_Token_t token,
     gasneti_assert_uint(psrc - (uint8_t *)addr ,==, nbytes);
   #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
-  /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
   gex_AM_ReplyShort(token, gasneti_handleridx(gasnete_puts_AMPipeline1_reph), 0, PACK(op));
 }
 MEDIUM_HANDLER(gasnete_puts_AMPipeline1_reqh,4,6, 
