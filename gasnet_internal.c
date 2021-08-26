@@ -1687,6 +1687,20 @@ void gasneti_nodemap_trivial(void) {
   for (i = 0; i < gasneti_nodes; ++i) gasneti_nodemap[i] = i;
 }
 
+// 64-bit FNV-1a, implemented from scratch based on psuedo code and constants in
+// https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+static uint64_t fnv1a_64(const uint8_t *buf, size_t len)
+{
+  const uint64_t FNV_offset_basis = 0xcbf29ce484222325ULL;
+  const uint64_t FNV_prime = 0x00000100000001B3ULL;
+  uint64_t x = FNV_offset_basis;
+  for (size_t i = 0; i < len; i++) {
+    x ^= *(buf++);
+    x *= FNV_prime;
+  }
+  return x;
+}
+
 // gasneti_hosthash(): 64-bit hash of hostname
 //
 // NOTE: gasneti_checksum() is not suitable
@@ -1697,21 +1711,7 @@ void gasneti_nodemap_trivial(void) {
 // would the pair "172.16.0.6" and "172.18.0.8".
 extern uint64_t gasneti_hosthash(void) {
   const char *myname = gasneti_gethostname();
-  const uint8_t *buf = (uint8_t *)myname;
-  size_t len = strlen(myname);
-  uint64_t csum = 0;
-  for (int i=0;i<len;i++) {
-    uint8_t c = *(buf++);
-    /* The "c = ..." squeezes ASCII down to 6 bits, while encoding
-     * all chars valid in hostnames and IP addresses (IPV4 and IPV6).
-     * A unique value is assigned to each of the digits, the lower
-     * case letters, '-', '.' and ':'.  The upper case letters map
-     * to the same values as the corresponding lower-case.
-     */
-    c = ((c & 0x40) >> 1) | (c & 0x1f);
-    csum = ((csum << 6) | ((csum >> 58) & 0x3F)) ^ c;
-  }
-  return csum;
+  return fnv1a_64((const uint8_t *)myname, strlen(myname));
 }
 
 /* Wrapper around gethostid() */
