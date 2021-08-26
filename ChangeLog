@@ -25,6 +25,7 @@ GASNet-EX ChangeLog
   - Improved reporting of fatal errors reported via IBV completion queues
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4297: incorrect nbrhd construction for some multi-homed hosts
   - bug4321: Intermittent "EBADENDPOINT" failures in single-node udp-conduit
   - bug4339: ucx: many-to-one deadlock
   - bug4345: Multiply defined symbols in aries-conduit w/ recent compilers
