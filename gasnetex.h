@@ -849,6 +849,7 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)
   #define GASNETI_FLAG_COLL_SUBORDINATE      (1U << 30)
+  #define GASNETI_FLAG_PEER_SEG_AUX          (1U << 29)
 #endif
 
 #define GASNETI_FLAG_INIT_LEGACY           (1U << 31)

@@ -30,6 +30,7 @@ GASNet-EX ChangeLog
   - Improved performance of the conduit-independent RDMA-based barrier,
     used by default by ucx-conduit.
   - Improved code factorization to ease addition of new network conduits.
+  - Improved latency for shared-memory RMA operations in all conduits.
 
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
@@ -84,6 +85,7 @@ GASNet-EX ChangeLog
   - bug4213: trace AM handler registration
   - bug4215: testslice enhancements to test cross-nbrhd RMA
   - bug4218: Support root/leaf mixing in array-based NB event APIs 
+  - bug4223: Problems in VIS PSHM handling with non-primordial segments
   - bug4228: Bogus stringop-overflow warnings from GCC-11.1 LTO
   - bug4230: ssh-spawer de-duplication logic is flawed
   - bug4232: Bogus array-bounds warning from GCC 11.1 on ILP32/NDEBUG

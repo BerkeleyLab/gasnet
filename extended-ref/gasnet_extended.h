@@ -60,10 +60,11 @@ gex_Event_t _gex_RMA_GetNB(
                         GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_GET(NB,_tm,_dest,_rank,_src,_nbytes);
   gasneti_boundscheck(_tm, _rank, _src, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_src = gasnete_mapped_at(_tm, _rank, _src);
+  if (_mapped_src) {
     GASNETI_TRACE_GET_LOCAL(NB,_tm,_dest,_rank,_src,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETI_MEMCPY(_dest, _src, _nbytes);
+    GASNETI_MEMCPY(_dest, _mapped_src, _nbytes);
     gasnete_loopbackget_memsync();
     return GEX_EVENT_INVALID;
   } else {
@@ -85,10 +86,11 @@ gex_Event_t _gex_RMA_PutNB(
   GASNETI_CHECK_PUT_LCOPT(_lc_opt, 0);
   GASNETI_CHECKZEROSZ_PUT(NB,_tm,_rank,_dest,_src,_nbytes);
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_dest = gasnete_mapped_at(_tm, _rank, _dest);
+  if (_mapped_dest) {
     GASNETI_TRACE_PUT_LOCAL(NB,_tm,_rank,_dest,_src,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETI_MEMCPY(_dest, _src, _nbytes);
+    GASNETI_MEMCPY(_mapped_dest, _src, _nbytes);
     gasnete_loopbackput_memsync();
     gasneti_leaf_finish(_lc_opt);
     return GEX_EVENT_INVALID;
@@ -236,10 +238,11 @@ int _gex_RMA_GetNBI  (gex_TM_t _tm, void *_dest,
                         GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_GET(NBI,_tm,_dest,_rank,_src,_nbytes);
   gasneti_boundscheck(_tm, _rank, _src, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_src = gasnete_mapped_at(_tm, _rank, _src);
+  if (_mapped_src) {
     GASNETI_TRACE_GET_LOCAL(NBI,_tm,_dest,_rank,_src,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETI_MEMCPY(_dest, _src, _nbytes);
+    GASNETI_MEMCPY(_dest, _mapped_src, _nbytes);
     gasnete_loopbackget_memsync();
     return 0;
   } else {
@@ -260,10 +263,11 @@ int _gex_RMA_PutNBI  (gex_TM_t _tm,
   GASNETI_CHECK_PUT_LCOPT(_lc_opt, 1);
   GASNETI_CHECKZEROSZ_PUT(NBI,_tm,_rank,_dest,_src,_nbytes);
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_dest = gasnete_mapped_at(_tm, _rank, _dest);
+  if (_mapped_dest) {
     GASNETI_TRACE_PUT_LOCAL(NBI,_tm,_rank,_dest,_src,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETI_MEMCPY(_dest, _src, _nbytes);
+    GASNETI_MEMCPY(_mapped_dest, _src, _nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
@@ -417,10 +421,11 @@ int _gex_RMA_GetBlocking  (gex_TM_t _tm, void *_dest,
                     GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,_tm,_dest,_rank,_src,_nbytes),_nbytes);
   gasneti_boundscheck(_tm, _rank, _src, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_src = gasnete_mapped_at(_tm, _rank, _src);
+  if (_mapped_src) {
     GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,_tm,_dest,_rank,_src,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETI_MEMCPY(_dest, _src, _nbytes);
+    GASNETI_MEMCPY(_dest, _mapped_src, _nbytes);
     gasnete_loopbackget_memsync();
     return 0;
   } else {
@@ -440,10 +445,11 @@ int _gex_RMA_PutBlocking  (gex_TM_t _tm,
                     GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,_tm,_rank,_dest,_src,_nbytes),_nbytes);
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_dest = gasnete_mapped_at(_tm, _rank, _dest);
+  if (_mapped_dest) {
     GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,_tm,_rank,_dest,_src,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETI_MEMCPY(_dest, _src, _nbytes);
+    GASNETI_MEMCPY(_mapped_dest, _src, _nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
@@ -494,10 +500,11 @@ int _gex_RMA_PutVal(  gex_TM_t _tm,
   gasneti_assert_uint(_nbytes ,<=, sizeof(gex_RMA_Value_t));
   gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_dest = gasnete_mapped_at(_tm, _rank, _dest);
+  if (_mapped_dest) {
     GASNETI_TRACE_PUT_LOCAL(VAL,_tm,_rank,_dest,&_value,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETE_VALUE_ASSIGN(_dest, _value, _nbytes);
+    GASNETE_VALUE_ASSIGN(_mapped_dest, _value, _nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
@@ -530,10 +537,11 @@ gex_Event_t _gex_RMA_PutNBVal (
   gasneti_assert_uint(_nbytes ,<=, sizeof(gex_RMA_Value_t));
   gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_dest = gasnete_mapped_at(_tm, _rank, _dest);
+  if (_mapped_dest) {
     GASNETI_TRACE_PUT_LOCAL(NB_VAL,_tm,_rank,_dest,&_value,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETE_VALUE_ASSIGN(_dest, _value, _nbytes);
+    GASNETE_VALUE_ASSIGN(_mapped_dest, _value, _nbytes);
     gasnete_loopbackput_memsync();
     return GEX_EVENT_INVALID;
   } else {
@@ -587,10 +595,11 @@ int _gex_RMA_PutNBIVal(
   gasneti_assert_uint(_nbytes ,<=, sizeof(gex_RMA_Value_t));
   gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_dest = gasnete_mapped_at(_tm, _rank, _dest);
+  if (_mapped_dest) {
     GASNETI_TRACE_PUT_LOCAL(NBI_VAL,_tm,_rank,_dest,&_value,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETE_VALUE_ASSIGN(_dest, _value, _nbytes);
+    GASNETE_VALUE_ASSIGN(_mapped_dest, _value, _nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
@@ -628,10 +637,11 @@ gex_RMA_Value_t _gex_RMA_GetBlockingVal (
                 GASNETI_THREAD_FARG)
 {
   gasneti_boundscheck(_tm, _rank, _src, _nbytes);
-  if (gasnete_islocal(_tm,_rank)) {
+  void *_mapped_src = gasnete_mapped_at(_tm, _rank, _src);
+  if (_mapped_src) {
     GASNETI_TRACE_GET_LOCAL(VAL,_tm,NULL,_rank,_src,_nbytes);
     GASNETI_CHECK_INJECT();
-    GASNETE_VALUE_RETURN(_src, _nbytes);
+    GASNETE_VALUE_RETURN(_mapped_src, _nbytes);
   } else {
     GASNETI_TRACE_GET(VAL,_tm,NULL,_rank,_src,_nbytes);
     GASNETI_CHECK_INJECT();
