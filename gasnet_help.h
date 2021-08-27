@@ -1750,15 +1750,14 @@ gex_Rank_t gasneti_nbrhd_mapped_helper(gex_TM_t _e_tm, gex_Rank_t _rank) {
   gasneti_TM_t _i_tm = gasneti_import_tm(_e_tm);
   gasneti_check_i_tm_rank(_i_tm, _rank);
 
-#if !GASNET_SEGMENT_EVERYTHING
-  // Check that target segment exists by looking for non-NULL addr in seginfo table
-  // TODO-EX: update if/when scalable storage replaces gasneti_seginfo[]
-  // TODO-EX: update if/when it is possible to have a primordial segment which is NOT cross-mapped
-  gasneti_assert(gasneti_seginfo[gasneti_e_tm_rank_to_jobrank(_e_tm,_rank)].addr);
-#endif
-
   if (gasneti_is_tm0(_i_tm)) {
     // fast path for TM0, which can only include primordial segments
+  #if !(GASNET_SEGMENT_EVERYTHING || GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET)
+    // Check that target segment exists by looking for non-NULL addr in seginfo table
+    // TODO-EX: update if/when scalable storage replaces gasneti_seginfo[]
+    // TODO-EX: update if/when it is possible to have a primordial segment which is NOT cross-mapped
+    gasneti_assert(gasneti_seginfo[_rank].addr);
+  #endif
     gasneti_assume(_rank != GEX_RANK_INVALID); // may improve codegen in caller
     return GASNETI_MAPPABLE_JOBRANK_P(_rank) ? _rank : GEX_RANK_INVALID;
   }
@@ -1771,6 +1770,13 @@ gex_Rank_t gasneti_nbrhd_mapped_helper(gex_TM_t _e_tm, gex_Rank_t _rank) {
 
   // Fail unless target ep is primordial
   if (_loc.gex_ep_index != 0) return GEX_RANK_INVALID;
+
+#if !(GASNET_SEGMENT_EVERYTHING || GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET)
+  // Check that target segment exists by looking for non-NULL addr in seginfo table
+  // TODO-EX: update if/when scalable storage replaces gasneti_seginfo[]
+  // TODO-EX: update if/when it is possible to have a primordial segment which is NOT cross-mapped
+  gasneti_assert(gasneti_seginfo[_jobrank].addr);
+#endif
 
   gasneti_assume(_jobrank != GEX_RANK_INVALID); // may improve codegen in caller
   return _jobrank;
