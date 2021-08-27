@@ -345,8 +345,10 @@ gex_EP_Index_t gasneti_i_tm_to_ep_index(gasneti_TM_t _i_tm) {
 #define gasneti_e_tm_to_ep_index(_e_tm) gasneti_i_tm_to_ep_index(gasneti_import_tm(_e_tm))
 
 #if GASNET_DEBUG
-  #define gasneti_check_jobrank(jobrank) \
-    gasneti_assert_uint(jobrank ,<, gex_System_QueryJobSize());
+  GASNETI_INLINE(gasneti_check_jobrank)
+  void gasneti_check_jobrank(gex_Rank_t _jobrank) {
+    gasneti_assert_uint(_jobrank ,<, gex_System_QueryJobSize());
+  }
   GASNETI_INLINE(gasneti_check_e_tm_rank)
   void gasneti_check_e_tm_rank(gex_TM_t _e_tm, gex_Rank_t _rank) {
     gasneti_assert(_e_tm);
