@@ -377,8 +377,8 @@ typedef union {
   #endif
   #define _GASNETI_NBRHD_MAPPED_ADDR(e_tm,rank,addr) \
           (gasneti_assert(gasneti_in_local_clientsegment(gasneti_e_tm_to_i_ep(e_tm),(void*)(addr),1)), (addr))
-  #define _GASNETI_NBRHD_AUXSEG_ADDR(e_tm,rank,addr) \
-          (gasneti_assert(gasneti_in_local_auxsegment(gasneti_e_tm_to_i_ep(e_tm),(void*)(addr),1)), (addr))
+  #define _GASNETI_NBRHD_AUXSEG_ADDR(jobrank,addr) \
+          (gasneti_assert(gasneti_in_local_auxsegment(/*unused*/NULL,(void*)(addr),1)), (addr))
   // TODO: bounds check addr passed to _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(), possibly in the caller
   #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr,isaux)  (addr)
 #endif
@@ -420,7 +420,7 @@ GASNETI_PUREP(gasneti_nbrhd_mapped_addr_or_null)
 #define GASNETI_NBRHD_AUXSEG_ADDR_OR_NULL(jobrank,addr) \
         (gasneti_assert(addr), \
          (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank) \
-             ? _GASNETI_NBRHD_AUXSEG_ADDR((jobrank),(addr),1) \
+             ? _GASNETI_NBRHD_AUXSEG_ADDR((jobrank),(addr)) \
              : NULL))
 
 // gasnete_mapped_at() is used by put/get fns to decide whether memory in 
