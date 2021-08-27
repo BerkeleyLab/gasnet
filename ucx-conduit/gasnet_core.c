@@ -760,13 +760,15 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
   // Register the segment
   gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
   segment->mem_info = gasnetc_segment_register(segment->_addr, segment->_size);
+  if (! segment->mem_info) return GASNET_ERR_BAD_ARG;
 #endif
   return GASNET_OK;
 }
 
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 {
-  gasneti_assert_zeroret( gasnetc_segment_create_hook(e_segment) );
+  int rc = gasnetc_segment_create_hook(e_segment);
+  if (rc) return rc;
 
 #if GASNETC_PIN_SEGMENT
   // Exchange the RKeys
