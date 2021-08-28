@@ -103,6 +103,7 @@ GASNet-EX ChangeLog
   - bug4281: Display glitch in VERBOSEENV console reporting
   - bug4291: Configure barfs on balanced double-quotes in arguments
   - bug4292: ucx and aries can leak events from AM Long
+  - bug4299: Non-fatal error on BAR1 resource exhaustion in gex_Segment_Create
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release
