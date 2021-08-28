@@ -223,7 +223,6 @@ static int gasnetc_ucx_worker_flush(void)
   } else if_pf(UCS_PTR_IS_ERR(request)) {
     gasneti_fatalerror("UCX worker wait failed: %d, %s", UCS_PTR_STATUS(request),
                        ucs_status_string(UCS_PTR_STATUS(request)));
-    return GASNET_ERR_RESOURCE;
   }
   do {
     status = ucp_request_check_status(request);
@@ -234,7 +233,6 @@ static int gasnetc_ucx_worker_flush(void)
     gasneti_fatalerror("UCX worker wait failed: %d, %s",
                        UCS_PTR_STATUS(request),
                        ucs_status_string(UCS_PTR_STATUS(request)));
-    return GASNET_ERR_RESOURCE;
   }
   ucp_request_free(request);
 
