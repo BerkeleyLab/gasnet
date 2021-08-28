@@ -648,7 +648,7 @@ extern int gex_Segment_Create(
     }
   #endif
 
-  return rc;
+  GASNETI_RETURN(rc);
 }
 
 /* ------------------------------------------------------------------------------------ */

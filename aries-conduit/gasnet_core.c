@@ -796,7 +796,8 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 {
   // Register client segment with NIC
-  gasneti_assert_zeroret( gasnetc_segment_create_hook(e_segment) );
+  int rc = gasnetc_segment_create_hook(e_segment);
+  if (rc) return rc;
 
   // Exchange registration info
   gex_EP_t ep = gex_TM_QueryEP(e_tm);

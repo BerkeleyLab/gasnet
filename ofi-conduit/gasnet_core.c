@@ -174,7 +174,8 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 {
   // Register the segment
-  gasneti_assert_zeroret( gasnetc_segment_create_hook(e_segment) );
+  int rc = gasnetc_segment_create_hook(e_segment);
+  if (rc) return rc;
 
   // Exchange memory keys
   gex_EP_t e_ep = gex_TM_QueryEP(e_tm);
