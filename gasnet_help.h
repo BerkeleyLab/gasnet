@@ -1765,18 +1765,21 @@ gex_Rank_t gasneti_nbrhd_mapped_helper(gex_TM_t _e_tm, gex_Rank_t _rank) {
   gex_EP_Location_t _loc = gasneti_i_tm_rank_to_location(_i_tm, _rank, 0);
   gex_Rank_t _jobrank = _loc.gex_rank;
 
+#if !(GASNET_SEGMENT_EVERYTHING || GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET)
+  // Regardless whether this query will eventually succeed or fail,
+  // it is erroneous to query a target endpoint that does not yet
+  // have a bound segment made known to us via gex_Segment_Attach()
+  // or gex_EP_PublishBoundSegment().
+  // TODO-EX: update for scalable storage
+  gasneti_assert(gasneti_seginfo_tbl[_loc.gex_ep_index]);
+  gasneti_assert(gasneti_seginfo_tbl[_loc.gex_ep_index][_jobrank].addr);
+#endif
+
   // Fail unless target rank is in-nbrhd or self, as appropriate
   if (! GASNETI_MAPPABLE_JOBRANK_P(_jobrank)) return GEX_RANK_INVALID;
 
   // Fail unless target ep is primordial
   if (_loc.gex_ep_index != 0) return GEX_RANK_INVALID;
-
-#if !(GASNET_SEGMENT_EVERYTHING || GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET)
-  // Check that target segment exists by looking for non-NULL addr in seginfo table
-  // TODO-EX: update if/when scalable storage replaces gasneti_seginfo[]
-  // TODO-EX: update if/when it is possible to have a primordial segment which is NOT cross-mapped
-  gasneti_assert(gasneti_seginfo[_jobrank].addr);
-#endif
 
   gasneti_assume(_jobrank != GEX_RANK_INVALID); // may improve codegen in caller
   return _jobrank;
