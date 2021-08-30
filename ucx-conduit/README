@@ -205,12 +205,6 @@ Additional environment variables:
   memory use in AMLong (especially as used in the "amref" implementation of RMA).
   Restored support for `--enable-segment-everything` is an area for future work.
 
-+ Bug 4165
-  The implementation of AM Mediums is known to have anomalous performance
-  for payloads above about 1KiB on multiple systems.
-  The most up-to-date information on this bug is maintained at:
-    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4165
-
 + Bug 4172
   In hybrid MPI applications there are conditions which can trigger a crash at
   exit time due to a call to MPI_Barrier() by ucx-conduit after MPI_Finalize()
