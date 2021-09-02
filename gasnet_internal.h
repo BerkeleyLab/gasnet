@@ -741,6 +741,8 @@ int gasneti_MK_Segment_Create(
             uintptr_t         length,
             gex_MK_t          e_kind,
             gex_Flags_t       flags);
+void gasneti_MK_Segment_Destroy(
+            gasneti_Segment_t i_segment);
 
 /* ------------------------------------------------------------------------------------ */
 /* macros for returning errors that allow verbose error tracking */
