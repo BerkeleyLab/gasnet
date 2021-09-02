@@ -497,6 +497,9 @@ int gasneti_segmentCreate(
                 uintptr_t               length,
                 gex_MK_t                kind,
                 gex_Flags_t             flags);
+int gasneti_segmentDestroy(
+                gasneti_Segment_t       i_segment,
+                int                     create_hook_succeeded);
 
 int gasneti_EP_PublishBoundSegment(
             gex_TM_t       tm,
@@ -563,7 +566,23 @@ gasnet_seginfo_t gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchang
 //
 // All relevant options to the Create call (such as addr, len, and flags) are
 // accessible as fields of the sole argument (of type gex_Segment_t).
+//
+// On success, returns GASNET_OK and the infrastructure will call the
+// matching destroy hook (if any), when the segment is destroyed.
+// On failure, returns any other value and the infrastructure will NOT call
+// any matching destroy hook, leaving this hook responsible for cleanup of
+// any conduit-specific state prior to such an error return.
 extern int gasnetc_segment_create_hook(gex_Segment_t e_segment);
+#endif
+
+#if GASNETC_SEGMENT_DESTROY_HOOK
+// Called prior to any conduit-independent segment destruction steps, for
+// instance in gex_Segment_Destroy().  Typical use of this hook includes
+// (purely local) memory deregistration.
+//
+// The hook may assume that a prior gasnetc_segment_create_hook() (if any)
+// has returned GASNET_OK.
+extern void gasnetc_segment_destroy_hook(gasneti_Segment_t i_segment);
 #endif
 
 #if GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK
