@@ -168,6 +168,12 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 {
   // Register the segment
   gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
+  // TODO: non-fatal error handling:
+  // When gasnetc_segment_register() returns non-zero, either it or this hook
+  // must cleanup the conduit-specific state prior to returning any value other
+  // than GASNET_OK.
+  // Currently there is a leak of the registration created by `fi_mr_reg()`, which
+  // is inconsequential in practice until multi-EP support is added.
   return gasnetc_segment_register(segment);
 }
 

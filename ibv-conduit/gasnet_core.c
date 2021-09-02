@@ -3011,6 +3011,10 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 #if GASNETC_PIN_SEGMENT
   // Register the segment
   gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
+  // Note: when gasnetc_segment_register() returns an error it has already
+  // cleaned-up the conduit-specific state, satisfying the contract that this
+  // hook (not a destroy hook) is responsible for cleanup when we return
+  // anything other than GASNET_OK.
   return gasnetc_segment_register(segment, 0);
 #else
   return GASNET_OK;

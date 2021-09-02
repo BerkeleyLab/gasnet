@@ -790,6 +790,12 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
   // Register client segment with NIC
   gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
   gasnetc_segment_register(segment);
+
+  // TODO: non-fatal error handling:
+  // If/when gasnetc_segment_register() has non-fatal failure modes, either it
+  // or this hook must cleanup the conduit-specific state prior to returning any
+  // value other than GASNET_OK.
+
   return GASNET_OK;
 }
 

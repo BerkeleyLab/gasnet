@@ -760,7 +760,14 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
   // Register the segment
   gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
   segment->mem_info = gasnetc_segment_register(segment->_addr, segment->_size);
-  if (! segment->mem_info) return GASNET_ERR_BAD_ARG;
+  if (! segment->mem_info) {
+    // TODO: non-fatal error handling:
+    // Once gasnetc_segment_register() can return NULL on error, either it or
+    // this path must cleanup any conduit-specific state prior to error return.
+    // However, currently all failure modes in gasnetc_segment_register() call
+    // gasneti_fatalerror().
+    return GASNET_ERR_BAD_ARG;
+  }
 #endif
   return GASNET_OK;
 }

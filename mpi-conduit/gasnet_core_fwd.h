@@ -128,6 +128,7 @@
   // See gasnet_internal.h for prototypes and brief descriptions.
 //#define GASNETC_SEGMENT_ATTACH_HOOK 1
 //#define GASNETC_SEGMENT_CREATE_HOOK 1
+//#define GASNETC_SEGMENT_DESTROY_HOOK 1
 //#define GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK 1
 
 /* mpi-conduit supports top-level poll throttling */
