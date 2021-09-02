@@ -1025,6 +1025,15 @@ void doit(int partner, int *partnerseg) {
 void doit0(int partner, int *partnerseg) {
 #endif
 
+
+  // GEX_FLAG_PEER_NEVER_SELF *might* alias GEX_FLAG_PEER_NEVER_NBRHD
+  #if (GEX_FLAG_PEER_NEVER_SELF == GEX_FLAG_PEER_NEVER_NBRHD)
+    #define MAYBE_GEX_FLAG_PEER_NEVER_SELF /*empty*/
+  #else
+    // Note the trailing comma in this defn
+    #define MAYBE_GEX_FLAG_PEER_NEVER_SELF GEX_FLAG_PEER_NEVER_SELF,
+  #endif
+
   /* misc type tests */
   assert_inttype(gex_Flags_t);
   // flags used in calls to initiate communication
@@ -1039,6 +1048,8 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_PEER_SEG_SOME,        \
     GEX_FLAG_PEER_SEG_BOUND,       \
     GEX_FLAG_PEER_SEG_OFFSET,      \
+    MAYBE_GEX_FLAG_PEER_NEVER_SELF \
+    GEX_FLAG_PEER_NEVER_NBRHD,     \
     /*GEX_FLAG_LC_COPY_YES, */     \
     /*GEX_FLAG_LC_COPY_NO,  */
 

@@ -343,6 +343,40 @@ typedef [some integer type] gex_Flags_t;
 #define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???) [UNIMPLEMENTED]
 #define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???) [UNIMPLEMENTED]
 //
+// PEER_NEVER_{SELF,NBRHD}
+// [Since spec v0.14]
+//
+// These flags, passed to a supporting communication initiation API, assert to
+// the GASNet-EX library that the '(tm,rank)' tuple (or equivalent) does NOT
+// name an endpoint in certain processes.
+//
+// Use of these flags *may* allow the library to omit its own checks for the
+// asserted condition.  However, to have this desired impact, the compiler must
+// be capable of statically deciding their presence in the 'flags' argument.
+// Therefore, non-trivial logic to determine whether or not to pass either of
+// these flags is strongly discouraged.  The intended use case for these flags
+// is in situations where the asserted property is known without additional
+// logic at the specific call site.
+//
+// Providing an assertion which is untrue will yield undefined results (though
+// in a high-quality implementation, a debug build will report the discrepancy).
+//
+// SELF  - Asserts that the "remote" peer in a communication call is not
+//         an endpoint in the initiating process.
+// NBRHD - Asserts that the "remote" peer in a communication call is not
+//         an endpoint in any process in the initiator's nbrhd.
+//
+// Use of GEX_FLAG_PEER_NEVER_NBRHD implies GEX_FLAG_PEER_NEVER_SELF.
+// However, their use is not mutually exclusive.
+//
+// Currently these flags are valid to pass to:
+//   gex_RMA_*()
+//
+// A future revision may permit these flags for additional communication
+// injection calls.
+#define GEX_FLAG_PEER_NEVER_SELF    ((gex_Flags_t)???)
+#define GEX_FLAG_PEER_NEVER_NBRHD   ((gex_Flags_t)???)
+//
 // AD_MY_{RANK,NBRHD}
 //
 // This mutually-exclusive pair of flags each assert a locality property of

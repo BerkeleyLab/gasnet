@@ -430,11 +430,6 @@ GASNETI_PUREP(gasneti_nbrhd_mapped_addr_or_null)
 // This excludes device memory in any process.
 // It returns the local address if addressible, and NULL otherwise.
 // This is based on the jobrank and memory kind.
-//
-// TODO: A `GEX_FLAG_NEVER_MY_{RANK,NBRHD}` pair of flags could/should be
-// implemented to provide a replacement for the functionality once provided by
-// `GASNETE_PUTGET_ALWAYSREMOTE`, but doing so on a per-call basis rather then
-// per translation unit.
 GASNETI_INLINE(gasnete_mapped_at) GASNETI_PURE
 void *gasnete_mapped_at(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_addr) {
     gasneti_assume(_addr != NULL);
@@ -451,6 +446,36 @@ void *gasnete_mapped_at(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_addr) {
     return _result;
 }
 GASNETI_PUREP(gasnete_mapped_at)
+
+// The `GEX_FLAG_PEER_NEVER_{SELF,NBRHD}` flags provide a replacement for the
+// functionality once provided by `GASNETE_PUTGET_ALWAYSREMOTE`, but doing so
+// on a per-call basis rather then per translation unit.
+//
+// Currently the only check we can elide is nbrhd-scope.
+// However, when PSHM is disabled, GEX_FLAG_PEER_NEVER_SELF is
+// defined equal to GEX_FLAG_PEER_NEVER_NBRHD.
+
+// Helper (producer of _constantp_never_nbrhd) for gex_RMA_*() macros:
+#define GASNETE_CONSTANTP_NEVER_NBRHD(flags)\
+        gasneti_constant_p((flags) & GEX_FLAG_PEER_NEVER_NBRHD)
+// Helper (consumer of _constantp_never_nbrhd) for _gex_RMA_*() inline functions:
+#define GASNETE_NEVER_MAPPED(flags,constantp_never_nbrhd) \
+        (constantp_never_nbrhd && ((flags) & GEX_FLAG_PEER_NEVER_NBRHD))
+
+#if GASNET_DEBUG
+  #define GASNETI_CHECK_NEVER_FLAGS(e_tm,rank,flags) do {                  \
+    if ((flags & GEX_FLAG_PEER_NEVER_SELF) &&                              \
+        (gasneti_e_tm_rank_to_jobrank(e_tm,rank) == gasneti_mynode)) {     \
+      gasneti_fatalerror("GEX_FLAG_PEER_NEVER_SELF assertion is untrue");  \
+    }                                                                      \
+    if ((flags & GEX_FLAG_PEER_NEVER_NBRHD) &&                             \
+        GASNETI_NBRHD_LOCAL(e_tm,rank)) {                                  \
+      gasneti_fatalerror("GEX_FLAG_PEER_NEVER_NBRHD assertion is untrue"); \
+    }                                                                      \
+  } while (0)
+#else
+  #define GASNETI_CHECK_NEVER_FLAGS(e_tm, rank, flags) ((void)0)
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 
