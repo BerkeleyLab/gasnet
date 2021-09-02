@@ -34,7 +34,9 @@ GASNet-EX ChangeLog
 
 * Memory Kinds (support for non-host memory)
   - This release adds Memory Kinds support for AMD GPUs via the HIP API.
-    See docs/memory_kinds.md for more information.
+  - This release adds ucx-conduit support for `GEX_MK_CLASS_CUDA_UVA` and
+    `GEX_MK_CLASS_HIP` on supported hardware and software.
+  See docs/memory_kinds.md for more information on the status of Memory Kinds.
 
 * InfiniBand Verbs (details in ibv-conduit README)
   - Performance improvement for RMA Put and AM Long utilizing asynchronous
@@ -51,11 +53,13 @@ GASNet-EX ChangeLog
   - Fix leak of gex_Event_t for explicit-event local completion of AM Long (bug 4292)
 
 * Unified Communication X framework (ucx-conduit) [EXPERIMENTAL]
+  - New support for Memory kinds: `GEX_MK_CLASS_CUDA_UVA` and `GEX_MK_CLASS_HIP`
   - Improvements to AM Long payload handling
     + Fix corruption when using UCX-level shared memory communication (bug 4155)
     + Fix crashes when using synchronous local completion (bug 4277)
     + Fix leak of gex_Event_t for explicit-event local completion (bug 4292)
   - Improved handing of non-collective exits
+  - Support for multiple endpoints
 
 * Shared-memory without a network (smp-conduit)
   - Performance improvements to remote (inter-process) atomics
