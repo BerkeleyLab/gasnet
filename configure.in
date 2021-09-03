@@ -4906,7 +4906,7 @@ unset have_mk_cuda_uva
 if test "$enable_mk_cuda_uva" != "no"; then
   AC_MSG_CHECKING(for target having CUDA UVA memory kinds support)
   if test "$GASNETI_PTR_BITS" = 32; then
-    AC_MSG_RESULT([no (ILP32 targets are not supported)])
+    AC_MSG_RESULT([no (32-bit targets are not supported)])
     have_mk_cuda_uva=no
   else
     have_mk_cuda_uva=no
@@ -4955,19 +4955,10 @@ if test "$enable_mk_cuda_uva" != "no"; then
   fi
 
   # If the probe(s) above passed on a target identified as "maybe" having
-  # support, then either upgrade to "yes" if enabled explicitly, or downgrade
-  # to "no" if just probing.  Either way, we issue a warning.
+  # support, then upgrade to "yes" with a warning.
   if test "$have_mk_cuda_uva" = "maybe"; then
-    if test "$enable_mk_cuda_uva" = "yes"; then
       have_mk_cuda_uva=yes
       GASNET_MSG_WARN([CUDA UVA memory kinds support enabled for $target, which may not be officially supported])
-    else
-      have_mk_cuda_uva=no
-      GASNET_MSG_WARN([It appears your system has the software required for CUDA UVA memory kinds support.
-However, $target may not be officially supported.
-You can enable an unsupported build of this feature with --enable-kind-cuda-uva.
-Otherwise, you can disable this message with --disable-kind-cuda-uva.])
-    fi
   fi
 
   if test "$have_mk_cuda_uva" = "yes"; then

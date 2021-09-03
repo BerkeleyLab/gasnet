@@ -171,6 +171,7 @@ int main(int argc, char **argv)
     if (GASNET_HAVE_MK_CLASS_MULTIPLE != 1) {
        ERR("Invalid GASNET_HAVE_MK_CLASS_MULTIPLE");
     }
+    test_static_assert(GASNET_MAXEPS >= 2);
 
     int count;
     cuInit(0);
@@ -180,6 +181,7 @@ int main(int argc, char **argv)
       // to at least balance the collective operations (to avoid hanging).
       // However, at least one peer will fail a gex_EP_QueryBoundSegmentNB().
       // For the case all ranks lack a GPU, this test *will* exit gracefully.
+      GASNET_Safe( gex_EP_PublishBoundSegment(myteam, NULL, 0, 0) );
       GASNET_Safe( gex_EP_PublishBoundSegment(myteam, NULL, 0, 0) );
       for (int i = 0; i < 4; ++i) BARRIER(); // currently exactly one per case
     } else {
@@ -200,9 +202,11 @@ int main(int argc, char **argv)
 
       // Create the Kind
       // TODO: if multiple devices, this should optionally create kinds using two devices
+      kind = GEX_MK_INVALID;
       GASNET_Safe( gex_MK_Create(&kind, myclient, &args, 0) );
+      assert_always(kind != GEX_MK_INVALID);
 
-      // Create and the first GPU segment
+      // Create the first GPU segment
       gex_Segment_t d_segment1 = GEX_SEGMENT_INVALID;
       GASNET_Safe( gex_Segment_Create(&d_segment1, myclient, client_gpu1, TEST_SEGSZ_REQUEST, kind, 0));
       uint8_t *loc_gpu1 = gex_Segment_QueryAddr(d_segment1);
@@ -290,6 +294,8 @@ int main(int argc, char **argv)
       check_cudacall( cuCtxSetCurrent(NULL) );
       check_cudacall( cuDevicePrimaryCtxRelease(0) );
     }
+
+    // TODO: once supported: Destroy Segments, Kinds and Endpoints; free GPU memory
   }
 #else
   {
