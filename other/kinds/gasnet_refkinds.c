@@ -108,6 +108,14 @@ int gex_MK_Create(
     #endif
       break;
 
+    case GEX_MK_CLASS_HIP:
+    #if GASNET_HAVE_MK_CLASS_HIP
+      rc = gasneti_MK_Create_hip(&result, client, args, flags);
+    #else
+      GASNETI_RETURN_ERRR(BAD_ARG,"This build lacks support for GEX_MK_CLASS_HIP");
+    #endif
+      break;
+
     default: gasneti_unreachable_error(("Unknown MK class: %i",(int)args->gex_class));
   }
 

@@ -1616,7 +1616,17 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
   #define GASNETI_MK_CLASS_CUDA_UVA_CONFIG nomk_class_cuda_uva
 #endif
 
-#if GASNET_HAVE_MK_CLASS_CUDA_UVA // || GASNET_HAVE_MK_CLASS_[FOO]
+#if GASNET_HAVE_MK_CLASS_HIP
+  #undef GASNET_HAVE_MK_CLASS_HIP
+  #define GASNET_HAVE_MK_CLASS_HIP 1
+  #define GASNETI_MK_CLASS_HIP_CONFIG mk_class_hip
+#else
+  #undef GASNET_HAVE_MK_CLASS_HIP
+  #define GASNETI_MK_CLASS_HIP_CONFIG nomk_class_hip
+#endif
+
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA || \
+    GASNET_HAVE_MK_CLASS_HIP   // || GASNET_HAVE_MK_CLASS_[FOO]
   #define GASNET_HAVE_MK_CLASS_MULTIPLE 1
 #endif
 
