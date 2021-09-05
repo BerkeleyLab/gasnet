@@ -29,7 +29,7 @@ implementation and is updated as that status changes.
 This document makes references to an external document, which is available on
 request from gasnet-staff@lbl.gov:  
 
-  + GASNet-EX API Proposal: Memory Kinds, Revision 2020.11.0
+  + GASNet-EX API Proposal: Memory Kinds, Revision 2021.9.0
 
 For brevity, this will be referenced as simply "the API Proposal".
 
@@ -340,21 +340,6 @@ This section describes the known limitations of each of the APIs introduced
 recently in order to support memory kinds.  Due to interaction among
 APIs, it is impossible to completely avoid forward references.
 
-## Additions:
-
-The preprocessor identifier `GASNET_HAVE_MK_CLASS_MULTIPLE` is defined to `1` if
-support has been compiled in for any memory kinds other than host memory.
-
-HIP support is entirely new since the API proposal.  Its feature macro is
-`GASNET_HAVE_MK_CLASS_HIP`.  Its value in the `gex_MK_Class_t` enumerated type
-is `GEX_MK_CLASS_HIP`, and its member in the `gex_args` union in
-`gex_MK_Create_args_t` is as follows:
-```
-        struct {
-            int                    gex_hipDevice;
-        }                    gex_class_hip;
-```
-
 ## Renames:
 
 Some types, constants and functions have been renamed relative to their first
@@ -372,7 +357,7 @@ Multi-EP. Revision 2020.6.1"):
   + `gex_MemKind_Create_args_t` to `gex_MK_Create_args_t`
     - With `gex_mk_` shortened to `gex_` in naming of struct and union members
 
-The current (2020.11.0) revision of the API Proposal uses the names above, and
+The revisions 2020.11.0 and newer of the API Proposal uses the names above, and
 the remainder of this section will utilize the new names exclusively.
 
 ## `gex_Segment_Attach()`
