@@ -19,7 +19,7 @@ GASNETI_BEGIN_NOWARN
 typedef enum {
     GEX_MK_CLASS_HOST,      // "normal" memory (eg GEX_MK_HOST)
     GEX_MK_CLASS_CUDA_UVA,  // CUDA UVA memory
-    GEX_MK_CLASS_HIP     ,  // HIP device memory
+    GEX_MK_CLASS_HIP        // HIP device memory
 } gex_MK_Class_t;
 
 // Struct containing a union and an enum to indicate which member has been populated.
