@@ -109,12 +109,12 @@ the `--enable-segment-fast` option.  To be clear: `--enable-segment-large` and
 the memory kinds work in the current implementation.
 
 To the best of our knowledge, Mellanox currently disclaims support for GPUDirect
-RDMA on aarch64 (aka ARM64 or ARMv8).  NVIDIA does not support UVA on ILP32
+RDMA on aarch64 (aka ARM64 or ARMv8).  NVIDIA does not support UVA on 32-bit
 platforms, and AMD does not claim any 32-bit CPU support at all.
 Therefore, this work currently supports only x86-64 and ppc64le.
 
 For any configurations that do not meet all of the configure-testable
-requirements outlined above, the memory kinds support in the current prototype
+requirements outlined above, support for corresponding kind(s) in the current
 implementation will be disabled (or `configure` will fail if it was passed a
 failing `--enable-kind-[kind]`).  Specifically, `GASNET_HAVE_MK_CLASS_[KIND]` will be
 undefined and attempts to create device segments will fail at runtime.  Future
@@ -139,7 +139,7 @@ To query the BAR capability of an NVIDIA GPU, run `nvidia-smi -q` and look for t
 "Total" value in the "BAR1 Memory Usage" section for an (optimistic) maximum on
 the amount of memory which can be mapped.
 
-We are not currently aware of a programatic means to query the BAR capability of
+We are not currently aware of a programmatic means to query the BAR capability of
 an AMD GPU.  However, the Linux kernel boot messages (sometimes available via
 the `dmesg` utility or in `/var/log/boot`, or similar) may contain lines like
 the following:
@@ -150,7 +150,7 @@ the following:
 [  115.169201] [drm] Detected VRAM RAM=32752M, BAR=32768M
 ```
 Which in this case shows slightly under 32GB of VRAM and a BAR size of a full
-32GB.  In this instance, the VRAM size of `32752M` is the relavant size and,
+32GB.  In this instance, the VRAM size of `32752M` is the relevant size and,
 just like the NVIDIA case, is an (optimistic) maximum limit on mappable memory.
 
 For either GPU vendor, these limits are per GPU across all
