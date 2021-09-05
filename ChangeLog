@@ -70,6 +70,7 @@ GASNet-EX ChangeLog
 
 * GASNet-EX Spec v0.14: (details in docs/GASNet-EX.txt)
   - Allow mixing of root and leaf events in array-based NB event APIs.
+  - Add GEX_FLAG_PEER_NEVER_{SELF,NBRHD}
 
 * GASNet tools (spec v1.18): (details in README-tools)
   - Add gasnett_assume, for exposing annotations to guide optimization
