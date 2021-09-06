@@ -844,7 +844,14 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 
 
 /* ------------------------------------------------------------------------------------ */
-/* internal flags (others in gasnet_fwd.h) */
+/* conditional and internal flags (others in gasnet_fwd.h) */
+
+#define GEX_FLAG_PEER_NEVER_NBRHD       (1U << 14)
+#if GASNET_PSHM
+  #define GEX_FLAG_PEER_NEVER_SELF      (1U << 15)
+#else
+  #define GEX_FLAG_PEER_NEVER_SELF      GEX_FLAG_PEER_NEVER_NBRHD
+#endif
 
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)

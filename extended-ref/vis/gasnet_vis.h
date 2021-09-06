@@ -263,22 +263,22 @@ extern gex_Event_t gasnete_VIS_pcwrapNB      (_GASNETE_VIS_PCWRAP_ARGS) GASNETI_
 
 // Implement GEX_FLAG_ENABLE_LEAF_LC for calls to contiguous RMA
 // _lc_dummy is a stack temporary used to request handle-based LC via later QueryLeaf
-#define _GASNETE_LCOPT_FLAGS_NB  ((_flags & GEX_FLAG_ENABLE_LEAF_LC) ? &_lc_dummy : GEX_EVENT_DEFER), _flags
-#define _GASNETE_LCOPT_FLAGS_NBI ((_flags & GEX_FLAG_ENABLE_LEAF_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER), _flags
+#define _GASNETE_LCOPT_FLAGS_NB  ((_flags & GEX_FLAG_ENABLE_LEAF_LC) ? &_lc_dummy : GEX_EVENT_DEFER)
+#define _GASNETE_LCOPT_FLAGS_NBI ((_flags & GEX_FLAG_ENABLE_LEAF_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER)
 
 #define gasnete_vis_degen_PutBlocking(dstaddr, srcaddr, len) \
-   _gex_RMA_PutBlocking(_tm,_dstrank,dstaddr,srcaddr,len,_flags GASNETI_THREAD_PASS)
+   gex_RMA_PutBlocking(_tm,_dstrank,dstaddr,srcaddr,len,_flags)
 #define gasnete_vis_degen_PutNB(dstaddr, srcaddr, len) \
-   _gex_RMA_PutNB(_tm,_dstrank,dstaddr,srcaddr,len,_GASNETE_LCOPT_FLAGS_NB GASNETI_THREAD_PASS)
+   gex_RMA_PutNB(_tm,_dstrank,dstaddr,srcaddr,len,_GASNETE_LCOPT_FLAGS_NB,_flags)
 #define gasnete_vis_degen_PutNBI(dstaddr, srcaddr, len) \
-   _gex_RMA_PutNBI(_tm,_dstrank,dstaddr,srcaddr,len,_GASNETE_LCOPT_FLAGS_NBI GASNETI_THREAD_PASS)
+   gex_RMA_PutNBI(_tm,_dstrank,dstaddr,srcaddr,len,_GASNETE_LCOPT_FLAGS_NBI,_flags)
 
 #define gasnete_vis_degen_GetBlocking(dstaddr, srcaddr, len) \
-   _gex_RMA_GetBlocking(_tm,dstaddr,_srcrank,srcaddr,len,_flags GASNETI_THREAD_PASS)
+   gex_RMA_GetBlocking(_tm,dstaddr,_srcrank,srcaddr,len,_flags)
 #define gasnete_vis_degen_GetNB(dstaddr, srcaddr, len) \
-   _gex_RMA_GetNB(_tm,dstaddr,_srcrank,srcaddr,len,_flags GASNETI_THREAD_PASS)
+   gex_RMA_GetNB(_tm,dstaddr,_srcrank,srcaddr,len,_flags)
 #define gasnete_vis_degen_GetNBI(dstaddr, srcaddr, len) \
-   _gex_RMA_GetNBI(_tm,dstaddr,_srcrank,srcaddr,len,_flags GASNETI_THREAD_PASS)
+   gex_RMA_GetNBI(_tm,dstaddr,_srcrank,srcaddr,len,_flags)
 /*---------------------------------------------------------------------------------*/
 /* Vector */
 #ifndef gasnete_putv
