@@ -1164,6 +1164,15 @@ static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which,
       break;
     #endif
 
+    #if GASNET_HAVE_MK_CLASS_HIP
+    case GEX_MK_CLASS_HIP:
+      descr = " HIP";
+      if (why == EFAULT) {
+        hint1 = "\n        This could be caused by exhaustion of BAR resources.  See memory_kinds.md release notes.";
+      }
+      break;
+    #endif
+
     default: // avoids unhandled case warnings
       break;
   }
