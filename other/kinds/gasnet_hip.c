@@ -192,6 +192,15 @@ out:
   return retval;
 }
 
+static void gasneti_MK_Segment_Destroy_hip(
+           gasneti_Segment_t                i_segment)
+{
+  void *to_free = i_segment->_opaque_mk_use;
+  if (to_free) {
+    gasneti_check_hipcall( hipFree(to_free) );
+  }
+}
+
 //
 // Class-specific "impl(ementation)": constants and function pointers.
 //
@@ -214,6 +223,8 @@ static gasneti_mk_impl_t *get_impl(void) {
       the_impl.mk_destroy   = &gasneti_MK_Destroy_hip;
       the_impl.mk_segment_create
                             = &gasneti_MK_Segment_Create_hip;
+      the_impl.mk_segment_destroy
+                            = &gasneti_MK_Segment_Destroy_hip;
 
       gasneti_sync_writes();
       result = &the_impl;
