@@ -1692,6 +1692,82 @@ void doit7(int partner, int *partnerseg) {
 }
 void doit8(int partner, int *partnerseg) {
 #endif
+
+  BARRIER();
+
+  //  check that RMA calls evaluate arguments exactly once
+#if !PLATFORM_COMPILER_XLC // Skip due to external bug 4205
+  { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+    gex_RMA_PutBlocking((++a,myteam), (++b,partner), (++c,partnerseg), (++d,&val),
+                        (++e,sizeof(val)), (f++,0));
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1); assert_always(f==1);
+  }
+  { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0;
+    gex_Event_Wait(
+      gex_RMA_PutNB((++a,myteam), (++b,partner), (++c,partnerseg), (++d,&val),
+                    (++e,sizeof(val)), (++f,GEX_EVENT_NOW), (g++,0)) );
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1); assert_always(f==1);
+    assert_always(g==1);
+  }
+  { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0;
+    gex_RMA_PutNBI((++a,myteam), (++b,partner), (++c,partnerseg), (++d,&val),
+                   (++e,sizeof(val)), (++f,GEX_EVENT_NOW), (g++,0));
+    gex_NBI_Wait(GEX_EC_PUT,0);
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1); assert_always(f==1);
+    assert_always(g==1);
+  }
+  { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+    gex_RMA_PutBlockingVal((++a,myteam), (++b,partner), (++c,partnerseg),
+                           (++d,val), (++e,sizeof(val)), (++f,0));
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1); assert_always(f==1);
+  }
+  { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+    gex_Event_Wait(
+      gex_RMA_PutNBVal((++a,myteam), (++b,partner), (++c,partnerseg),
+                       (++d,val), (++e,sizeof(val)), (++f,0)));
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1); assert_always(f==1);
+  }
+  { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+    gex_RMA_PutNBIVal((++a,myteam), (++b,partner), (++c,partnerseg),
+                      (++d,val), (++e,sizeof(val)), (++f,0));
+    gex_NBI_Wait(GEX_EC_PUT,0);
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1);
+  }
+  { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+    gex_RMA_GetBlocking((++a,myteam), (++b,&val), (++c,partner),
+                        (++d,partnerseg), (++e,sizeof(val)), (f++,0));
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1); assert_always(f==1);
+  }
+  { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+    gex_Event_Wait(
+      gex_RMA_GetNB((++a,myteam), (++b,&val), (++c,partner),
+                    (++d,partnerseg), (++e,sizeof(val)), (f++,0)));
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1); assert_always(f==1);
+  }
+  { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+    gex_RMA_GetNBI((++a,myteam), (++b,&val), (++c,partner),
+                   (++d,partnerseg), (++e,sizeof(val)), (f++,0));
+    gex_NBI_Wait(GEX_EC_GET,0);
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1); assert_always(f==1);
+  }
+  { int a = 0, b = 0, c = 0, d = 0, e = 0;
+    int val =
+      gex_RMA_GetBlockingVal((++a,myteam), (++b,partner), (++c,partnerseg),
+                             (++d,sizeof(val)), (++e,0));
+    assert_always(a==1); assert_always(b==1); assert_always(c==1);
+    assert_always(d==1); assert_always(e==1);
+  }
+#endif
+
   BARRIER();
 
   // Checks for graceful degradation where support is missing or limited.
