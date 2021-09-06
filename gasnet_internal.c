@@ -646,6 +646,10 @@ extern int gex_Segment_Create(
   #if GASNETC_SEGMENT_CREATE_HOOK
     if (rc == GASNET_OK) {
       rc = gasnetc_segment_create_hook(*segment_p);
+      if (rc) { // Conduit hook failed.  So cleanup conduit-independent resources
+        gasneti_Segment_t i_segment = gasneti_import_segment(*segment_p);
+        gasneti_assert_zeroret( gasneti_segmentDestroy(i_segment, 0) );
+      }
     }
   #endif
 

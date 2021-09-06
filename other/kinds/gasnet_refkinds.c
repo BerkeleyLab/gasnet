@@ -194,3 +194,18 @@ int gasneti_MK_Segment_Create(
   gasneti_weakatomic32_increment(&i_mk->_ref_count, 0);
   return GASNET_OK;
 }
+
+void gasneti_MK_Segment_Destroy(
+            gasneti_Segment_t i_segment)
+{
+  gasneti_assert(i_segment);
+
+  gasneti_MK_t i_mk = gasneti_import_mk_nonhost(i_segment->_kind);
+
+  // Class-specific hook, if any
+  if (MK_IMPL(i_mk,segment_destroy)) {
+    MK_IMPL(i_mk,segment_destroy)(i_segment);
+  }
+
+  gasneti_weakatomic32_decrement(&i_mk->_ref_count, 0);
+}
