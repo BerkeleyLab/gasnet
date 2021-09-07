@@ -377,7 +377,7 @@ do-pkgconfig-conduit: force
 
 # Memory kinds for CUDA UVA devices
 $(builddir)/gasnet_cuda_uva-$(THREAD_MODEL).o: force
-	$(CC) @CUDA_UVA_CFLAGS@ $(LIBCFLAGS) -o $@ -c $(top_srcdir)/other/kinds/gasnet_cuda_uva.c
+	$(CC) $(LIBCFLAGS) @CUDA_UVA_CFLAGS@ -o $@ -c $(top_srcdir)/other/kinds/gasnet_cuda_uva.c
 # Memory kinds for HIP devices
 $(builddir)/gasnet_hip-$(THREAD_MODEL).o: force
-	$(CC) @HIP_CFLAGS@ $(LIBCFLAGS) -o $@ -c $(top_srcdir)/other/kinds/gasnet_hip.c
+	$(CC) $(LIBCFLAGS) @HIP_CFLAGS@ -o $@ -c $(top_srcdir)/other/kinds/gasnet_hip.c

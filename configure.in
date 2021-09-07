@@ -5053,9 +5053,32 @@ if test "$enable_mk_hip" != "no"; then
       hcc)  AC_DEFINE(GASNETI_HIP_PLATFORM_HCC)
             ;;
       nvcc) CHECK_PKG_CUDA()
-            GASNET_TRY_WNO_FLAG([C],[-Wno-deprecated-declarations],
-                                [HIP_NVCC_WARNFLAGS="-Wno-deprecated-declarations"],
-                                [unset HIP_NVCC_WARNFLAGS])
+            # Suppress warnings when compiling gasnet_kind_hip.c and testhip.c
+            # due to "issues" in hip_runtime.h when parsed by a C compiler in
+            # __HIP_PLATFORM_NVCC__ mode.
+            unset HIP_NVCC_WARNFLAGS
+            case "$CC_FAMILY" in
+              Intel)
+                # Deprecated decls:
+                GASNET_TRY_CFLAG([${CC_WDFLAG}1478],
+                        [HIP_NVCC_WARNFLAGS="$HIP_NVCC_WARNFLAGS ${CC_WDFLAG}1478"])
+                # "auto" becomes implicit int:
+                GASNET_TRY_CFLAG([${CC_WDFLAG}303],
+                        [HIP_NVCC_WARNFLAGS="$HIP_NVCC_WARNFLAGS ${CC_WDFLAG}303"])
+                ;;
+              PGI|NVHPC)
+                : # Currently warning-free, so avoid the noise of the -Wno probes
+                ;;
+              *)
+                # GCC and Clang, plus their derivatives and work-alikes
+                GASNET_TRY_WNO_FLAG([C],[-Wno-deprecated-declarations],
+                        [HIP_NVCC_WARNFLAGS="$HIP_NVCC_WARNFLAGS -Wno-deprecated-declarations"])
+                GASNET_TRY_WNO_FLAG([C],[-Wno-implicit-int],
+                        [HIP_NVCC_WARNFLAGS="$HIP_NVCC_WARNFLAGS -Wno-implicit-int"])
+                GASNET_TRY_WNO_FLAG([C],[-Wno-return-type],
+                        [HIP_NVCC_WARNFLAGS="$HIP_NVCC_WARNFLAGS -Wno-return-type"])
+                ;;
+            esac
             HIP_LIBS="$HIP_LIBS -lcudart $CUDA_LIBS"
             HIP_LDFLAGS="$HIP_LDFLAGS $CUDA_LDFLAGS"
             HIP_CFLAGS="$HIP_CFLAGS $CUDA_CFLAGS $HIP_NVCC_WARNFLAGS"
