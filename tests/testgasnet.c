@@ -1697,6 +1697,22 @@ void doit8(int partner, int *partnerseg) {
 
   //  check that RMA calls evaluate arguments exactly once
 #if !PLATFORM_COMPILER_XLC // Skip due to external bug 4205
+  #if PLATFORM_COMPILER_GNU_CXX && GASNETI_HAVE_CC_PRAGMA_GCC_DIAGNOSTIC
+  // DO NOT emulate the following warning suppression behavior!
+  // These warnings are often an indication of genuine undefined behavior.
+  //
+  // The code in this test may (at least with g++) generate warnings about
+  // sequence points.  They are safe to suppress/ignore here *ONLY* because
+  // (a) they are necessary/intrinsic to the property being tested AND
+  // (b) the test includes assertions that the "right" behavior occurs.
+  //
+  // Any "reasonable" client can/should use a temporary variable to hold any
+  // parameter(s) which are the subject of such warnings.
+  // See also: Bug 4313
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wsequence-point"
+  #endif
+
   { int val = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
     gex_RMA_PutBlocking((++a,myteam), (++b,partner), (++c,partnerseg), (++d,&val),
                         (++e,sizeof(val)), (f++,0));
@@ -1766,6 +1782,10 @@ void doit8(int partner, int *partnerseg) {
     assert_always(a==1); assert_always(b==1); assert_always(c==1);
     assert_always(d==1); assert_always(e==1);
   }
+
+  #if PLATFORM_COMPILER_GNU_CXX && GASNETI_HAVE_CC_PRAGMA_GCC_DIAGNOSTIC
+  #pragma GCC diagnostic pop
+  #endif
 #endif
 
   BARRIER();
