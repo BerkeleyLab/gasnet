@@ -780,9 +780,14 @@ case "$CC_FAMILY" in
     esac 
     AC_MSG_RESULT([$MISC_CFLAGS])
     ;;
-  Intel) MISC_CFLAGS="-wd177 -wd279"
-         GASNET_TRY_CFLAG([-wd1572],
-                          [MISC_CFLAGS="$MISC_CFLAGS -wd1572"])
+  Intel) # Note we need to support both older -wd and newer -diag-disable
+         # Setting (CC|MPI_CC)_WDFLAG simplifes doing so in later tests
+         pushdef([wdflag],$1[]_WDFLAG)
+         GASNET_TRY_CFLAG([-diag-disable=177], [wdflag='-diag-disable='], [wdflag='-wd'])
+         MISC_CFLAGS="${wdflag}177 ${wdflag}279"
+         GASNET_TRY_CFLAG([${wdflag}1572],
+                          [MISC_CFLAGS="$MISC_CFLAGS ${wdflag}1572"])
+         popdef([wdflag])
          ;;
   NVHPC)
        # TODO: are either `-M` options, inherited from PGI, still required?
@@ -3103,9 +3108,12 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
              MISC_CXXFLAGS="-w $MISC_CXXFLAGS" # old versions of pgc++ have no way to indep control warnings
            ])
            ;;
-    Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279"
-           GASNET_TRY_CXXFLAG([-wd1572],
-                          [MISC_CXXFLAGS="$MISC_CXXFLAGS -wd1572"])
+    Intel) # Note we need to support both older -wd and newer -diag-disable
+           # Setting CXX_WDFLAG simplifes doing so in later tests
+           GASNET_TRY_CXXFLAG([-diag-disable=654], [CXX_WDFLAG='-diag-disable='], [CXX_WDFLAG='-wd'])
+           MISC_CXXFLAGS="${CXX_WDFLAG}654 ${CXX_WDFLAG}1125 ${CXX_WDFLAG}279"
+           GASNET_TRY_CXXFLAG([${CXX_WDFLAG}1572],
+                          [MISC_CXXFLAGS="$MISC_CXXFLAGS ${CXX_WDFLAG}1572"])
            ;;
     XLC)
      GASNET_GET_PPC64_FLAGS(CXX)
