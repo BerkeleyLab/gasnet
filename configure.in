@@ -4912,6 +4912,7 @@ AC_DEFUN([CHECK_PKG_CUDA],[
 ])
 
 # GEX_MK_CLASS_CUDA_UVA
+enable_mk_cuda_uva_implicit=no
 GASNET_IF_ENABLED_WITH_AUTO(kind-cuda-uva,
         [Support for memory kinds on UVA-capable CUDA devices (auto-detected with --enable-memory-kinds, otherwise disabled)],
         [enable_mk_cuda_uva="yes"; force_mk_cuda_uva="yes"],
@@ -4922,6 +4923,7 @@ GASNET_IF_ENABLED_WITH_AUTO(kind-cuda-uva,
            enable_mk_cuda_uva="no"
          else
            enable_mk_cuda_uva="$enable_mk_default"
+           enable_mk_cuda_uva_implicit=yes
          fi
         ])
 unset have_mk_cuda_uva
@@ -4998,6 +5000,7 @@ AC_SUBST(CUDA_UVA_LIBS)
 AM_CONDITIONAL(HAVE_MK_CLASS_CUDA_UVA, test "$have_mk_cuda_uva" = "yes")
 
 # GEX_MK_CLASS_HIP
+enable_mk_hip_implicit=no
 GASNET_IF_ENABLED_WITH_AUTO(kind-hip,
         [support for memory kinds on HIP-compatible devices (auto-detected with --enable-memory-kinds, otherwise disabled)],
         [enable_mk_hip="yes"; force_mk_hip="yes"],
@@ -5008,6 +5011,7 @@ GASNET_IF_ENABLED_WITH_AUTO(kind-hip,
            enable_mk_hip="no"
          else
            enable_mk_hip="$enable_mk_default"
+           enable_mk_hip_implicit=yes
          fi
         ])
 unset have_mk_hip
@@ -5119,12 +5123,12 @@ AC_DEFUN([MK_OUTPUT],[
     else
       _mk_flagstr="ON     (auto)"
     fi
+  elif test "$enable_mk_[]lowername" = "probe"; then
+    _mk_flagstr="OFF    (not found)"
+  elif test "$enable_mk_[]lowername[]_implicit" = "yes"; then
+    _mk_flagstr="OFF    (not enabled)"
   else
-    if test "$enable_mk_[]lowername" = "no"; then
-      _mk_flagstr="OFF    (disabled)"
-    else
-      _mk_flagstr="OFF    (not found)"
-    fi
+    _mk_flagstr="OFF    (disabled)"
   fi
   echo "  $2 m4_substr([                                                  ],len($2))$_mk_flagstr" >> $CONDUIT_LIST
   popdef([lowername])
