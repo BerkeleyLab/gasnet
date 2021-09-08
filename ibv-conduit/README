@@ -255,7 +255,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   multiple adapters or multiple active ports on a single adapter, you may
   wish to set environment variables to identify the correct HCAs and Ports.
   Or, you may wish to use non-default values for configuring connections.
-  These parameters may legally take different values on each node.
+  These parameters are permitted to take different values on each process.
+  However, please see bug 4314 if process-specifc values are needed.
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4314
 
   See "Build-time Configuration", above, for information on enabling
   use of multiple HCAs in GASNet ibv-conduit.
@@ -570,8 +572,11 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   Software configuration settings:
   -------------------------------
   There are some optional behaviors in ibv-conduit that can be turned
-  ON or OFF.  These parameters may legally take different values on each
-  node, but doing so may not be useful.
+  ON or OFF.
+  These parameters are permitted to take different values on each process,
+  though doing so may not be useful.
+  However, please see bug 4314 if process-specifc values are needed.
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4314
 
   + GASNET_RCV_THREAD
     This gives a boolean: "0" to disable, or "1" to enable, the use of an
@@ -1408,6 +1413,13 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4009 (Solaris)
   Those bug reports provide more details, and will provide the most current
   information regarding any recommended work-around(s).
+
++ Bug 4314
+  While this file documents several environment variables as permitting
+  different values on different processes, it is not always possible to
+  achieve such a scenario.
+  The most up-to-date information on this issue is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4314
 
 + See the GASNet Bugzilla server for details on other known bugs:
   https://gasnet-bugs.lbl.gov/
