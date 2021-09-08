@@ -5053,7 +5053,7 @@ if test "$enable_mk_hip" != "no"; then
       hcc)  AC_DEFINE(GASNETI_HIP_PLATFORM_HCC)
             ;;
       nvcc) CHECK_PKG_CUDA()
-            # Suppress warnings when compiling gasnet_kind_hip.c and testhip.c
+            # Suppress warnings when compiling gasnet_hip.c and testhip.c
             # due to "issues" in hip_runtime.h when parsed by a C compiler in
             # __HIP_PLATFORM_NVCC__ mode.
             unset HIP_NVCC_WARNFLAGS
