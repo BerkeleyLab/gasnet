@@ -44,8 +44,8 @@
 
 
   // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
-//#define GASNET_HAVE_MK_CLASS_CUDA_UVA GASNETI_MK_CLASS_CUDA_UVA_ENABLED
-//#define GASNET_HAVE_MK_CLASS_HIP GASNETI_MK_CLASS_HIP_ENABLED
+#define GASNET_HAVE_MK_CLASS_CUDA_UVA (GASNETI_MK_CLASS_CUDA_UVA_ENABLED && !GASNET_SEGMENT_EVERYTHING)
+#define GASNET_HAVE_MK_CLASS_HIP (GASNETI_MK_CLASS_HIP_ENABLED && !GASNET_SEGMENT_EVERYTHING)
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
@@ -130,8 +130,10 @@
 //#define GASNETC_TM_FINI_HOOK(i_tm) (###)
 //#define GASNETC_SIZEOF_TM_T() (###)
 
-//#define GASNETC_EP_EXTRA_DECLS (###)
-//#define GASNETC_EP_INIT_HOOK(i_ep) (###)
+#define GASNETC_EP_EXTRA_DECLS \
+  extern int gasnetc_ep_init_hook(gasneti_EP_t);
+#define GASNETC_EP_INIT_HOOK(i_ep) \
+  gasnetc_ep_init_hook(i_ep)
 //#define GASNETC_EP_FINI_HOOK(i_ep) (###)
 //#define GASNETC_SIZEOF_EP_T() (###)
 
@@ -147,7 +149,7 @@
 // of all other settings (appropriate for conduits without multi-ep support).
 // If set, GASNETC_MAXEPS_MAX it is used to limit a user's --with-maxeps (and a
 // global default limit is used otherwise).
-//#define GASNETC_MAXEPS_DFLT ### // default num endpoints this conduit supports, undef means no multi-ep support
+#define GASNETC_MAXEPS_DFLT 33 // Initial (limited) multi-EP support
 //#define GASNETC_MAXEPS_MAX ### // leave unset for default
 
   /* this can be used to add conduit-specific 

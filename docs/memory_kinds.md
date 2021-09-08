@@ -94,7 +94,7 @@ All current memory kinds implementation work is limited to two types of devices:
 2. Devices with the HIP API, which should include all AMD GPUs supported by AMD ROCm.
    Please consult the ROCm documentation for information on supported devices.
 
-Support is further limited to ibv-conduit on Linux and only when using Mellanox
+Support is further limited to certain conduits on Linux and only when using Mellanox
 InfiniBand hardware and drivers with support for "GPUDirect RDMA" (GDR).  In
 some cases additional optional software, such as "nvidia_peer_memory" must be
 installed.  Please consult Mellanox documentation for assistance determining
@@ -102,19 +102,25 @@ what driver software is needed for your specific hardware and Linux
 distribution.  The Open MPI and MVAPICH projects also have some documentation
 regarding deployment of GPUDirect RDMA for their respective MPI implementations.
 
-Furthermore, only `GASNET_SEGMENT_FAST` segment mode is supported.  This is the
+With ibv-conduit, `GASNET_SEGMENT_FAST` segment mode is supported.  This is the
 default segment mode, but can be specified explicitly at configure time using
 the `--enable-segment-fast` option.  To be clear: `--enable-segment-large` and
 `--enable-segment-everything` configurations of ibv-conduit do not support
 the memory kinds work in the current implementation.
 
+With ucx-conduit, `GASNET_SEGMENT_FAST` and `GASNET_SEGMENT_LARGE` segment
+modes are supported.  Fast is the default segment mode, but can be specified
+explicitly at configure time using the `--enable-segment-fast` option.  To be
+clear: `--enable-segment-everything` configurations of ucx-conduit do not
+support the memory kinds work in the current implementation.
+
 To the best of our knowledge, Mellanox currently disclaims support for GPUDirect
-RDMA on aarch64 (aka ARM64 or ARMv8).  NVIDIA does not support UVA on ILP32
+RDMA on aarch64 (aka ARM64 or ARMv8).  NVIDIA does not support UVA on 32-bit
 platforms, and AMD does not claim any 32-bit CPU support at all.
 Therefore, this work currently supports only x86-64 and ppc64le.
 
 For any configurations that do not meet all of the configure-testable
-requirements outlined above, the memory kinds support in the current prototype
+requirements outlined above, support for corresponding kind(s) in the current
 implementation will be disabled (or `configure` will fail if it was passed a
 failing `--enable-kind-[kind]`).  Specifically, `GASNET_HAVE_MK_CLASS_[KIND]` will be
 undefined and attempts to create device segments will fail at runtime.  Future
@@ -139,7 +145,7 @@ To query the BAR capability of an NVIDIA GPU, run `nvidia-smi -q` and look for t
 "Total" value in the "BAR1 Memory Usage" section for an (optimistic) maximum on
 the amount of memory which can be mapped.
 
-We are not currently aware of a programatic means to query the BAR capability of
+We are not currently aware of a programmatic means to query the BAR capability of
 an AMD GPU.  However, the Linux kernel boot messages (sometimes available via
 the `dmesg` utility or in `/var/log/boot`, or similar) may contain lines like
 the following:
@@ -150,7 +156,7 @@ the following:
 [  115.169201] [drm] Detected VRAM RAM=32752M, BAR=32768M
 ```
 Which in this case shows slightly under 32GB of VRAM and a BAR size of a full
-32GB.  In this instance, the VRAM size of `32752M` is the relavant size and,
+32GB.  In this instance, the VRAM size of `32752M` is the relevant size and,
 just like the NVIDIA case, is an (optimistic) maximum limit on mappable memory.
 
 For either GPU vendor, these limits are per GPU across all
@@ -159,7 +165,7 @@ GASNet-EX segment created on a given node, as well as by other uses of
 GPUDirect RDMA such as an MPI implementation.  Typically a few tens of MB are
 also reserved by the driver itself.
 
-## GDR and Multi-rail
+## GDR and ibv-conduit Multi-rail
 
 Though our test and development systems have multi-rail InfiniBand networks,
 there are currently unresolved issues with respect to use of multiple rails
@@ -245,6 +251,19 @@ release.
 
 For the most up-to-date information on this issue see
 [bug 4151](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4151)
+
+## UCX CUDA Support
+
+The necessary GDR support has been *optionally* available in UCX since the 1.6.0
+release (which is also the oldest supported by ucx-conduit).  However, there is
+no reliable means we are aware of to determine if this support is actually
+enabled.  Therefore, attempts to use `GEX_MK_CLASS_CUDA_UVA` with a build of
+UCX lacking the necessary support (because it was compiled without it or because
+it was disabled at runtime) will likely fail "poorly", crashing at the first
+attempt to perform RMA operations using segment.
+
+It is hoped that in the future such crashes can be replaced with a non-fatal
+error return from either the `gex_MK_Create()` or `gex_Segment_Create()` calls.
 
 ## CUDA Multi-Process Service (MPS)
 
@@ -377,7 +396,7 @@ are defined and will link in any conduit.  However, it is useful only when
 multi-EP support exists (see `gex_EP_Create()` for the current scope of
 multi-EP support).
 
-On ibv-conduit, specifically, the implementation of this API is believed to be
+On ibv and ucx conduits, the implementation of this API is believed to be
 complete with respect to the API Proposal.  In particular, it is capable of
 creating segments of both client-allocated and GASNet-allocated memory, using
 either the defined `kind` value `GEX_MK_HOST` or a kind created using
@@ -402,9 +421,10 @@ process, inclusive of the primordial endpoint created by `gex_Client_Init()`.
 Any call to `gex_EP_Create()` which would exceed this limit will fail with
 a return of GASNET_ERR_RESOURCE.
 
-Currently, only ibv-conduit in FAST segment mode has a value of `GASNET_MAXEPS`
-larger than 1 (it is currently 33).  Additionally, ibv-conduit only supports the
-`GEX_EP_CAPABILITY_RMA` capability for non-primordial endpoints.
+Currently, only ibv-conduit (in FAST segment mode) and ucx-conduit (in any
+segment mode) have values of `GASNET_MAXEPS` larger than 1 (each currently 33).
+Additionally, these conduits support only the `GEX_EP_CAPABILITY_RMA`
+capability for non-primordial endpoints.
 
 The `GEX_FLAG_HINT_ACCEL_*` values are currently defined, but ignored.
 
@@ -421,7 +441,7 @@ This API does not appear in the API Proposal, nor in related documents which
 preceded it.  Complete semantics are documented in `docs/GASNet-EX.txt`.
 
 This call is currently necessary as the only means to actively distribute the
-RMA credentials required by some conduits (ibv among them).  While this task is
+RMA credentials required by some conduits (ibv and ucx among them).  While this task is
 performed in `gex_Segment_Attach()` for primordial endpoints, use of this API is
 required prior to use of `gex_RMA_*()` APIs using non-primordial endpoints.  It
 is hoped that this call can become optional in the future.
@@ -437,8 +457,8 @@ This API is believed to be fully implemented in all conduits and accepted by
 all APIs required to do so by the API Proposal (notably the `gex_RMA_*()`,
 `gex_AM_*()` and `gex_VIS_*() API families).
 
-Since multi-EP support is currently exclusive to ibv-conduit in FAST segment
-mode, the use in other conduits is effectively limited to aliasing of the
+Since multi-EP support is currently exclusive to ibv and ucx conduits (and only in
+some segment modes), the use in other conduits is effectively limited to aliasing of the
 primordial team.
 
 ## `gex_TM_Create()`
@@ -458,11 +478,10 @@ Not implemented.
 This API is implemented as described in the API Proposal (with some renames
 relative to their first appearance, as detailed earlier in this document), This
 includes the conditional definition (defined to `1` or undefined) of
-`GASNET_HAVE_MK_CLASS_CUDA_UVA` and/or `GASNET_HAVE_MK_CLASS_HIP`, each of
-which is defined only when the respective
-headers and libs were located at configure time *and* one is using
-ibv-conduit in FAST segment mode.  Otherwise these feature
-macros will be undefined.
+`GASNET_HAVE_MK_CLASS_CUDA_UVA` and/or `GASNET_HAVE_MK_CLASS_HIP`, each of which
+is defined only when the respective headers and libs were located at configure
+time *and* one is using ibv or ucx conduit in a supported segment mode.
+Otherwise these feature macros will be undefined.
 
 While these feature macros have only a conditional definition, the
 enum values `GEX_MK_CLASS_CUDA_UVA` and `GEX_MK_CLASS_HIP` are both
