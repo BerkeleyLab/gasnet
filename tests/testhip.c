@@ -31,7 +31,9 @@ static size_t len = 0;
 #define check_hipcall(op) do {                 \
   int _retval = (op);                           \
   if_pf(_retval) {                              \
-    FATALERR(#op": %i",_retval); \
+    FATALERR(#op": %s(%i)",                     \
+             hipGetErrorName(_retval),          \
+             _retval);                          \
   }                                             \
 } while (0)
 

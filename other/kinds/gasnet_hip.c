@@ -25,10 +25,9 @@ typedef struct my_MK_s {
   hipDevice_t        dev;
 } *my_MK_t;
 
-// HIP lacks a cuGetErrorName replacement
-// TODO? Is there _anything_ better to offer than the numeric error codes
-#define GASNETI_HIPRESULT_FMT        "%d"
-#define GASNETI_HIPRESULT_ARG(res)   (res)
+// Format for use of hipGetErrorName()
+#define GASNETI_HIPRESULT_FMT        "%s(%d)"
+#define GASNETI_HIPRESULT_ARG(res)   hipGetErrorName(res),(res)
 
 //
 // Error checking/reporting wrapper
