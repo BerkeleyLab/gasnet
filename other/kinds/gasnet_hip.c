@@ -41,6 +41,19 @@ typedef struct my_MK_s {
 
 static gasneti_mk_impl_t *get_impl(void);
 
+// Convenience wrappers around hip{Get,Set}Device()
+#define GASNETI_SAVE_AND_SET_HIP_DEVICE(kind, prev) do { \
+    gasneti_check_hipcall( hipGetDevice(&(prev)) );         \
+    if ((prev) != (kind)->dev) {                            \
+      gasneti_check_hipcall( hipSetDevice((kind)->dev) );   \
+    }                                                       \
+  } while (0)
+#define GASNETI_RESTORE_HIP_DEVICE(kind, prev) do { \
+    if ((prev) != (kind)->dev) {                            \
+      gasneti_check_hipcall( hipSetDevice(prev) );          \
+    }                                                       \
+  } while (0)
+
 //
 // Class-specific MK_Create
 //
@@ -150,6 +163,9 @@ static int gasneti_MK_Segment_Create_hip(
   // TODO:
   // Might want additional care with respect to error returns from the HIP device API.
 
+  int prevDevice;
+  GASNETI_SAVE_AND_SET_HIP_DEVICE(kind, prevDevice);
+
   if (addr) { // Client-allocated
     hipPointerAttribute_t attr;
     gasneti_check_hipcall(hipPointerGetAttributes(&attr, addr));
@@ -159,6 +175,9 @@ static int gasneti_MK_Segment_Create_hip(
     }
     if (attr.isManaged) {
       gasneti_fatalerror("Invalid call to gex_Segment_Create(HIP) with managed memory");
+    }
+    if (attr.device != kind->dev) {
+      gasneti_fatalerror("Invalid call to gex_Segment_Create(HIP) with memory associated with wrong device");
     }
   } else { // GASNet-allocated
     result = hipMalloc(&addr, size);
@@ -188,6 +207,7 @@ static int gasneti_MK_Segment_Create_hip(
   *i_segment_p = i_segment;
 
 out:
+  GASNETI_RESTORE_HIP_DEVICE(kind, prevDevice);
   return retval;
 }
 
