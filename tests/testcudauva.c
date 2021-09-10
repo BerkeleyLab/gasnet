@@ -189,6 +189,8 @@ int main(int argc, char **argv)
       CUcontext ctx;
       check_cudacall( cuDevicePrimaryCtxRetain(&ctx, 0) );
       check_cudacall( cuCtxPushCurrent(ctx) );
+      CUdevice dev;
+      check_cudacall( cuCtxGetDevice(&dev) );
 
       uint8_t *client_gpu1 = NULL;
       uint8_t *client_gpu2 = NULL;
@@ -206,11 +208,30 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_MK_Create(&kind, myclient, &args, 0) );
       assert_always(kind != GEX_MK_INVALID);
 
+      // If multiple devices are available switch to context on another
+      CUcontext curr_ctx, tmp_ctx;
+      if (count > 1) {
+        check_cudacall( cuDevicePrimaryCtxRetain(&curr_ctx, 1) );
+        check_cudacall( cuCtxPushCurrent(curr_ctx) );
+      } else {
+        curr_ctx = ctx;
+      }
+
       // Create the first GPU segment
       gex_Segment_t d_segment1 = GEX_SEGMENT_INVALID;
       GASNET_Safe( gex_Segment_Create(&d_segment1, myclient, client_gpu1, TEST_SEGSZ_REQUEST, kind, 0));
       uint8_t *loc_gpu1 = gex_Segment_QueryAddr(d_segment1);
       if (client_segment) assert_always(loc_gpu1 == client_gpu1);
+
+      // Confirm the gex_Segment_Create() did NOT change the current context
+      check_cudacall( cuCtxGetCurrent(&tmp_ctx) );
+      assert_always(tmp_ctx == curr_ctx);
+
+      // If GASNet performed allocation, check that it did so on the proper context
+      if (!client_segment) {
+        check_cudacall( cuPointerGetAttribute(&tmp_ctx, CU_POINTER_ATTRIBUTE_CONTEXT, (CUdeviceptr)loc_gpu1) );
+        assert_always(tmp_ctx == ctx);
+      }
 
       // Create first GPU endpoint and bind its segment
       GASNET_Safe( gex_EP_Create(&gpu1_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
@@ -222,6 +243,12 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_Segment_Create(&d_segment2, myclient, client_gpu2, TEST_SEGSZ_REQUEST, kind, 0));
       uint8_t *loc_gpu2 = gex_Segment_QueryAddr(d_segment2);
       if (client_segment) assert_always(loc_gpu2 == client_gpu2);
+      check_cudacall( cuCtxGetCurrent(&tmp_ctx) );
+      assert_always(tmp_ctx == curr_ctx);
+      if (!client_segment) {
+        check_cudacall( cuPointerGetAttribute(&tmp_ctx, CU_POINTER_ATTRIBUTE_CONTEXT, (CUdeviceptr)loc_gpu2) );
+        assert_always(tmp_ctx == ctx);
+      }
       GASNET_Safe( gex_EP_Create(&gpu2_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
       gex_EP_BindSegment(gpu2_ep, d_segment2, 0);
       GASNET_Safe( gex_EP_PublishBoundSegment(myteam, &gpu2_ep, 1, 0) );
@@ -293,6 +320,9 @@ int main(int argc, char **argv)
 
       check_cudacall( cuCtxSetCurrent(NULL) );
       check_cudacall( cuDevicePrimaryCtxRelease(0) );
+      if (count > 1) {
+        check_cudacall( cuDevicePrimaryCtxRelease(1) );
+      }
     }
 
     // TODO: once supported: Destroy Segments, Kinds and Endpoints; free GPU memory
