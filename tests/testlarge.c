@@ -451,6 +451,12 @@ int main(int argc, char **argv)
     }
 
     if (use_device) {
+      // Due to bug 4149, single-process + use_device is currently unsupported
+      if (numprocs == 1) {
+        MSG0("WARNING: Device memory mode requires more than one process. Test skipped.\n");
+        gasnet_exit(0);
+      }
+
       GASNET_Safe( gex_MK_Create(&kind, myclient, &args, 0) );
       GASNET_Safe( gex_Segment_Create(&d_segment, myclient, NULL, TEST_SEGSZ_REQUEST, kind, 0) );
       GASNET_Safe( gex_EP_Create(&gpu_ep, myclient, GEX_EP_CAPABILITY_RMA, 0) );
