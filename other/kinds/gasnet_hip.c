@@ -14,6 +14,14 @@
 
 GASNETI_IDENT(gasneti_IdentString_MKClassHIP, "$GASNetMKClassHIP: 1 $");
 
+#if GASNETI_HIP_PLATFORM_AMD
+  GASNETI_IDENT(gasneti_IdentString_HIPPlatform, "$GASNetHIPPlatform: AMD $");
+#elif GASNETI_HIP_PLATFORM_NVIDIA
+  GASNETI_IDENT(gasneti_IdentString_HIPPlatform, "$GASNetHIPPlatform: NVIDIA $");
+#else
+  #error Unknown HIP Platform
+#endif
+
 //
 // Class-specific MK type and functions
 //
