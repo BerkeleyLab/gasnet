@@ -115,6 +115,7 @@ GASNet-EX ChangeLog
   - bug4299: Non-fatal error on BAR1 resource exhaustion in gex_Segment_Create
   - bug4303: Inaccurate expectations regarding GASNET_IBV_PORTS
   - bug4310: use of deprecated Intel compiler options
+  - bug4318: Support for multiple HIP devices is wrong
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release

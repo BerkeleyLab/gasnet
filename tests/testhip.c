@@ -213,11 +213,34 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_MK_Create(&kind, myclient, &args, 0) );
       assert_always(kind != GEX_MK_INVALID);
 
+      // If multiple devices are available, call hipSetDevice() to switch
+      hipCtx_t curr_ctx;
+      int curr_dev, tmp_dev;
+      if (count > 1) {
+        check_hipcall( hipDevicePrimaryCtxRetain(&curr_ctx, 1) );
+        check_hipcall( hipSetDevice(1) );
+        curr_dev = 1;
+      } else {
+        curr_ctx = ctx;
+        curr_dev = 0;
+      }
+
       // Create the first GPU segment
       gex_Segment_t d_segment1 = GEX_SEGMENT_INVALID;
       GASNET_Safe( gex_Segment_Create(&d_segment1, myclient, client_gpu1, TEST_SEGSZ_REQUEST, kind, 0));
       uint8_t *loc_gpu1 = gex_Segment_QueryAddr(d_segment1);
       if (client_segment) assert_always(loc_gpu1 == client_gpu1);
+
+      // Confirm the gex_Segment_Create() did NOT change the current device
+      check_hipcall( hipGetDevice(&tmp_dev) );
+      assert_always(tmp_dev == curr_dev);
+
+      // If GASNet performed allocation, check that it did so on the proper device
+      if (!client_segment) {
+        hipPointerAttribute_t attr;
+        check_hipcall( hipPointerGetAttributes(&attr, loc_gpu1) );
+        assert_always(attr.device == 0);
+      }
 
       // Create first GPU endpoint and bind its segment
       GASNET_Safe( gex_EP_Create(&gpu1_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
@@ -229,6 +252,13 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_Segment_Create(&d_segment2, myclient, client_gpu2, TEST_SEGSZ_REQUEST, kind, 0));
       uint8_t *loc_gpu2 = gex_Segment_QueryAddr(d_segment2);
       if (client_segment) assert_always(loc_gpu2 == client_gpu2);
+      check_hipcall( hipGetDevice(&tmp_dev) );
+      assert_always(tmp_dev == curr_dev);
+      if (!client_segment) {
+        hipPointerAttribute_t attr;
+        check_hipcall( hipPointerGetAttributes(&attr, loc_gpu2) );
+        assert_always(attr.device == 0);
+      }
       GASNET_Safe( gex_EP_Create(&gpu2_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
       gex_EP_BindSegment(gpu2_ep, d_segment2, 0);
       GASNET_Safe( gex_EP_PublishBoundSegment(myteam, &gpu2_ep, 1, 0) );
@@ -299,6 +329,9 @@ int main(int argc, char **argv)
       if (!test_errs) MSG("GEX_MK_CLASS_HIP: success");
 
       check_hipcall( hipDevicePrimaryCtxRelease(0) );
+      if (count > 1) {
+        check_hipcall( hipDevicePrimaryCtxRelease(1) );
+      }
     }
 
     // TODO: once supported: Destroy Segments, Kinds and Endpoints; free GPU memory
