@@ -147,7 +147,7 @@ int main(int argc, char **argv)
   } else {
     MSG("ROCR_VISIBLE_DEVICES is unset");
   }
-#ifdef __HIP_PLATFORM_NVCC__
+#ifdef __HIP_PLATFORM_NVIDIA__
   const char *cvd = getenv("CUDA_VISIBLE_DEVICES"); // Intentionally NOT gasnet_getenv()
   if (cvd) {
     MSG("CUDA_VISIBLE_DEVICES='%s'", cvd);

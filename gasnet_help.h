@@ -1619,7 +1619,13 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 #if GASNET_HAVE_MK_CLASS_HIP
   #undef GASNET_HAVE_MK_CLASS_HIP
   #define GASNET_HAVE_MK_CLASS_HIP 1
-  #define GASNETI_MK_CLASS_HIP_CONFIG mk_class_hip
+  #if GASNETI_HIP_PLATFORM_AMD
+    #define GASNETI_MK_CLASS_HIP_CONFIG mk_class_hip_amd
+  #elif GASNETI_HIP_PLATFORM_NVIDIA
+    #define GASNETI_MK_CLASS_HIP_CONFIG mk_class_hip_nvidia
+  #else
+    #error Unknown HIP Platform
+  #endif
 #else
   #undef GASNET_HAVE_MK_CLASS_HIP
   #define GASNETI_MK_CLASS_HIP_CONFIG nomk_class_hip

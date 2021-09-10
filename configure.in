@@ -5042,17 +5042,19 @@ if test "$enable_mk_hip" != "no"; then
 
     # UNDOCUMENTED option to enable use of HIP over CUDA *by GASNet maintainers*.
     # TODO:  Eventually we should REMOVE or DOCUMENT
-    hip_platform=hcc
+    hip_platform=amd
     GASNET_WITH_NOHELP(hip-platform, [
       case "$withval" in
-        hcc|nvcc) hip_platform="$withval";;
-           *) AC_MSG_ERROR([--with-hip-platform requires an argument (hcc or nvcc)]) ;;
+        amd|hcc)      hip_platform='amd';;
+        nvidia|nvcc)  hip_platform='nvidia';;
+           *) AC_MSG_ERROR([--with-hip-platform requires an argument (amd or nvidia)]) ;;
       esac
     ])
     case "$hip_platform" in
-      hcc)  AC_DEFINE(GASNETI_HIP_PLATFORM_HCC)
+      amd)  AC_DEFINE(GASNETI_HIP_PLATFORM_AMD)
             ;;
-      nvcc) CHECK_PKG_CUDA()
+      nvidia)
+            CHECK_PKG_CUDA()
             # Suppress warnings when compiling gasnet_hip.c and testhip.c
             # due to "issues" in hip_runtime.h when parsed by a C compiler in
             # __HIP_PLATFORM_NVCC__ mode.
@@ -5082,7 +5084,7 @@ if test "$enable_mk_hip" != "no"; then
             HIP_LIBS="$HIP_LIBS -lcudart $CUDA_LIBS"
             HIP_LDFLAGS="$HIP_LDFLAGS $CUDA_LDFLAGS"
             HIP_CFLAGS="$HIP_CFLAGS $CUDA_CFLAGS $HIP_NVCC_WARNFLAGS"
-            AC_DEFINE(GASNETI_HIP_PLATFORM_NVCC)
+            AC_DEFINE(GASNETI_HIP_PLATFORM_NVIDIA)
             ;;
     esac
 
@@ -5094,10 +5096,12 @@ if test "$enable_mk_hip" != "no"; then
     GASNET_PUSHVAR(LIBS,"$LIBS $HIP_LIBS")
 
     GASNET_TRY_CACHE_LINK(for working HIP configuration, libamdhip64_works, [
-      #if GASNETI_HIP_PLATFORM_NVCC
-        #define __HIP_PLATFORM_NVCC__
+      #if GASNETI_HIP_PLATFORM_NVIDIA
+        #define __HIP_PLATFORM_NVCC__ // legacy
+        #define __HIP_PLATFORM_NVIDIA__
       #else
-        #define __HIP_PLATFORM_HCC__
+        #define __HIP_PLATFORM_HCC__ // legacy
+        #define __HIP_PLATFORM_AMD__
       #endif
       #include <hip/hip_runtime_api.h>
     ], [
