@@ -72,7 +72,7 @@ int gasneti_MK_Create_hip(
   }
 
 #if PLATFORM_OS_LINUX && GASNET_CONDUIT_IBV
- #if GASNETI_HIP_PLATFORM_NVCC
+ #if GASNETI_HIP_PLATFORM_NVIDIA
   // Look for NVIDIA GDR support
   const char *filename = "/sys/kernel/mm/memory_peers/nv_mem/version";
  #else

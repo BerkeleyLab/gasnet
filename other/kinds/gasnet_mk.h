@@ -86,10 +86,12 @@ GASNETI_END_EXTERNC
 #if GASNET_HAVE_MK_CLASS_HIP
   // HIP platform was determined at GASNet-EX configure time.
   // If these conflict with client code, then this is not the right GASNet-EX build
-  #if GASNETI_HIP_PLATFORM_NVCC
-    #define __HIP_PLATFORM_NVCC__
+  #if GASNETI_HIP_PLATFORM_NVIDIA
+    #define __HIP_PLATFORM_NVCC__ // legacy
+    #define __HIP_PLATFORM_NVIDIA__
   #else
-    #define __HIP_PLATFORM_HCC__
+    #define __HIP_PLATFORM_HCC__ // legacy
+    #define __HIP_PLATFORM_AMD__
   #endif
 #endif
 
