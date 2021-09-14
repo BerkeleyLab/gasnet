@@ -990,11 +990,13 @@ size_t gex_TM_Split(gex_TM_t *new_tm_p, gex_TM_t parent_tm, int color, int key,
 // + The mutually exclusive choice of
 //   GEX_FLAG_TM_{SYMMETRIC,LOCAL,GLOBAL,NO}_SCRATCH in flags must be
 //   single-valued over the output team.
-// + This call is guaranteed to provide sufficient synchronization that the
+// + This call is guaranteed to provide sufficient synchronization that each
 //   caller may begin using the new handles in new_tms[] immediately following
-//   return.  The implementation is permitted but not required to include
-//   barrier synchronization, which may or may not be necessary to provide this
-//   guarantee.
+//   return. If flags included GEX_FLAG_TM_LOCAL_SCRATCH then this call provides
+//   barrier synchronization individually over each new team created by the call. 
+//   In all other cases the implementation is permitted but not required to include
+//   barrier synchronization, which may or may not be necessary to allow immediate
+//   use of the resulting team.
 //
 // NOTE: The current implementation only supports creation of teams composed
 // entirely of primordial endpoints, even with conduits which support creation
