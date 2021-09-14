@@ -179,6 +179,7 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 {
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   // Register the segment
   int rc = gasnetc_segment_create_hook(e_segment);
   if (rc) return rc;
@@ -186,6 +187,9 @@ int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
   // Exchange memory keys
   gex_EP_t e_ep = gex_TM_QueryEP(e_tm);
   gasnetc_segment_exchange(e_tm, &e_ep, 1);
+#else
+  // Everything was completed in gasnetc_attach_primary()
+#endif
 
   return GASNET_OK;
 }
