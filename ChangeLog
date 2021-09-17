@@ -116,6 +116,7 @@ GASNet-EX ChangeLog
   - bug4303: Inaccurate expectations regarding GASNET_IBV_PORTS
   - bug4310: use of deprecated Intel compiler options
   - bug4318: Support for multiple HIP devices is wrong
+  - bug4328: ucx: erroneous loop in gasnetc_poll_sndrcv()
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release
