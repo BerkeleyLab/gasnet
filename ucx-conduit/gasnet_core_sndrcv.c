@@ -904,16 +904,17 @@ void gasnetc_recv_fini(void)
 #if GASNETC_PIN_SEGMENT
 int gasnetc_poll_sndrcv(gasnetc_lock_mode_t lmode GASNETI_THREAD_FARG)
 {
-  gasnetc_ucx_request_t *req = NULL;
+  gasnetc_ucx_request_t *req, *tmp;
   gasnetc_sreq_hdr_t *am_hdr;
 
   GASNETC_LOCK_ACQUIRE(lmode);
   gasnetc_ucx_progress();
 
   req = gasneti_list_head(&gasneti_ucx_module.recv_queue);
-  while (ucp_request_is_completed(req)) {
-    req = GASNETI_LIST_POP(&gasneti_ucx_module.recv_queue,
+  if (ucp_request_is_completed(req)) {
+    tmp = GASNETI_LIST_POP(&gasneti_ucx_module.recv_queue,
                            gasnetc_ucx_request_t);
+    gasneti_assume(tmp == req);
     am_hdr = (gasnetc_sreq_hdr_t*)req->buffer.data;
     GASNETC_BUF_SET_OFFSET(req->buffer, am_hdr->size);
     gasnetc_ProcessRecv(GASNETC_BUF_DATA(req->buffer),
