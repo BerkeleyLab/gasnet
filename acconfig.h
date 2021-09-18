@@ -480,6 +480,9 @@
 #undef GASNETC_OFI_USE_THREAD_DOMAIN
 #undef GASNETC_OFI_PROVIDER_LIST
 
+/* GASNet ucx-conduit settings */
+#undef GASNETC_UCX_MAX_MEDIUM_DFLT
+
 /* GASNet ibv-conduit features and bug work-arounds */
 #undef HAVE_IBV_SRQ
 #undef HAVE_IBV_TRANSPORT_TYPE

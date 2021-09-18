@@ -17,6 +17,9 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
+GASNETI_IDENT(gasnetc_IdentString_AMMaxMediumDefault,
+              "$GASNetAMMaxMediumDefault: " _STRINGIFY(GASNETC_UCX_MAX_MEDIUM_DFLT) " $");
+
 enum {
   GASNETC_EXIT_ROLE_UNKNOWN,
   GASNETC_EXIT_ROLE_LEADER,
@@ -69,11 +72,6 @@ gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 gasneti_ucx_module_t gasneti_ucx_module;
 static char *gasnetc_ucx_addr_array = NULL;
-
-size_t gasnetc_AMHeaderSize(void)
-{
-  return sizeof(gasnetc_sreq_hdr_t);
-}
 
 size_t gasnetc_sizeof_segment_t(void) {
   gasnetc_Segment_t segment;
@@ -159,6 +157,8 @@ static void gasnetc_check_config(void) {
 
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
+
+  gasneti_static_assert(GASNETC_UCX_HDR_SIZE == sizeof(gasnetc_sreq_hdr_t));
 }
 
 GASNETI_INLINE(gasnetc_msgsource)
@@ -559,6 +559,21 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
           GASNETC_DEFAULT_EXITTIMEOUT_MIN,
           GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
           GASNETC_DEFAULT_EXITTIMEOUT_MIN);
+
+  // Process GASNET_UCX_MAX_MEDIUM
+  // This must be done at least early enough to be used in setup of PSHM
+  // Placement here allows for the possibility that UCX init may need the max medium
+  { size_t lub_medium =
+      gasneti_getenv_int_withdefault("GASNET_UCX_MAX_MEDIUM", GASNETC_UCX_MAX_MEDIUM_DFLT, 1);
+    if (lub_medium < 512) {
+      gasneti_fatalerror("GASNET_UCX_MAX_MEDIUM setting (%"PRIdSZ") is not valid.  "
+                         "The value must be no less than 512.  "
+                         "See ucx-conduit README for more details.",
+                         lub_medium);
+    }
+    size_t max_med_overhead = GASNETI_ALIGNUP(GASNETC_UCX_HDR_SIZE + GASNETC_MAX_ARGS_SIZE, 8);
+    gasnetc_ammed_bufsz = lub_medium + max_med_overhead;
+  }
 
   /*
    * Initialize UCX
