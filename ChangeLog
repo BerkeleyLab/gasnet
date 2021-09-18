@@ -24,6 +24,12 @@ GASNet-EX ChangeLog
 * InfiniBand Verbs (details in ibv-conduit README)
   - Improved reporting of fatal errors reported via IBV completion queues
 
+* Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
+  - A new environment variable `GASNET_UCX_MAX_MEDIUM` enables setting the
+    size of AM Medium buffers at job launch, and a new configure option
+    `--with-ucx-max-medium` can be used to set the default value.
+    In the absence of these settings, default buffer size remains unchanged.
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4297: incorrect nbrhd construction for some multi-homed hosts
   - bug4321: Intermittent "EBADENDPOINT" failures in single-node udp-conduit
