@@ -74,8 +74,8 @@
 #define GASNET_HAVE_MK_CLASS_CUDA_UVA (GASNETI_MK_CLASS_CUDA_UVA_ENABLED && GASNET_SEGMENT_FAST)
 #define GASNET_HAVE_MK_CLASS_HIP (GASNETI_MK_CLASS_HIP_ENABLED && GASNET_SEGMENT_FAST)
 
-  /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
-     "private" threads which may be used to run AM handlers, even under GASNET_SEQ
+  /* uncomment if your conduit has "private" threads which might run conduit
+     code and/or the client's AM handlers, even under GASNET_SEQ.
      this ensures locking is still done correctly, etc
    */
 #ifndef GASNETC_DYNAMIC_CONNECT

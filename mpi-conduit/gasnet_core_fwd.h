@@ -47,11 +47,11 @@
 //#define GASNET_HAVE_MK_CLASS_CUDA_UVA GASNETI_MK_CLASS_CUDA_UVA_ENABLED
 //#define GASNET_HAVE_MK_CLASS_HIP GASNETI_MK_CLASS_HIP_ENABLED
 
-  /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
-     "private" threads which may be used to run AM handlers, even under GASNET_SEQ
+  /* uncomment if your conduit has "private" threads which might run conduit
+     code and/or the client's AM handlers, even under GASNET_SEQ.
      this ensures locking is still done correctly, etc
    */
-/* #define GASNETI_CONDUIT_THREADS 1 */
+//#define GASNETI_CONDUIT_THREADS 1
 
   /* define these to 1 if your conduit needs to augment the implementation
      of gasneti_reghandler() (in gasnet_internal.c)

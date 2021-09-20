@@ -187,7 +187,7 @@ GASNETI_BEGIN_NOWARN
 #endif
 
 /* GASNETI_CONDUIT_THREADS = GASNet conduit has one or more private threads
-                             which may be used to run AM handlers */
+                             which may be used to run conduit and/or client code */
 #if defined(GASNETI_CONDUIT_THREADS) && (GASNETI_CONDUIT_THREADS != 1)
   #error bad defn of GASNETI_CONDUIT_THREADS
 #endif
