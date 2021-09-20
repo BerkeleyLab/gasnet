@@ -117,6 +117,7 @@ GASNet-EX ChangeLog
   - bug4310: use of deprecated Intel compiler options
   - bug4318: Support for multiple HIP devices is wrong
   - bug4328: ucx: erroneous loop in gasnetc_poll_sndrcv()
+  - bug4330: ibv conduit incorrectly implements HIDDEN_AM_CONCURRENCY_LEVEL
 
 ----------------------------------------------------------------------
 2021-03-31: GASNet-EX 2021.3.0 Release
