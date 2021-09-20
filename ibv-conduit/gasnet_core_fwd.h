@@ -85,6 +85,12 @@
   #define GASNETI_CONDUIT_THREADS 1
 #endif
 
+#if GASNETC_IBV_RCV_THREAD
+  #define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL 1
+#else
+  #define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL 0
+#endif
+
   /* define these to 1 if your conduit needs to augment the implementation
      of gasneti_reghandler() (in gasnet_internal.c)
    */

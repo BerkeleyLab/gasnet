@@ -195,7 +195,9 @@ GASNETI_BEGIN_NOWARN
 /* GASNET_HIDDEN_AM_CONCURRENCY_LEVEL: non-zero iff the conduit may run AM
  * handlers on a thread not owned by the client 
  */
-#if GASNETI_CONDUIT_THREADS
+#ifdef GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
+  // Trust conduit's setting
+#elif GASNETI_CONDUIT_THREADS
   #define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL 1
 #else
   #define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL 0
