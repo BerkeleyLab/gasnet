@@ -1405,6 +1405,13 @@ extern int gex_EP_PublishBoundSegment(
 // in AM handler concurrency, independent of this value.
 #define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL ???
 
+// Returns the runtime value of AM concurrency level for the calling process
+// which may be more precise than the conservative static value provided by
+// GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
+// Only valid after gex_Client_Init()
+// [Since spec v0.14]
+int gex_System_QueryHiddenAMConcurrencyLevel(void);
+
 // Client-facing type for describing one AM handler
 // This type is an alternative to (*not* interchangeable with) gasnet_handlerentry_t
 //

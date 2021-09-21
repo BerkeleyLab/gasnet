@@ -52,6 +52,16 @@ GASNETI_IDENT(gasnetc_IdentString_MaxHCAs, "$GASNetIbvMaxHCAs: " _STRINGIFY(GASN
   GASNETI_IDENT(gasnetc_IdentString_Multirail, "$GASNetIbvMultirail: 1 $");
 #endif
 
+#if GASNETC_USE_RCV_THREAD
+  int gex_System_QueryHiddenAMConcurrencyLevel(void) {
+    return gasnetc_use_rcv_thread;
+  }
+  GASNETI_IDENT(gasnetc_IdentString_RcvThread, "$GASNetIbvRcvThread: 1 $");
+#endif
+#if GASNETC_USE_CONN_THREAD
+  GASNETI_IDENT(gasnetc_IdentString_ConnThread, "$GASNetIbvConnThread: 1 $");
+#endif
+
 gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutdown.
 
 size_t gasnetc_sizeof_segment_t(void) {

@@ -873,6 +873,11 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_System_QueryMaxThreads() > 1);
 #endif
 
+  // Hidden AM concurrency query
+  assert_always(gex_System_QueryHiddenAMConcurrencyLevel() >= 0);
+  assert_always(gex_System_QueryHiddenAMConcurrencyLevel()
+                <= GASNET_HIDDEN_AM_CONCURRENCY_LEVEL);
+
   /* ep_index/ep_location tests */
   assert_unsigned(gex_EP_Index_t);
   for (gex_Rank_t i = 0; i < numranks; ++i) {

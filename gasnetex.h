@@ -192,15 +192,21 @@ GASNETI_BEGIN_NOWARN
   #error bad defn of GASNETI_CONDUIT_THREADS
 #endif
 
-/* GASNET_HIDDEN_AM_CONCURRENCY_LEVEL: non-zero iff the conduit may run AM
- * handlers on a thread not owned by the client 
- */
+// GASNET_HIDDEN_AM_CONCURRENCY_LEVEL: non-zero iff the conduit *may* run AM
+// handlers on a thread not owned by the client.
+//
+// gex_System_QueryHiddenAMConcurrencyLevel(): more precise query at runtime
+// which can consider things like the environment or library/hardware
+// capabilities.
 #ifdef GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
-  // Trust conduit's setting
+  // Trust conduit's definitions of macro and function
+  extern int gex_System_QueryHiddenAMConcurrencyLevel(void);
 #elif GASNETI_CONDUIT_THREADS
   #define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL 1
+  #define gex_System_QueryHiddenAMConcurrencyLevel() 1
 #else
   #define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL 0
+  #define gex_System_QueryHiddenAMConcurrencyLevel() 0
 #endif
 
 /* GASNETI_THREADS = Threads exist at conduit and/or client level, 
