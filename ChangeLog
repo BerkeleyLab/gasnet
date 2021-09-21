@@ -113,6 +113,7 @@ GASNet-EX ChangeLog
   - bug4281: Display glitch in VERBOSEENV console reporting
   - bug4291: Configure barfs on balanced double-quotes in arguments
   - bug4292: ucx and aries can leak events from AM Long
+  - bug4298: ucx persona_example hang w/o PSHM
   - bug4299: Non-fatal error on BAR1 resource exhaustion in gex_Segment_Create
   - bug4303: Inaccurate expectations regarding GASNET_IBV_PORTS
   - bug4310: use of deprecated Intel compiler options
