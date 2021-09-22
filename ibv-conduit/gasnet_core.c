@@ -53,14 +53,18 @@ GASNETI_IDENT(gasnetc_IdentString_MaxHCAs, "$GASNetIbvMaxHCAs: " _STRINGIFY(GASN
 #endif
 
 #if GASNETC_USE_RCV_THREAD
-  int gex_System_QueryHiddenAMConcurrencyLevel(void) {
-    return gasnetc_use_rcv_thread;
-  }
   GASNETI_IDENT(gasnetc_IdentString_RcvThread, "$GASNetIbvRcvThread: 1 $");
 #endif
 #if GASNETC_USE_CONN_THREAD
   GASNETI_IDENT(gasnetc_IdentString_ConnThread, "$GASNetIbvConnThread: 1 $");
 #endif
+
+int gex_System_QueryHiddenAMConcurrencyLevel(void) {
+#if !GASNETC_USE_RCV_THREAD
+  gasneti_assert(! gasnetc_use_rcv_thread);
+#endif
+  return gasnetc_use_rcv_thread ? 1 : 0;
+}
 
 gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutdown.
 
