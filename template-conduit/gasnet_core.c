@@ -170,12 +170,31 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 {
   // (###) If needed, implement conduit-specific "create" of the given segment,
   // and define GASNETC_SEGMENT_CREATE_HOOK in gasnet_core_fwd.h
-  // Otherwise, this function may be removed.
+  // Otherwise, this function may be omitted from a conduit.
+  //
+  // On success, return GASNET_OK.  This ensures the infrastructure calls the
+  // matching destroy hook (if any), when the segment is destroyed.
+  // On failure, return any other value.  This ensures the infrastructure will
+  // NOT call any matching destroy hook, leaving this hook responsible for the
+  // cleanup of conduit-specific state prior to any such error return.
 
   // Register/pin the segment
   (###)
 
   return GASNET_OK;
+}
+
+void gasnetc_segment_destroy_hook(gasneti_Segment_t i_segment)
+{
+  // (###) If needed, implement conduit-specific "destroy" of the given segment,
+  // and define GASNETC_SEGMENT_DESTROY_HOOK in gasnet_core_fwd.h
+  // Otherwise, this function may be omitted from a conduit.
+  //
+  // This hook may assume that a gasnetc_segment_create_hook() for the same
+  // segment has returned GASNET_OK.
+
+  // Deregister/unpin the segment
+  (###)
 }
 
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)

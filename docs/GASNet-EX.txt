@@ -33,7 +33,7 @@
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2021
 #define GASNET_RELEASE_VERSION_MINOR 8
-#define GASNET_RELEASE_VERSION_PATCH 0
+#define GASNET_RELEASE_VERSION_PATCH 7
 
 // Major and Minor versions of the GASNet-EX specification.
 //
@@ -342,6 +342,40 @@ typedef [some integer type] gex_Flags_t;
 // specification
 #define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???) [UNIMPLEMENTED]
 #define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???) [UNIMPLEMENTED]
+//
+// PEER_NEVER_{SELF,NBRHD}
+// [Since spec v0.14]
+//
+// These flags, passed to a supporting communication initiation API, assert to
+// the GASNet-EX library that the '(tm,rank)' tuple (or equivalent) does NOT
+// name an endpoint in certain processes.
+//
+// Use of these flags *may* allow the library to omit its own checks for the
+// asserted condition.  However, to have this desired impact, the compiler must
+// be capable of statically deciding their presence in the 'flags' argument.
+// Therefore, non-trivial logic to determine whether or not to pass either of
+// these flags is strongly discouraged.  The intended use case for these flags
+// is in situations where the asserted property is known without additional
+// logic at the specific call site.
+//
+// Providing an assertion which is untrue will yield undefined results (though
+// in a high-quality implementation, a debug build will report the discrepancy).
+//
+// SELF  - Asserts that the "remote" peer in a communication call is not
+//         an endpoint in the initiating process.
+// NBRHD - Asserts that the "remote" peer in a communication call is not
+//         an endpoint in any process in the initiator's nbrhd.
+//
+// Use of GEX_FLAG_PEER_NEVER_NBRHD implies GEX_FLAG_PEER_NEVER_SELF.
+// However, their use is not mutually exclusive.
+//
+// Currently these flags are valid to pass to:
+//   gex_RMA_*()
+//
+// A future revision may permit these flags for additional communication
+// injection calls.
+#define GEX_FLAG_PEER_NEVER_SELF    ((gex_Flags_t)???)
+#define GEX_FLAG_PEER_NEVER_NBRHD   ((gex_Flags_t)???)
 //
 // AD_MY_{RANK,NBRHD}
 //
@@ -956,11 +990,13 @@ size_t gex_TM_Split(gex_TM_t *new_tm_p, gex_TM_t parent_tm, int color, int key,
 // + The mutually exclusive choice of
 //   GEX_FLAG_TM_{SYMMETRIC,LOCAL,GLOBAL,NO}_SCRATCH in flags must be
 //   single-valued over the output team.
-// + This call is guaranteed to provide sufficient synchronization that the
+// + This call is guaranteed to provide sufficient synchronization that each
 //   caller may begin using the new handles in new_tms[] immediately following
-//   return.  The implementation is permitted but not required to include
-//   barrier synchronization, which may or may not be necessary to provide this
-//   guarantee.
+//   return. If flags included GEX_FLAG_TM_LOCAL_SCRATCH then this call provides
+//   barrier synchronization individually over each new team created by the call. 
+//   In all other cases the implementation is permitted but not required to include
+//   barrier synchronization, which may or may not be necessary to allow immediate
+//   use of the resulting team.
 //
 // NOTE: The current implementation only supports creation of teams composed
 // entirely of primordial endpoints, even with conduits which support creation
@@ -1368,6 +1404,13 @@ extern int gex_EP_PublishBoundSegment(
 // mode multiple client threads concurrently entering GASNet may result
 // in AM handler concurrency, independent of this value.
 #define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL ???
+
+// Returns the runtime value of AM concurrency level for the calling process
+// which may be more precise than the conservative static value provided by
+// GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
+// Only valid after gex_Client_Init()
+// [Since spec v0.14]
+int gex_System_QueryHiddenAMConcurrencyLevel(void);
 
 // Client-facing type for describing one AM handler
 // This type is an alternative to (*not* interchangeable with) gasnet_handlerentry_t
@@ -2259,13 +2302,23 @@ gex_Event_t gex_NBI_EndAccessRegion(gex_Flags_t flags);
 // The operation is indicated by the suffix
 //  + _Test: no Poll call is made, returns zero on success, and non-zero otherwise.
 //  + _Wait: Polls until success, void return
+//
+// In general it is not permitted to test or wait on a leaf event after
+// synchronization of its corresponding root event because synchronization of a
+// root event *implicitly* synchronizes any/all leaves.
+// However, when using NB event array APIs gex_Event_{Test,Wait}{Some,All}()
+// one may mix leaf events with their corresponding root events in the same
+// array without concern for their relative order.  In other words, placement
+// of a leaf event later in the array than its corresponding root event is
+// not "test or wait on a leaf event after synchronization of its corresponding
+// root event".
 
 // Completion of a single NB event
 // Success is defined as when the passed event is complete.
 int  gex_Event_Test (gex_Event_t event);
 void gex_Event_Wait (gex_Event_t event);
 
-// Completion of an event array - "some"
+// Completion of an NB event array - "some"
 // Success is defined as one or more events have been completed, OR
 // the input array contains only GEX_EVENT_INVALID (which are otherwise ignored).
 // Completed events, if any, are overwritten with GEX_EVENT_INVALID.
