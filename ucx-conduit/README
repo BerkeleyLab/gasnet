@@ -170,11 +170,50 @@ Additional environment variables:
 
 @ Section: Known Problems @
 
-  + See the GASNet Bugzilla server for details on known bugs:
-    https://gasnet-bugs.lbl.gov/
-  + This version is known to have issues with Mellanox ConnectX-4 adapters
-  + Support for segment-everything mode is experimental and is known to
-    suffer from unbounded memory use in AMLong (and amref-based Put/Get).
++ This version is known to have issues with Mellanox ConnectX-4 adapters
+
++ Support for segment-everything mode is experimental and is known to
+  suffer from unbounded memory use in AMLong (and amref-based Put/Get).
+
++ Bug 4164
+  RMA Gets into local buffers which are repeatedly allocated and freed may
+  deliver significantly lower performance than if the buffers were retained
+  by the application rather than being freed.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4164
+  That bug report describes the problem in more detail, and lists the best
+  known recommended work-around(s).
+
++ Bug 4165
+  The implementation of AM Mediums is known to have anomalous performance
+  for payloads above about 1KiB on multiple systems.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4165
+
++ Bug 4301
+  As descried in the "Runtime Configuration" section, UCX versions 1.9 and
+  newer use prefix of "GASNET_UCX" for private (per client of UCX)
+  configuration.  However, this same prefix is used by ucx-conduit for its
+  own environment settings.  The result is that, by default, the UCX library
+  may issue warnings which include text like the following:
+   "UCX  WARN  unused env variable: GASNET_UCX_SPAWNER"
+  and
+   "(set UCX_WARN_UNUSED_ENV_VARS=n to suppress this warning)"
+  The work-around is to set UCX_WARN_UNUSED_ENV_VARS=n as the message
+  recommends.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4301
+
++ Bug 4337
+  Some Active Message traffic patterns may induce ucx-conduit to perform
+  excessive buffering within the UCX library.  This can lead to unexpectedly
+  large memory consumption, which in turn may lead to multiple fatal error
+  modes.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4337
+
++ See the GASNet Bugzilla server for details on other known bugs:
+  https://gasnet-bugs.lbl.gov/
 
 @ Section: Design Overview @
 
