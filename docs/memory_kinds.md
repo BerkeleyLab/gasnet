@@ -119,10 +119,11 @@ RDMA on aarch64 (aka ARM64 or ARMv8).  NVIDIA does not support UVA on 32-bit
 platforms, and AMD does not claim any 32-bit CPU support at all.
 Therefore, this work currently supports only x86-64 and ppc64le.
 
-For any configurations that do not meet all of the configure-testable
-requirements outlined above, support for corresponding kind(s) in the current
-implementation will be disabled (or `configure` will fail if it was passed a
-failing `--enable-kind-[kind]`).  Specifically, `GASNET_HAVE_MK_CLASS_[KIND]` will be
+For configurations on an unsupported CPU architecture which otherwise appear to
+to satisfy the configure-testable requirements above, a warning will be issued.
+In the case that `--enable-kind-[kind]` was passed but a testable requirement
+other than CPU architecture is not satisfied, `configure` will fail.  In other
+cases lacking prerequisites, `GASNET_HAVE_MK_CLASS_[KIND]` will be
 undefined and attempts to create device segments will fail at runtime.  Future
 releases are expected to eventually include a "reference implementation" that
 will allow creation of device segments on a wider range of platforms and
@@ -163,7 +164,8 @@ For either GPU vendor, these limits are per GPU across all
 process and runtimes on a given node.  Thus a portion is consumed by each
 GASNet-EX segment created on a given node, as well as by other uses of
 GPUDirect RDMA such as an MPI implementation.  Typically a few tens of MB are
-also reserved by the driver itself.
+also reserved by the driver itself, though driver overheads as large as 560MB
+per process have been observed.
 
 Additionally, the BAR usage is *per-HCA* and thus use of multiple rails may
 limit the size of GPU segments.
@@ -212,7 +214,7 @@ no reliable means we are aware of to determine if this support is actually
 enabled.  Therefore, attempts to use `GEX_MK_CLASS_CUDA_UVA` with a build of
 UCX lacking the necessary support (because it was compiled without it or because
 it was disabled at runtime) will likely fail "poorly", crashing at the first
-attempt to perform RMA operations using segment.
+attempt to perform RMA operations using a device segment.
 
 It is hoped that in the future such crashes can be replaced with a non-fatal
 error return from either the `gex_MK_Create()` or `gex_Segment_Create()` calls.
