@@ -36,6 +36,8 @@ GASNet-EX ChangeLog
   - This release adds Memory Kinds support for AMD GPUs via the HIP API.
   - This release adds ucx-conduit support for `GEX_MK_CLASS_CUDA_UVA` and
     `GEX_MK_CLASS_HIP` on supported hardware and software.
+  - Fixed bugs 4148 and 4150, which had significant impact of the usability
+    of RMA Put operations involving device memory.
   See docs/memory_kinds.md for more information on the status of Memory Kinds.
 
 * InfiniBand Verbs (details in ibv-conduit README)
@@ -87,6 +89,8 @@ GASNet-EX ChangeLog
   - bug3535: additional restrictions for coding standards
   - bug3936: Problems with multi-rail and GASNET_{AM_CREDITS,NETWORKDEPTH}_PP
   - bug4053: ibv: Default to setting MLX5_SINGLE_THREADED=1 for SEQ builds
+  - bug4148: ibv/GDR completion issues with multiple communication paths
+  - bug4150: ibv/GDR premature local completion of Puts from device memory
   - bug4155: ucx: AM Long test failures when PSHM is disabled
   - bug4162: incorrect return value from gasnet_get_nbi on ucx-conduit
   - bug4178: ofi: testsegment crash with MR_BASIC

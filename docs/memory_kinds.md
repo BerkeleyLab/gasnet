@@ -165,22 +165,8 @@ GASNet-EX segment created on a given node, as well as by other uses of
 GPUDirect RDMA such as an MPI implementation.  Typically a few tens of MB are
 also reserved by the driver itself.
 
-## GDR and ibv-conduit Multi-rail
-
-Though our test and development systems have multi-rail InfiniBand networks,
-there are currently unresolved issues with respect to use of multiple rails
-within a given process.  Consequentially, support is currently limited to
-single-rail configurations, which can be achieved ether at configure time by
-using the option `--disable-ibv-multirail`, or at runtime by setting the
-environment variable `GASNET_IBV_PORTS` to name a single valid port.  Both
-mechanisms are documented in `ibv-conduit/README`.
-
-For the most up-to-date information on this issue see
-[bug 4148](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4148)
-
-Additionally, the BAR usage (described earlier in this document) has been
-observed to be *per-HCA* and thus use of multiple rails may limit the size of
-GPU segments.
+Additionally, the BAR usage is *per-HCA* and thus use of multiple rails may
+limit the size of GPU segments.
 
 ## Loopback
 
@@ -198,40 +184,6 @@ GASNet-EX to perform such transfers.
 
 For the most up-to-date information on this issue see
 [bug 4149](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4149)
-
-## GDR and PSHM
-
-Currently the implementation is sufficient (when using supported hardware,
-drivers and libraries) to perform RMA operations between combinations of host
-and GPU memory in which the two involved endpoints are in distinct "nbrhds".
-
-There is a temporary limitation (in addition to the no-loopback limitation,
-above) which prohibits intra-nbrhd RMA operations.  In other words, there is no
-support for RMA operations in which one or both endpoints has a GPU memory
-segment and the two processes are in the same shared memory domain (aka "nbrhd"
-in GASNet-EX documentation).
-
-Currently, RMA transfers involving GPU memory between processes in the same
-compute node are supported only when PSHM is "inactive" (meaning either
-`--disable-pshm` at configure time, or `GASNET_SUPERNODE_MAXSIZE=1` in ones
-environment at runtime).
-
-For the most up-to-date information on this issue see
-[bug 4148](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4148)
-
-## Premature local completion of GDR Puts from device memory
-
-In addition to the multi-path issues described above (under "GDR and
-Multi-rail" and "GDR and PSHM" sub-headings), Put operations with their source
-in device memory have been observed to signal local completion prior to actual
-transfer of the data (as can be demonstrated by writing data to the source
-after sync and observing it arrive in the destination buffer).
-
-This is believed to be an issue with how ibv and GDR interact, and we are
-hopeful that a workaround can be implemented in a future release.
-
-For the most up-to-date information on this issue see
-[bug 4150](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4150)
 
 ## GDR and small Gets into device memory
 
