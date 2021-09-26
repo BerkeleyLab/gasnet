@@ -54,7 +54,7 @@ GASNet-EX ChangeLog
 * Cray XC uGNI (details in aries-conduit README)
   - Fix leak of gex_Event_t for explicit-event local completion of AM Long (bug 4292)
 
-* Unified Communication X framework (ucx-conduit) [EXPERIMENTAL]
+* Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - New support for Memory kinds: `GEX_MK_CLASS_CUDA_UVA` and `GEX_MK_CLASS_HIP`
   - Improvements to AM Long payload handling
     + Fix corruption when using UCX-level shared memory communication (bug 4155)
@@ -63,7 +63,7 @@ GASNet-EX ChangeLog
   - Improved handing of non-collective exits
   - Support for multiple endpoints
 
-* Shared-memory without a network (smp-conduit)
+* Shared-memory without a network (details in smp-conduit README)
   - Performance improvements to remote (inter-process) atomics
 
 * Platform support/portability
