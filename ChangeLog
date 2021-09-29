@@ -358,7 +358,7 @@ GASNet-EX ChangeLog
   - bug3630/3828/3842: Various failures on testvis, testratomic, testslice
 
 ----------------------------------------------------------------------
-03-12-2020: GASNet-EX 2020.3.0 Release
+2020-03-12: GASNet-EX 2020.3.0 Release
 
 * InfiniBand Verbs (ibv-conduit)
   - Negotiated-Payload Active Messages are implemented natively for ibv-conduit,
@@ -424,7 +424,7 @@ GASNet-EX ChangeLog
   - bug4042: errors when configured using --with-aries-max-medium=65472
 
 ----------------------------------------------------------------------
-09-14-2019: GASNet-EX 2019.9.0 Release
+2019-09-14: GASNet-EX 2019.9.0 Release
 
 * Cray XE/XK uGNI gemini-conduit
   - This conduit, deprecated since 2019.6.0, has been removed.
@@ -463,7 +463,7 @@ GASNet-EX ChangeLog
   - bug4002: ibv-conduit: XRC and ODP are mutually exclusive
 
 ----------------------------------------------------------------------
-06-14-2019: GASNet-EX 2019.6.0 Release
+2019-06-14: GASNet-EX 2019.6.0 Release
 
 * InfiniBand Verbs (ibv-conduit)
   - NEW: Improved support for correct operation on multi-rail InfiniBand systems
@@ -490,13 +490,13 @@ GASNet-EX ChangeLog
   - bug3946: Improve gasnetrun support for CPU binding esp with Open MPI
 
 ----------------------------------------------------------------------
-05-27-2019: GASNet-EX 2019.3.2 Release (bug fix release)
+2019-05-27: GASNet-EX 2019.3.2 Release (bug fix release)
 
 * Notable bugs fixed in this release:
   - bug3943: infrequent startup hang with PSHM and over 62 PPN
 
 ----------------------------------------------------------------------
-03-15-2019: GASNet-EX 2019.3.0 Release
+2019-03-15: GASNet-EX 2019.3.0 Release
 
 * Legacy backward-compatibility layer:
   - gasnet.h now implements gasnet_memset{,_nb,_nbi}
@@ -534,7 +534,7 @@ GASNet-EX ChangeLog
   - bug3873: gasnetrun w/mpi-spawner losing exit code in some configs
 
 ----------------------------------------------------------------------
-12-17-2018: GASNet-EX 2018.12.0 Beta release
+2018-12-17: GASNet-EX 2018.12.0 Beta release
 
 * InfiniBand Verbs (ibv-conduit)
   - Mellanox On-Demand Pinning (ODP) feature now replaces explicit out-of-segment 
@@ -583,7 +583,7 @@ GASNet-EX ChangeLog
   - bug3790: ibv-conduit AM flow-control hangs with multiple HCAs
 
 ----------------------------------------------------------------------
-09-26-2018: GASNet-EX 2018.9.0 Release
+2018-09-26: GASNet-EX 2018.9.0 Release
 
 * GASNet-EX copyright notice and license agreement updated (see license.txt)
 
@@ -626,7 +626,7 @@ GASNet-EX ChangeLog
   - bug3788: aries-conduit offloaded atomics defect with sub-teams
 
 ----------------------------------------------------------------------
-06-28-2018: GASNet-EX 2018.6.0 Beta release
+2018-06-28: GASNet-EX 2018.6.0 Beta release
 
 * GASNet-EX Spec v0.5:
   - Specified Teams and Collectives APIs [EXPERIMENTAL]
@@ -672,7 +672,7 @@ GASNet-EX ChangeLog
 
 
 ----------------------------------------------------------------------
-03-28-2018: GASNet-EX 2018.3.0 Release
+2018-03-28: GASNet-EX 2018.3.0 Release
 
 * GASNet-EX Spec v0.4:
   - Renamed gex_System_QueryNeighborhoodInfo() and associated
@@ -712,7 +712,7 @@ GASNet-EX ChangeLog
     atomics do not yet utilize them.
 
 ----------------------------------------------------------------------
-12-20-2017: GASNet-EX 2017.12.0 Beta release
+2017-12-20: GASNet-EX 2017.12.0 Beta release
 
 * GASNet-EX Spec v0.3:
   - Specified Remote Atomics API, and corresponding types [EXPERIMENTAL]
@@ -735,7 +735,7 @@ GASNet-EX ChangeLog
   - See fixes listed in the GASNet-1 1.32.0 ChangeLog below
 
 ----------------------------------------------------------------------
-09-28-2017: GASNet-EX 2017.9.0 Release
+2017-09-28: GASNet-EX 2017.9.0 Release
 
 * GASNet-EX Spec v0.2:
   - Specified gex_System_QueryJob{Rank,Size}() [EXPERIMENTAL]
@@ -764,7 +764,7 @@ GASNet-EX ChangeLog
     Details: https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3588
 
 ----------------------------------------------------------------------
-06-30-2017: GASNet-EX 2017.6.0 Beta release
+2017-06-30: GASNet-EX 2017.6.0 Beta release
 
 * Major new features implemented this release: (mostly reference implementation)
   - Explicit Local Completion capability for Active Message and RMA Put APIs
