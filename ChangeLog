@@ -18,19 +18,19 @@ GASNet-EX ChangeLog
   Users wishing to use other retired conduits may need to download 
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
- ----------------------------------------------------------------------
- 20XX.YY.ZZ: PENDING
+----------------------------------------------------------------------
+2021-09-30: GASNet-EX 2021.9.0 Release
 
 * General and Misc.
+  - Improved latency for shared-memory RMA operations in all conduits.
+  - Improved performance of the conduit-independent RDMA-based barrier,
+    used by default by ucx-conduit.
   - NEW: configure options `--enable-rpath` and `--enable-[pkg]-rpath` can
     request addition of directories containing required libraries to the
     runtime library search path (a.k.a. "rpath") via `$(GASNET_LDFLAGS)`.
   - Environment variable GASNET_BACKTRACE_MT is now available to force
     multi-threaded or single-threaded backtraces (where supported).
-  - Improved performance of the conduit-independent RDMA-based barrier,
-    used by default by ucx-conduit.
   - Improved code factorization to ease addition of new network conduits.
-  - Improved latency for shared-memory RMA operations in all conduits.
 
 * Memory Kinds (support for non-host memory)
   - This release adds Memory Kinds support for AMD GPUs via the HIP API.
@@ -67,12 +67,12 @@ GASNet-EX ChangeLog
   - Performance improvements to remote (inter-process) atomics
 
 * Platform support/portability
-  - Improved support for GCC 11 by suppressing spurious warnings.
   - Made Cray PMI support conduit-independent, allowing it to function on
     non-aries Cray systems like the new "HPE Cray EX" (aka Shasta).
   - This release adds Intel oneAPI as a supported compiler family.
   - This release adds NVHPC (NVIDIA HPC SDK) as a supported compiler family
     on x86-64 and ppc64le, starting at version 20.9.
+  - Improved support for GCC 11 by suppressing spurious warnings.
 
 * GASNet-EX Spec v0.14: (details in docs/GASNet-EX.txt)
   - Allow mixing of root and leaf events in array-based NB event APIs.
@@ -121,7 +121,6 @@ GASNet-EX ChangeLog
   - bug4299: Non-fatal error on BAR1 resource exhaustion in gex_Segment_Create
   - bug4303: Inaccurate expectations regarding GASNET_IBV_PORTS
   - bug4310: use of deprecated Intel compiler options
-  - bug4318: Support for multiple HIP devices is wrong
   - bug4328: ucx: erroneous loop in gasnetc_poll_sndrcv()
   - bug4330: ibv conduit incorrectly implements HIDDEN_AM_CONCURRENCY_LEVEL
 
