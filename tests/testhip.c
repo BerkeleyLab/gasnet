@@ -1,12 +1,12 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testcudauva.c $
+/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testhip.c $
  * Copyright (c) 2021, The Regents of the University of California
  *
- * Description: test of GEX_MK_CLASS_CUDA_UVA
+ * Description: test of GEX_MK_CLASS_HIP
  *
  * This test verifies correctness of gex_MK_Create() for the device class
- * GEX_MK_CLASS_CUDA_UVA.  This includes checking the expected behavior of
- * builds both with and without configure-time enable of support for this
- * device class.
+ * GEX_MK_CLASS_HIP.  This includes checking the expected behavior of builds
+ * both with and without configure-time enable of support for this device
+ * class.
  */
 
 // WARNING: This test exercises one or more EXPERIMENTAL features.
@@ -17,8 +17,8 @@
 #include <gasnet_mk.h>
 #include <gasnet_coll.h>
 
-#if GASNET_HAVE_MK_CLASS_CUDA_UVA
-#include <cuda.h>
+#if GASNET_HAVE_MK_CLASS_HIP
+  #include <hip/hip_runtime.h>
 #endif
 
 static size_t len = 0;
@@ -28,12 +28,12 @@ static size_t len = 0;
 
 #include <test.h>
 
-#define check_cudacall(op) do {                 \
+#define check_hipcall(op) do {                 \
   int _retval = (op);                           \
   if_pf(_retval) {                              \
-    const char *_errorname;                     \
-    cuGetErrorName(_retval, &_errorname);       \
-    FATALERR(#op": %s(%i)",_errorname,_retval); \
+    FATALERR(#op": %s(%i)",                     \
+             hipGetErrorName(_retval),          \
+             _retval);                          \
   }                                             \
 } while (0)
 
@@ -46,13 +46,13 @@ static gex_Rank_t    nranks;
 
 static uint8_t *cmp_buffer;
 
-#if GASNET_HAVE_MK_CLASS_CUDA_UVA
+#if GASNET_HAVE_MK_CLASS_HIP
 static int equalDH(uint8_t *d_ptr, uint8_t *h_ptr, size_t len) {
-  cuMemcpyDtoH(cmp_buffer, (CUdeviceptr)d_ptr, len);
+  hipMemcpyDtoH(cmp_buffer, (hipDeviceptr_t)d_ptr, len);
   int result = !memcmp(cmp_buffer, h_ptr, len);
   if (!result) {
     // Restore expected content to avoid cascading failures
-    cuMemcpyHtoD((CUdeviceptr)d_ptr, h_ptr, len);
+    hipMemcpyHtoD((hipDeviceptr_t)d_ptr, h_ptr, len);
   }
   return result;
 }
@@ -82,9 +82,9 @@ int main(int argc, char **argv)
   int seed = 0;
   int rc;
 
-  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcudauva", &argc, &argv, 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testhip", &argc, &argv, 0));
 
-  test_init("testcudauva", 0, "[options] (size) (seed)\n"
+  test_init("testhip", 0, "[options] (size) (seed)\n"
                " Segment allocation options:\n"
                "     -client-seg:  Test client-allocated GPU segment (default)\n"
                "     -gasnet-seg:  Test GASNet-allocated GPU segment\n"
@@ -132,21 +132,29 @@ int main(int argc, char **argv)
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
-  MSG0("Running CUDA UVA non-local xfer tests with size %lu, PRNG seed %d, and %s-allocated GPU segment",
+  MSG0("Running HIP non-local xfer tests with size %lu, PRNG seed %d, and %s-allocated GPU segment",
        (unsigned long)len, seed, client_segment ? "client" : "GASNet");
 
+  const char *hvd = getenv("HIP_VISIBLE_DEVICES"); // Intentionally NOT gasnet_getenv()
+  if (hvd) {
+    MSG("HIP_VISIBLE_DEVICES='%s'", hvd);
+  } else {
+    MSG("HIP_VISIBLE_DEVICES is unset");
+  }
+  const char *rvd = getenv("ROCR_VISIBLE_DEVICES"); // Intentionally NOT gasnet_getenv()
+  if (rvd) {
+    MSG("ROCR_VISIBLE_DEVICES='%s'", rvd);
+  } else {
+    MSG("ROCR_VISIBLE_DEVICES is unset");
+  }
+#ifdef __HIP_PLATFORM_NVIDIA__
   const char *cvd = getenv("CUDA_VISIBLE_DEVICES"); // Intentionally NOT gasnet_getenv()
   if (cvd) {
     MSG("CUDA_VISIBLE_DEVICES='%s'", cvd);
   } else {
     MSG("CUDA_VISIBLE_DEVICES is unset");
   }
-  const char *nvd = getenv("NVIDIA_VISIBLE_DEVICES"); // Intentionally NOT gasnet_getenv()
-  if (nvd) {
-    MSG("NVIDIA_VISIBLE_DEVICES='%s'", nvd);
-  } else {
-    MSG("NVIDIA_VISIBLE_DEVICES is unset");
-  }
+#endif
 
   TEST_BCAST(&seed, 0, &seed, sizeof(seed));
   TEST_SRAND(seed);
@@ -163,10 +171,10 @@ int main(int argc, char **argv)
   gex_MK_Create_args_t args;
 
   args.gex_flags = 0;
-  args.gex_class = GEX_MK_CLASS_CUDA_UVA;
-  args.gex_args.gex_class_cuda_uva.gex_CUdevice = 0;
+  args.gex_class = GEX_MK_CLASS_HIP;
+  args.gex_args.gex_class_hip.gex_hipDevice = 0;
 
-#if GASNET_HAVE_MK_CLASS_CUDA_UVA
+#if GASNET_HAVE_MK_CLASS_HIP
   {
     if (GASNET_HAVE_MK_CLASS_MULTIPLE != 1) {
        ERR("Invalid GASNET_HAVE_MK_CLASS_MULTIPLE");
@@ -174,9 +182,9 @@ int main(int argc, char **argv)
     test_static_assert(GASNET_MAXEPS >= 2);
 
     int count;
-    cuInit(0);
-    if (cuDeviceGetCount(&count) || !count) {
-      MSG("GEX_MK_CLASS_CUDA_UVA: skipped - could not find a CUDA device");
+    hipInit(0);
+    if (hipGetDeviceCount(&count) || !count) {
+      MSG("GEX_MK_CLASS_HIP: skipped - could not find a HIP device");
       // If this lack of a device is NOT a collective property, then we want
       // to at least balance the collective operations (to avoid hanging).
       // However, at least one peer will fail a gex_EP_QueryBoundSegmentNB().
@@ -185,20 +193,17 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_EP_PublishBoundSegment(myteam, NULL, 0, 0) );
       for (int i = 0; i < 4; ++i) BARRIER(); // currently exactly one per case
     } else {
-      MSG("cuDeviceGetCount reports %d devices", count);
-      CUcontext ctx;
-      check_cudacall( cuDevicePrimaryCtxRetain(&ctx, 0) );
-      check_cudacall( cuCtxPushCurrent(ctx) );
-      CUdevice dev;
-      check_cudacall( cuCtxGetDevice(&dev) );
+      MSG("hipGetDeviceCount reports %d devices", count);
+      hipCtx_t ctx;
+      check_hipcall( hipDevicePrimaryCtxRetain(&ctx, 0) );
 
       uint8_t *client_gpu1 = NULL;
       uint8_t *client_gpu2 = NULL;
       if (client_segment) {
-        CUdeviceptr dptr;
-        check_cudacall( cuMemAlloc(&dptr, TEST_SEGSZ_REQUEST) );
+        hipDeviceptr_t dptr;
+        check_hipcall( hipMalloc((void **)&dptr, TEST_SEGSZ_REQUEST) );
         client_gpu1 = (uint8_t *) dptr;
-        check_cudacall( cuMemAlloc(&dptr, TEST_SEGSZ_REQUEST) );
+        check_hipcall( hipMalloc((void **)&dptr, TEST_SEGSZ_REQUEST) );
         client_gpu2 = (uint8_t *) dptr;
       }
 
@@ -208,13 +213,16 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_MK_Create(&kind, myclient, &args, 0) );
       assert_always(kind != GEX_MK_INVALID);
 
-      // If multiple devices are available switch to context on another
-      CUcontext curr_ctx, tmp_ctx;
+      // If multiple devices are available, call hipSetDevice() to switch
+      hipCtx_t curr_ctx;
+      int curr_dev, tmp_dev;
       if (count > 1) {
-        check_cudacall( cuDevicePrimaryCtxRetain(&curr_ctx, 1) );
-        check_cudacall( cuCtxPushCurrent(curr_ctx) );
+        check_hipcall( hipDevicePrimaryCtxRetain(&curr_ctx, 1) );
+        check_hipcall( hipSetDevice(1) );
+        curr_dev = 1;
       } else {
         curr_ctx = ctx;
+        curr_dev = 0;
       }
 
       // Create the first GPU segment
@@ -223,14 +231,15 @@ int main(int argc, char **argv)
       uint8_t *loc_gpu1 = gex_Segment_QueryAddr(d_segment1);
       if (client_segment) assert_always(loc_gpu1 == client_gpu1);
 
-      // Confirm the gex_Segment_Create() did NOT change the current context
-      check_cudacall( cuCtxGetCurrent(&tmp_ctx) );
-      assert_always(tmp_ctx == curr_ctx);
+      // Confirm the gex_Segment_Create() did NOT change the current device
+      check_hipcall( hipGetDevice(&tmp_dev) );
+      assert_always(tmp_dev == curr_dev);
 
-      // If GASNet performed allocation, check that it did so on the proper context
+      // If GASNet performed allocation, check that it did so on the proper device
       if (!client_segment) {
-        check_cudacall( cuPointerGetAttribute(&tmp_ctx, CU_POINTER_ATTRIBUTE_CONTEXT, (CUdeviceptr)loc_gpu1) );
-        assert_always(tmp_ctx == ctx);
+        hipPointerAttribute_t attr;
+        check_hipcall( hipPointerGetAttributes(&attr, loc_gpu1) );
+        assert_always(attr.device == 0);
       }
 
       // Create first GPU endpoint and bind its segment
@@ -243,11 +252,12 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_Segment_Create(&d_segment2, myclient, client_gpu2, TEST_SEGSZ_REQUEST, kind, 0));
       uint8_t *loc_gpu2 = gex_Segment_QueryAddr(d_segment2);
       if (client_segment) assert_always(loc_gpu2 == client_gpu2);
-      check_cudacall( cuCtxGetCurrent(&tmp_ctx) );
-      assert_always(tmp_ctx == curr_ctx);
+      check_hipcall( hipGetDevice(&tmp_dev) );
+      assert_always(tmp_dev == curr_dev);
       if (!client_segment) {
-        check_cudacall( cuPointerGetAttribute(&tmp_ctx, CU_POINTER_ATTRIBUTE_CONTEXT, (CUdeviceptr)loc_gpu2) );
-        assert_always(tmp_ctx == ctx);
+        hipPointerAttribute_t attr;
+        check_hipcall( hipPointerGetAttributes(&attr, loc_gpu2) );
+        assert_always(attr.device == 0);
       }
       GASNET_Safe( gex_EP_Create(&gpu2_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
       gex_EP_BindSegment(gpu2_ep, d_segment2, 0);
@@ -316,12 +326,11 @@ int main(int argc, char **argv)
       gex_RMA_GetBlocking(LG2_RG2, loc_gpu2+len, peer, rem_gpu2, len, 0);
       CHECK_DEVICE("Case 4b", loc_gpu2+len, array2, len);
 
-      if (!test_errs) MSG("GEX_MK_CLASS_CUDA_UVA: success");
+      if (!test_errs) MSG("GEX_MK_CLASS_HIP: success");
 
-      check_cudacall( cuCtxSetCurrent(NULL) );
-      check_cudacall( cuDevicePrimaryCtxRelease(0) );
+      check_hipcall( hipDevicePrimaryCtxRelease(0) );
       if (count > 1) {
-        check_cudacall( cuDevicePrimaryCtxRelease(1) );
+        check_hipcall( hipDevicePrimaryCtxRelease(1) );
       }
     }
 
@@ -332,7 +341,7 @@ int main(int argc, char **argv)
     gex_System_SetVerboseErrors(0);
     int rc = gex_MK_Create(&kind, myclient, &args, 0);
     assert_always(rc == GASNET_ERR_BAD_ARG);
-    MSG("GEX_MK_CLASS_CUDA_UVA: correct failure due to missing support");
+    MSG("GEX_MK_CLASS_HIP: correct failure due to missing support");
   }
 #endif
 
