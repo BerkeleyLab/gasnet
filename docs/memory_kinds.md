@@ -119,10 +119,11 @@ RDMA on aarch64 (aka ARM64 or ARMv8).  NVIDIA does not support UVA on 32-bit
 platforms, and AMD does not claim any 32-bit CPU support at all.
 Therefore, this work currently supports only x86-64 and ppc64le.
 
-For any configurations that do not meet all of the configure-testable
-requirements outlined above, support for corresponding kind(s) in the current
-implementation will be disabled (or `configure` will fail if it was passed a
-failing `--enable-kind-[kind]`).  Specifically, `GASNET_HAVE_MK_CLASS_[KIND]` will be
+For configurations on an unsupported CPU architecture which otherwise appear to
+to satisfy the configure-testable requirements above, a warning will be issued.
+In the case that `--enable-kind-[kind]` was passed but a testable requirement
+other than CPU architecture is not satisfied, `configure` will fail.  In other
+cases lacking prerequisites, `GASNET_HAVE_MK_CLASS_[KIND]` will be
 undefined and attempts to create device segments will fail at runtime.  Future
 releases are expected to eventually include a "reference implementation" that
 will allow creation of device segments on a wider range of platforms and
@@ -163,24 +164,11 @@ For either GPU vendor, these limits are per GPU across all
 process and runtimes on a given node.  Thus a portion is consumed by each
 GASNet-EX segment created on a given node, as well as by other uses of
 GPUDirect RDMA such as an MPI implementation.  Typically a few tens of MB are
-also reserved by the driver itself.
+also reserved by the driver itself, though driver overheads as large as 560MB
+per process have been observed.
 
-## GDR and ibv-conduit Multi-rail
-
-Though our test and development systems have multi-rail InfiniBand networks,
-there are currently unresolved issues with respect to use of multiple rails
-within a given process.  Consequentially, support is currently limited to
-single-rail configurations, which can be achieved ether at configure time by
-using the option `--disable-ibv-multirail`, or at runtime by setting the
-environment variable `GASNET_IBV_PORTS` to name a single valid port.  Both
-mechanisms are documented in `ibv-conduit/README`.
-
-For the most up-to-date information on this issue see
-[bug 4148](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4148)
-
-Additionally, the BAR usage (described earlier in this document) has been
-observed to be *per-HCA* and thus use of multiple rails may limit the size of
-GPU segments.
+Additionally, the BAR usage is *per-HCA* and thus use of multiple rails may
+limit the size of GPU segments.
 
 ## Loopback
 
@@ -198,40 +186,6 @@ GASNet-EX to perform such transfers.
 
 For the most up-to-date information on this issue see
 [bug 4149](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4149)
-
-## GDR and PSHM
-
-Currently the implementation is sufficient (when using supported hardware,
-drivers and libraries) to perform RMA operations between combinations of host
-and GPU memory in which the two involved endpoints are in distinct "nbrhds".
-
-There is a temporary limitation (in addition to the no-loopback limitation,
-above) which prohibits intra-nbrhd RMA operations.  In other words, there is no
-support for RMA operations in which one or both endpoints has a GPU memory
-segment and the two processes are in the same shared memory domain (aka "nbrhd"
-in GASNet-EX documentation).
-
-Currently, RMA transfers involving GPU memory between processes in the same
-compute node are supported only when PSHM is "inactive" (meaning either
-`--disable-pshm` at configure time, or `GASNET_SUPERNODE_MAXSIZE=1` in ones
-environment at runtime).
-
-For the most up-to-date information on this issue see
-[bug 4148](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4148)
-
-## Premature local completion of GDR Puts from device memory
-
-In addition to the multi-path issues described above (under "GDR and
-Multi-rail" and "GDR and PSHM" sub-headings), Put operations with their source
-in device memory have been observed to signal local completion prior to actual
-transfer of the data (as can be demonstrated by writing data to the source
-after sync and observing it arrive in the destination buffer).
-
-This is believed to be an issue with how ibv and GDR interact, and we are
-hopeful that a workaround can be implemented in a future release.
-
-For the most up-to-date information on this issue see
-[bug 4150](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4150)
 
 ## GDR and small Gets into device memory
 
@@ -260,7 +214,7 @@ no reliable means we are aware of to determine if this support is actually
 enabled.  Therefore, attempts to use `GEX_MK_CLASS_CUDA_UVA` with a build of
 UCX lacking the necessary support (because it was compiled without it or because
 it was disabled at runtime) will likely fail "poorly", crashing at the first
-attempt to perform RMA operations using segment.
+attempt to perform RMA operations using a device segment.
 
 It is hoped that in the future such crashes can be replaced with a non-fatal
 error return from either the `gex_MK_Create()` or `gex_Segment_Create()` calls.
