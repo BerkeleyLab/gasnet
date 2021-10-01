@@ -191,6 +191,11 @@ GASNet Release Procedure
     documentation files (docs/GASNet-EX.txt and README-tools) ONLY,
     with comment: // work-in-progress, not "closed"
 
+* Start a new ChangeLog section in develop using the following 2 lines
+  (without indent, and preserving XX-YY-ZZ literally.)
+  ----------------------------------------------------------------------
+  20XX-YY-ZZ: PENDING
+
 * Check carefully that everything is exactly as you wish before you push:
     $ git push origin master gex-2040.8.0
   This is the only step of this entire procedure that cannot be undone.
