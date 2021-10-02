@@ -1093,7 +1093,8 @@ GASNETT_PAGESHIFT
 
 const char *gasnett_gethostname();
 
-  Returns the current system hostname, as reported by gethostname().
+  Returns the current system hostname, as reported by gethostname(), with possible
+  normalization (such as of case).
   
 int gasnett_cpu_count();    
 
