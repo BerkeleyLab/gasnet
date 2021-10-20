@@ -21,6 +21,9 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4345: Multiply defined symbols in aries-conduit w/ recent compilers
+
 ----------------------------------------------------------------------
 2021-09-30: GASNet-EX 2021.9.0 Release
 
