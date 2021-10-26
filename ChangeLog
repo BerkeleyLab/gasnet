@@ -66,7 +66,7 @@ GASNet-EX ChangeLog
     + Fix corruption when using UCX-level shared memory communication (bug 4155)
     + Fix crashes when using synchronous local completion (bug 4277)
     + Fix leak of gex_Event_t for explicit-event local completion (bug 4292)
-  - Improved handing of non-collective exits
+  - Improved handling of non-collective exits
   - Support for multiple endpoints
 
 * Shared-memory without a network (details in smp-conduit README)
@@ -155,7 +155,7 @@ GASNet-EX ChangeLog
     aware that the behavior of configure in this release differs in that one
     must enable memory kinds explicitly using `--enable-memory-kinds` or an
     `--enable-kind-[...]` option for a specific kind.
-  - New preprocessor identifer 'GASNET_HAVE_MK_CLASS_MULTIPLE' (undefined or
+  - New preprocessor identifier 'GASNET_HAVE_MK_CLASS_MULTIPLE' (undefined or
     defined to '1') indicates whether kinds support for anything other than
     host memory has been compiled-in.
 
@@ -283,7 +283,7 @@ GASNet-EX ChangeLog
 2020-10-30: GASNet-EX 2020.10.0 Release
 
 * General and Misc.
-  - NEW: Improved compatability with heap analysis tools like Valgrind
+  - NEW: Improved compatibility with heap analysis tools like Valgrind
     using new configure option --enable-valgrind. GASNet's valgrind
     suppression file now lives in other/valgrind/gasnet.supp.
   - GASNet trace/stats now categorize AMPoll calls in tracemask category 'X'
