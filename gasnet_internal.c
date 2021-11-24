@@ -2112,7 +2112,7 @@ void gasneti_segtbl_add(gasneti_Segment_t seg) {
 
 void gasneti_segtbl_del(gasneti_Segment_t seg) {
   gasneti_mutex_lock(&_gasneti_segtbl_lock);
-  gasneti_Segment_t last = _gasneti_segtbl[_gasneti_segtbl_count--];
+  gasneti_Segment_t last = _gasneti_segtbl[--_gasneti_segtbl_count];
   last->_opaque_container_use = seg->_opaque_container_use;
   _gasneti_segtbl[last->_opaque_container_use] = last;
   // TODO: realloc to shrink if we think this would lead to significant savings?
