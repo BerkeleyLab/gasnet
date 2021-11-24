@@ -24,6 +24,7 @@ GASNet-EX ChangeLog
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4321: Intermittent "EBADENDPOINT" failures in single-node udp-conduit
   - bug4345: Multiply defined symbols in aries-conduit w/ recent compilers
+  - bug4355: Erroneous memory access when deleting a segment
 
 ----------------------------------------------------------------------
 2021-09-30: GASNet-EX 2021.9.0 Release
