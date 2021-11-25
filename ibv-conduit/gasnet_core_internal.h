@@ -703,6 +703,7 @@ typedef struct gasnetc_rbuf_s {
 
 #define GASNETC_OP_NEEDS_FENCE 0x1000 // Flag bit
 typedef enum {
+        // Reminder: update gasnetc_opcode_str() when modifying this enum
 	GASNETC_OP_FREE,
 	GASNETC_OP_AM,
 	GASNETC_OP_ATOMIC,
@@ -780,6 +781,26 @@ typedef struct gasnetc_sreq_t_ {
     gasnetc_cb_t           cb;
     gasnetc_atomic_val_t   *data;
   }                             comp;
+
+#if GASNET_DEBUG
+  // Arguments for async error reporting
+  // TODO: AMO (for fences only, atm)?
+  union {
+    struct {
+      uintptr_t loc_addr;
+      uintptr_t rem_addr;
+      uint32_t length;
+    } rdma;
+    struct {
+      uint32_t imm_data;
+      int num_sge;
+      uintptr_t addr[2];
+      uint32_t length[2];
+    } am;
+  } args;
+  enum ibv_send_flags send_flags;
+  enum ibv_wr_opcode wr_opcode;
+#endif
 
 #if GASNETC_PIN_SEGMENT
   /* Firehose, bounce buffers, and AMs are mutually exclusive. */

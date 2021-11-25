@@ -3756,6 +3756,8 @@ if test "$enabled_ibv" = yes; then
       struct ibv_device device;
       device.transport_type = IBV_TRANSPORT_IB;
     ], [ AC_DEFINE(HAVE_IBV_TRANSPORT_TYPE) ] )
+
+    AC_CHECK_FUNCS(ibv_wc_status_str)
   fi
 
   GASNET_POPVAR(CFLAGS)
