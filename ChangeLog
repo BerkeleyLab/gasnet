@@ -25,6 +25,7 @@ GASNet-EX ChangeLog
   - bug4321: Intermittent "EBADENDPOINT" failures in single-node udp-conduit
   - bug4345: Multiply defined symbols in aries-conduit w/ recent compilers
   - bug4355: Erroneous memory access when deleting a segment
+  - bug4356: Missing bounds checks for Long payloads
 
 ----------------------------------------------------------------------
 2021-09-30: GASNet-EX 2021.9.0 Release
