@@ -753,6 +753,11 @@ typedef enum {
              | ((cat)     << 8         )        \
              | ((hand)                 )))
 
+// Use of a hidden 32-bit arg for piggy-backed credits + actual argument count
+#define GASNETC_GEN_HIDDEN_ARG(credits, numargs) ((credits) | (((numargs) + 1) << 16))
+#define GASNETC_HIDDEN_ARG_CREDITS(args)         ((args)[0] & 0xff)
+#define GASNETC_HIDDEN_ARG_FULL_NARGS(args)      (((args)[0] >> 16) & 0x1f)
+
 typedef void (*gasnetc_cb_t)(gasnetc_atomic_val_t *);
 
 /* Description of a send request.

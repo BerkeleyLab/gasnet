@@ -518,8 +518,8 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     int credits = 0;
 
     if (full_numargs == GASNETC_MAX_ARGS) {
-      credits = args[0] & 0xff;
-      full_numargs = (args[0] >> 16) & 0x1f;
+      credits = GASNETC_HIDDEN_ARG_CREDITS(args);
+      full_numargs = GASNETC_HIDDEN_ARG_FULL_NARGS(args);
       user_numargs = full_numargs - 1;
 
       gasneti_assert(!gasnetc_use_srq || !credits);
