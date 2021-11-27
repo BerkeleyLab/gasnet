@@ -735,7 +735,7 @@ static int gasnetc_snd_reap(int limit) {
 	  switch (sreq->opcode) {
           #if GASNETC_PIN_SEGMENT && GASNETC_FH_OPTIONAL
 	  case GASNETC_OP_GET_BOUNCE:	/* Bounce-buffer GET */
-	    gasneti_assert(comp.opcode == IBV_WC_RDMA_READ);
+	    gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_READ);
 	    gasneti_assert(sreq->comp.cb != NULL);
 	    gasneti_assert(!GASNETC_USE_FIREHOSE); /* Only possible when firehose disabled */
 	    gasneti_assert(sreq->bb_buff != NULL);
@@ -748,7 +748,7 @@ static int gasnetc_snd_reap(int limit) {
           #endif
 
 	  case GASNETC_OP_GET_ZEROCP:	/* Zero-copy GET */
-	    gasneti_assert(comp.opcode == IBV_WC_RDMA_READ);
+	    gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_READ);
 	    gasneti_assert(sreq->comp.cb != NULL);
             sreq->comp.cb(sreq->comp.data);
 	    GASNETC_COLLECT_FHS();
@@ -756,7 +756,7 @@ static int gasnetc_snd_reap(int limit) {
 
 	  case GASNETC_OP_PUT_BOUNCE:	/* Bounce-buffer PUT */
 	  case GASNETC_OP_LONG_BOUNCE:	/* Bounce-buffer Long payload */
-	    gasneti_assert(comp.opcode == IBV_WC_RDMA_WRITE);
+	    gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_WRITE);
             if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
             }
@@ -771,7 +771,7 @@ static int gasnetc_snd_reap(int limit) {
 	    break;
 
 	  case GASNETC_OP_PUT_INLINE:	/* Inline PUT */
-	    gasneti_assert(comp.opcode == IBV_WC_RDMA_WRITE);
+	    gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_WRITE);
             if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
             }
@@ -784,7 +784,7 @@ static int gasnetc_snd_reap(int limit) {
 
 	  case GASNETC_OP_PUT_ZEROCP:	/* Zero-copy PUT */
 	  case GASNETC_OP_LONG_ZEROCP:	/* Zero-copy Long payload */
-	    gasneti_assert(comp.opcode == IBV_WC_RDMA_WRITE);
+	    gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_WRITE);
 	    if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
 	    }
@@ -792,7 +792,7 @@ static int gasnetc_snd_reap(int limit) {
 	    break;
 
 	  case GASNETC_OP_AM:		/* AM send */
-	    gasneti_assert(comp.opcode == IBV_WC_SEND);
+	    gasneti_assert_uint(comp.opcode ,==, IBV_WC_SEND);
 	    if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
 	    }
@@ -809,7 +809,7 @@ static int gasnetc_snd_reap(int limit) {
 
           #if GASNETC_HAVE_FENCED_PUTS
           case GASNETC_OP_FENCE:        // Atomic after PUT, with descriptor chaining
-	    gasneti_assert(comp.opcode == IBV_WC_FETCH_ADD);
+	    gasneti_assert_uint(comp.opcode ,==, IBV_WC_FETCH_ADD);
             sreq->opcode = GASNETC_OP_FREE;
             sreq = sreq->fence_sreq;
             #if GASNET_DEBUG
