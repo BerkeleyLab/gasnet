@@ -162,6 +162,11 @@ extern void gasnetc_counter_wait(gasnetc_counter_t *counter,
 // May AM Long logic assume in-order delivery?
 static int gasnetc_am_in_order = 1;
 
+#if GASNETI_STATS_OR_TRACE
+// Accounting for extra send-side buffers for Reply
+static size_t gasnetc_extra_reply_bufs = 0;
+#endif
+
 GASNETI_INLINE(gasnetc_sreq_alloc)
 gasnetc_am_req_t *gasnetc_sreq_alloc(gasneti_list_t *list) {
   gasnetc_am_req_t *am_req;
@@ -260,11 +265,42 @@ gasnetc_am_req_t *gasnetc_am_req_get(int is_request GASNETI_THREAD_FARG)
                                                   gasnetc_am_req_t)),
                        gasnetc_poll_sndrcv(GASNETC_LOCK_INLINE GASNETI_THREAD_PASS));
   } else {
-    GASNETI_SPIN_UNTIL((am_req = GASNETI_LIST_POP(&gasneti_ucx_module.sreq_free_rep,
-                                                  gasnetc_am_req_t)),
-                       gasnetc_poll_snd(GASNETC_LOCK_INLINE GASNETI_THREAD_PASS));
+    // Try at most twice (with a poll between) to allocate from the pool for reply buffers.
+    // Excessive polling risks buffering additional UCX traffic, pushing us toward OOM.
+    am_req = GASNETI_LIST_POP(&gasneti_ucx_module.sreq_free_rep, gasnetc_am_req_t);
+    if (am_req) goto out;
+
+    gasnetc_poll_snd(GASNETC_LOCK_INLINE GASNETI_THREAD_PASS);
+    am_req = GASNETI_LIST_POP(&gasneti_ucx_module.sreq_free_rep, gasnetc_am_req_t);
+    if_pt (am_req) goto out;
+
+    // Next, try once to "borrow" from the request buffer pool
+    // It will be returned to that pool upon completion
+    am_req = GASNETI_LIST_POP(&gasneti_ucx_module.sreq_free_req, gasnetc_am_req_t);
+    if_pt (am_req) {
+      GASNETI_STAT_EVENT(C, BORROW_REPLY_BUF);
+      goto out;
+    }
+
+    // Finally, dynamically allocate an extra one to be freed when completed
+    // We need a gasnetc_am_req_t to send a reply, but have failed to find
+    // one in the free pools, even after (multiple) attempt to progress ucx.
+    // This likely inattentive peer(s) OR peers stuck in this same place!
+    // Since we currently lack the necessary isolation to progress only the
+    // reception of replies, that latter option spells deadlock if we spin
+    // poll indefinitely.  Currently, the best option is to (temporarily)
+    // grow the pool and thus buffer the outgoing reply.
+    // Unfortunately, there is no a priori bound on this growth!
+    // TODO: Bug 4359 for isolation and/or flow-control to avoid this mess.
+  #if GASNETI_STATS_OR_TRACE
+    gasnetc_extra_reply_bufs +=1;
+    GASNETI_STAT_EVENT_VAL(C, EXTRA_REPLY_BUF, gasnetc_extra_reply_bufs);
+  #endif
+    // NULL list argument marks this allocation to be freed when complete
+    am_req = gasnetc_sreq_alloc(NULL);
   }
 
+out:
   return am_req;
 }
 
@@ -290,8 +326,16 @@ void gasnetc_am_req_release(gasnetc_am_req_t *am_req)
     am_req->buffer.long_data_ptr = NULL;
   }
 #endif
-  gasnetc_am_req_reset(am_req);
-  gasneti_list_enq(am_req->list, am_req);
+  if_pf (! am_req->list) { // allocated to meet temporary burst
+  #if GASNETI_STATS_OR_TRACE
+    gasnetc_extra_reply_bufs -=1;
+  #endif
+    gasneti_free_aligned(am_req->buffer.data);
+    gasneti_free(am_req);
+  } else {
+    gasnetc_am_req_reset(am_req);
+    gasneti_list_enq(am_req->list, am_req);
+  }
 }
 
 /*
