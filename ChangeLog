@@ -21,6 +21,9 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* InfiniBand Verbs (details in ibv-conduit README)
+  - Improved reporting of fatal errors reported via IBV completion queues
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4321: Intermittent "EBADENDPOINT" failures in single-node udp-conduit
   - bug4345: Multiply defined symbols in aries-conduit w/ recent compilers

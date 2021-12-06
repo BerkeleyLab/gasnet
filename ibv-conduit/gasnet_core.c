@@ -4410,7 +4410,7 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       const uint32_t credits = gasnetc_atomic_swap(&cep->am_flow.credit, 0, 0);
       gasneti_assume(credits <= 255);
 
-      args[0] = credits | ((numargs + 1) << 16);
+      args[0] = GASNETC_GEN_HIDDEN_ARG(credits, numargs);
 
       GASNETI_TRACE_PRINTF(C,("SND_AM_CREDITS credits=%d\n", credits));
     }
