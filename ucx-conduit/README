@@ -236,12 +236,13 @@ Additional environment variables:
     are performed.
 
   Active Message:
-    UCX conduit implementation is using a pool of pre-allocated AM header buffers
-    that are used for all types of AMs.
-    For Medium size messages, for both sends and recvs, the payload is transferred
-    through the bounce buffers to reduce the latency in absence of local completion
+    UCX conduit implementation is using pools of pre-allocated AM header buffers
+    that are used for all types of AMs.  Sending of Requests and Replies each use
+    a distinct pool, while reception of AMs uses a third pool.
+    For AM Medium messages, the payload is always copied to the buffer
+    holding the header, to reduce the latency in absence of local completion
     options ("lc_opt") support. This behavior will be reconsidered in future.
-    For Large AMs payload transfer is implemented using RDMA Put operation.
+    For Long AMs payload transfer is implemented using RDMA Put operation.
 
   RDMA/AMO:
     Implementation of RDMA Put and Atomic operations is a thin layer on top of UCP
