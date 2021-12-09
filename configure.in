@@ -4650,7 +4650,7 @@ if test "$have_pmi" = yes; then
   # These have not bee seen outside of Cray PMI, but we can hope:
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LDFLAGS")
   GASNET_PUSHVAR(LIBS,"$LIBS $PMI_SPAWNER_LIBS")
-  AC_CHECK_FUNCS([PMI_Allgather PMI_Allgather_on_smp PMI_Bcast])
+  AC_CHECK_FUNCS([PMI_Allgather PMI_Allgather_on_smp PMI_Bcast PMI_Get_numpes_on_smp])
   GASNET_POPVAR(LIBS)
   GASNET_POPVAR(LDFLAGS)
 
@@ -5504,6 +5504,17 @@ dnl GASNET_TOOLSONLY_FALSE_END
 fi
 
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
+# Set a site-default for GASNET_HOST_DETECT
+GASNET_WITH(host-detect,
+   [Default value for GASNET_HOST_DETECT (default is system and network dependent)],
+   [case "$withval" in
+      conduit|hostname|gethostid)
+         AC_DEFINE_UNQUOTED(GASNETI_HOST_DETECT_CONFIGURE, "$withval")
+         ;;
+      *) GASNET_MSG_ERROR(User requested --with-host-detect='$withval', but that is not a supported value.)
+         ;;
+    esac])
+
 # Determine the default GASNET_MAX_SEGSIZE string
 if test "$with_pshm" = "no" && test "$HAVE_MMAP" = 0 ; then
   GASNETI_MAX_SEGSIZE_DEFAULT="100MB/P"  # rare malloc-based platforms

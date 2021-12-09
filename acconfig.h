@@ -293,6 +293,9 @@
 #undef GASNETI_PSHM_FILE
 #undef GASNETI_PSHM_XPMEM
 
+/* Set default for GASNET_HOST_DETECT env var */
+#undef GASNETI_HOST_DETECT_CONFIGURE
+
 /* How many cores/node must we support (255 is default) */
 #undef GASNETI_CONFIG_PSHM_MAX_NODES
 

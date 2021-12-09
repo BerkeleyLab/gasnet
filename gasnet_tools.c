@@ -502,6 +502,19 @@ const char *gasneti_gethostname(void) {
       if (gethostname(hostname, MAXHOSTNAMELEN))
         gasnett_fatalerror("gasneti_gethostname() failed to get hostname: aborting");
       hostname[MAXHOSTNAMELEN - 1] = '\0';
+      size_t len = strlen(hostname);
+      // Scan for chars that suggest anything other than 7-bit ASCII
+      int safe = 1;
+      for (int i = 0; i < len; ++i) {
+        if (iscntrl(hostname[i])) {
+          safe = 0;
+          break;
+        }
+      }
+      // Normalize to lowercase if it looks "safe" to do so
+      if (safe) {
+        for (int i = 0; i < len; ++i) { hostname[i] =  tolower(hostname[i]); }
+      }
       firsttime = 0;
     }
   gasneti_mutex_unlock(&hnmutex);
