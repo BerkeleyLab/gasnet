@@ -21,9 +21,9 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
 /* Exit coordination timeouts */
-#define GASNETC_DEFAULT_EXITTIMEOUT_MAX         360.0   /* 6 minutes! */
-#define GASNETC_DEFAULT_EXITTIMEOUT_MIN         10      /* 10 seconds */
-#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR      0.25    /* 1/4 second */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX         480.0   // 8 min - extrapolated from Summit data in bug 4360
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN          10.0   // 10 sec
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR      0.25    // 1/4 second per process
 static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 static int gasnetc_exit_init(void);
@@ -410,21 +410,32 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_killmyprocess(exitcode);
   }
 
-  const int timeout = (unsigned int)gasnetc_exittimeout;
-  alarm(2 + timeout);
-  if (gasnetc_exit_coordinate(exitcode)) {
-    alarm(timeout);
-    gasnetc_ofi_exit();
-  }
-  alarm(0);
+  const unsigned int timeout = (unsigned int)gasnetc_exittimeout;
 
+  // One alarm timer for the exit coordination
+  // +2 is margin of safety around the timed coordination
+  alarm(2 + timeout);
+  int graceful = gasnetc_exit_coordinate(exitcode);
+
+  // A second alarm timer for most of the remaining exit steps
+  // TODO: 120 is arbitrary and hard-coded
+  alarm(MAX(120, timeout));
+  if (graceful) gasnetc_ofi_exit();
   gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
 
-  alarm(timeout);
-  gasneti_bootstrapFini();
+  // One last alarm to cover the Fini or Abort
+  // This has been observed to be the slowest step in some cases (see bug 4360)
+  // TODO: 30 is arbitrary and hard-coded
+  alarm(MAX(30, timeout));
+  if (graceful) {
+    gasneti_bootstrapFini();
+  } else {
+    gasneti_bootstrapAbort(exitcode);
+  }
   alarm(0);
+
   gasneti_killmyprocess(exitcode);
   gasneti_fatalerror("gasnetc_exit failed!");
 }
