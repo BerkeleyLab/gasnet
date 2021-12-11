@@ -3697,7 +3697,7 @@ else
        fi],
       [AC_MSG_ERROR([--with-ucx-max-medium must be no smaller than 512])],
       [ucx_max_medium=$ucx_max_med_dflt])
-    AC_DEFINE_UNQUOTED(GASNETC_UCX_MAX_MEDIUM_DFLT, [$ucx_max_med_dflt])
+    AC_DEFINE_UNQUOTED(GASNETC_UCX_MAX_MEDIUM_DFLT, [$ucx_max_medium])
 
     CONDUIT_SPAWNER
 fi
