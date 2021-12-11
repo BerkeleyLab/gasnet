@@ -155,4 +155,7 @@
       CNT(C, BORROW_REPLY_BUF, cnt) \
       VAL(C, EXTRA_REPLY_BUF, depth)
 
+#define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
+    extern void gasnetc_fatalsignal_callback(int _sig);
+
 #endif
