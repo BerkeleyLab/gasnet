@@ -3687,6 +3687,18 @@ else
     GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
 
+    ucx_max_med_dflt=`expr 4096 - 40 - 64`  # 40 = fixed header, 64 = 16x 4-byte args
+    GASNET_WITH(ucx-max-medium,[Specify gex_LUB*Medium() for ucx-conduit (default $ucx_max_med_dflt)],
+      [if expr "$withval" : '[[0-9]]*$' >/dev/null 2>&1 && \
+          expr "$withval" '>=' 512  >/dev/null 2>&1 ; then
+         ucx_max_medium="$withval"
+       else
+         AC_MSG_ERROR([--with-ucx-max-medium="$withval" is not legal.  Value must no smaller than 512.])
+       fi],
+      [AC_MSG_ERROR([--with-ucx-max-medium must be no smaller than 512])],
+      [ucx_max_medium=$ucx_max_med_dflt])
+    AC_DEFINE_UNQUOTED(GASNETC_UCX_MAX_MEDIUM_DFLT, [$ucx_max_med_dflt])
+
     CONDUIT_SPAWNER
 fi
 AC_SUBST(UCX_CFLAGS)

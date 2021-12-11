@@ -20,8 +20,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_UCX 1
 
-#define GASNETC_MAX_MED             4096
-#define GASNETC_MAX_MEDIUM_NBRHD    GASNETC_MAX_MED
+// PSHM and loopback support need to know largest Medium if larger than MAX(LUB{Request,Reply}Medium)
+#define GASNETC_MAX_MEDIUM_NBRHD GASNETC_MAX_MED_(0)
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED

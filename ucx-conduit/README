@@ -49,10 +49,18 @@ Artem Y. Polyakov <artemp@mellanox.com>
 
 @ Section: Build-time Configuration @
   
-  In order to enable the conduit, '--with-ucx[=<path-to-ucx>]' parameter needs to be specified.
-  By default, ucx-conduit will not be built. Currently, the conduit does not provide any other
-  configuration-time parameters. 
+  In order to enable the conduit, the option '--enable-ucx' must be passed to configure.
+  By default, ucx-conduit will not be built.
+  See `configure --help` for additional ucx-related configure options.
   See the extended-ref README for the GASNet general-purpose configuration parameters.
+
+  --with-ucx-max-medium=[value]
+    By default gex_AM_LUB{Request,Reply}Long() return 3992, which is a
+    4KiB buffer minus overheads such as handler argmuents.  This configure
+    option sets the default value for the GASNET_UCX_MAX_MEDIUM environment
+    variable, which determines the LUB size at runtime.
+    The value cannot be less than 512.
+    The default value is 3992.
 
 @ Section: Job Spawning @
 
@@ -100,6 +108,14 @@ Additional environment variables:
     GASNet's PSHM (which guarantees ordering) is used for all intra-node
     communication, as opposed to UCX shared-memory transport which does not
     guarantee ordering (see bug 4155).
+
+  + GASNET_UCX_MAX_MEDIUM
+
+    This setting determines the size of buffers used for AM Mediums, and
+    thus the return value of the gex_AM_LUB{Request,Reply}Long() queries.
+    The value cannot be less than 512.
+    Unless a different value was set using --with-ucx-max-medium=[value]
+    at configure time, the default value is 3992.
 
 
   In order to control UCX parameters (i.e. device or transport selection), environment
