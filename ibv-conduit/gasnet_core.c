@@ -133,9 +133,9 @@ size_t gasnetc_am_gather_min;
 #define GASNETC_MINIMUM_GET_STRIPE_SZ           4096
 
 /* Exit coordination timeouts */
-#define GASNETC_DEFAULT_EXITTIMEOUT_MAX		360.0	/* 6 minutes! */
-#define GASNETC_DEFAULT_EXITTIMEOUT_MIN		2	/* 2 seconds */
-#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR	0.25	/* 1/4 second */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX         480.0   // 8 min - extrapolated from Summit data in bug 4360
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN           2.0   // 2 sec
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR      0.25    // 1/4 second per process
 static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 /* Exit coordination setup */
@@ -3298,7 +3298,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 
   GASNETC_EXIT_STATE("exitcode reduction");
 
-  gasneti_assert(timeout_us > 0); 
+  gasneti_assert(timeout_us > 0);
 
   /* If the remote request has arrived then we've already failed */
   if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
@@ -3449,18 +3449,22 @@ static void gasnetc_exit_role_reph(gex_Token_t token, gex_AM_Arg_t arg0) {
  * to determine its role and then polls the network until the exit role is determined, either
  * by the reply to that request, or by a remote exit request.
  *
- * Should be called with an alarm timer in-force in case we get hung sending or the root node
- * is not responsive.
+ * Includes a timeout to bound how long to poll for a reply, and the return value will
+ * be GASNETC_EXIT_ROLE_UNKNOWN if it expires.
+ * However, should still be called with an alarm timer in-force in case we get hung sending.
  *
  * Note that if we get here as a result of a remote exit request then our role has already been
  * set to "member" and we won't touch the network from inside the request handler.
  */
-static int gasnetc_get_exit_role(void)
+static int gasnetc_get_exit_role(int64_t timeout_us)
 {
-  int role;
+  int role = gasneti_atomic_read(&gasnetc_exit_role, 0);
 
-  role = gasneti_atomic_read(&gasnetc_exit_role, 0);
+  gasneti_assert(timeout_us > 0); 
+
   if (role == GASNETC_EXIT_ROLE_UNKNOWN) {
+    gasneti_tick_t start_time = gasneti_ticks_now();
+
     /* Don't know our role yet.  So, send an AM Request to determine our role */
     GASNETI_SAFE(gasnetc_RequestSysShort(GASNETC_ROOT_NODE, NULL,
 			    	       gasneti_handleridx(gasnetc_exit_role_reqh), 0));
@@ -3469,7 +3473,8 @@ static int gasnetc_get_exit_role(void)
     do {
       gasnetc_sndrcv_poll(0); /* works even before _attach */
       role = gasneti_atomic_read(&gasnetc_exit_role, 0);
-    } while (role == GASNETC_EXIT_ROLE_UNKNOWN);
+    } while ((role == GASNETC_EXIT_ROLE_UNKNOWN) &&
+             (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 < timeout_us));
   }
 
   return role;
@@ -3701,13 +3706,12 @@ static int gasnetc_exit_member(int64_t timeout_us) {
  * is the at-exit handler, we are typically followed by a call to gasnetc_exit_tail() to perform
  * the actual termination.  Note also that this function will block all calling threads other than
  * the first until the shutdown code has been completed.
- *
- * XXX: timeouts other than gasnetc_exittimeout are hard-coded and entirely arbitrary
  */
 static void gasnetc_exit_body(void) {
   int role, exitcode;
   int graceful = 0;
   int64_t timeout_us = gasnetc_exittimeout * 1.0e6;
+  unsigned int timeout = (unsigned int)gasnetc_exittimeout;
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   (void)gasneti_reghandler(SIGQUIT, SIG_IGN);
@@ -3761,12 +3765,14 @@ static void gasnetc_exit_body(void) {
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* Timed MAX(exitcode) reduction to clearly distinguish collective exit */
-  alarm(2 + (int)gasnetc_exittimeout);
+  alarm(2 + timeout); // +2 is margin of safety around the timed reduction
   graceful = (gasnetc_exit_reduce(exitcode, timeout_us) == 0);
-  alarm(0);
+
+  // Second alarm to cover most of the remaining exit steps
+  // TODO: 120 is arbitrary and hard-coded
+  alarm(MAX(120, timeout));
 
   GASNETC_EXIT_STATE("dumping final stats");
-  alarm(60);
 #if GASNET_TRACE
   { gasneti_heapstats_t stats;
     gasneti_getheapstats(&stats);
@@ -3796,33 +3802,31 @@ static void gasnetc_exit_body(void) {
  #endif
 #endif
   gasnetc_connect_fini(gasnetc_ep0); /* just stats reporting */
-  alarm(0);
 
-  /* Try to flush out all the output, allowing upto 60s */
+  // Try to flush out all the output
   GASNETC_EXIT_STATE("flushing output");
-  alarm(60);
   {
     gasneti_flush_streams();
     gasneti_trace_finish();
-    alarm(0);
     gasneti_sched_yield();
   }
 
- if (!graceful) { /* Skip the complex case unless the reduction timed-out */
+ if (!graceful) {
+  // Timed reduction failed. So make a second attempt at a coordinated shutdown.
+  // This has two global communication steps each with their own timeout interval
+
+  exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
 #if GASNET_DEBUG_VERBOSE
   fprintf(stderr, "Exitcode reduction timed-out on node %d\n", (int)gasneti_mynode);
 #endif
 
-  exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
-
   /* Determine our role (leader or member) in the coordination of this shutdown */
   GASNETC_EXIT_STATE("performing non-collective exit");
-  alarm(10);
-  role = gasnetc_get_exit_role();
+  unsigned int prev_timeout = alarm(2 + timeout);
+  role = gasnetc_get_exit_role(timeout_us);
 
-  /* Attempt a coordinated shutdown */
   GASNETC_EXIT_STATE("coordinating shutdown");
-  alarm(1 + (int)gasnetc_exittimeout);
+  alarm(2 + timeout); // yet another alarm interval for the second comms step
   switch (role) {
   case GASNETC_EXIT_ROLE_LEADER:
     /* send all the remote exit requests and wait for the replies */
@@ -3835,40 +3839,35 @@ static void gasnetc_exit_body(void) {
     break;
 
   default:
-      gasneti_fatalerror("invalid exit role");
+    gasneti_assume(! graceful);
   }
+  alarm(prev_timeout); // resume previous alarm
  }
 
-  /* Note we skip cleanly shutdown on non-colective exit or exit via signal */
+  // Note we skip clean shutdown on non-collective exit or exit via signal
   if (graceful && !gasnetc_exit_in_signal) {
   #if GASNETC_IBV_SHUTDOWN
     GASNETC_EXIT_STATE("ibv quiesce");
-    alarm(30);
     gasnetc_sndrcv_quiesce();
   #endif
     if (gasnetc_did_firehose_init) {
       GASNETC_EXIT_STATE("in firehose_fini()");
-      alarm(10);
       firehose_fini();
     }
   #if GASNETC_IBV_SHUTDOWN
     GASNETC_EXIT_STATE("ibv shutdown");
-    alarm(30);
     gasnetc_shutdown();
   #endif
-    alarm(0);
   }
 
 #if GASNETC_IBV_ODP
   // Always need to shutdown ODP (safe no-op if we did full shutdown above)
   GASNETC_EXIT_STATE("odp shutdown");
-  alarm(30);
   gasnetc_odp_shutdown(); // Avoid possible system memory leak
 #endif
 
-  /* Try again to flush out any recent output, allowing upto 30s */
+  // Try again to flush out any recent output
   GASNETC_EXIT_STATE("closing output");
-  alarm(30);
   {
     gasneti_flush_streams();
     #if !GASNET_DEBUG_VERBOSE
@@ -3876,8 +3875,12 @@ static void gasnetc_exit_body(void) {
     #endif
   }
 
+  // One last alarm to cover the Fini or Abort
+  // This has been observed to be the slowest step in some cases (see bug 4360)
+  // TODO: 30 is arbitrary and hard-coded
+  alarm(MAX(30, timeout));
+
   /* XXX potential problems here if exiting from the "Wrong" thread, or from a signal handler */
-  alarm(60);
   {
     if (graceful) {
       #if GASNET_DEBUG_VERBOSE
