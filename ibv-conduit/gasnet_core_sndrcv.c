@@ -771,6 +771,7 @@ static void gasnetc_dump_cqe(struct ibv_wc *comp, gasnetc_hca_t *hca, const int 
         if (nbytes) {
           MSG_APPEND(", includes %u bytes payload", (unsigned int)nbytes);
         }
+        break;
       }
 
       default: break; // Avoid warning about missing enum values
