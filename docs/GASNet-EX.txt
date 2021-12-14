@@ -3687,7 +3687,8 @@ gex_Event_t gex_Coll_BroadcastNB(
 // LIMITATIONS of the current release:
 //  + The current implementation may limit `dt_sz` for user-defined types to as
 //    little as 32KB bytes in some configurations and with default parameters.
-//    The precise limit depends on the network and sizes of the job and team.
+//    The precise limit depends on the network, the sizes of the job and team,
+//    and the size of the team's collective scratch space.
 
 gex_Event_t gex_Coll_ReduceToOneNB(
             gex_TM_t            tm,           // The team
