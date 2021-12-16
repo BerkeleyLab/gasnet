@@ -21,6 +21,9 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* General and Misc.
+  - Add docs/gasnet1_differences.md guide for legacy GASNet-1 clients
+
 * InfiniBand Verbs (details in ibv-conduit README)
   - Improved reporting of fatal errors reported via IBV completion queues
 
@@ -30,6 +33,9 @@ GASNet-EX ChangeLog
     `--with-ucx-max-medium` can be used to set the default value.
     In the absence of these settings, default buffer size remains unchanged.
   - `GASNET_DISABLE_MUNMAP=1` is now the default for ucx-conduit.
+
+* GASNet-EX Spec v0.15: (details in docs/GASNet-EX.txt)
+  - Clarify that src/dst overlap within one operation yields undefined behavior
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4297: incorrect nbrhd construction for some multi-homed hosts
