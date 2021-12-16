@@ -1785,6 +1785,12 @@ extern gex_TI_t gex_Token_Info(
 //   address range described by [dest_addr..(dest_addr+nbytes-1)]. Any such
 //   assertions must remain true until the AM handler begins execution at the target.
 //
+// NOTE 4: Overlap
+//
+//   Within a single gex_AM_*Long* operation, if the specified source and destination 
+//   memory regions overlap, behavior is undefined. High-quality implementations
+//   may choose to diagnose such errors.
+//
 // Other arguments behave as in the analogous GASNet-1 functions.
 // Misc semantic strengthening:
 // * dest_addr for Long is guaranteed to be passed to the handler as provided
