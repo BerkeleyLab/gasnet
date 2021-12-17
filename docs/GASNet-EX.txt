@@ -113,18 +113,18 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 // The only GASNet functions which may be called within AM handler context,
 // or while holding a GASNet handler-safe lock are as follows:
 //
-// gasnet_mynode(), gasnet_nodes(), gasnet_hsl_*(), gasnet_exit(), gasnet_AMReply*(), 
+// gasnet_mynode(), gasnet_nodes(), gasnet_hsl_*(), gasnet_exit(), 
 // gasnet_QueryGexObjects(), gex_System_QueryNbrhdInfo(), gex_System_QueryHostInfo(),
 // gex_System_QueryMyPosition(), gex_System_QueryJob{Rank,Size}(), gex_HSL_*(),
 // gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*(), gex_TM_Pair(),
-// gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(),
+// gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(), gasnet_AMGetMsgSource(),
 // gex_System_GetVerboseErrors(), gex_System_SetVerboseErrors(),
 // gex_System_QueryMaxThreads(), gex_System_QueryHiddenAMConcurrencyLevel()
 // 
 // The following are conditionally permitted in handler context, the condition being the 
 // caller must be within an AMRequest handler and not holding a handler-safe lock:
 //
-// gex_AM_Reply*() gex_AM_{Prepare,Commit}Reply*(), gex_AM_SrcDesc*()
+// gasnet_AMReply*(), gex_AM_Reply*() gex_AM_{Prepare,Commit}Reply*(), gex_AM_SrcDesc*()
 //
 // The following are conditionally permitted in handler context, the condition
 // being that the 'flags' argument must include GEX_FLAG_IMMEDIATE:
