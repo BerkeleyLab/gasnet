@@ -270,6 +270,30 @@ extern int gasnetc_ep_publishboundsegment_hook(
 /* ------------------------------------------------------------------------------------ */
 int gasnetc_exit_in_progress = 0;
 
+static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);     /* value to _exit() with */
+
+static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
+
+// NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
+// volume of garbage that might get printed in the event of memory corruption.
+#define GASNETC_EXIT_STATE_MAXLEN 40
+
+#if GASNET_DEBUG_VERBOSE
+  #define GASNETC_TRACE_EXIT_STATE() do {                 \
+        fprintf(stderr, "%d> EXIT STATE %s\n",            \
+                (int)gasneti_mynode, gasnetc_exit_state); \
+        fflush(NULL);                                     \
+  } while (0)
+#else
+  #define GASNETC_TRACE_EXIT_STATE() ((void)0)
+#endif
+
+#define GASNETC_EXIT_STATE(st) do {                                      \
+        gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
+        gasnetc_exit_state = st;                                         \
+        GASNETC_TRACE_EXIT_STATE();                                      \
+  } while (0)
+
 // TODO-EX: is this really necessary?
 extern void gasnetc_exit_cautious(int exitcode) {
   if (!gasnetc_exit_in_progress) gasnetc_exit(exitcode);
@@ -303,16 +327,54 @@ static void gasnetc_atexit(void) {
  * DOES NOT RETURN
  */
 static void gasnetc_exit_sighandler(int sig) {
-  static int once = 1;
+  int exitcode = (int)gasneti_atomic_read(&gasnetc_exit_code, 0);
+  static gasneti_atomic_t once = gasneti_atomic_init(1);
 
-  if (once) {
-    /* We ask the bootstrap support to kill us, but only once */
-    once = 0;
-    gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
-    alarm(5);
-    gasneti_bootstrapAbort(127);
+#if GASNET_DEBUG
+  // protect until we reach reentrance check
+  gasneti_reghandler(SIGALRM, _exit);
+  gasneti_unblocksig(SIGALRM);
+  alarm(30);
+#endif
+
+  const char * state = gasnetc_exit_state;
+  size_t state_len = gasneti_strnlen(state, GASNETC_EXIT_STATE_MAXLEN);
+
+  /* note - can't call trace macros here, or even sprintf */
+  if (sig == SIGALRM) {
+    static const char msg[] = "gasnet_exit(): WARNING: timeout during exit... goodbye.  [";
+    (void) write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    (void) write(STDERR_FILENO, state, state_len);
+    (void) write(STDERR_FILENO, "]\n", 2);
   } else {
-    gasneti_killmyprocess(127);
+    static const char msg1[] = "gasnet_exit(): ERROR: signal ";
+    static const char msg2[] = " received during exit... goodbye.  [";
+    char digit;
+
+    (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
+
+    /* assume sig < 100 */
+    if (sig > 9) {
+      digit = '0' + ((sig / 10) % 10);
+      (void) write(STDERR_FILENO, &digit, 1);
+    }
+    digit = '0' + (sig % 10);
+    (void) write(STDERR_FILENO, &digit, 1);
+
+    (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
+    (void) write(STDERR_FILENO, state, state_len);
+    (void) write(STDERR_FILENO, "]\n", 2);
+  }
+
+  if (gasneti_atomic_decrement_and_test(&once, 0)) {
+    /* We ask the bootstrap support to kill us, but only once */
+    GASNETC_EXIT_STATE("in suicide timer");
+    gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
+    gasneti_unblocksig(SIGALRM);
+    alarm(5);
+    gasneti_bootstrapAbort(exitcode);
+  } else {
+    gasneti_killmyprocess(exitcode);
     gasneti_reghandler(SIGABRT, SIG_DFL);
     gasneti_fatalerror("gasnetc_exit aborting...");
   }
@@ -379,7 +441,7 @@ static int gasnetc_exit_coordinate(int exitcode) {
 
 extern void gasnetc_exit(int exitcode) {
   gasnetc_exit_in_progress = 1;
-  gasneti_sync_writes();
+  gasneti_atomic_set(&gasnetc_exit_code, exitcode, GASNETI_ATOMIC_REL);
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
@@ -405,6 +467,7 @@ extern void gasnetc_exit(int exitcode) {
 
   /* Prior to attach we cannot send AMs to coordinate the exit */
   if (! gasneti_attach_done) {
+    GASNETC_EXIT_STATE("in pre-attach gasneti_bootstrapAbort()");
     fprintf(stderr, "WARNING: GASNet ofi-conduit may not shutdown cleanly when gasnet_exit() is called before gasnet_attach()\n");
     gasneti_bootstrapAbort(exitcode);
     gasneti_killmyprocess(exitcode);
@@ -414,13 +477,18 @@ extern void gasnetc_exit(int exitcode) {
 
   // One alarm timer for the exit coordination
   // +2 is margin of safety around the timed coordination
+  GASNETC_EXIT_STATE("coordinating shutdown");
   alarm(2 + timeout);
   int graceful = gasnetc_exit_coordinate(exitcode);
 
   // A second alarm timer for most of the remaining exit steps
   // TODO: 120 is arbitrary and hard-coded
   alarm(MAX(120, timeout));
-  if (graceful) gasnetc_ofi_exit();
+  if (graceful) {
+    GASNETC_EXIT_STATE("in gasnetc_ofi_exit()");
+    gasnetc_ofi_exit();
+  }
+  GASNETC_EXIT_STATE("flushing output");
   gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
@@ -430,8 +498,10 @@ extern void gasnetc_exit(int exitcode) {
   // TODO: 30 is arbitrary and hard-coded
   alarm(MAX(30, timeout));
   if (graceful) {
+    GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
     gasneti_bootstrapFini();
   } else {
+    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
     gasneti_bootstrapAbort(exitcode);
   }
   alarm(0);
