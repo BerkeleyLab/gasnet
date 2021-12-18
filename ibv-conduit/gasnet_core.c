@@ -3255,19 +3255,27 @@ enum {
 
 static gasneti_atomic_t gasnetc_exit_role = gasneti_atomic_init(GASNETC_EXIT_ROLE_UNKNOWN);
 
+static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
+
+// NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
+// volume of garbage that might get printed in the event of memory corruption.
+#define GASNETC_EXIT_STATE_MAXLEN 40
+
 #if GASNET_DEBUG_VERBOSE
-  static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
-  #define GASNETC_EXIT_STATE(st) do {                                    \
-	gasnetc_exit_state = st;                                         \
-	fprintf(stderr, "%d> EXIT STATE %s\n", (int)gasneti_mynode, st); \
-        fflush(NULL);                                                    \
+  #define GASNETC_TRACE_EXIT_STATE() do {                 \
+        fprintf(stderr, "%d> EXIT STATE %s\n",            \
+                (int)gasneti_mynode, gasnetc_exit_state); \
+        fflush(NULL);                                     \
   } while (0)
-#elif GASNET_DEBUG
-  static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
-  #define GASNETC_EXIT_STATE(st) gasnetc_exit_state = st
 #else
-  #define GASNETC_EXIT_STATE(st) do {} while (0)
+  #define GASNETC_TRACE_EXIT_STATE() ((void)0)
 #endif
+
+#define GASNETC_EXIT_STATE(st) do {                                      \
+        gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
+        gasnetc_exit_state = st;                                         \
+        GASNETC_TRACE_EXIT_STATE();                                      \
+  } while (0)
 
 /*
  * Code to disable user's AM handlers when exiting.  We need this because we must call
@@ -3573,18 +3581,18 @@ static void gasnetc_exit_sighandler(int sig) {
   gasnetc_odp_shutdown(); // Avoid possible system memory leak
 #endif
 
-  #if GASNET_DEBUG
+  const char * state = gasnetc_exit_state;
+  size_t state_len = gasneti_strnlen(state, GASNETC_EXIT_STATE_MAXLEN);
+
   /* note - can't call trace macros here, or even sprintf */
   if (sig == SIGALRM) {
     static const char msg[] = "gasnet_exit(): WARNING: timeout during exit... goodbye.  [";
-    const char * state = gasnetc_exit_state;
     (void) write(STDERR_FILENO, msg, sizeof(msg) - 1);
-    (void) write(STDERR_FILENO, state, strlen(state));
+    (void) write(STDERR_FILENO, state, state_len);
     (void) write(STDERR_FILENO, "]\n", 2);
   } else {
     static const char msg1[] = "gasnet_exit(): ERROR: signal ";
     static const char msg2[] = " received during exit... goodbye.  [";
-    const char * state = gasnetc_exit_state;
     char digit;
 
     (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
@@ -3598,10 +3606,9 @@ static void gasnetc_exit_sighandler(int sig) {
     (void) write(STDERR_FILENO, &digit, 1);
     
     (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
-    (void) write(STDERR_FILENO, state, strlen(state));
+    (void) write(STDERR_FILENO, state, state_len);
     (void) write(STDERR_FILENO, "]\n", 2);
   }
-  #endif
 
   if (gasneti_atomic_decrement_and_test(&once, 0)) {
     /* We ask the bootstrap support to kill us, but only once */
@@ -3867,13 +3874,8 @@ static void gasnetc_exit_body(void) {
 #endif
 
   // Try again to flush out any recent output
-  GASNETC_EXIT_STATE("closing output");
-  {
-    gasneti_flush_streams();
-    #if !GASNET_DEBUG_VERBOSE
-      gasneti_close_streams();
-    #endif
-  }
+  GASNETC_EXIT_STATE("second output flush");
+  gasneti_flush_streams();
 
   // One last alarm to cover the Fini or Abort
   // This has been observed to be the slowest step in some cases (see bug 4360)

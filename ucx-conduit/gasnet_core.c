@@ -26,12 +26,27 @@ enum {
   GASNETC_EXIT_ROLE_MEMBER
 };
 
-#if GASNET_DEBUG
-  static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
-  #define GASNETC_EXIT_STATE(st) gasnetc_exit_state = st
+static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
+
+// NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
+// volume of garbage that might get printed in the event of memory corruption.
+#define GASNETC_EXIT_STATE_MAXLEN 60
+
+#if GASNET_DEBUG_VERBOSE
+  #define GASNETC_TRACE_EXIT_STATE() do {                 \
+        fprintf(stderr, "%d> EXIT STATE %s\n",            \
+                (int)gasneti_mynode, gasnetc_exit_state); \
+        fflush(NULL);                                     \
+  } while (0)
 #else
-  #define GASNETC_EXIT_STATE(st) do {} while (0)
+  #define GASNETC_TRACE_EXIT_STATE() ((void)0)
 #endif
+
+#define GASNETC_EXIT_STATE(st) do {                                      \
+        gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
+        gasnetc_exit_state = st;                                         \
+        GASNETC_TRACE_EXIT_STATE();                                      \
+  } while (0)
 
 #define GASNETC_ROOT_NODE 0
 
@@ -978,17 +993,18 @@ static void gasnetc_exit_sighandler(int sig) {
   alarm(30);
 #endif
 
-#if GASNET_DEBUG
+  const char * state = gasnetc_exit_state;
+  size_t state_len = gasneti_strnlen(state, GASNETC_EXIT_STATE_MAXLEN);
+
+  /* note - can't call trace macros here, or even sprintf */
   if (sig == SIGALRM) {
     static const char msg[] = "gasnet_exit(): WARNING: timeout during exit... goodbye.  [";
-    const char * state = gasnetc_exit_state;
     (void) write(STDERR_FILENO, msg, sizeof(msg) - 1);
-    (void) write(STDERR_FILENO, state, strlen(state));
+    (void) write(STDERR_FILENO, state, state_len);
     (void) write(STDERR_FILENO, "]\n", 2);
   } else {
     static const char msg1[] = "gasnet_exit(): ERROR: signal ";
     static const char msg2[] = " received during exit... goodbye.  [";
-    const char * state = gasnetc_exit_state;
     char digit;
 
     (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
@@ -1002,10 +1018,9 @@ static void gasnetc_exit_sighandler(int sig) {
     (void) write(STDERR_FILENO, &digit, 1);
 
     (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
-    (void) write(STDERR_FILENO, state, strlen(state));
+    (void) write(STDERR_FILENO, state, state_len);
     (void) write(STDERR_FILENO, "]\n", 2);
   }
-#endif
 
   if (gasneti_atomic_decrement_and_test(&once, 0)) {
     /* We ask the bootstrap support to kill us, but only once */
