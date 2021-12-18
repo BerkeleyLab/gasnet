@@ -23,6 +23,7 @@ migration of current GASNet-1 client software. Existing GASNet clients can
 get started by relying on this layer (provided in gasnet.h), and incrementally 
 add calls to the new gex_* interfaces (defined in gasnetex.h, which is 
 automatically included by gasnet.h) to access new EX features and capabilities.
+For details, see docs/gasnet1_differences.md.
 
 Feedback or questions on any matters related to the GASNet-EX project are
 welcomed at: gasnet-devel@lbl.gov
