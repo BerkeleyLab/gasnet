@@ -26,16 +26,36 @@ enum {
   GASNETC_EXIT_ROLE_MEMBER
 };
 
-#if GASNET_DEBUG
-  static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
-  #define GASNETC_EXIT_STATE(st) gasnetc_exit_state = st
+static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
+
+// NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
+// volume of garbage that might get printed in the event of memory corruption.
+#define GASNETC_EXIT_STATE_MAXLEN 60
+
+#if GASNET_DEBUG_VERBOSE
+  #define GASNETC_TRACE_EXIT_STATE() do {                 \
+        fprintf(stderr, "%d> EXIT STATE %s\n",            \
+                (int)gasneti_mynode, gasnetc_exit_state); \
+        fflush(NULL);                                     \
+  } while (0)
 #else
-  #define GASNETC_EXIT_STATE(st) do {} while (0)
+  #define GASNETC_TRACE_EXIT_STATE() ((void)0)
 #endif
+
+#define GASNETC_EXIT_STATE(st) do {                                      \
+        gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
+        gasnetc_exit_state = st;                                         \
+        GASNETC_TRACE_EXIT_STATE();                                      \
+  } while (0)
 
 #define GASNETC_ROOT_NODE 0
 
 int gasnetc_exit_running = 0;		/* boolean used to identify that exit process is started */
+
+static int gasnetc_exit_in_signal = 0;  /* to avoid certain things in signal context */
+extern void gasnetc_fatalsignal_callback(int sig) {
+  gasnetc_exit_in_signal = 1;
+}
 
 /* gasnete_threadidx_t used to identify what thread an exit process was started */
 gasnete_threadidx_t gasnetc_exit_thread  = 0 ;
@@ -60,9 +80,9 @@ static void gasnetc_atexit(int exitcode);
 static gex_TM_t gasnetc_bootstrap_tm = NULL;
 
 /* Exit coordination timeouts */
-#define GASNETC_DEFAULT_EXITTIMEOUT_MAX		360.0	/* 6 minutes! */
-#define GASNETC_DEFAULT_EXITTIMEOUT_MIN		2	/* 2 seconds */
-#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR	0.25	/* 1/4 second */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX         480.0   // 8 min - extrapolated from Summit data in bug 4360
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN           2.0   // 2 sec
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR      0.25    // 1/4 second per process
 static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 
@@ -511,7 +531,10 @@ static void gasnetc_ucx_fini(void)
   GASNETC_EXIT_STATE("ucp_cleanup called");
 
   gasneti_free(gasneti_ucx_module.ep_tbl);
-  gasneti_mutex_destroy(&gasneti_ucx_module.ucp_worker_lock);
+
+  // If exiting from AM handler context, then we hold the lock.
+  // So to avoid errors, we just let it leak.
+  // gasneti_mutex_destroy(&gasneti_ucx_module.ucp_worker_lock);
 }
 
 static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
@@ -970,17 +993,18 @@ static void gasnetc_exit_sighandler(int sig) {
   alarm(30);
 #endif
 
-#if GASNET_DEBUG
+  const char * state = gasnetc_exit_state;
+  size_t state_len = gasneti_strnlen(state, GASNETC_EXIT_STATE_MAXLEN);
+
+  /* note - can't call trace macros here, or even sprintf */
   if (sig == SIGALRM) {
     static const char msg[] = "gasnet_exit(): WARNING: timeout during exit... goodbye.  [";
-    const char * state = gasnetc_exit_state;
     (void) write(STDERR_FILENO, msg, sizeof(msg) - 1);
-    (void) write(STDERR_FILENO, state, strlen(state));
+    (void) write(STDERR_FILENO, state, state_len);
     (void) write(STDERR_FILENO, "]\n", 2);
   } else {
     static const char msg1[] = "gasnet_exit(): ERROR: signal ";
     static const char msg2[] = " received during exit... goodbye.  [";
-    const char * state = gasnetc_exit_state;
     char digit;
 
     (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
@@ -994,10 +1018,9 @@ static void gasnetc_exit_sighandler(int sig) {
     (void) write(STDERR_FILENO, &digit, 1);
 
     (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
-    (void) write(STDERR_FILENO, state, strlen(state));
+    (void) write(STDERR_FILENO, state, state_len);
     (void) write(STDERR_FILENO, "]\n", 2);
   }
-#endif
 
   if (gasneti_atomic_decrement_and_test(&once, 0)) {
     /* We ask the bootstrap support to kill us, but only once */
@@ -1122,40 +1145,45 @@ static void gasnetc_exit_role_reph(gex_Token_t token, gex_AM_Arg_t arg0) {
   gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role, 0) == role);
 }
 
-static int gasnetc_get_exit_role(void)
+/*
+ * gasnetc_get_exit_role()
+ *
+ * This function returns the exit role immediately if known.  Otherwise it sends an AMRequest
+ * to determine its role and then polls the network until the exit role is determined, either
+ * by the reply to that request, or by a remote exit request.
+ *
+ * Includes a timeout to bound how long to poll for a reply, and the return value will
+ * be GASNETC_EXIT_ROLE_UNKNOWN if it expires.
+ * However, should still be called with an alarm timer in-force in case we get hung sending.
+ *
+ * Note that if we get here as a result of a remote exit request then our role has already been
+ * set to "member" and we won't touch the network from inside the request handler.
+ *
+ * TODO: can/should an UCX-level atomic CAS replace the AM round-trip?
+ */
+static int gasnetc_get_exit_role(int64_t timeout_us)
 {
   GASNET_BEGIN_FUNCTION();
-  int role;
-  int64_t timeout_us = gasnetc_exittimeout * 1.0e6;
-  gex_Rank_t rank;
-  gasneti_tick_t start_time;
+  int role = gasneti_atomic_read(&gasnetc_exit_role, 0);
 
   gasneti_assert(timeout_us > 0);
 
-  role = gasneti_atomic_read(&gasnetc_exit_role, 0);
-  if (GASNETC_EXIT_ROLE_UNKNOWN != role) {
-    return role;
-  }
+  if (role == GASNETC_EXIT_ROLE_UNKNOWN) {
+    gasneti_tick_t start_time = gasneti_ticks_now();
 
-  for (rank = 0; rank < gasneti_nodes; rank++) {
-    GASNETI_SAFE(gasnetc_RequestSysShort(rank, NULL,
-                   gasneti_handleridx(gasnetc_exit_role_reqh), 0));
-    start_time = gasneti_ticks_now();
-    /* Now spin until somebody tells us what our role is */
+    // Don't know our role yet.  So, send an AM Request to determine our role
+    GASNETI_SAFE(gasnetc_RequestSysShort(GASNETC_ROOT_NODE, NULL,
+                                         gasneti_handleridx(gasnetc_exit_role_reqh), 0));
+
+    // Now spin (w/ time limit) until somebody tells us our role
     do {
       gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
       role = gasneti_atomic_read(&gasnetc_exit_role, 0);
-      if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 >
-          timeout_us) {
-        /* Go to try the next node */
-        break;
-      }
-    } while (role == GASNETC_EXIT_ROLE_UNKNOWN);
-    if (role != GASNETC_EXIT_ROLE_UNKNOWN) {
-      return role;
-    }
+    } while ((role == GASNETC_EXIT_ROLE_UNKNOWN) &&
+             (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 < timeout_us));
   }
-  return GASNETC_EXIT_ROLE_UNKNOWN;
+
+  return role;
 }
 
 static int gasnetc_exit_leader(int exitcode, int64_t timeout_us) {
@@ -1223,6 +1251,7 @@ static void gasnetc_exit_body(void) {
   int exitcode;
   int graceful = 0;
   int64_t timeout_us = gasnetc_exittimeout * 1.0e6;
+  unsigned int timeout = (unsigned int)gasnetc_exittimeout;
   int role;
 #if GASNET_DEBUG && GASNET_PAR
   {
@@ -1260,32 +1289,34 @@ static void gasnetc_exit_body(void) {
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* Timed MAX(exitcode) reduction to clearly distinguish collective exit */
-  alarm(2 + (int)gasnetc_exittimeout);
+  alarm(2 + timeout); // +2 is margin of safety around the timed reduction
   graceful = (gasnetc_exit_reduce(exitcode, timeout_us) == 0);
+
+  // A second alarm timer for most of the remaining exit steps
+  // TODO: 120 is arbitrary and hard-coded
+  alarm(MAX(120, timeout));
 
   gasnetc_sys_coll_fini();
 
-  /* Try to flush out all the output, allowing upto 60s */
+  // Try to flush out all the output
   GASNETC_EXIT_STATE("flushing output");
-  alarm(60);
   {
     gasneti_flush_streams();
     gasneti_trace_finish();
-    alarm(0);
     gasneti_sched_yield();
   }
 
-  alarm(1 + (int)gasnetc_exittimeout);
   if (!graceful) {
+    // Timed reduction failed. So make a second attempt at a coordinated shutdown.
+    // This has two global communication steps each with their own timeout interval
     exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
 
     GASNETC_EXIT_STATE("performing non-collective exit");
-    alarm(10);
-    role = gasnetc_get_exit_role();
+    unsigned int prev_timeout = alarm(2 + timeout);
+    role = gasnetc_get_exit_role(timeout_us);
 
-    /* Attempt a coordinated shutdown */
     GASNETC_EXIT_STATE("coordinating shutdown");
-    alarm(1 + (int)gasnetc_exittimeout);
+    alarm(2 + timeout); // yet another alarm interval for the second comms step
     switch (role) {
     case GASNETC_EXIT_ROLE_LEADER:
       /* send all the remote exit requests and wait for the replies */
@@ -1295,27 +1326,33 @@ static void gasnetc_exit_body(void) {
       graceful = (gasnetc_exit_member(timeout_us) == 0);
       break;
     default:
-        gasneti_fatalerror("invalid exit role");
+      gasneti_assume(! graceful);
     }
-    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
-    gasneti_bootstrapAbort(exitcode);
-  } else {
-    /* doing a poll of the receive queue while there are unreceived requests */
-    alarm(10);
-    /* waiting to completion all requests */
+    alarm(prev_timeout); // resume previous alarm
+  }
+
+  // Note we skip cleanly shutdown on non-collective exit or exit via signal
+  if (graceful && !gasnetc_exit_in_signal) {
     GASNETC_EXIT_STATE("flushing ucx requests: waiting for sends completions");
     gasnetc_send_list_wait(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
     gasneti_bootstrapBarrier();
     GASNETC_EXIT_STATE("flushing ucx requests: waiting for recvs completions");
     while(gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS));
+  }
 
-    alarm(10);
+  // One last alarm to cover the Fini or Abort
+  // This has been observed to be the slowest step in some cases (see bug 4360)
+  // TODO: 30 is arbitrary and hard-coded
+  alarm(MAX(30, timeout));
+  if (graceful) {
     GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
     gasneti_bootstrapFini();
-
-    alarm(10);
+    // TODO: this may belong earlier, but placement earlier leads to errors
     GASNETC_EXIT_STATE("ucx finalization");
     gasnetc_ucx_fini();
+  } else {
+    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
+    gasneti_bootstrapAbort(exitcode);
   }
   alarm(0);
 }

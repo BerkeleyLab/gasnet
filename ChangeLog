@@ -44,6 +44,7 @@ GASNet-EX ChangeLog
   - bug4345: Multiply defined symbols in aries-conduit w/ recent compilers
   - bug4355: Erroneous memory access when deleting a segment
   - bug4356: Missing bounds checks for Long payloads
+  - bug4360: Insufficient fixed exit timeouts (ucx, ibv, ofi)
 
 ----------------------------------------------------------------------
 2021-09-30: GASNet-EX 2021.9.0 Release
