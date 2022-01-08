@@ -371,7 +371,7 @@ static void gasnetc_exit_sighandler(int sig) {
     GASNETC_EXIT_STATE("in suicide timer");
     gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
     gasneti_unblocksig(SIGALRM);
-    alarm(5);
+    alarm(MAX(5,gasnetc_exittimeout));
     gasneti_bootstrapAbort(exitcode);
   } else {
     gasneti_killmyprocess(exitcode);
