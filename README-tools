@@ -1456,6 +1456,10 @@ COMPILER.
       expanded).  Setting to "0" will disable such use.
       One may not set GASNETT_USE_RESTRICT_ON_TYPEDEFS without setting GASNETT_USE_RESTRICT.
 
+  The following can be defined to control use of compiler-specific pragmas
+    GASNETT_USE_PRAGMA_GCC_DIAGNOSTIC
+      Use "#pragma GCC diagnostic" to suppress undesirable diagnostics
+
 * Feature control for ctype.h wrappers
 
   There are systems on which ctype.h is implemented in such a way that passing char-typed
