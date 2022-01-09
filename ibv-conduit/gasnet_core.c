@@ -3616,6 +3616,7 @@ static void gasnetc_exit_sighandler(int sig) {
     (void) write(STDERR_FILENO, state, state_len);
     (void) write(STDERR_FILENO, "]\n", 2);
   }
+  (void) fsync(STDERR_FILENO);
 
   if (gasneti_atomic_decrement_and_test(&once, 0)) {
     /* We ask the bootstrap support to kill us, but only once */
