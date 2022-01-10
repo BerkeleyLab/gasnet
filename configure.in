@@ -4183,8 +4183,8 @@ if test "$enabled_ofi" = yes; then
         verbs\;ofi_rxm)
             ofi_define_mr_scalable=0
         ;;
-        tcp\;ofi_rxm)  # Reports MR_SCALABLE support, but see bug 3867
-            ofi_define_mr_scalable=0
+        tcp\;ofi_rxm)
+            ofi_define_mr_scalable=1
         ;;
         sockets)
             ofi_define_mr_scalable=1

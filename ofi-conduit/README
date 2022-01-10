@@ -69,8 +69,11 @@ OFI provider requirements to run this conduit:
 Endpoint type: RDM
 Capabilities: FI_RMA and FI_MSG
 Secondary Capabilities: FI_MULTI_RECV
-Memory Registration Mode: FI_MR_SCALABLE (preferred) or FI_MR_BASIC
-    * There is currently no support for providers that require FI_LOCAL_MR
+Memory Registration Mode:
+    * API 1.4 or earlier: FI_MR_SCALABLE (preferred) or FI_MR_BASIC
+    * API 1.5 or newer: all or none (preferred) of FI_MR_{ALLOCATED,VIRT_ADDR,PROV_KEY}
+    * There is currently no support for providers that require FI_LOCAL_MR / FI_MR_LOCAL
+    * There is currently no support for providers that require FI_MR_ENDPOINT
 Threading mode: FI_THREAD_SAFE and/or FI_THREAD_DOMAIN
     * In GASNET_{SEQ,PARSYNC} mode, all providers use FI_THREAD_DOMAIN as only one thread makes
       calls into the GASNet library.
