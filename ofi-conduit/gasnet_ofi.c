@@ -596,8 +596,10 @@ done:
   GASNETC_OFI_CHECK_RET(ret, "fi_domain failed");
 
   /* The intention here is to ensure that subsequent calls to fi_getinfo()
-   * won't ever give us a different provider. This is likely unnecessary,
-   * but it is good to be paranoid. */
+   * won't ever give us a different provider.
+   * This is necessary when more than one provider matches the other hints,
+   * and the first match is not the one we want. */
+  hints->fabric_attr->prov_name = gasneti_strdup(info->fabric_attr->prov_name);
   hints->domain_attr->name = gasneti_strdup(info->domain_attr->name);
 
   /* Allocate a new active endpoint for RDMA operations */
@@ -617,6 +619,8 @@ done:
 
   gasneti_free(hints->domain_attr->name);
   hints->domain_attr->name = NULL;
+  gasneti_free(hints->fabric_attr->prov_name);
+  hints->fabric_attr->prov_name = NULL;
 
   ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_request_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for am request endpoint failed");
