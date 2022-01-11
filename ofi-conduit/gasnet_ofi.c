@@ -43,6 +43,10 @@ struct fid_mr*        gasnetc_segment_mrfd = NULL;
 struct fid_mr*        gasnetc_auxseg_mrfd = NULL;
 size_t gasnetc_ofi_bbuf_threshold;
 
+#ifdef FI_MR_ENDPOINT
+static int gasnetc_fi_mr_endpoint = 0;
+#endif
+
 typedef struct gasnetc_ofi_recv_metadata {
     struct iovec iov;
     struct fi_msg am_buff_msg;
@@ -462,7 +466,7 @@ int gasnetc_ofi_init(void)
 
 #if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
   // These are basically FI_MR_BASIC decomposed:
-  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_VIRT_ADDR | FI_MR_PROV_KEY;
+  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_VIRT_ADDR | FI_MR_PROV_KEY | FI_MR_ENDPOINT;
 #else
   /* If the configure script detected a provider's mr_mode, then force
    * ofi to use that mode. */
@@ -571,6 +575,8 @@ done:
   has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
   gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
   gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_PROV_KEY));
+
+  gasnetc_fi_mr_endpoint = (info->domain_attr->mr_mode & FI_MR_ENDPOINT);
 #else
   has_mr_scalable = (info->domain_attr->mr_mode == FI_MR_SCALABLE);
 #endif
@@ -825,10 +831,6 @@ void gasnetc_ofi_exit(void)
     gasneti_fatalerror("close am request epfd failed\n");
   }
 
-  if(fi_close(&gasnetc_ofi_rdma_epfd->fid)!=FI_SUCCESS) {
-    gasneti_fatalerror("close rdma epfd failed\n");
-  }
-
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   GASNETI_SEGTBL_LOCK();
     gasneti_Segment_t seg;
@@ -847,6 +849,11 @@ void gasnetc_ofi_exit(void)
 
   if (gasnetc_auxseg_mrfd && (fi_close(&gasnetc_auxseg_mrfd->fid) != FI_SUCCESS)) {
     gasneti_fatalerror("close auxseg mrfd failed\n");
+  }
+
+  // This must follow closing MRs if bound due to FI_MR_ENDPOINT
+  if(fi_close(&gasnetc_ofi_rdma_epfd->fid)!=FI_SUCCESS) {
+    gasneti_fatalerror("close rdma epfd failed\n");
   }
 
   if(fi_close(&gasnetc_ofi_tx_cqfd->fid)!=FI_SUCCESS) {
@@ -1095,6 +1102,15 @@ int gasnetc_segment_register(gasnetc_Segment_t segment)
                         mrfd_p, NULL);
     GASNETC_OFI_CHECK_RET(ret, "fi_mr_reg for rdma failed");
 
+#ifdef FI_MR_ENDPOINT
+    if (gasnetc_fi_mr_endpoint) {
+      ret = fi_mr_bind(*mrfd_p, &gasnetc_ofi_rdma_epfd->fid, 0);
+      GASNETC_OFI_CHECK_RET(ret, "fi_mr_bind failed");
+      ret = fi_mr_enable(*mrfd_p);
+      GASNETC_OFI_CHECK_RET(ret, "fi_mr_enable failed");
+    }
+#endif
+
     return GASNET_OK;
 }
 
@@ -1152,6 +1168,15 @@ void gasnetc_auxseg_register(gasnet_seginfo_t si)
                       FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, 0ULL, 0ULL,
                       &gasnetc_auxseg_mrfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_mr_reg for aux_seg failed");
+
+#ifdef FI_MR_ENDPOINT
+  if (gasnetc_fi_mr_endpoint) {
+    ret = fi_mr_bind(gasnetc_auxseg_mrfd, &gasnetc_ofi_rdma_epfd->fid, 0);
+    GASNETC_OFI_CHECK_RET(ret, "fi_mr_bind failed for aux_seg");
+    ret = fi_mr_enable(gasnetc_auxseg_mrfd);
+    GASNETC_OFI_CHECK_RET(ret, "fi_mr_enable failed for aux_seg");
+  }
+#endif
 
   if (GASNETC_OFI_HAS_MR_SCALABLE) return;
 
