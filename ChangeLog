@@ -21,8 +21,31 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* General and Misc.
+  - Add docs/gasnet1_differences.md guide for legacy GASNet-1 clients
+
+* InfiniBand Verbs (details in ibv-conduit README)
+  - Improved reporting of fatal errors reported via IBV completion queues
+
+* Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
+  - A new environment variable `GASNET_UCX_MAX_MEDIUM` enables setting the
+    size of AM Medium buffers at job launch, and a new configure option
+    `--with-ucx-max-medium` can be used to set the default value.
+    In the absence of these settings, default buffer size remains unchanged.
+  - `GASNET_DISABLE_MUNMAP=1` is now the default for ucx-conduit.
+
+* GASNet-EX Spec v0.15: (details in docs/GASNet-EX.txt)
+  - Clarify that src/dst overlap within one operation yields undefined behavior
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4211: intermittent udp-conduit exit-time hangs on macos
+  - bug4297: incorrect nbrhd construction for some multi-homed hosts
+  - bug4321: Intermittent "EBADENDPOINT" failures in single-node udp-conduit
+  - bug4339: ucx: many-to-one deadlock
   - bug4345: Multiply defined symbols in aries-conduit w/ recent compilers
+  - bug4355: Erroneous memory access when deleting a segment
+  - bug4356: Missing bounds checks for Long payloads
+  - bug4360: Insufficient fixed exit timeouts (ucx, ibv, ofi)
 
 ----------------------------------------------------------------------
 2021-09-30: GASNet-EX 2021.9.0 Release

@@ -1093,7 +1093,8 @@ GASNETT_PAGESHIFT
 
 const char *gasnett_gethostname();
 
-  Returns the current system hostname, as reported by gethostname().
+  Returns the current system hostname, as reported by gethostname(), with possible
+  normalization (such as of case).
   
 int gasnett_cpu_count();    
 
@@ -1454,6 +1455,10 @@ COMPILER.
       declared via typedefs (and thus don't look like pointers until the typedef has been
       expanded).  Setting to "0" will disable such use.
       One may not set GASNETT_USE_RESTRICT_ON_TYPEDEFS without setting GASNETT_USE_RESTRICT.
+
+  The following can be defined to control use of compiler-specific pragmas
+    GASNETT_USE_PRAGMA_GCC_DIAGNOSTIC
+      Use "#pragma GCC diagnostic" to suppress undesirable diagnostics
 
 * Feature control for ctype.h wrappers
 

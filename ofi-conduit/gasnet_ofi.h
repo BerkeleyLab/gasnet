@@ -18,6 +18,18 @@
 #include <rdma/fi_cm.h>
 #include <rdma/fi_errno.h>
 
+// Fatal error with error code ": number(string)" appended
+#define gasnetc_ofi_fatalerror(desc,ret) do { \
+    int _gof_ret = (ret); \
+    gasneti_fatalerror("%s: %d(%s)", (desc), _gof_ret, fi_strerror(- _gof_ret)); \
+  } while (0)
+
+// IFF ret is not SUCCESS generate a fatal error message with the error code
+#define GASNETC_OFI_CHECK_RET(ret,desc) do { \
+    int _gocr_ret = (ret); \
+    if_pf (FI_SUCCESS != _gocr_ret) gasnetc_ofi_fatalerror(desc,_gocr_ret); \
+  } while (0)
+
 #define OFI_AM_MAX_DATA_LENGTH \
   GASNETI_ALIGNUP_NOASSERT(GASNETC_OFI_MAX_MEDIUM + \
                            GASNETI_ALIGNUP_NOASSERT(sizeof(gex_AM_Arg_t) * gex_AM_MaxArgs(), \

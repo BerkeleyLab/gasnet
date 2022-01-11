@@ -135,6 +135,13 @@ GASNET_BARRIER - barrier algorithm selection
                 GNI operations for lower latency.
   Currently GNIDISSEM is the default.
 
+GASNET_HOST_DETECT - host identification
+  Aries-conduit supports *only* "conduit", using Cray-provided APIs which
+  provide an array of all of the low-level network addresses.
+  If configured using '--with-host-detect=...' for an otherwise-valid value
+  other than "conduit", that default is ignored in favor of "conduit".
+  However, an explicit environment setting other than "conduit" is an error.
+
 GASNET_GNI_AM_RVOUS_CUTOVER - enable/disable rendezvous based AMs
   At small scale, Active Messages are implemented using an "Eager" protocol
   which allocates buffers sufficient for every process to receive up to

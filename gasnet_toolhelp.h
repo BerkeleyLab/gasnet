@@ -367,6 +367,13 @@ extern uint64_t gasneti_checksum(const void *_p, int _numbytes);
 
 extern int gasneti_nsleep(uint64_t _ns_delay);
 
+GASNETI_INLINE(gasneti_strnlen)
+size_t gasneti_strnlen(const char *_s, size_t _maxlen) {
+  size_t _len = 0;
+  while ((_len < _maxlen) && _s[_len]) ++_len;
+  return _len;
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* Count zero bytes in a region w/ or w/o a memcpy(), or in a "register" */
 

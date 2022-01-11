@@ -61,6 +61,7 @@ typedef struct {
 
 typedef struct {
   GASNETC_LIST_CLASS;
+  gasneti_list_t       *list;
   gasnetc_sreq_hdr_t   *am_hdr;
   gex_AM_Arg_t         *args;
   gasnetc_buffer_t      buffer;
