@@ -125,6 +125,12 @@ used as tuning options.
     * --disable-ofi-mr-scalable: Indicates that FI_MR_BASIC memory registration support
       will be statically compiled into the conduit. This is the default option for the
       gni provider, which at this time does not support FI_MR_SCALABLE.
+    * --enable-ofi-multi-cq: Indicates that the provider requires the use of distinct completion
+      queues for the transmit completions of each endpoint.  This is the default option for the
+      cxi provider.
+    * --disable-ofi-multi-cq: Indicates that the provider supports the use of a single completion
+      queues for the transmit completions of multiple endpoints.  This is the default option for
+      all but the cxi provider.
 
 The default spawner to be used by the gasnetrun_ofi utility can be
 selected by configuring '--with-ofi-spawner=VALUE', where VALUE is one

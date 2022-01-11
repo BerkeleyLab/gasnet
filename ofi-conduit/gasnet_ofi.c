@@ -27,7 +27,11 @@ GASNETI_IDENT(gasnetc_IdentString_Providers,
 struct fid_fabric*    gasnetc_ofi_fabricfd;
 struct fid_domain*    gasnetc_ofi_domainfd;
 struct fid_av*        gasnetc_ofi_avfd;
-struct fid_cq*        gasnetc_ofi_tx_cqfd; /* CQ for both AM and RDMA tx ops */
+struct fid_cq*        gasnetc_ofi_tx_cqfd;  // CQ, ideally for both AM and RDMA tx ops
+#if GASNETC_OFI_USE_MULTI_CQ
+struct fid_cq*        gasnetc_ofi_reqtx_cqfd = NULL; // CQ for AM Request tx ops, IFF cannot share
+struct fid_cq*        gasnetc_ofi_reptx_cqfd = NULL; // CQ for AM Request tx ops, IFF cannot share
+#endif
 struct fid_ep*        gasnetc_ofi_rdma_epfd;
 struct fid_ep*        gasnetc_ofi_request_epfd;
 struct fid_ep*        gasnetc_ofi_reply_epfd;
@@ -620,11 +624,11 @@ done:
   ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_reply_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for am reply endpoint failed");
 
-  /* Allocate a CQ that will be shared for both RDMA and AM tx ops */
+  // Allocate a CQ that will ideally be shared for both RDMA and AM tx ops
   memset(&cq_attr, 0, sizeof(cq_attr));
   cq_attr.format    = FI_CQ_FORMAT_DATA; /* Provides data associated with a completion */
   ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_tx_cqfd, NULL);
-  GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for rdma_eqfd failed");
+  GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for tx_cqfd failed");
 
   /* Allocate recv completion queues for AMs */
   memset(&cq_attr, 0, sizeof(cq_attr));
@@ -640,9 +644,23 @@ done:
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for tx_cq to rdma_epfd failed");
 
   ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_tx_cqfd->fid, FI_TRANSMIT);
+#if GASNETC_OFI_USE_MULTI_CQ
+  if (ret == -FI_EINVAL) { // Provider doesn't want to let us share CQ
+    ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_reqtx_cqfd, NULL);
+    GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for reqtx_cqfd failed");
+    ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_reqtx_cqfd->fid, FI_TRANSMIT);
+  }
+#endif
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for tx_cq to am request CQ failed");
 
   ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_tx_cqfd->fid, FI_TRANSMIT);
+#if GASNETC_OFI_USE_MULTI_CQ
+  if (ret == -FI_EINVAL) { // Provider doesn't want to let us share CQ
+    ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_reptx_cqfd, NULL);
+    GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for reptx_cqfd failed");
+    ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_reptx_cqfd->fid, FI_TRANSMIT);
+  }
+#endif
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for tx_cq to am reply CQ failed");
 
   ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_request_cqfd->fid, FI_RECV);
@@ -828,8 +846,16 @@ void gasnetc_ofi_exit(void)
   }
 
   if(fi_close(&gasnetc_ofi_tx_cqfd->fid)!=FI_SUCCESS) {
-    gasneti_fatalerror("close am scqfd failed\n");
+    gasneti_fatalerror("close am tx_cqfd failed\n");
   }
+#if GASNETC_OFI_USE_MULTI_CQ
+  if(gasnetc_ofi_reqtx_cqfd && fi_close(&gasnetc_ofi_reqtx_cqfd->fid)!=FI_SUCCESS) {
+    gasneti_fatalerror("close am reqtx_cqfd failed\n");
+  }
+  if(gasnetc_ofi_reptx_cqfd && fi_close(&gasnetc_ofi_reptx_cqfd->fid)!=FI_SUCCESS) {
+    gasneti_fatalerror("close am reptx_cqfd failed\n");
+  }
+#endif
 
   if(fi_close(&gasnetc_ofi_reply_cqfd->fid)!=FI_SUCCESS) {
     gasneti_fatalerror("close am reply cqfd failed\n");
@@ -1135,7 +1161,8 @@ void gasnetc_auxseg_register(gasnet_seginfo_t si)
  * ----------------------------------------------*/
 
 /* TX progress function: Handles both AM and RDMA outgoing operations */
-void gasnetc_ofi_tx_poll()
+GASNETI_INLINE(gasnetc_ofi_tx_poll_one)
+void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
 {
 	int ret = 0;
     int i;
@@ -1153,14 +1180,14 @@ void gasnetc_ofi_tx_poll()
      * processing the queue */
     if(EBUSY == GASNETC_OFI_TRYLOCK(&gasnetc_ofi_locks.tx_cq)) return;
 #endif
-    ret = fi_cq_read(gasnetc_ofi_tx_cqfd, (void *)&re, GASNETC_OFI_NUM_COMPLETIONS);
+    ret = fi_cq_read(cqfd, (void *)&re, GASNETC_OFI_NUM_COMPLETIONS);
     GASNETC_OFI_UNLOCK(&gasnetc_ofi_locks.tx_cq);
 	if (ret != -FI_EAGAIN)
 	{
 		if_pf (ret < 0) {
             if (-FI_EAVAIL == ret) {
                 GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.tx_cq,
-                   gasnetc_fi_cq_readerr(gasnetc_ofi_tx_cqfd, &e ,0));
+                   gasnetc_fi_cq_readerr(cqfd, &e ,0));
                 if_pf (gasnetc_is_exit_error(e)) return;
                 gasnetc_ofi_fatalerror("fi_cq_read for tx_poll failed with error", e.err);
             } 
@@ -1189,6 +1216,20 @@ void gasnetc_ofi_tx_poll()
             }
         }
     }
+}
+
+void gasnetc_ofi_tx_poll(void)
+{
+  gasnetc_ofi_tx_poll_one(gasnetc_ofi_tx_cqfd);
+#if GASNETC_OFI_USE_MULTI_CQ
+  // TODO: use poll sets for providers/platforms which support them
+  if (gasnetc_ofi_reqtx_cqfd) {
+    gasnetc_ofi_tx_poll_one(gasnetc_ofi_reqtx_cqfd);
+  }
+  if (gasnetc_ofi_reptx_cqfd) {
+    gasnetc_ofi_tx_poll_one(gasnetc_ofi_reptx_cqfd);
+  }
+#endif
 }
 
 GASNETI_INLINE(gasnetc_ofi_am_recv_poll)
