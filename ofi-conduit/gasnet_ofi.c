@@ -83,8 +83,10 @@ static short has_mr_scalable = SCALABLE_NOT_AUTO_DETECTED;
  * false at runtime */
 static uint64_t* gasnetc_ofi_target_keys;
 static uint64_t* gasnetc_ofi_target_aux_keys;
-#ifndef GASNETC_OFI_HAS_MR_SCALABLE
-#define GASNETC_OFI_HAS_MR_SCALABLE has_mr_scalable
+#ifdef GASNETC_OFI_HAS_MR_SCALABLE
+  #define GASNETC_OFI_HAS_MR_SCALABLE_STATIC 1
+#else
+  #define GASNETC_OFI_HAS_MR_SCALABLE has_mr_scalable
 #endif
 
 /* FI_MR_BASIC requires addressing by full virtual address */
@@ -192,7 +194,17 @@ static gasnetc_paratomic_t pending_am = gasnetc_paratomic_init(0);
 
 static int gasnetc_ofi_inited = 0;
 
-#define OFI_CONDUIT_VERSION FI_VERSION(1, 0)
+// OFI_CONDUIT_VERSION: API version to request in fi_getinfo()
+//
+// FI_MR_{SCALABLE,BASIC} are deprecated since 1.5.
+// Some newer providers don't support them.
+// So, use API version 1.5 if possible.
+// NOTE: we do NOT blindly chase the latest to avoid nasty surprises.
+#if FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION) >= FI_VERSION(1, 5)
+  #define OFI_CONDUIT_VERSION FI_VERSION(1, 5)
+#else
+  #define OFI_CONDUIT_VERSION FI_VERSION(1, 0)
+#endif
 
 #if GASNET_PSHM
     #define gasnetc_AMPSHMPoll(repliesOnly) gasneti_AMPSHMPoll(repliesOnly GASNETI_THREAD_PASS)
@@ -444,6 +456,10 @@ int gasnetc_ofi_init(void)
   /* av_type: type of address vectores that are usable with this domain */
   hints->domain_attr->av_type			= FI_AV_TABLE; /* type AV index */
 
+#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
+  // These are basically FI_MR_BASIC decomposed:
+  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_VIRT_ADDR | FI_MR_PROV_KEY;
+#else
   /* If the configure script detected a provider's mr_mode, then force
    * ofi to use that mode. */
   switch(GASNETC_OFI_HAS_MR_SCALABLE) {
@@ -456,6 +472,7 @@ int gasnetc_ofi_init(void)
       default:
           hints->domain_attr->mr_mode = FI_MR_SCALABLE;
   }
+#endif
 
   /* In libfabric v1.6, the psm2 provider transitioned to using separate
    * psm2 endpoints for each ofi endpoint, whereas in the past all communication
@@ -542,11 +559,18 @@ done:
 		  fprintf(stderr, msg, info->fabric_attr->prov_name);
   }
 
-  if(info->domain_attr->mr_mode == FI_MR_SCALABLE) {
-      has_mr_scalable = 1;
-  } else {
-      has_mr_scalable = 0;
-  }
+#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
+  // When using 1.5 mr_mode logic, we *currently* expect the three mode bits to be
+  // set or clear as a group, and conflate them as "BASIC" (set) vs "SCALABLE" (clear).
+  // TODO: multi-segment support will render FI_MR_PROV_KEY irrelevant
+  // TODO: FI_MR_ALLOCATED is only relevant to EVERYTHING support.
+  has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
+  gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
+  gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_PROV_KEY));
+#else
+  has_mr_scalable = (info->domain_attr->mr_mode == FI_MR_SCALABLE);
+#endif
+#if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
   if (GASNETC_OFI_HAS_MR_SCALABLE != has_mr_scalable) {
       gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_SCALABLE=%i does\n"
                          "  not match the memory registration support that the (%s) provider reported.\n"
@@ -557,6 +581,7 @@ done:
                          info->fabric_attr->prov_name,
                          (has_mr_scalable ? "enable" : "disable"));
   }
+#endif
 
   /* Open the fabric provider */
   ret = fi_fabric(info->fabric_attr, &gasnetc_ofi_fabricfd, NULL);
