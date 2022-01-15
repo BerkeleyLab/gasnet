@@ -54,6 +54,8 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   if (gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already initialized");
 
+  gasneti_init_done = 1; /* enable early to allow tracing */
+
   gasneti_freezeForDebugger();
 
   #if GASNET_DEBUG_VERBOSE
@@ -66,6 +68,9 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
   /* Must init timers after global env, and preferably before tracing */
   GASNETI_TICKS_INIT();
+
+  /* Now enable tracing of all the following steps */
+  gasneti_trace_init(argc, argv);
 
   /* bootstrap the nodes for ofi conduit */
   int ret = gasnetc_ofi_init();
@@ -218,7 +223,10 @@ extern int gasnetc_Client_Init(
   if (!gasneti_init_done) {
     int retval = gasnetc_init(argc, argv, flags);
     if (retval != GASNET_OK) GASNETI_RETURN(retval);
+  #if 0
+    /* called within gasnetc_init to allow init tracing */
     gasneti_trace_init(argc, argv);
+  #endif
   }
 
   // Do NOT move this prior to the gasneti_trace_init() call
