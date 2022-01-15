@@ -7,6 +7,7 @@
  */
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
+#include <gasnet_hwloc_internal.h>
 #include <gasnet_ofi.h>
 
 #include <rdma/fabric.h>
@@ -189,6 +190,9 @@ static uint64_t             	min_multi_recv;
 
 static int using_psm_provider = 0;
 
+static char *gasnetc_ofi_device = NULL;
+static const char *supported_providers = GASNETC_OFI_PROVIDER_LIST;
+
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 static gasnetc_ofi_recv_metadata_t* metadata_array;
@@ -324,6 +328,9 @@ static void gasnetc_ofi_read_env_vars() {
                 "--with-ofi-max-medium=<new size>.\n",
                 long_rma_threshold_env, (int)OFI_AM_MAX_DATA_LENGTH);
     }
+
+    gasnetc_ofi_device = gasneti_getenv_hwloc_withdefault("GASNET_OFI_DEVICE", "", "Socket");
+    if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
 }
 
 /* The intention of separating this logic from gasnetc_ofi_init() is
@@ -399,6 +406,35 @@ static void ofi_exchange_addresses() {
   gasneti_free(on_node_addresses);
 }
 
+static struct fi_info *gasnetc_ofi_getinfo(struct fi_info *hints)
+{
+  struct fi_info *info = NULL;
+
+  int ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
+  if (FI_SUCCESS != ret) {
+    return NULL;
+  }
+
+  // Find the first entry for the most-preferred provider offered, if any.
+  const char *q = supported_providers;
+  while (*q) {
+      while (*q == ' ') ++q;
+      const char *r = strchr(q, ' ');
+      int len = r ? r - q : strlen(q);
+      char prov_name[64];
+      strncpy(prov_name, q, len);
+      prov_name[len] = '\0';
+      for (struct fi_info *p = info; p; p = p->next) {
+          if (!strcmp(p->fabric_attr->prov_name, prov_name)) {
+              return p;
+          }
+      }
+      q += len;
+  }
+
+  return info; // caller will notice the wrong provider
+}
+
 /*------------------------------------------------
  * Initialize OFI conduit
  * ----------------------------------------------*/
@@ -439,6 +475,9 @@ int gasnetc_ofi_init(void)
   /* Alloc hints*/
   hints = fi_allocinfo();
   if (!hints) gasneti_fatalerror("fi_allocinfo for hints failed\n");
+
+  // constrain the device/domain if provided by the user
+  hints->domain_attr->name = gasnetc_ofi_device;
 
   /* caps: fabric interface capabilities */
   hints->caps			= FI_RMA | FI_MSG | FI_MULTI_RECV;
@@ -497,33 +536,22 @@ int gasnetc_ofi_init(void)
       }
   }
 
-  ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
-  if (FI_SUCCESS != ret) {
+  info = gasnetc_ofi_getinfo(hints);
+  if (!info) {
 	  GASNETI_RETURN_ERRR(RESOURCE,
 			  "No OFI providers found that could support the OFI conduit");
   }
 
-  // Find the first entry for the most-preferred provider offered, if any.
-  const char *supported_providers = GASNETC_OFI_PROVIDER_LIST;
-  const char *q = supported_providers;
-  while (*q) {
-      while (*q == ' ') ++q;
-      const char *r = strchr(q, ' ');
-      int len = r ? r - q : strlen(q);
-      char prov_name[64];
-      strncpy(prov_name, q, len);
-      prov_name[len] = '\0';
-      for (struct fi_info *p = info; p; p = p->next) {
-          if (!strcmp(p->fabric_attr->prov_name, prov_name)) {
-              info = p;
-              goto done;
-          }
-      }
-      q += len;
-  }
-done:
   // Balk if provider was explicitly chosen at configure time and is not available now
   if (!strchr(supported_providers,' ') && strcmp(supported_providers, info->fabric_attr->prov_name)) {
+      if (gasnetc_ofi_device) {
+        // Retry to rule out invalid device choice
+        hints->domain_attr->name = NULL;
+        info = gasnetc_ofi_getinfo(hints);
+        if (info && !strcmp(supported_providers, info->fabric_attr->prov_name)) {
+          gasneti_fatalerror("Specifed device '%s' is not available or not usable", gasnetc_ofi_device);
+        }
+      }
       char *envvar = gasneti_getenv("FI_PROVIDER");
       gasneti_fatalerror(
           "OFI provider '%s' selected at configure time is not available at run time%s%s%s.",
