@@ -616,8 +616,17 @@ int gasnetc_ofi_init(void)
           envvar ? "' in the environment" : "");
   }
 
-  if (!strcmp(info->fabric_attr->prov_name, "psm2")){
+  // Check if this provider is one we consider "high performance"
+  const char *high_perf_providers[] = { "psm2", "cxi" };
+  for (i = 0; i < sizeof(high_perf_providers)/sizeof(high_perf_providers[0]); ++i) {
+    if (!strcmp(info->fabric_attr->prov_name, high_perf_providers[i])) {
       high_perf_prov = 1;
+      break;
+    }
+  }
+
+  // psm2 provider needs some special handling
+  if (!strcmp(info->fabric_attr->prov_name, "psm2")){
       using_psm_provider = 1;
   } else if (set_psm2_lazy_conn) {
       /* If we set this variable and are not using psm2, unset it in the
