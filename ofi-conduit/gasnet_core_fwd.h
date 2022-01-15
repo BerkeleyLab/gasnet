@@ -152,6 +152,12 @@
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)  \
+    CNT(C, RECVMSG_REQ, cnt)                 \
+    CNT(C, RECVMSG_REP, cnt)                 \
+    CNT(C, RECVMSG_REQ_EAGAIN, cnt)          \
+    CNT(C, RECVMSG_REP_EAGAIN, cnt)          \
+    CNT(C, RECVMSG_REQ_REPOST, cnt)          \
+    CNT(C, RECVMSG_REP_REPOST, cnt)          \
     CNT(C, NB_PUT_INJECT, cnt)               \
     CNT(C, NB_PUT_BOUNCE, cnt)               \
     CNT(C, NB_PUT_BLOCK, cnt)                   

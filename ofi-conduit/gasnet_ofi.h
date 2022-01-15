@@ -127,6 +127,9 @@ typedef struct gasnetc_ofi_am_buf {
 typedef struct gasnetc_ofi_ctxt {
   struct fi_context 	ctxt;
   void * metadata;
+#if GASNETC_OFI_RETRY_RECVMSG
+  struct gasnetc_ofi_ctxt *next;
+#endif
   int 					index;
   char _pad0[GASNETI_CACHE_PAD(sizeof(int))];
   gasnetc_paratomic_t   consumed_cntr;
