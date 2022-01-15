@@ -624,10 +624,15 @@ int gasnetc_ofi_init(void)
   /* Open the fabric provider */
   ret = fi_fabric(info->fabric_attr, &gasnetc_ofi_fabricfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_fabric failed");
+  GASNETI_TRACE_PRINTF(I, ("Opened provider '%s' version %u.%u",
+                           info->fabric_attr->prov_name,
+                           (unsigned int)FI_MAJOR(info->fabric_attr->prov_version),
+                           (unsigned int)FI_MINOR(info->fabric_attr->prov_version)));
 
   /* Open a fabric access domain, also referred to as a resource domain */
   ret = fi_domain(gasnetc_ofi_fabricfd, info, &gasnetc_ofi_domainfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_domain failed");
+  GASNETI_TRACE_PRINTF(I, ("Opened domain '%s'", info->domain_attr->name));
 
   /* The intention here is to ensure that subsequent calls to fi_getinfo()
    * won't ever give us a different provider.
@@ -684,6 +689,7 @@ int gasnetc_ofi_init(void)
   ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_tx_cqfd->fid, FI_TRANSMIT);
 #if GASNETC_OFI_USE_MULTI_CQ
   if (ret == -FI_EINVAL) { // Provider doesn't want to let us share CQ
+    GASNETI_TRACE_PRINTF(I, ("Allocating distinct reqtx_cqfd"));
     ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_reqtx_cqfd, NULL);
     GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for reqtx_cqfd failed");
     ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_reqtx_cqfd->fid, FI_TRANSMIT);
@@ -694,6 +700,7 @@ int gasnetc_ofi_init(void)
   ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_tx_cqfd->fid, FI_TRANSMIT);
 #if GASNETC_OFI_USE_MULTI_CQ
   if (ret == -FI_EINVAL) { // Provider doesn't want to let us share CQ
+    GASNETI_TRACE_PRINTF(I, ("Allocating distinct reptx_cqfd"));
     ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_reptx_cqfd, NULL);
     GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for reptx_cqfd failed");
     ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_reptx_cqfd->fid, FI_TRANSMIT);
@@ -710,6 +717,7 @@ int gasnetc_ofi_init(void)
   /* Low-water mark for shared receive buffer */
   min_multi_recv = OFI_AM_MAX_DATA_LENGTH + offsetof(gasnetc_ofi_am_send_buf_t,buf.long_buf)
                     + offsetof(gasnetc_ofi_am_long_buf_t, data);
+  GASNETI_TRACE_PRINTF(I, ("Setting multi-recv low-water mark to %"PRIuSZ, min_multi_recv));
   optlen = min_multi_recv;
   ret	 = fi_setopt(&gasnetc_ofi_request_epfd->fid, FI_OPT_ENDPOINT, FI_OPT_MIN_MULTI_RECV,
 		  &optlen,
@@ -722,6 +730,7 @@ int gasnetc_ofi_init(void)
 
   /* Cutoff to use fi_inject */
   max_buffered_send = info->tx_attr->inject_size;
+  GASNETI_TRACE_PRINTF(I, ("Max bufered send size is %"PRIu64, max_buffered_send));
 
   ofi_setup_address_vector();
 
@@ -744,6 +753,11 @@ int gasnetc_ofi_init(void)
 
   receive_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, multirecv_buff_size*num_multirecv_buffs);
   metadata_array = gasneti_malloc(sizeof(gasnetc_ofi_recv_metadata_t)*num_multirecv_buffs);
+  { char valstr[16];
+    gasneti_format_number(multirecv_buff_size*num_multirecv_buffs, valstr, sizeof(valstr), 1);
+    GASNETI_TRACE_PRINTF(I, ("Allocated %s for %"PRIuSZ " multi-recv buffers",
+                              valstr, num_multirecv_buffs));
+  }
 
   for(i = 0; i < num_multirecv_buffs; i++) {
         gasnetc_ofi_recv_metadata_t* metadata = metadata_array + i;
@@ -773,6 +787,11 @@ int gasnetc_ofi_init(void)
   /* Allocate bounce buffers*/
   bounce_region_size = GASNETI_PAGE_ALIGNUP(ofi_num_bbufs * ofi_bbuf_size);
   bounce_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, bounce_region_size);
+  { char valstr[16];
+    gasneti_format_number(bounce_region_size, valstr, sizeof(valstr), 1);
+    GASNETI_TRACE_PRINTF(I, ("Allocated %s for %"PRIuSZ " bounce buffers",
+                              valstr, ofi_num_bbufs));
+  }
 
   gasneti_leak_aligned(bounce_region_start);
   /* Progress backwards so that when these buffers are added to the stack, they
@@ -795,6 +814,11 @@ int gasnetc_ofi_init(void)
   am_buffers_region_size = GASNETI_PAGE_ALIGNUP(num_init_am_send_buffs*sizeof(gasnetc_ofi_am_buf_t));
   am_buffers_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, am_buffers_region_size);
   gasneti_leak_aligned(am_buffers_region_start);
+  { char valstr[16];
+    gasneti_format_number(am_buffers_region_size, valstr, sizeof(valstr), 1);
+    GASNETI_TRACE_PRINTF(I, ("Allocated %s for %"PRIuSZ " (out of max %"PRIuSZ ") AM send buffers",
+                              valstr, num_init_am_send_buffs, max_am_send_buffs));
+  }
 
   /* Add the buffers to the stack in reverse order to be friendly to the cache. */
   gasnetc_ofi_am_buf_t * bufp = (gasnetc_ofi_am_buf_t*)am_buffers_region_start + (num_init_am_send_buffs - 1);
