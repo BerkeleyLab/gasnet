@@ -444,7 +444,7 @@ int gasnetc_ofi_init(void)
   int result = GASNET_ERR_NOT_INIT;
   struct fi_info		*hints, *info;
   struct fi_cq_attr   	cq_attr 	= {0};
-  size_t optlen;
+  size_t optval;
   int num_locks; 
   int i;
   
@@ -718,15 +718,15 @@ int gasnetc_ofi_init(void)
   min_multi_recv = OFI_AM_MAX_DATA_LENGTH + offsetof(gasnetc_ofi_am_send_buf_t,buf.long_buf)
                     + offsetof(gasnetc_ofi_am_long_buf_t, data);
   GASNETI_TRACE_PRINTF(I, ("Setting multi-recv low-water mark to %"PRIuSZ, min_multi_recv));
-  optlen = min_multi_recv;
+  optval = min_multi_recv;
   ret	 = fi_setopt(&gasnetc_ofi_request_epfd->fid, FI_OPT_ENDPOINT, FI_OPT_MIN_MULTI_RECV,
-		  &optlen,
-		  sizeof(optlen));
+		     &optval, sizeof(optval));
   GASNETC_OFI_CHECK_RET(ret, "fi_setopt for am request epfd failed");
+  gasneti_assert_uint(optval ,==, min_multi_recv); // documented as IN
   ret	 = fi_setopt(&gasnetc_ofi_reply_epfd->fid, FI_OPT_ENDPOINT, FI_OPT_MIN_MULTI_RECV,
-		  &optlen,
-		  sizeof(optlen));
+		     &optval, sizeof(optval));
   GASNETC_OFI_CHECK_RET(ret, "fi_setopt for am reply epfd failed");
+  gasneti_assert_uint(optval ,==, min_multi_recv); // documented as IN
 
   /* Cutoff to use fi_inject */
   max_buffered_send = info->tx_attr->inject_size;
