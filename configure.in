@@ -5051,8 +5051,6 @@ if test "$enable_mk_hip" != "no"; then
   if test "$have_mk_hip" != "no"; then
     GASNET_PACKAGE_HOME(HIP, [HIP developer tools], [hipcc], [/opt/rocm], [include/hip/hip_runtime.h])
     GASNET_PACKAGE_CFLAGS(HIP)
-    GASNET_ENV_DEFAULT(HIP_LIBS, -lamdhip64)
-    GASNET_PACKAGE_LDFLAGS(HIP, amdhip64)
 
     # UNDOCUMENTED option to enable use of HIP over CUDA *by GASNet maintainers*.
     # TODO:  Eventually we should REMOVE or DOCUMENT
@@ -5065,10 +5063,22 @@ if test "$enable_mk_hip" != "no"; then
       esac
     ])
     case "$hip_platform" in
-      amd)  AC_DEFINE(GASNETI_HIP_PLATFORM_AMD)
+      amd)
+            GASNET_ENV_DEFAULT(HIP_LIBS, -lamdhip64)
+            GASNET_PACKAGE_LDFLAGS(HIP, amdhip64)
+            AC_DEFINE(GASNETI_HIP_PLATFORM_AMD)
             ;;
       nvidia)
             CHECK_PKG_CUDA()
+
+            # HIP-over-CUDA sometimes depends on amdhip64 (version-dependent)
+            # but always depends on functions from CUDA runtime (library name can vary).
+            # libcudart is generally NOT in CUDA_LIBS, since the CUDA MK does not require it
+            GASNET_ENV_DEFAULT(HIP_LIBS, -lamdhip64 -lcudart)
+            # extra_flags below ensures default HIP_LDFLAGS includes the CUDA libdir (for libcudart)
+            # which notably may or may not be in CUDA_LDFLAGS (since CUDA only requires libcuda)
+            GASNET_PACKAGE_LDFLAGS(HIP, amdhip64, -L$CUDA_HOME/lib64)
+
             # Suppress warnings when compiling gasnet_hip.c and testhip.c
             # due to "issues" in hip_runtime.h when parsed by a C compiler in
             # __HIP_PLATFORM_NVCC__ mode.
@@ -5095,7 +5105,7 @@ if test "$enable_mk_hip" != "no"; then
                         [HIP_NVCC_WARNFLAGS="$HIP_NVCC_WARNFLAGS -Wno-return-type"])
                 ;;
             esac
-            HIP_LIBS="$HIP_LIBS -lcudart $CUDA_LIBS"
+            HIP_LIBS="$HIP_LIBS $CUDA_LIBS"
             HIP_LDFLAGS="$HIP_LDFLAGS $CUDA_LDFLAGS"
             HIP_CFLAGS="$HIP_CFLAGS $CUDA_CFLAGS $HIP_NVCC_WARNFLAGS"
             AC_DEFINE(GASNETI_HIP_PLATFORM_NVIDIA)
