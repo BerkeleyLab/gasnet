@@ -8,6 +8,8 @@
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
 
+#include <gasnet_ofi.h>
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Extended API Common Code
@@ -99,9 +101,15 @@ gex_Event_t gasnete_get_nb(
                     size_t nbytes,
                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-    return gasnete_amref_get_nb(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_PASS);
+  gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
+  op->ofi.type = OFI_TYPE_EGET;
+  gasnetc_rdma_get(dest, gasneti_e_tm_rank_to_jobrank(tm,rank), src, nbytes, &op->ofi GASNETI_THREAD_PASS);
+  return (gex_Event_t)op;
 }
 
+// TODO-EX: Improved LC support.
+//  + NOW will sometimes need to block for RC
+//  + Currently explict handle is mapped to NOW
 extern
 gex_Event_t gasnete_put_nb(
                     gex_TM_t tm,
@@ -110,7 +118,33 @@ gex_Event_t gasnete_put_nb(
                     size_t nbytes, gex_Event_t *lc_opt,
                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-   return gasnete_amref_put_nb(tm,rank,dest,src,nbytes,lc_opt,flags GASNETI_THREAD_PASS);
+  const gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm,rank);
+  gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
+  op->ofi.type = OFI_TYPE_EPUT;
+
+#if GASNET_DEBUG
+  if (lc_opt == GEX_EVENT_GROUP) {
+    gasneti_fatalerror("Invalid lc_opt argument to gex_RMA_PutNB");
+  }
+#endif
+
+  if (lc_opt == GEX_EVENT_DEFER) {
+    gasnetc_rdma_put(jobrank, dest, src, nbytes, &op->ofi GASNETI_THREAD_PASS);
+  } else {
+    gasneti_leaf_finish(lc_opt); // synchronous LC
+
+    // Try to submit for synchronous LC.
+    // If we can't, then we must block for RC.
+    gex_Event_t ev = gasnetc_rdma_put_non_bulk(jobrank, dest, src, nbytes, &op->ofi GASNETI_THREAD_PASS);
+    if (ev) {
+      GASNETE_EOP_MARKDONE(op);
+      gasnete_eop_free(op GASNETI_THREAD_PASS);
+      op = NULL; // aka GASNET_EVENT_INVALID
+      gasnete_wait(ev GASNETI_THREAD_PASS);
+    }
+  }
+
+  return (gex_Event_t)op;
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -133,9 +167,17 @@ int gasnete_get_nbi(
                     size_t nbytes,
                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-    return gasnete_amref_get_nbi(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_PASS);
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasnete_iop_t *op = mythread->current_iop;
+  op->initiated_get_cnt++;
+  op->get_ofi.type = OFI_TYPE_IGET;
+  gasnetc_rdma_get(dest, gasneti_e_tm_rank_to_jobrank(tm,rank), src, nbytes, &op->get_ofi GASNETI_THREAD_PASS);
+  return GASNET_OK;
 }
 
+// TODO-EX: Improved LC support.
+//  + NOW will sometimes need to block for RC
+//  + GROUP is mapped to NOW
 extern
 int gasnete_put_nbi(
                     gex_TM_t tm,
@@ -144,7 +186,31 @@ int gasnete_put_nbi(
                     size_t nbytes, gex_Event_t *lc_opt,
                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-    return gasnete_amref_put_nbi(tm,rank,dest,src,nbytes,lc_opt,flags GASNETI_THREAD_PASS);
+  const gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm,rank);
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasnete_iop_t *op = mythread->current_iop;
+  op->initiated_put_cnt++;
+  op->put_ofi.type = OFI_TYPE_IPUT;
+
+#if GASNET_DEBUG
+  if (gasneti_leaf_is_pointer(lc_opt)) {
+    gasneti_fatalerror("Invalid lc_opt argument to gex_RMA_PutNBI");
+  }
+#endif
+
+  if (lc_opt == GEX_EVENT_DEFER) {
+    gasnetc_rdma_put(jobrank, dest, src, nbytes, &op->put_ofi GASNETI_THREAD_PASS);
+  } else {
+    // Try to submit for synchronous LC.
+    // If we can't, then we must block for RC.
+    gex_Event_t ev = gasnetc_rdma_put_non_bulk(jobrank, dest, src, nbytes, &op->put_ofi GASNETI_THREAD_PASS);
+    if (ev) {
+      GASNETE_IOP_CNT_FINISH(op, put, 1, GASNETI_ATOMIC_NONE);
+      gasnete_wait(ev GASNETI_THREAD_PASS);
+    }
+  }
+
+  return GASNET_OK;
 }
 
 /* ------------------------------------------------------------------------------------ */
