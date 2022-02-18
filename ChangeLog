@@ -46,6 +46,7 @@ GASNet-EX ChangeLog
   - bug4355: Erroneous memory access when deleting a segment
   - bug4356: Missing bounds checks for Long payloads
   - bug4360: Insufficient fixed exit timeouts (ucx, ibv, ofi)
+  - bug4374: Update mr_mode handling to OFI 1.5 API spec (or newer?)
 
 ----------------------------------------------------------------------
 2021-09-30: GASNet-EX 2021.9.0 Release

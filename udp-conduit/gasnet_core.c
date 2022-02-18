@@ -620,16 +620,21 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
 #if GASNET_PSHM
   gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
-  AMLOCK();
+  static unsigned int cntr;
   // In single-nbrhd case never need to poll the network for client AMs.
-  // However, we'll still check for control traffic for orderly exit handling.
+  // However, we'll still check for control traffic for orderly exit handling, on every 256th call.
   if (gasneti_mysupernode.grp_count > 1) {
-    GASNETI_AM_SAFE_NORETURN(retval,AM_Poll(gasnetc_bundle));
+    AMLOCK();
+      GASNETI_AM_SAFE_NORETURN(retval,AM_Poll(gasnetc_bundle));
+    AMUNLOCK();
+  } else if (! (0xff & cntr++)) { // Thread race here is harmless (this is a heuristic)
+    // TODO-EX: a lock-free peek would allow elimination of this lock cycle
+    AMLOCK();
+      GASNETI_AM_SAFE_NORETURN(retval,AMUDP_SPMDHandleControlTraffic(NULL));
+    AMUNLOCK();
   } else {
-    // TODO-EX: a lock-free peek would allow elimination of a lock cycle
-    GASNETI_AM_SAFE_NORETURN(retval,AMUDP_SPMDHandleControlTraffic(NULL));
+    retval = GASNET_OK;
   }
-  AMUNLOCK();
   if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   else return GASNET_OK;
 }

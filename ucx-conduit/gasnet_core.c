@@ -598,6 +598,9 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
     gasnetc_ammed_bufsz = lub_medium + max_med_overhead;
   }
 
+  /* Ensure uniform UCX_* env vars */
+  gasneti_propagate_env("UCX_", GASNETI_PROPAGATE_ENV_PREFIX);
+
   /*
    * Initialize UCX
    */

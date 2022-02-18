@@ -51,7 +51,6 @@ static void gasneti_MK_Destroy_cuda_uva(
             gex_Flags_t                      flags)
 {
   my_MK_t mk = (my_MK_t) i_mk;
-  gasneti_check_cudacall(cuCtxSetCurrent(NULL));
   gasneti_check_cudacall(cuDevicePrimaryCtxRelease(mk->dev));
   gasneti_free_mk(i_mk);
 }
