@@ -973,6 +973,7 @@ typedef struct _gasneti_threaddata_t {
 
   gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */
   int thread_cleanup_delay;
+  int is_undead; // marks leaked threaddata for a thread which has exited
 
   //
   // Active Message fields

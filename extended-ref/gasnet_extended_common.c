@@ -130,7 +130,9 @@ static int gasnete_free_threaddata(gasneti_threaddata_t *thread) {
     /* fire-and-forget iop */                                                   \
     gasneti_aop_t *aop = thread->nbi_ff_aop;                                    \
     if (aop) {                                                                  \
-      /* first balance counters, otherwise can never become "done" */           \
+      /* One must first balance counters, otherwise can never become "done". */ \
+      /* However, this must be done only once or new imbalance results. */      \
+      gasneti_assert(! thread->is_undead);                                      \
       iop = (gasnete_iop_t *) gasneti_aop_to_event(aop);                        \
       if (GASNETE_IOP_ISDONE(iop)) {                                            \
         thread->nbi_ff_aop = NULL;                                              \
@@ -202,6 +204,7 @@ static int gasnete_free_threaddata(gasneti_threaddata_t *thread) {
   /* conduits needing additional cleanups should use gasnete_register_threadcleanup */
 
   /* Must leak the threaddata if any iops or eops are unaccounted for */
+  thread->is_undead = leak;
   if (leak) return 1;
 
   /* threaddata itself */
@@ -322,12 +325,12 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
     }
   }
 
+  gasneti_mutex_lock(&threadtable_lock);
   if (! GASNETE_FREE_THREADDATA(thread)) {
-    gasneti_mutex_lock(&threadtable_lock);
       gasnete_threadtable[idx] = NULL;
       gasnete_numthreads--;
-    gasneti_mutex_unlock(&threadtable_lock);
   }
+  gasneti_mutex_unlock(&threadtable_lock);
 }
 
 GASNETI_NEVER_INLINE(gasnete_new_threaddata,
