@@ -399,6 +399,61 @@ extern void * gasnete_new_threaddata(void)) {
   }
 #endif
 
+void gasneti_finalize_all_nbi_ff(gex_Event_t **events_p, size_t *count_p GASNETI_THREAD_FARG)
+{
+  const gasnete_threadidx_t mytid = GASNETI_MYTHREAD->threadidx;
+  gasneti_assert(events_p);
+  gasneti_assert(count_p);
+
+  gasneti_mutex_lock(&threadtable_lock);
+    gex_Event_t *events = gasneti_malloc(gasnete_numthreads * sizeof(gex_Event_t *));
+    int count = 0;
+    for (int th_idx = 0; th_idx <= gasnete_maxthreadidx; ++th_idx) {
+      gasneti_threaddata_t *thread = gasnete_threadtable[th_idx];
+      if (!thread) continue;
+
+      // Attempt to atomically "steal" the nbi_ff aop from the threaddata.
+      // This includes an acquire fence to reduce the likelihood of subsequently
+      // reading out-of-date info.  However, there is no certainty that concurrent
+      // activity in a live thread will behave well.
+#if GASNETT_HAVE_ATOMIC_CAS
+      uintptr_t aop_field = (uintptr_t) &(thread->nbi_ff_aop);
+  #if PLATFORM_ARCH_64
+      uintptr_t aop_addr = gasneti_atomic64_swap((gasneti_atomic64_t *)aop_field, 0, GASNETI_ATOMIC_ACQ);
+  #elif PLATFORM_ARCH_32
+      uintptr_t aop_addr = gasneti_atomic32_swap((gasneti_atomic32_t *)aop_field, 0, GASNETI_ATOMIC_ACQ);
+  #else
+      #error
+  #endif
+      gasneti_aop_t *aop = (gasneti_aop_t *)aop_addr;
+#else
+      gasneti_aop_t *aop = thread->nbi_ff_aop;
+      thread->nbi_ff_aop = NULL;
+      gasneti_sync_reads();
+#endif
+
+      if (aop) {
+        // Balance counters at most once.  Thread exit may have done so already.
+        gex_Event_t ev = thread->is_undead ? (gex_Event_t) aop
+                                           : gasneti_aop_to_event(aop);
+        events[count++] = ev;
+
+        // Reowner to calling thread to prevents sync from "behaving badly",
+        // such as by adding to the foreign_iops list in the orignal owner
+        // which may have exited.
+        gasnete_iop_t *iop = (gasnete_iop_t *) ev;
+        if (iop->threadidx != mytid) {
+          iop->threadidx = mytid;
+          GASNETI_MYTHREAD->iop_num ++;
+        }
+      }
+    }
+  gasneti_mutex_unlock(&threadtable_lock);
+
+  *events_p = events;
+  *count_p = count;
+}
+
 #endif /* GASNETE_THREADING_CUSTOM  */
 
 /* ------------------------------------------------------------------------------------ */
