@@ -34,6 +34,16 @@ GASNet-EX ChangeLog
     In the absence of these settings, default buffer size remains unchanged.
   - `GASNET_DISABLE_MUNMAP=1` is now the default for ucx-conduit.
 
+* Libfabric [EXPERIMENTAL] (details in ofi-conduit README)
+  - Initial support for the "cxi" provider for the HPE Slingshot-11 network.
+    + Added support for providers which set the `FI_MR_ENDPOINT` memory mode bit
+    + Added support for providers which do not support multiple endpoints
+      reporting TX completions to a single completion queue
+  - A new family of `GASNET_OFI_DEVICE*` environment variables provide
+    control over which device is used by a given process.  When configure can
+    find (optional) hwloc, this can be based on a process's location in the node
+    architecture (e.g. by socket or numa node).
+
 * GASNet-EX Spec v0.15: (details in docs/GASNet-EX.txt)
   - Clarify that src/dst overlap within one operation yields undefined behavior
 
@@ -47,7 +57,9 @@ GASNet-EX ChangeLog
   - bug4355: Erroneous memory access when deleting a segment
   - bug4356: Missing bounds checks for Long payloads
   - bug4360: Insufficient fixed exit timeouts (ucx, ibv, ofi)
+  - bug4373: ofi: FI_MR_ENDPOINT support
   - bug4374: Update mr_mode handling to OFI 1.5 API spec (or newer?)
+  - bug4375: ofi: support multiple tx CQs
 
 ----------------------------------------------------------------------
 2021-09-30: GASNet-EX 2021.9.0 Release
