@@ -43,6 +43,8 @@ GASNet-EX ChangeLog
     control over which device is used by a given process.  When configure can
     find (optional) hwloc, this can be based on a process's location in the node
     architecture (e.g. by socket or numa node).
+  - The implementation now includes a native implementation of the
+    Extended API (Put and Get) in terms of `fi_write()` and `fi_read()`.
 
 * GASNet-EX Spec v0.15: (details in docs/GASNet-EX.txt)
   - Clarify that src/dst overlap within one operation yields undefined behavior
