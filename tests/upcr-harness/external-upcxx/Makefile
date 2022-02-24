@@ -321,8 +321,8 @@ VPATH = \
 	$(UPCXX_BLDDIR)/extras/examples/vector_accumulate \
 	$(UPCXX_BLDDIR)/extras/examples/kokkos_montecarlo \
 	$(UPCXX_BLDDIR)/extras/examples/kokkos_3dhalo \
-	$(UPCXX_BLDDIR)/extras/tutorials/2020-11/examples \
-	$(UPCXX_BLDDIR)/extras/tutorials/2020-11/solutions
+	$(UPCXX_BLDDIR)/extras/tutorials/2021-11/examples \
+	$(UPCXX_BLDDIR)/extras/tutorials/2021-11/solutions
 
 # Pattern rule builds tests, using logic dependent on their location
 %-seq %-par :: %.cpp force
