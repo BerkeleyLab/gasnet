@@ -297,7 +297,7 @@ make_test: upcxx-install
 	           TESTS=^test-$(TEST_EXE) EXTRAFLAGS="$(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)"
 	@mv $(UPCXX_BLDDIR)/test-$(TEST_EXE)-$(GASNET_CODEMODE)-$(UPCXX_CONDUIT) $(TEST_EXE)
 
-IGNORE_TESTS_PAT=neg-.+|getenv|promise_multiple_results|promise_reused|quiescence_failure|issue105
+IGNORE_TESTS_PAT=neg-.+|getenv|promise_multiple_results|promise_reused|quiescence_failure|issue105|hello_via_shell
 check-testsuite:
 	$(MAKE) -C $(UPCXX_BLDDIR) $(UPCXX_MAKE_J) dev-tests-$(GASNET_CODEMODE) UPCXX_DRY_RUN=1 NETWORKS=$(UPCXX_CONDUIT) > check-testsuite.log
 	@$(PERL) -ne 'BEGIN { open F, "harness.conf" or die $$!; while (<F>) { $$tests{$$1}=1 if (m/^TestName:\s*(\S+)/); }; }' \
