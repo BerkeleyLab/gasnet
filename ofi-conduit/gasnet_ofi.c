@@ -583,6 +583,14 @@ int gasnetc_ofi_init(void)
       set_psm2_lazy_conn = gasnetc_setenv_string("FI_PSM2_LAZY_CONN", "1", 1);
   }
 
+  // CXI provider:
+  // To handle bursty AM traffic, enable hybrid receive mode with reasonable default parameters.
+  // If FI_CXI_RX_MATCH_MODE is already set, we make NO changes (or risk an inconsistent mess).
+  if (gasnetc_setenv_string("FI_CXI_RX_MATCH_MODE", "hybrid", 0)) {
+    gasnetc_setenv_string("FI_CXI_RDZV_THRESHOLD", "256", 1);
+    gasnetc_setenv_string("FI_CXI_RDZV_GET_MIN", "256", 1);
+  }
+
   info = gasnetc_ofi_getinfo(hints);
   if (!info) {
 	  GASNETI_RETURN_ERRR(RESOURCE,
