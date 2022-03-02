@@ -452,6 +452,31 @@ static struct fi_info *gasnetc_ofi_getinfo(struct fi_info *hints)
   return info; // caller will notice the wrong provider
 }
 
+// Utility function to set an environment variable with proper tracing/logging
+// Returns zero if the variable was already set, non-zero otherwise.
+int gasnetc_setenv_string(const char *key, const char *val, int replace)
+{
+    char *prev;
+    if (!replace && NULL != (prev = gasneti_getenv(key))) {
+        gasneti_envstr_display(key, prev, 0);
+        GASNETI_TRACE_PRINTF(I, ("Not overwriting %s in environment", key));
+        return 0;
+    } else {
+        GASNETI_TRACE_PRINTF(I, ("Setting %s='%s' in environment", key, val));
+        gasneti_envstr_display(key, val, 1);
+        gasneti_setenv(key, val);
+        return 1;
+  }
+}
+
+// Wrapper for case of gasnetc_setenv_string for an unsigned int key
+int gasnetc_setenv_uint(const char *key, unsigned int val, int replace)
+{
+      char valstr[16];
+      snprintf(valstr, sizeof(valstr), "%u", val);
+      return gasnetc_setenv_string(key, valstr, replace);
+}
+
 /*------------------------------------------------
  * Initialize OFI conduit
  * ----------------------------------------------*/
@@ -538,19 +563,24 @@ int gasnetc_ofi_init(void)
   }
 #endif
 
-  /* In libfabric v1.6, the psm2 provider transitioned to using separate
-   * psm2 endpoints for each ofi endpoint, whereas in the past all communication
-   * was multiplexed over a single psm2 endpoint. Setting this variable ensures
-   * that unnecessary connections between remote endpoints which never communicate
-   * are not made, which can cause slow tear-down. This variable is set before
-   * calling fi_getinfo() as the provider may read its environment variables in
-   * that function call. */
+  // Setup various environment variables quite early, before the provider may
+  // have been determined.  This is necessary because fi_getinfo() may read them.
+  // NOTE: spawn via an ofi-based MPI may have read these even earlier!
+
+#if 0 // Disabled pending bug 4413
+  // Provider-independent:
+  gasnetc_setenv_uint("FI_UNIVERSE_SIZE", gasneti_nodes, 1);
+#endif
+
+  // PSM2 provider:
+  // In libfabric v1.6, the psm2 provider transitioned to using separate
+  // psm2 endpoints for each ofi endpoint, whereas in the past all communication
+  // was multiplexed over a single psm2 endpoint. Setting this variable ensures
+  // that unnecessary connections between remote endpoints which never communicate
+  // are not made, which can cause slow tear-down.
   int set_psm2_lazy_conn = 0;
-  if ((FI_MAJOR_VERSION == 1 && FI_MINOR_VERSION >= 6) || FI_MAJOR_VERSION > 1) {
-      if (!getenv("FI_PSM2_LAZY_CONN")) {
-          set_psm2_lazy_conn = 1;
-          setenv("FI_PSM2_LAZY_CONN", "1", 1);
-      }
+  if (FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION) >= FI_VERSION(1, 6)) {
+      set_psm2_lazy_conn = gasnetc_setenv_string("FI_PSM2_LAZY_CONN", "1", 1);
   }
 
   info = gasnetc_ofi_getinfo(hints);
