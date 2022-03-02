@@ -918,7 +918,12 @@ void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *dst);
 //
 // "Rotated" because it does NOT generate the data in normal rank order.
 // See comments in extended-ref/coll/gasnet_team.c for details.
-size_t gasneti_blockingRotatedExchangeV(gex_TM_t tm, const void *src, size_t len, void **dst_p, size_t **len_p);
+#if PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_GE(11,0,0)
+#define GASNETI_BUG4227_CONST /*const*/
+#else 
+#define GASNETI_BUG4227_CONST const
+#endif
+size_t gasneti_blockingRotatedExchangeV(gex_TM_t tm, GASNETI_BUG4227_CONST void *src, size_t len, void **dst_p, size_t **len_p);
 
 // An AM-based host-scoped barrier
 extern void gasneti_host_barrier(void);
