@@ -39,6 +39,7 @@ GASNet-EX ChangeLog
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4211: intermittent udp-conduit exit-time hangs on macos
+  - bug4227: Bogus maybe-uninit warning building libgasnet with GCC-11.1+ 
   - bug4297: incorrect nbrhd construction for some multi-homed hosts
   - bug4321: Intermittent "EBADENDPOINT" failures in single-node udp-conduit
   - bug4339: ucx: many-to-one deadlock
