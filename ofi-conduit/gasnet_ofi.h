@@ -208,4 +208,9 @@ gex_Event_t gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* sr
 
 extern int gasnetc_exit_in_progress;
 
+// Maxium number of events (AMs and multi-recv recycles) per poll
+#ifndef GASNETC_OFI_EVENTS_PER_POLL
+#define GASNETC_OFI_EVENTS_PER_POLL 16
+#endif
+
 #endif /*GASNET_OFI_H*/
