@@ -73,7 +73,6 @@ Memory Registration Mode:
     * API 1.4 or earlier: FI_MR_SCALABLE (preferred) or FI_MR_BASIC
     * API 1.5 or newer: all or none (preferred) of FI_MR_{ALLOCATED,VIRT_ADDR,PROV_KEY}
     * There is currently no support for providers that require FI_LOCAL_MR / FI_MR_LOCAL
-    * There is currently no support for providers that require FI_MR_ENDPOINT
 Threading mode: FI_THREAD_SAFE and/or FI_THREAD_DOMAIN
     * In GASNET_{SEQ,PARSYNC} mode, all providers use FI_THREAD_DOMAIN as only one thread makes
       calls into the GASNet library.
@@ -125,6 +124,12 @@ used as tuning options.
     * --disable-ofi-mr-scalable: Indicates that FI_MR_BASIC memory registration support
       will be statically compiled into the conduit. This is the default option for the
       gni provider, which at this time does not support FI_MR_SCALABLE.
+    * --enable-ofi-multi-cq: Indicates that the provider requires the use of distinct completion
+      queues for the transmit completions of each endpoint.  This is the default option for the
+      cxi provider.
+    * --disable-ofi-multi-cq: Indicates that the provider supports the use of a single completion
+      queues for the transmit completions of multiple endpoints.  This is the default option for
+      all but the cxi provider.
 
 The default spawner to be used by the gasnetrun_ofi utility can be
 selected by configuring '--with-ofi-spawner=VALUE', where VALUE is one
@@ -200,6 +205,53 @@ Recognized environment variables:
 
 * GASNET_OFI_NUM_BBUFS, GASNET_OFI_BBUF_SIZE, GASNET_OFI_BBUF_THRESHOLD - See the
   "Non-bulk, Non-blocking Put Functions" section for detail on these environment variables.
+
+* GASNET_OFI_DEVICE
+  By default, ofi-conduit will open and use the first device enumerated by
+  libfabric as matching the specified provider and required capabilities.
+  This setting can be used to specify a device to be used in place of this
+  default.
+  See also 'GASNET_OFI_DEVICE_*', immediately below.
+
+* GASNET_OFI_DEVICE_*
+  The environment variable 'GASNET_OFI_DEVICE', described immediately above,
+  provides only a single setting and unless one uses some external means to
+  give per-process settings this cannot provide per-process control.  This
+  can make it difficult to get the best performance from multi-rail systems
+  with multiple processes per node and architectural locality properties that
+  affect PCI/adapter access efficiency.
+  However, if 'hwloc' is detected at configure time, then it is possible to
+  give ofi-conduit values for 'GASNET_OFI_DEVICE' which will vary per-process
+  based on cpu-binding and machine topology information as follows.
+   1. The variable 'GASNET_OFI_DEVICE_TYPE' names an object type using hwloc's
+      terminology, with the default being "Socket" (aka "Package").
+      If the value is "None" (case-insensitive) then the logic below is
+      disabled and the value of 'GASNET_OFI_DEVICE' is used by all processes.
+   2. GASNet queries the set of objects of the given type which intersect the
+      process's cpuset, to construct a variable name 'GASNET_OFI_DEVICE_[suff]'
+      where '[suff]' is an underscore-delimited ordered list of logical
+      object ids.  For example, with the default object type, a process bound
+      only to cores in the first socket would have a variable name of
+      'GASNET_OFI_DEVICE_0'.  Meanwhile, if the cpuset spans sockets 0 and 1
+      (such as for an unbound process on a 2-socket system) then the variable
+      'GASNET_OFI_DEVICE_0_1' is used.
+   3. If the environment variable determined in step 2 is set, then it is
+      used.  Otherwise the un-suffixed 'GASNET_OFI_DEVICE' is used.
+  As a concrete example, on OLCF's Crusher there are four NICs -- one per NUMA
+  Node.  Examining the corresponding Quick Start Guide one can construct the
+  following settings to ensure processes bound to cores in a single NUMA Node
+  will use the topologically nearest NIC:
+      GASNET_OFI_DEVICE_TYPE=Node
+      GASNET_OFI_DEVICE_0=cxi2
+      GASNET_OFI_DEVICE_1=cxi1
+      GASNET_OFI_DEVICE_2=cxi3
+      GASNET_OFI_DEVICE_3=cxi0
+  These specific recommendations are appropriate to the specific composition
+  of a node of OLCF's Crusher, and should not be considered as generic advice
+  for use of all multi-NIC systems.
+  Of course, even on the same system, your mileage may vary.
+  By default 'GASNET_OFI_DEVICE_TYPE' is "Socket" and all other variables in
+  this family are unset.
 
 * FI_PROVIDER - set to a provider name to override the default OFI provider selection
 
