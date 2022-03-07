@@ -125,18 +125,19 @@ typedef struct gasnetc_ofi_am_buf {
 
 
 typedef struct gasnetc_ofi_ctxt {
-  struct fi_context 	ctxt;
+  uint64_t event_cntr;
+  struct fi_context ctxt; // An opaque array of multiple void*
   void * metadata;
 #if GASNETC_OFI_RETRY_RECVMSG
   struct gasnetc_ofi_ctxt *next;
+  char _pad0[GASNETI_CACHE_PAD(sizeof(uint64_t) + sizeof(struct fi_context) + 2*sizeof(void*))];
+#else
+  char _pad0[GASNETI_CACHE_PAD(sizeof(uint64_t) + sizeof(struct fi_context) +   sizeof(void*))];
 #endif
-  int 					index;
-  char _pad0[GASNETI_CACHE_PAD(sizeof(int))];
-  gasnetc_paratomic_t   consumed_cntr;
-  char _pad1[GASNETI_CACHE_PAD(sizeof(gasnetc_paratomic_t))];
+
+  // accessed as a pair except when recycling the multi-recv buffer
   uint64_t final_cntr;
-  char _pad2[GASNETI_CACHE_PAD(sizeof(uint64_t))];
-  uint64_t event_cntr;
+  gasnetc_paratomic_t   consumed_cntr;
 } gasnetc_ofi_ctxt_t;
 
 

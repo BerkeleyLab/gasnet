@@ -767,9 +767,8 @@ int gasnetc_ofi_init(void)
         metadata->am_buff_msg.iov_count = 1;
         metadata->am_buff_msg.addr = FI_ADDR_UNSPEC;
         metadata->am_buff_msg.desc = NULL;
-        metadata->am_buff_msg.context = &metadata->am_buff_ctxt.ctxt;
+        metadata->am_buff_msg.context = &metadata->am_buff_ctxt; // op_context in fi_cq_data_entry
         metadata->am_buff_msg.data = 0;
-        metadata->am_buff_ctxt.index = i;
         metadata->am_buff_ctxt.final_cntr = 0;
         metadata->am_buff_ctxt.event_cntr = 0;
         gasnetc_paratomic_set(&metadata->am_buff_ctxt.consumed_cntr, 0, 0);
