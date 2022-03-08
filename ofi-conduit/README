@@ -130,6 +130,10 @@ used as tuning options.
     * --disable-ofi-multi-cq: Indicates that the provider supports the use of a single completion
       queues for the transmit completions of multiple endpoints.  This is the default option for
       all but the cxi provider.
+    * --enable-ofi-retry-recvmsg: Enables logic in ofi-conduit to handle the provider returning
+      `-FI_EAGAIN` condition from `fi_recvmsg()`.  This is the default option for the cxi provider.
+    * --disable-ofi-retry-recvmsg: Disable logic to handle `-FI_EAGAIN` returns from `fi_recvmsg()`.
+      This is the default option for all but the cxi provider.
 
 The default spawner to be used by the gasnetrun_ofi utility can be
 selected by configuring '--with-ofi-spawner=VALUE', where VALUE is one

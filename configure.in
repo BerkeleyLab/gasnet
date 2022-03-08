@@ -4153,6 +4153,7 @@ if test "$enabled_ofi" = yes; then
     detected_ofi_provider=""
     ofi_use_thread_domain=0
     ofi_use_multi_cq=0
+    ofi_retry_recvmsg=0
     # List of supported providers in order of preference.
     supported_providers="cxi psm2 gni sockets tcp;ofi_rxm verbs;ofi_rxm"
     
@@ -4181,6 +4182,7 @@ if test "$enabled_ofi" = yes; then
         cxi)
             ofi_define_mr_scalable=1
             ofi_use_multi_cq=1
+            ofi_retry_recvmsg=1
         ;;
         gni)
             ofi_define_mr_scalable=0
@@ -4197,6 +4199,7 @@ if test "$enabled_ofi" = yes; then
         default|"")
             ofi_known_provider="no"
             ofi_use_multi_cq=1
+            ofi_retry_recvmsg=1
         ;;
         *)
         GASNET_MSG_WARN([
@@ -4217,6 +4220,9 @@ Defaulting to runtime provider feature detection for ofi-conduit.])
     GASNET_IF_ENABLED_WITH_AUTO(ofi-multi-cq, [Indicates if the conduit should use multiple CQs (advanced users only)],
                  [ofi_use_multi_cq="1"], [ofi_use_multi_cq="0"], [])
 
+    GASNET_IF_ENABLED_WITH_AUTO(ofi-retry-recvmsg, [Indicates if the conduit should allow for retry of fi_recvmsg calls (advanced users only)],
+                 [ofi_retry_recvmsg="1"], [ofi_retry_recvmsg="0"], [])
+
     GASNET_IF_ENABLED_WITH_AUTO(ofi-mr-scalable, [Indicates if the conduit should statically compile FI_MR_SCALABLE support into ofi-conduit (advanced users only)],
                  [ofi_define_mr_scalable="1"], [ofi_define_mr_scalable="0"], [])
     # Inform the user that settings were autodetected
@@ -4233,6 +4239,7 @@ configured for that provider. If that is not your desired provider, override thi
 
     AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_THREAD_DOMAIN, [$ofi_use_thread_domain])
     AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_MULTI_CQ, [$ofi_use_multi_cq])
+    AC_DEFINE_UNQUOTED(GASNETC_OFI_RETRY_RECVMSG, [$ofi_retry_recvmsg])
     GASNET_WITH(ofi-num-completions,
                 [Max number of completions for ofi-conduit to read from a CQ at one time (default 64)],
                 [if expr "$withval" : '[[0-9]]*$' >/dev/null 2>&1 && \
