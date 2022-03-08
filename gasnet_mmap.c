@@ -2188,6 +2188,7 @@ int gasneti_segmentDestroy(
   }
 #else
   gasneti_assert_ptr(i_segment->_kind ,==, GEX_MK_HOST);
+  // TODO: free GASNet-allocated segment memory
 #endif
 
   gasneti_segtbl_del(i_segment);

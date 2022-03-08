@@ -656,6 +656,28 @@ extern int gex_Segment_Create(
   GASNETI_RETURN(rc);
 }
 
+extern void gex_Segment_Destroy(
+                gex_Segment_t           e_segment,
+                gex_Flags_t             flags)
+{
+  GASNETI_TRACE_PRINTF(O,("gex_Segment_Destroy: segment=%p flags=%d",
+                          (void*)e_segment, flags));
+  GASNETI_CHECK_INJECT();
+
+  if (!e_segment) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Destroy() with NULL segment");
+  }
+  if (flags) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Destroy() with non-zero flags");
+  }
+  // TODO: check reference count, once implemented
+
+#if 0 // TODO: disabled pending complete implementation
+  gasneti_Segment_t i_segment = gasneti_import_segment(e_segment);
+  gasneti_assert_zeroret( gasneti_segmentDestroy(i_segment, 1) );
+#endif
+}
+
 /* ------------------------------------------------------------------------------------ */
 // Endpoint management
 

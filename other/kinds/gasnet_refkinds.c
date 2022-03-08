@@ -175,8 +175,13 @@ void gex_MK_Destroy(
 
   uint32_t ref_count = gasneti_weakatomic32_read(&i_mk->_ref_count, 0);
   if (ref_count) {
+  #if 1
+    // Pending complete gex_Segment_Destroy(), fake the ref count.
+    gasneti_weakatomic32_set(&i_mk->_ref_count, 0, 0);
+  #else
     gasneti_fatalerror("Invalid call to gex_MK_Destroy with ref_count=%u",
                        (unsigned int)ref_count);
+  #endif
   }
 
 #if GASNETC_MK_DESTROY_HOOK

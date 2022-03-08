@@ -693,6 +693,10 @@ extern int gex_Segment_Create(
             gex_MK_t       _kind,
             gex_Flags_t    _flags);
 
+extern void gex_Segment_Destroy(
+            gex_Segment_t  _segment,
+            gex_Flags_t    _flags);
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 
