@@ -2922,6 +2922,17 @@ static int gasnetc_segment_register(gasnetc_Segment_t segment, int is_attach)
   return GASNET_OK;
 }
 
+static int gasnetc_segment_deregister(gasnetc_Segment_t segment)
+{
+#if GASNETC_PIN_SEGMENT
+  int h;
+  GASNETC_FOR_ALL_HCA_INDEX(h) {
+    gasnetc_unpin(gasnetc_hca+h, segment->seg_reg+h);
+  }
+#endif
+  return GASNET_OK;
+}
+
 #if GASNETC_PIN_SEGMENT
 static void gasnetc_install_np_rkeys(
             gex_Rank_t jobrank,
@@ -3039,6 +3050,13 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
   return gasnetc_segment_register(segment, 0);
 #else
   return GASNET_OK;
+#endif
+}
+
+void gasnetc_segment_destroy_hook(gasneti_Segment_t i_segment)
+{
+#if GASNETC_PIN_SEGMENT
+  gasneti_assert_zeroret( gasnetc_segment_deregister((gasnetc_Segment_t) i_segment) );
 #endif
 }
 
@@ -3200,15 +3218,16 @@ gasnetc_shutdown(void) {
     gasneti_fatalerror("gasnetc_sndrcv_shutdown() failed");
   }
 
-  GASNETC_FOR_ALL_HCA(hca) {
   #if GASNETC_PIN_SEGMENT
     GASNETI_SEGTBL_LOCK();
       gasneti_Segment_t seg;
       GASNETI_SEGTBL_FOR_EACH(seg) {
-        gasnetc_unpin(hca, &((gasnetc_Segment_t)seg)->seg_reg[hca->hca_index]);
+        gasnetc_segment_deregister((gasnetc_Segment_t)seg);
       }
     GASNETI_SEGTBL_UNLOCK();
   #endif
+
+  GASNETC_FOR_ALL_HCA(hca) {
   #if GASNETC_IBV_ODP
     if (gasnetc_use_odp) {
       gasnetc_odp_dereg(hca);
