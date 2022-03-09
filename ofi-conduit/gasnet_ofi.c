@@ -886,10 +886,7 @@ void gasnetc_ofi_exit(void)
   GASNETI_SEGTBL_LOCK();
     gasneti_Segment_t seg;
     GASNETI_SEGTBL_FOR_EACH(seg) {
-      struct fid_mr* mrfd = ((gasnetc_Segment_t)seg)->mrfd;
-      if(mrfd && (fi_close(&mrfd->fid)!=FI_SUCCESS)) {
-        gasneti_fatalerror("close mrfd failed\n");
-      }
+      gasnetc_segment_deregister((gasnetc_Segment_t) seg);
     }
   GASNETI_SEGTBL_UNLOCK();
 #else
@@ -1165,6 +1162,18 @@ int gasnetc_segment_register(gasnetc_Segment_t segment)
     }
 #endif
 
+    return GASNET_OK;
+}
+
+int gasnetc_segment_deregister(gasnetc_Segment_t segment)
+{
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    gasneti_assert(segment);
+    if (segment->mrfd) {
+      int ret = fi_close(&segment->mrfd->fid);
+      GASNETC_OFI_CHECK_RET(ret, "fi_close(segment) failed");
+    }
+#endif
     return GASNET_OK;
 }
 
