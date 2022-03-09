@@ -346,6 +346,7 @@ extern gasneti_Segment_t gasneti_alloc_segment(
                        void *addr,
                        uintptr_t len,
                        gex_MK_t kind,
+                       int client_allocated,
                        gex_Flags_t flags);
 void gasneti_free_segment(gasneti_Segment_t segment);
 
@@ -470,6 +471,10 @@ int gasneti_segment_map(gasnet_seginfo_t *segment_p,
                         uintptr_t segsize,
                         int pshm_compat,
                         gex_Flags_t flags);
+// Undo gasneti_segment_map()
+int gasneti_segment_unmap(
+                        gasnet_seginfo_t *segment_p,
+                        int pshm_compat);
 
 #ifndef GASNETI_USE_HIGHSEGMENT
 #define GASNETI_USE_HIGHSEGMENT 1  /* use the high end of mmap segments */
