@@ -46,6 +46,7 @@ GASNet-EX ChangeLog
 
 * GASNet-EX Spec v0.15: (details in docs/GASNet-EX.txt)
   - Clarify that src/dst overlap within one operation yields undefined behavior
+  - Initial implementation of gex_Segment_Destroy()
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4211: intermittent udp-conduit exit-time hangs on macos
