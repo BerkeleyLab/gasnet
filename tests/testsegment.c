@@ -175,7 +175,7 @@ int main(int argc, char **argv)
       ERR("FAILED EARLY SEGMENT PUBLISH TEST");
     }
 
-    // Pick a segment to test and (TODO:) destroy the other
+    // Pick a segment to test and destroy the other
     gex_Segment_t seg;
     void *    seg_addr;
     uintptr_t seg_size;
@@ -183,12 +183,12 @@ int main(int argc, char **argv)
       seg      = c_segment;
       seg_addr = c_segment_addr;
       seg_size = c_segment_size;
-      // GASNET_Safe(gex_Segment_Destroy(g_segment, 0));
+      gex_Segment_Destroy(g_segment, 0);
     } else {
       seg      = g_segment;
       seg_addr = gex_Segment_QueryAddr(g_segment);
       seg_size = gex_Segment_QuerySize(g_segment);
-      // GASNET_Safe(gex_Segment_Destroy(c_segment, 0));
+      gex_Segment_Destroy(c_segment, 0);
     }
 
     // Bind the chosen segments and validate
