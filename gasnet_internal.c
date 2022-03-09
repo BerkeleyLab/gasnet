@@ -674,10 +674,8 @@ extern void gex_Segment_Destroy(
   }
   // TODO: check reference count, once implemented
 
-#if 0 // TODO: disabled pending complete implementation
   gasneti_Segment_t i_segment = gasneti_import_segment(e_segment);
   gasneti_assert_zeroret( gasneti_segmentDestroy(i_segment, 1) );
-#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
