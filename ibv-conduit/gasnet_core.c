@@ -2887,6 +2887,8 @@ extern int gasnetc_attach_primary(void) {
 static int gasnetc_segment_register(gasnetc_Segment_t segment, int is_attach)
 {
 #if GASNETC_PIN_SEGMENT
+    GASNETI_TRACE_PRINTF(C,("Registering segment [%p, %p)", segment->_addr, segment->_ub));
+
     gasnetc_hca_t *hca;
     GASNETC_FOR_ALL_HCA(hca) {
       // Register page-aligned bounding-box (since client-provided need not be aligned).
@@ -2925,6 +2927,8 @@ static int gasnetc_segment_register(gasnetc_Segment_t segment, int is_attach)
 static int gasnetc_segment_deregister(gasnetc_Segment_t segment)
 {
 #if GASNETC_PIN_SEGMENT
+  GASNETI_TRACE_PRINTF(C,("Deregistering segment [%p, %p)", segment->_addr, segment->_ub));
+
   int h;
   GASNETC_FOR_ALL_HCA_INDEX(h) {
     gasnetc_unpin(gasnetc_hca+h, segment->seg_reg+h);

@@ -1119,6 +1119,8 @@ void gasnetc_ofi_handle_bounce_rdma(void *buf)
 // Local registration of segment memory
 int gasnetc_segment_register(gasnetc_Segment_t segment)
 {
+    GASNETI_TRACE_PRINTF(C,("Registering segment [%p, %p)", segment->_addr, segment->_ub));
+
     void *segbase;
     uintptr_t segsize;
     struct fid_mr** mrfd_p;
@@ -1167,6 +1169,8 @@ int gasnetc_segment_register(gasnetc_Segment_t segment)
 
 int gasnetc_segment_deregister(gasnetc_Segment_t segment)
 {
+    GASNETI_TRACE_PRINTF(C,("Deregistering segment [%p, %p)", segment->_addr, segment->_ub));
+
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     gasneti_assert(segment);
     if (segment->mrfd) {

@@ -802,6 +802,8 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
 // register (create memory handle for) a client segment
 void gasnetc_segment_register(gasnetc_Segment_t segment)
 {
+  GASNETI_TRACE_PRINTF(C,("Registering segment [%p, %p)", segment->_addr, segment->_ub));
+
   gni_return_t status;
 #if GASNETC_USE_MULTI_DOMAIN
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
@@ -836,6 +838,8 @@ void gasnetc_segment_register(gasnetc_Segment_t segment)
 
 void gasnetc_segment_deregister(gasnetc_Segment_t segment)
 {
+  GASNETI_TRACE_PRINTF(C,("Deregistering segment [%p, %p)", segment->_addr, segment->_ub));
+
 #if GASNETC_USE_MULTI_DOMAIN
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);

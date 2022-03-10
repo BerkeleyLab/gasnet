@@ -289,6 +289,8 @@ static void gasnetc_minfo_reset(gasnetc_mem_info_t *minfo)
 static gasnetc_mem_info_t*
 gasnetc_segment_register(void *seg_start, size_t segsize)
 {
+  GASNETI_TRACE_PRINTF(C,("Registering segment [%p, %p)", seg_start, (void*)(segsize + (uintptr_t)seg_start)));
+
   ucs_status_t status;
   gasnet_ep_info_t * my_ep_info = &gasneti_ucx_module.ep_tbl[gasneti_mynode];
   gasnetc_mem_info_t *mem_info;
@@ -327,6 +329,8 @@ gasnetc_segment_register(void *seg_start, size_t segsize)
 static int
 gasnetc_segment_deregister(gasnetc_Segment_t segment)
 {
+  GASNETI_TRACE_PRINTF(C,("Deregistering segment [%p, %p)", segment->_addr, segment->_ub));
+
   gasnet_ep_info_t *my_ep_info = &gasneti_ucx_module.ep_tbl[gasneti_mynode];
   gasnetc_mem_info_t *mem_info = segment->mem_info;
 
