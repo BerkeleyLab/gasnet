@@ -4155,7 +4155,7 @@ if test "$enabled_ofi" = yes; then
     ofi_use_multi_cq=0
     ofi_retry_recvmsg=0
     # List of supported providers in order of preference.
-    supported_providers="cxi psm2 gni sockets tcp;ofi_rxm verbs;ofi_rxm"
+    supported_providers="cxi psm2 gni verbs;ofi_rxm sockets udp;ofi_rxd tcp;ofi_rxm"
     
     GASNET_WITH(ofi-provider, [Statically configure ofi-conduit for the given provider],
         ofi_provider="$withval", )
@@ -4192,6 +4192,10 @@ if test "$enabled_ofi" = yes; then
         ;;
         tcp\;ofi_rxm)
             ofi_define_mr_scalable=1
+        ;;
+        udp\;ofi_rxd)
+            ofi_define_mr_scalable=1
+            ofi_retry_recvmsg=1
         ;;
         sockets)
             ofi_define_mr_scalable=1
