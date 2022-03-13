@@ -316,7 +316,7 @@ VPATH = \
 	$(UPCXX_BLDDIR)/example/serialization \
 	$(UPCXX_BLDDIR)/bench \
 	$(UPCXX_BLDDIR)/extras/extensions/allocator \
-	$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator \
+	$(UPCXX_BLDDIR)/extras/extensions/padded_device_allocator \
 	$(UPCXX_BLDDIR)/extras/examples/rpc_ff_quiescence \
 	$(UPCXX_BLDDIR)/extras/examples/vector_accumulate \
 	$(UPCXX_BLDDIR)/extras/examples/kokkos_montecarlo \
