@@ -1002,19 +1002,22 @@ void gasnetc_ofi_handle_rdma(void *buf)
 		case OFI_TYPE_EPUT:
 			{
 				gasnete_eop_t *eop = gasneti_container_of(ptr, gasnete_eop_t, ofi);
+				gasnete_eop_check(eop);
 				GASNETE_EOP_MARKDONE(eop);
 			}
 			break;
 		case OFI_TYPE_IGET:
 			{
 				gasnete_iop_t *iop = gasneti_container_of(ptr, gasnete_iop_t, get_ofi);
-				gasneti_weakatomic_increment(&(iop->completed_get_cnt), 0);
+				gasnete_iop_check(iop);
+				GASNETE_IOP_CNT_FINISH(iop, get, 1, GASNETI_ATOMIC_REL);
 			}
 			break;
 		case OFI_TYPE_IPUT:
 			{
 				gasnete_iop_t *iop = gasneti_container_of(ptr, gasnete_iop_t, put_ofi);
-				gasneti_weakatomic_increment(&(iop->completed_put_cnt), 0);
+				gasnete_iop_check(iop);
+				GASNETE_IOP_CNT_FINISH(iop, put, 1, GASNETI_ATOMIC_NONE);
 			}
 			break;
 		case OFI_TYPE_AM_DATA:
@@ -1705,9 +1708,11 @@ int get_bounce_bufs(int n, gasnetc_ofi_bounce_buf_t ** arr) {
  * non-bulk puts due to local completion requirements. This function handles this 
  * special case. 
  *
- * Returns non-zero if a wait is needed for remote completion. Returns 0 if the
- * buffer may be safely returned to the app */
-int gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
+ * Returns a valid event if necessary to block for remote completion.
+ * Otherwise returns GEX_EVENT_INVALID
+ */
+gex_Event_t
+gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
         size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr GASNETI_THREAD_FARG)
 {
 
@@ -1732,7 +1737,13 @@ int gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
         iovec.iov_len = nbytes;
         rma_iov.addr = dest_ptr;
         rma_iov.len = nbytes;
-        rma_iov.key = GASNETC_OFI_GET_MR_KEY(dest_addr, dest);
+
+        int is_auxseg = GASNETC_OFI_IS_AUX(dest_addr, dest);
+        if (GASNETC_OFI_HAS_MR_SCALABLE) {
+            rma_iov.key = !is_auxseg;
+        } else {
+            rma_iov.key = GASNETC_OFI_GET_MR_KEY_AUX(dest, is_auxseg);
+        }
 
         msg.context = ctxt_ptr;
         msg.msg_iov = &iovec;
@@ -1748,7 +1759,7 @@ int gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
         gasnetc_paratomic_increment(&pending_rdma,0);
 #endif
         GASNETC_STAT_EVENT(NB_PUT_INJECT);
-        return 0;
+        return GEX_EVENT_INVALID;
     } 
     /* Bounce buffers are needed */
     else if (nbytes <= gasnetc_ofi_bbuf_threshold) {
@@ -1796,16 +1807,17 @@ int gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
         }
 
         GASNETC_STAT_EVENT(NB_PUT_BOUNCE);
-        return 0;
+        return GEX_EVENT_INVALID;
     }
     /* We tried our best to optimize this. Just wait for remote completion */
     else {
 block_anyways:
-        gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, ctxt_ptr GASNETI_THREAD_PASS);
-        GASNETC_STAT_EVENT(NB_PUT_BLOCK);
-        return 1;
+      GASNETC_STAT_EVENT(NB_PUT_BLOCK);
+      gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
+      eop->ofi.type = OFI_TYPE_EPUT;
+      gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, &eop->ofi GASNETI_THREAD_PASS);
+      return (gex_Event_t)eop;
     }
-
 }
 
 void
@@ -1842,40 +1854,4 @@ gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbyte
 #if GASNET_DEBUG
 	gasnetc_paratomic_increment(&pending_rdma,0);
 #endif
-}
-
-void
-gasnetc_rdma_put_wait(gex_Event_t oph GASNETI_THREAD_FARG)
-{
-	gasnete_op_t *op = (gasnete_op_t*) oph;
-
-	if (OPTYPE(op) == OPTYPE_EXPLICIT) {
-		gasnete_eop_t *eop = (gasnete_eop_t *)op;
-		while (!GASNETE_EOP_DONE(eop)) {
-			GASNETC_OFI_POLL_EVERYTHING();
-		}
-	} else {
-		gasnete_iop_t *iop = (gasnete_iop_t *)op;
-		while (!GASNETE_IOP_CNTDONE(iop,put)) {
-			GASNETC_OFI_POLL_EVERYTHING();
-		}
-	}
-}
-
-void
-gasnetc_rdma_get_wait(gex_Event_t oph GASNETI_THREAD_FARG)
-{
-	gasnete_op_t *op = (gasnete_op_t*) oph;
-
-	if (OPTYPE(op) == OPTYPE_EXPLICIT) {
-		gasnete_eop_t *eop = (gasnete_eop_t *)op;
-		while (!GASNETE_EOP_DONE(eop)) {
-			GASNETC_OFI_POLL_EVERYTHING();
-		}
-	} else {
-		gasnete_iop_t *iop = (gasnete_iop_t *)op;
-		while (!GASNETE_IOP_CNTDONE(iop,get)) {
-			GASNETC_OFI_POLL_EVERYTHING();
-		}
-	}
 }
