@@ -202,13 +202,17 @@ int main(int argc, char **argv)
       seg      = c_segment;
       seg_addr = c_segment_addr;
       seg_size = c_segment_size;
+    #if !MISSING_MULTI_SEGMENT_SUPPORT
       gex_Segment_Destroy(g_segment, 0);
+    #endif
     } else {
       assert(have_gseg);
       seg      = g_segment;
       seg_addr = gex_Segment_QueryAddr(g_segment);
       seg_size = gex_Segment_QuerySize(g_segment);
+    #if !MISSING_MULTI_SEGMENT_SUPPORT
       gex_Segment_Destroy(c_segment, 0);
+    #endif
     }
 
     // Bind the chosen segments and validate
