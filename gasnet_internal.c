@@ -527,6 +527,7 @@ gasneti_Segment_t gasneti_alloc_segment(
                        void *addr,
                        uintptr_t size,
                        gex_MK_t kind,
+                       int client_allocated,
                        gex_Flags_t flags)
 {
   gasneti_Segment_t segment;
@@ -545,6 +546,7 @@ gasneti_Segment_t gasneti_alloc_segment(
   segment->_addr = addr;
   segment->_ub = (void*)((uintptr_t)addr + size);
   segment->_size = size;
+  segment->_client_allocated = client_allocated;
 #ifdef GASNETC_SEGMENT_INIT_HOOK
   GASNETC_SEGMENT_INIT_HOOK(segment);
 #else
@@ -672,10 +674,8 @@ extern void gex_Segment_Destroy(
   }
   // TODO: check reference count, once implemented
 
-#if 0 // TODO: disabled pending complete implementation
   gasneti_Segment_t i_segment = gasneti_import_segment(e_segment);
   gasneti_assert_zeroret( gasneti_segmentDestroy(i_segment, 1) );
-#endif
 }
 
 /* ------------------------------------------------------------------------------------ */

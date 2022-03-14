@@ -189,6 +189,11 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
   return gasnetc_segment_register(segment);
 }
 
+void gasnetc_segment_destroy_hook(gasneti_Segment_t i_segment)
+{
+  gasneti_assert_zeroret( gasnetc_segment_deregister((gasnetc_Segment_t) i_segment) );
+}
+
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
 {
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE

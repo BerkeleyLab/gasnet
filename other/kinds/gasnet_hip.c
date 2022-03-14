@@ -209,7 +209,7 @@ static int gasneti_MK_Segment_Create_hip(
 
   gasneti_Client_t client = i_mk->_client;
   gex_MK_t e_mk = gasneti_export_mk(i_mk);
-  gasneti_Segment_t i_segment = gasneti_alloc_segment(client, addr, size, e_mk, flags);
+  gasneti_Segment_t i_segment = gasneti_alloc_segment(client, addr, size, e_mk, !to_free, flags);
   i_segment->_opaque_mk_use = to_free;
 
   *i_segment_p = i_segment;
