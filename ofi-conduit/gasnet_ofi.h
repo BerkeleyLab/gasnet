@@ -118,6 +118,7 @@ typedef struct gasnetc_ofi_am_send_buf {
 } gasnetc_ofi_am_send_buf_t;
 
 typedef struct gasnetc_ofi_am_buf {
+  // Conduit code assumes ctxt is the first field
   struct fi_context 	ctxt;
   event_callback_fn 	callback;
   gasnetc_ofi_am_send_buf_t 	sendbuf;
@@ -125,14 +126,15 @@ typedef struct gasnetc_ofi_am_buf {
 
 
 typedef struct gasnetc_ofi_ctxt {
+  // Conduit code assumes ctxt is the first field
+  struct fi_context ctxt; // An opaque array of an even number of void*
   uint64_t event_cntr;
-  struct fi_context ctxt; // An opaque array of multiple void*
   void * metadata;
 #if GASNETC_OFI_RETRY_RECVMSG
   struct gasnetc_ofi_ctxt *next;
-  char _pad0[GASNETI_CACHE_PAD(sizeof(uint64_t) + sizeof(struct fi_context) + 2*sizeof(void*))];
+  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t) + 2*sizeof(void*))];
 #else
-  char _pad0[GASNETI_CACHE_PAD(sizeof(uint64_t) + sizeof(struct fi_context) +   sizeof(void*))];
+  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t) +   sizeof(void*))];
 #endif
 
   // accessed as a pair except when recycling the multi-recv buffer
@@ -151,6 +153,7 @@ typedef struct gasnetc_ofi_bounce_buf {
 } gasnetc_ofi_bounce_buf_t;
 
 typedef struct gasnetc_ofi_bounce_op_ctxt {
+    // Conduit code assumes ctxt is the first field
     struct fi_context 	ctxt;
     rdma_callback_fn		callback;
     /* bounce buffers to return to the pool */
