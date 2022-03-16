@@ -421,13 +421,14 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop upcxx-install force
 	mv $</$* $@
 
 # misc make-based examples
-cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile upcxx-install force
+# cuda_vecadd, hip_vecadd :
+%_vecadd-seq %_vecadd-par :: $(UPCXX_BLDDIR)/example/gpu_vecadd/Makefile upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $(<D) \
 	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
-	             clean cuda_vecadd
-	mv $(<D)/cuda_vecadd $@
+	             clean $*_vecadd
+	mv $(<D)/$*_vecadd $@
 
 CMAKE ?= cmake
 CMAKE_ARGS ?=
