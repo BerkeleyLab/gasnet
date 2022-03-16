@@ -5,8 +5,8 @@
  * Portions copyright 2018-2020, The Regents of the University of California.
  * Terms of use are as specified in license.txt
  */
-#ifndef GASNET_OFI_H
-#define GASNET_OFI_H
+#ifndef _GASNET_OFI_H
+#define _GASNET_OFI_H
 
 #include <gasnet_am.h>
 
@@ -213,4 +213,4 @@ extern int gasnetc_exit_in_progress;
 #define GASNETC_OFI_EVENTS_PER_POLL 16
 #endif
 
-#endif /*GASNET_OFI_H*/
+#endif /*_GASNET_OFI_H*/
