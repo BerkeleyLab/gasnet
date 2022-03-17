@@ -308,6 +308,7 @@ check-testsuite:
 
 VPATH = \
 	$(UPCXX_BLDDIR)/test \
+	$(UPCXX_BLDDIR)/test/ccs \
 	$(UPCXX_BLDDIR)/test/uts \
 	$(UPCXX_BLDDIR)/test/regression \
 	$(UPCXX_BLDDIR)/example \
@@ -338,6 +339,12 @@ VPATH = \
 	else \
 	  echo "Unrecognized UPCXX_TESTMODE=$$UPCXX_TESTMODE" ; exit 100; \
 	fi 
+
+# tests/ccs
+ccs-%-seq ccs-%-par :: ccs-%.sh force
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
+	set -x; $(MAKE) make_test TEST_EXE=$@
 
 # upcxx-examples guppie
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx upcxx-install force
