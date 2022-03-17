@@ -5,8 +5,8 @@
  * Portions copyright 2018-2020, The Regents of the University of California.
  * Terms of use are as specified in license.txt
  */
-#ifndef GASNET_OFI_H
-#define GASNET_OFI_H
+#ifndef _GASNET_OFI_H
+#define _GASNET_OFI_H
 
 #include <gasnet_am.h>
 
@@ -208,4 +208,9 @@ gex_Event_t gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* sr
 
 extern int gasnetc_exit_in_progress;
 
-#endif /*GASNET_OFI_H*/
+// Maxium number of events (AMs and multi-recv recycles) per poll
+#ifndef GASNETC_OFI_EVENTS_PER_POLL
+#define GASNETC_OFI_EVENTS_PER_POLL 16
+#endif
+
+#endif /*_GASNET_OFI_H*/
