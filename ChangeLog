@@ -50,6 +50,9 @@ GASNet-EX ChangeLog
   - Clarify that src/dst overlap within one operation yields undefined behavior
   - Initial implementation of gex_Segment_Destroy()
 
+* GASNet tools (spec v1.19): (details in README-tools)
+  - Add gasnett_exe_name() for exposing the current executable name
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4211: intermittent udp-conduit exit-time hangs on macos
   - bug4227: Bogus maybe-uninit warning building libgasnet with GCC-11.1+ 
