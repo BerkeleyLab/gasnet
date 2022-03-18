@@ -344,7 +344,18 @@ VPATH = \
 ccs-%-seq ccs-%-par :: ccs-%.sh force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	set -x; $(MAKE) make_test TEST_EXE=$@
+	set -x ; $(DO_ENV) && \
+	$(MAKE) -C $(UPCXX_BLDDIR) $(UPCXX_MAKE_J) dev-tests-$(GASNET_CODEMODE) NETWORKS=$(UPCXX_CONDUIT) \
+	           TESTS=^test-$@ EXTRAFLAGS="$(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)"
+	set -e -x; \
+	longname="test-$@-$(GASNET_CODEMODE)-$(UPCXX_CONDUIT)"; \
+	if test -e $(UPCXX_BLDDIR)/$$longname.runcmd ; then \
+	  mv $(UPCXX_BLDDIR)/$$longname .; \
+	  mv $(UPCXX_BLDDIR)/$$longname.runcmd $@.runcmd; \
+	  ln -sf $$longname $@; \
+	else \
+	  mv $(UPCXX_BLDDIR)/$$longname $@; \
+	fi
 
 # upcxx-examples guppie
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx upcxx-install force
