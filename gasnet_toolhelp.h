@@ -345,6 +345,8 @@ extern int gasneti_set_affinity(int _rank);
 
 const char *gasneti_gethostname(void); /* returns the current host name - dies with an error on failure */
 
+extern void gasneti_argv_from_system(int **pargc, char ****pargv);
+
 extern int gasneti_isLittleEndian(void);
 
 typedef void (*gasneti_sighandlerfn_t)(int);
