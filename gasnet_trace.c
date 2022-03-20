@@ -829,14 +829,13 @@ extern void gasneti_trace_updatemask(const char *newmask, char *maskstr, char *t
   }
 }
 
-char gasneti_exename[PATH_MAX] = "[unknown]";
 #if GASNET_DEBUGMALLOC
 static const char *gasneti_mallocreport_filename = NULL;
 #endif
 
 
 extern void gasneti_trace_init(int *pargc, char ***pargv) {
-  char *exename = NULL;
+  char *argv0 = NULL;
 
   gasneti_free(gasneti_malloc(1)); /* touch the malloc system to ensure it's intialized */
 
@@ -852,12 +851,18 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   if (pargc && pargv) {
     /* ensure the arguments have been decoded */
     gasneti_decode_args(pargc, pargv);
-    exename = (*pargv)[0];
+    argv0 = (*pargv)[0];
   }
-
-  if (exename) {
-    gasneti_qualify_path(gasneti_exename, exename);
-    gasneti_backtrace_init(gasneti_exename);
+  
+  { // update gasneti_exe_name (if needed) and init backtrace
+    char *exename = (char *)gasneti_exe_name();
+    gasneti_assert(exename);
+    if (!*exename && argv0 && *argv0) {
+      gasneti_qualify_path(exename, argv0);
+    }
+    if (*exename) {
+      gasneti_backtrace_init(exename);
+    }
   }
 
  #if GASNETI_STATS_OR_TRACE
@@ -920,7 +925,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
     strcpy(temp, ctime(&ltime));
     if (temp[strlen(temp)-1] == '\n') temp[strlen(temp)-1] = '\0';
     gasneti_tracestats_printf("Program %s (pid=%i) starting on %s at: %s", 
-      gasneti_exename, (int)getpid(), gasnett_gethostname(), temp);
+      gasneti_exe_name(), (int)getpid(), gasnett_gethostname(), temp);
    }
    if (pargc && pargv && (gasneti_tracefile || gasneti_statsfile)) {
     size_t sz = 80;

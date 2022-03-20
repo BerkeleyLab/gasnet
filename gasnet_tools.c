@@ -1524,6 +1524,18 @@ extern void gasneti_argv_from_system(int **pargc, char ****pargv) {
  #endif
 }
 
+extern const char *gasneti_exe_name() {
+  static char exename[PATH_MAX] = { 0 };
+  if (*exename) return exename;
+  static int *argc = 0; 
+  static char ***argv = 0;
+  gasneti_argv_from_system(&argc, &argv);
+  if (argc && *argc > 0 && argv && *argv && (*argv)[0] && (*argv)[0][0]) {
+    gasneti_qualify_path(exename, (*argv)[0]);
+  }
+  return exename;
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* Dynamic backtrace support */
 
