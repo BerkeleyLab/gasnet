@@ -95,6 +95,10 @@ int main(int argc, char **argv) {
 
   test_init("testtools", 0,"(iters) (num_threads) (tests_to_run)");
 
+  const char *exename = gasnett_exe_name();
+  if (!exename || !*exename) MSG("WARNING: gasnett_exe_name() failed to discover exename");
+  else MSG("gasnett_exe_name()='%s'",exename);
+
   TEST_BACKTRACE_INIT(argv[0]);
   
   if (argc > 1) iters = atoi(argv[1]);
