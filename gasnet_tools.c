@@ -1273,8 +1273,19 @@ static void gasneti_argv_from_proc(int **ppargc, char ****ppargv) {
     }
     (void) close(fd);
   }
+  if (len == 0 || !cmdline[0] || cmdline[len-1]) { // bug 4076: we read an obviously garbled cmdline
+    static int retried = 0;
+    free(cmdline);
+    if (!retried) { // retry at most once
+      gasneti_nsleep(100*1000*1000); // sleep 100ms
+      gasneti_sched_yield();
+      retried = 1;
+      gasneti_argv_from_proc(ppargc, ppargv);
+    } 
+    return; // fail silently
+  }
   cmdline = realloc(cmdline, len);
-  if (len > 0) cmdline[len-1] = 0; // bug 4076: defensively ensure null-termination
+  gasneti_assert(cmdline[len-1] == 0);
 
   /* Parse the cmdline on '\0' separators */
   {
@@ -1513,7 +1524,7 @@ static void gasneti_argv_from_sysctl(int **ppargc, char ****ppargv) {
 // retrieve the argc/argv into the (empty) provided variables
 GASNETI_COLD
 extern void gasneti_argv_from_system(int **pargc, char ****pargv) {
- gasneti_assert(!*pargc || !*pargv);
+ gasneti_assert(pargc && pargv);
  // Some systems may support multiple mechanisms,
  // and we try them all until we get something.
  #ifdef GASNETI_HAVE_ARGV_FROM_SYSCTL
