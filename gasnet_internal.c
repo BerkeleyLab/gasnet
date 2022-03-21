@@ -2722,7 +2722,7 @@ void gasneti_segtbl_del(gasneti_Segment_t seg) {
       gasnett_getheapstats(&stats);
       fprintf(fp, "# GASNet Debug Mallocator Report\n");
       fprintf(fp, "#\n");
-      fprintf(fp, "# program: %s\n",gasneti_exename);
+      fprintf(fp, "# program: %s\n",gasneti_exe_name());
       fprintf(fp, "# date:    %s\n",temp);
       fprintf(fp, "# host:    %s\n",gasnett_gethostname());
       fprintf(fp, "# pid:     %i\n",(int)getpid());

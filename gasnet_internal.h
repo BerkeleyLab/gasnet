@@ -59,8 +59,6 @@ GASNETI_BEGIN_NOWARN
 extern int gasneti_init_done; /*  true after init */
 extern int gasneti_attach_done; /*  true after attach */
 
-extern char gasneti_exename[PATH_MAX];
-
 /* conduit-independent sanity checks */
 extern void gasneti_check_config_preinit(void);
 extern void gasneti_check_config_postattach(void);
