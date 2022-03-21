@@ -219,6 +219,10 @@ int gasnete_put_nbi(
   =========
 */
 
+// Must override the default barrier selection until we've resolved
+//   Bug 4427 - ofi-conduit failures with RDMADISSEM barrier
+#define GASNETE_BARRIER_DEFAULT "AMDISSEM"
+
 /* use reference implementation of barrier */
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
 #include "gasnet_extended_refbarrier.c"
