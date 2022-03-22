@@ -3545,6 +3545,13 @@ gasneti_count0s(const void * src, size_t bytes) {
   const uint8_t *s = src;
   size_t zeros = 0;
   while (bytes--) { zeros += !*(s++); }
+#elif (PLATFORM_COMPILER_CLANG && __cray__) && \
+      PLATFORM_COMPILER_VERSION_GE(13,0,0) && \
+      __CRAY_MIC_KNL
+  // Version which works-around a CCE-13 ICE (see bug 4417)
+  const uint8_t *s = src;
+  volatile size_t zeros = 0;
+  while (bytes--) { zeros = zeros + !*(s++); }
 #else /* Carefully optimized (but still portable) word-oriented loop */
   const uintptr_t *s;
   size_t zeros, tmp;
