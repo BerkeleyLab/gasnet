@@ -2383,10 +2383,25 @@ void gasneti_segtbl_del(gasneti_Segment_t seg) {
       return buffer;
   }
 
+  // bug 4366: avoid spammy assertions if we are running in the context of a
+  // signal that arrived during a memcheck operation
+  // _gasneti_mutex_trylock_mayberecursive() is a version of gasneti_mutex_trylock
+  // that returns failure instead of asserting on a recursive attempt in DEBUG mode
+  // TODO: possibly promote this to the general gasneti_mutex API?
+  static int _gasneti_mutex_trylock_mayberecursive(gasneti_mutex_t *mut) {
+    #ifdef _gasneti_mutex_heldbyme
+      if (_gasneti_mutex_heldbyme(mut)) {
+        // we know we are already holding this mutex, return failure instead of asserting below
+        return EBUSY;
+      }
+    #endif
+    return gasneti_mutex_trylock(mut);
+  }
+
   extern void _gasneti_memcheck_one(const char *curloc) {
     if (gasneti_memalloc_extracheck) _gasneti_memcheck_all(curloc);
     else {
-      gasneti_mutex_lock(&gasneti_memalloc_lock);
+      if (_gasneti_mutex_trylock_mayberecursive(&gasneti_memalloc_lock)) return;
         if (gasneti_memalloc_pos) {
           _gasneti_memcheck(gasneti_memalloc_pos+1, curloc, 2);
           gasneti_memalloc_pos = gasneti_memalloc_pos->nextdesc;
@@ -2395,7 +2410,7 @@ void gasneti_segtbl_del(gasneti_Segment_t seg) {
     }
   }
   extern void _gasneti_memcheck_all(const char *curloc) {
-    gasneti_mutex_lock(&gasneti_memalloc_lock);
+    if (_gasneti_mutex_trylock_mayberecursive(&gasneti_memalloc_lock)) return;
       if (gasneti_memalloc_pos) {
         gasneti_memalloc_desc_t *begin = gasneti_memalloc_pos;
         uint64_t cnt;
