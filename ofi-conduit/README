@@ -210,6 +210,19 @@ Recognized environment variables:
 * GASNET_OFI_NUM_BBUFS, GASNET_OFI_BBUF_SIZE, GASNET_OFI_BBUF_THRESHOLD - See the
   "Non-bulk, Non-blocking Put Functions" section for detail on these environment variables.
 
+* GASNET_OFI_INJECT_LIMIT - limit on size of fi_inject() payload.
+  GASNet Active Messages of total size (at the ofi level) no larger than this
+  parameter value will be sent using fi_inject(), and larger messages are sent
+  using fi_send().  Use of fi_inject() reduces the overall complexity of the
+  operation by ensuring the data is consumed synchronously, usually at the
+  cost of an extra copy.  Meanwhile, fi_send() consumes the data asynchronously,
+  eliminating the extra copy at the expense of signaling an asynchronous local
+  completion.  This setting does not affect payload local completion semantics
+  at the GASNet API level.
+  It too large a value is requested, it will be reduced to the maximum which
+  the OFI provider can support.
+  Default: largest size supported by the provider.
+
 * GASNET_OFI_DEVICE
   By default, ofi-conduit will open and use the first device enumerated by
   libfabric as matching the specified provider and required capabilities.

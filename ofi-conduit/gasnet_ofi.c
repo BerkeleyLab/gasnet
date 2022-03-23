@@ -792,9 +792,22 @@ int gasnetc_ofi_init(void)
   GASNETC_OFI_CHECK_RET(ret, "fi_setopt for am reply epfd failed");
   gasneti_assert_uint(optval ,==, min_multi_recv); // documented as IN
 
-  /* Cutoff to use fi_inject */
-  max_buffered_send = info->tx_attr->inject_size;
-  GASNETI_TRACE_PRINTF(I, ("Max bufered send size is %"PRIu64, max_buffered_send));
+  // Maximum size to use with fi_inject
+  { uint64_t dflt = info->tx_attr->inject_size;
+    const char* max_buffered_send_env = "GASNET_OFI_INJECT_LIMIT";
+    max_buffered_send = gasneti_getenv_int_withdefault(max_buffered_send_env, dflt, 1);
+    if (max_buffered_send > dflt) { // enforce dflt as the maximum
+      if (!gasneti_mynode)  {
+        gasneti_console_message("WARNING",
+                                "%s reduced from the requested value %"PRIu64
+                                " to the maximum supported value %"PRIu64,
+                                max_buffered_send_env, max_buffered_send, dflt);
+
+      }
+      max_buffered_send = dflt;
+    }
+  }
+  GASNETI_TRACE_PRINTF(I, ("Max buffered send size is %"PRIu64, max_buffered_send));
 
   ofi_setup_address_vector();
 
