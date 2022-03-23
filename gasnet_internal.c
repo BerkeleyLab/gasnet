@@ -971,6 +971,51 @@ gasneti_Segment_t gasneti_epidx_to_segment(gasneti_TM_t i_tm, gex_EP_Index_t ep_
    return i_ep->_segment;
 }
 
+#if GASNET_DEBUG && GASNET_HAVE_MK_CLASS_MULTIPLE
+// Helper for bounds checking local address range for host-vs-device bound segment.
+// Local address must match kind of bound segment, if any
+//
+// If bound segment kind is device, the local address must be in-segment.
+//   Returns GASNETI_BAD_LOCAL_OUTSIDE_DEVICE_SEGMENT if this constraint is violated
+// Otherwise, the local address must not be in any device segment
+//   Returns GASNETI_BAD_LOCAL_INSIDE_DEVICE_SEGMENT if this constraint is violated
+// Returns 0 in the absence of violations
+// Returns the device segment via *segment_p if either constraint is violated
+int _gasneti_boundscheck_local(gex_TM_t tm, void *addr, size_t len, gasneti_Segment_t *segment_p)
+{
+  gasneti_EP_t i_ep = gasneti_e_tm_to_i_ep(tm);
+  gasneti_Segment_t i_bound_segment = i_ep->_segment;
+  gex_Segment_t e_bound_segment = gasneti_export_segment(i_bound_segment);
+
+  if (!len || (e_bound_segment && _gasneti_in_segment_t(addr, len, e_bound_segment))) {
+    // Zero-length, or in the bound segment (if any) are always OK.
+  } else if (! gasneti_i_segment_kind_is_host(i_bound_segment)) {
+    // Local "device memory" must never be outside the bound segment.
+    *segment_p = i_bound_segment;
+    return GASNETI_BAD_LOCAL_OUTSIDE_DEVICE_SEGMENT;
+  } else if (gasneti_in_local_auxsegment(i_ep, addr, len)) {
+    // When not bound to device segment, local aux segment is OK.
+  } else {
+    // Search segment table for a match
+    // If a match is found, it must not be a device segment, but no match is fine too
+    gasneti_Segment_t i_segment;
+    GASNETI_SEGTBL_LOCK();
+    GASNETI_SEGTBL_FOR_EACH(i_segment) {
+      gex_Segment_t e_segment = gasneti_export_segment(i_segment);
+      if (_gasneti_in_segment_t(addr, len, e_segment)) {
+        if (gasneti_i_segment_kind_is_host(i_segment)) break;
+        GASNETI_SEGTBL_UNLOCK();
+        *segment_p = i_segment;
+        return GASNETI_BAD_LOCAL_INSIDE_DEVICE_SEGMENT;
+      }
+    }
+    GASNETI_SEGTBL_UNLOCK();
+  }
+  *segment_p = NULL;
+  return 0;
+}
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 
 #if GASNET_DEBUG
