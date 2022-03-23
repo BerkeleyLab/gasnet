@@ -229,3 +229,17 @@ void gasneti_MK_Segment_Destroy(
 
   gasneti_weakatomic32_decrement(&i_mk->_ref_count, 0);
 }
+
+const char *gasneti_formatmk(
+            gex_MK_t e_mk)
+{
+  if (e_mk == GEX_MK_INVALID) {
+    return "GEX_MK_INVALID";
+  } else if (e_mk == GEX_MK_HOST) {
+    return "GEX_MK_HOST";
+  }
+
+  gasneti_MK_t i_mk = gasneti_import_mk_nonhost(e_mk);
+  if (MK_IMPL(i_mk,format)) return MK_IMPL(i_mk,format)(i_mk);
+  else                      return MK_IMPL(i_mk,name);
+}

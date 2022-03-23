@@ -62,6 +62,12 @@ static gasneti_mk_impl_t *get_impl(void);
     }                                                       \
   } while (0)
 
+static const char *gasneti_formatmk_hip(gasneti_MK_t i_mk)
+{
+  my_MK_t kind = (my_MK_t) i_mk;
+  return gasneti_dynsprintf("HIP(gex_hipDevice=%i)", (int)kind->dev);
+}
+
 //
 // Class-specific MK_Create
 //
@@ -247,6 +253,7 @@ static gasneti_mk_impl_t *get_impl(void) {
       the_impl.mk_name      = "HIP";
       the_impl.mk_sizeof    = sizeof(struct my_MK_s);
 
+      the_impl.mk_format    = &gasneti_formatmk_hip;
       the_impl.mk_destroy   = &gasneti_MK_Destroy_hip;
       the_impl.mk_segment_create
                             = &gasneti_MK_Segment_Create_hip;

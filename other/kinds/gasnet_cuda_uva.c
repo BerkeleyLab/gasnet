@@ -46,6 +46,12 @@ const char *_gasneti_cuerror_name(CUresult res) {
     }                                                       \
   } while (0)
 
+static const char *gasneti_formatmk_cuda_uva(gasneti_MK_t i_mk)
+{
+  my_MK_t kind = (my_MK_t) i_mk;
+  return gasneti_dynsprintf("CUDA_UVA(gex_CUdevice=%d)", (int)kind->dev);
+}
+
 static void gasneti_MK_Destroy_cuda_uva(
             gasneti_MK_t                     i_mk,
             gex_Flags_t                      flags)
@@ -180,6 +186,7 @@ static gasneti_mk_impl_t *get_impl(void) {
       the_impl.mk_name      = "CUDA_UVA";
       the_impl.mk_sizeof    = sizeof(struct my_MK_s);
 
+      the_impl.mk_format    = &gasneti_formatmk_cuda_uva;
       the_impl.mk_destroy   = &gasneti_MK_Destroy_cuda_uva;
       the_impl.mk_segment_create
                             = &gasneti_MK_Segment_Create_cuda_uva;
