@@ -69,6 +69,7 @@ GASNet-EX ChangeLog
   - bug4376: ofi: infrequent FI_EAGAIN when reposting multi-recv buffer
   - bug4361: (partial fix) reductions on DT_USER of unbounded length
   - Bug4366: intermittent exit-time assertion failures from debug memcheck
+  - bug4399: (partial fix) stronger local address range checks when using kinds
 
 ----------------------------------------------------------------------
 2021-09-30: GASNet-EX 2021.9.0 Release

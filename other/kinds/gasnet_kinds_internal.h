@@ -62,6 +62,10 @@ struct gasneti_mk_impl_s {
   // If zero, then only space for the COMMON fields is allocated
   size_t               mk_sizeof;
 
+  // Class-specific implementation of gasneti_formatmk()
+  // If NULL, the default uses mk_name
+  const char * (*mk_format)(gasneti_MK_t);
+
   // Hook for gex_MK_Destroy()
   // If NULL, the default is to call gasneti_free_mk()
   void (*mk_destroy)(gasneti_MK_t, gex_Flags_t);
