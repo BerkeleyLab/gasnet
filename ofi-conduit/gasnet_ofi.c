@@ -98,6 +98,9 @@ static uint64_t* gasnetc_ofi_target_aux_keys;
   #define GASNETC_OFI_HAS_MR_SCALABLE has_mr_scalable
 #endif
 
+static size_t tx_cq_size = 0;
+static size_t rx_cq_size = 0;
+
 /* FI_MR_BASIC requires addressing by full virtual address */
 #define GET_REMOTEADDR_PER_MR_MODE(dest_addr, dest)\
     GASNETC_OFI_HAS_MR_SCALABLE ? GET_REMOTEADDR(dest_addr, dest) : (uintptr_t)dest_addr
@@ -348,6 +351,9 @@ static void gasnetc_ofi_read_env_vars() {
 
     gasnetc_ofi_device = gasneti_getenv_hwloc_withdefault("GASNET_OFI_DEVICE", "", "Socket");
     if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
+
+    tx_cq_size = gasneti_getenv_int_withdefault("GASNET_OFI_TX_CQ_SIZE", 0, 0);
+    rx_cq_size = gasneti_getenv_int_withdefault("GASNET_OFI_RX_CQ_SIZE", 0, 0);
 }
 
 /* The intention of separating this logic from gasnetc_ofi_init() is
@@ -485,7 +491,8 @@ int gasnetc_ofi_init(void)
   int ret = GASNET_OK;
   int result = GASNET_ERR_NOT_INIT;
   struct fi_info		*hints, *info;
-  struct fi_cq_attr   	cq_attr 	= {0};
+  struct fi_cq_attr   	tx_cq_attr 	= {0};
+  struct fi_cq_attr   	rx_cq_attr 	= {0};
   size_t optval;
   int num_locks; 
   int i;
@@ -732,18 +739,22 @@ int gasnetc_ofi_init(void)
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for am reply endpoint failed");
 
   // Allocate a CQ that will ideally be shared for both RDMA and AM tx ops
-  memset(&cq_attr, 0, sizeof(cq_attr));
-  cq_attr.format    = FI_CQ_FORMAT_DATA; /* Provides data associated with a completion */
-  ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_tx_cqfd, NULL);
+  memset(&tx_cq_attr, 0, sizeof(tx_cq_attr));
+  tx_cq_attr.format    = FI_CQ_FORMAT_DATA; /* Provides data associated with a completion */
+  tx_cq_attr.size      = tx_cq_size;
+  tx_cq_attr.wait_obj  = FI_WAIT_NONE;
+  ret = fi_cq_open(gasnetc_ofi_domainfd, &tx_cq_attr, &gasnetc_ofi_tx_cqfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for tx_cqfd failed");
 
   /* Allocate recv completion queues for AMs */
-  memset(&cq_attr, 0, sizeof(cq_attr));
-  cq_attr.format    = FI_CQ_FORMAT_DATA;
-  ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_request_cqfd, NULL);
+  memset(&rx_cq_attr, 0, sizeof(rx_cq_attr));
+  rx_cq_attr.format    = FI_CQ_FORMAT_DATA;
+  rx_cq_attr.size      = rx_cq_size;
+  rx_cq_attr.wait_obj  = FI_WAIT_NONE;
+  ret = fi_cq_open(gasnetc_ofi_domainfd, &rx_cq_attr, &gasnetc_ofi_request_cqfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for am request cq failed");
 
-  ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_reply_cqfd, NULL);
+  ret = fi_cq_open(gasnetc_ofi_domainfd, &rx_cq_attr, &gasnetc_ofi_reply_cqfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for am reply cq failed");
 
   /* Bind CQs to endpoints */
@@ -754,7 +765,7 @@ int gasnetc_ofi_init(void)
 #if GASNETC_OFI_USE_MULTI_CQ
   if (ret == -FI_EINVAL) { // Provider doesn't want to let us share CQ
     GASNETI_TRACE_PRINTF(I, ("Allocating distinct reqtx_cqfd"));
-    ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_reqtx_cqfd, NULL);
+    ret = fi_cq_open(gasnetc_ofi_domainfd, &tx_cq_attr, &gasnetc_ofi_reqtx_cqfd, NULL);
     GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for reqtx_cqfd failed");
     ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_reqtx_cqfd->fid, FI_TRANSMIT);
   }
@@ -765,7 +776,7 @@ int gasnetc_ofi_init(void)
 #if GASNETC_OFI_USE_MULTI_CQ
   if (ret == -FI_EINVAL) { // Provider doesn't want to let us share CQ
     GASNETI_TRACE_PRINTF(I, ("Allocating distinct reptx_cqfd"));
-    ret = fi_cq_open(gasnetc_ofi_domainfd, &cq_attr, &gasnetc_ofi_reptx_cqfd, NULL);
+    ret = fi_cq_open(gasnetc_ofi_domainfd, &tx_cq_attr, &gasnetc_ofi_reptx_cqfd, NULL);
     GASNETC_OFI_CHECK_RET(ret, "fi_cq_open for reptx_cqfd failed");
     ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_reptx_cqfd->fid, FI_TRANSMIT);
   }
