@@ -40,6 +40,14 @@ extern void gasnete_init(void) {
 
   gasnete_check_config(); /*  check for sanity */
 
+#if GASNETC_OFI_REFERENCE_EXTENDED
+  if (! gasneti_mynode) {
+    gasneti_console_message("WARNING",
+                            "This build of GASNet-EX ofi-conduit has been configured to "
+                            "use the unsupported legacy implementation of RMA operations.");
+  }
+#endif
+
   gasneti_assert_uint(gasneti_nodes ,>=, 1);
   gasneti_assert_uint(gasneti_mynode ,<, gasneti_nodes);
 
@@ -87,6 +95,8 @@ extern void gasnete_init(void) {
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
+
+#if !GASNETC_OFI_REFERENCE_EXTENDED
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
      gasnete_get_nb
@@ -147,12 +157,16 @@ gex_Event_t gasnete_put_nb(
   return (gex_Event_t)op;
 }
 
+#endif // !GASNETC_OFI_REFERENCE_EXTENDED
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
+
+#if !GASNETC_OFI_REFERENCE_EXTENDED
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
      gasnete_get_nbi
@@ -212,6 +226,8 @@ int gasnete_put_nbi(
 
   return GASNET_OK;
 }
+
+#endif // !GASNETC_OFI_REFERENCE_EXTENDED
 
 /* ------------------------------------------------------------------------------------ */
 /*
