@@ -4271,6 +4271,20 @@ configured for that provider. If that is not your desired provider, override thi
                 [AC_MSG_ERROR([--with-ofi-max-medium must be no smaller than 512])],
                  [ofi_max_medium=8192])
     AC_DEFINE_UNQUOTED(GASNETC_OFI_MAX_MEDIUM, [$ofi_max_medium])
+
+    GASNET_IF_ENABLED_NOHELP(ofi-legacy-extended,
+                      [AC_DEFINE(GASNETC_OFI_REFERENCE_EXTENDED)
+                       GASNET_MSG_WARN([
+-----------------------------------------------------------------------
+ WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+
+ You passed --enable-ofi-legacy-extended
+ This is unsupported and usually has a SERIOUS impact on performance.
+ Do not trust any performance numbers obtained from programs built
+ using this GASNet installation!!!
+
+ WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+-----------------------------------------------------------------------])])
   fi
 fi
 AC_SUBST(OFI_CFLAGS)

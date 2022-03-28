@@ -11,9 +11,14 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
+#if GASNETC_OFI_REFERENCE_EXTENDED
+#define GASNET_EXTENDED_VERSION      GASNET_RELEASE_VERSION_MAJOR.GASNET_RELEASE_VERSION_MINOR
+#define GASNET_EXTENDED_NAME         REFERENCE
+#else
 #define GASNET_EXTENDED_VERSION      GASNET_CORE_VERSION
-#define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         OFI
+#endif
+#define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
 #define GASNETI_EOP_IS_HANDLE 1
@@ -71,8 +76,19 @@
 
 /* Configure use of AM-based implementation of get/put */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-#define GASNETE_USING_REF_EXTENDED_GET      0
-#define GASNETE_USING_REF_EXTENDED_PUT      0
+
+#if GASNETC_OFI_REFERENCE_EXTENDED
+  // Legacy/deprecated option that implement all RMA directly via amref
+  #define GASNETE_USING_REF_EXTENDED_GET    1
+  #define GASNETE_USING_REF_EXTENDED_PUT    1
+  #define gasnete_amref_get_nb        gasnete_get_nb
+  #define gasnete_amref_put_nb        gasnete_put_nb
+  #define gasnete_amref_get_nbi       gasnete_get_nbi
+  #define gasnete_amref_put_nbi       gasnete_put_nbi
+#else
+  #define GASNETE_USING_REF_EXTENDED_GET    0
+  #define GASNETE_USING_REF_EXTENDED_PUT    0
+#endif
 
 #endif
 
