@@ -3762,7 +3762,7 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 
 // [PROPOSED]
 // This section of this document covers APIs described in more detail in
-//   GASNet-EX API Proposal: Memory Kinds, Revision 2021.9.0
+//   GASNet-EX API Proposal: Memory Kinds, Revision 2022.3.0
 //
 // For functions, only prototypes and supported flags are provided here.
 // For function semantics, one should consult the document cited above.
@@ -3775,6 +3775,12 @@ int gex_Segment_Create(
             gex_Addr_t      address,
             uintptr_t       length,
             gex_MK_t        kind,
+            gex_Flags_t     flags);
+      // Valid flags:
+      //   NONE - zero is currently required
+
+void gex_Segment_Destroy(
+            gex_Segment_t   segment,
             gex_Flags_t     flags);
       // Valid flags:
       //   NONE - zero is currently required
@@ -3860,7 +3866,7 @@ void gex_MK_Destroy(
 // End of APIs provided by gasnet_mk.h
 // ****
 
-// End of "GASNet-EX API Proposal: Memory Kinds, Revision 2021.9.0" section
+// End of "GASNet-EX API Proposal: Memory Kinds, Revision 2022.3.0" section
 //----------------------------------------------------------------------
 
 // vim: syntax=c

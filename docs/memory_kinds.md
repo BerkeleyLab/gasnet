@@ -29,7 +29,7 @@ implementation and is updated as that status changes.
 This document makes references to an external document, which is available on
 request from gasnet-staff@lbl.gov:  
 
-  + GASNet-EX API Proposal: Memory Kinds, Revision 2021.9.0
+  + GASNet-EX API Proposal: Memory Kinds, Revision 2022.3.0
 
 For brevity, this will be referenced as simply "the API Proposal".
 
@@ -361,7 +361,7 @@ or demand allocation of memory suitable for intra-nbrhd cross-mapping via PSHM.
 
 ## `gex_Segment_Destroy()`
 
-Not currently implemented.
+This API is fully implemented to the current proposed specification.
 
 ## `gex_EP_Create()`
 
@@ -445,6 +445,5 @@ return `GASNET_ERR_BAD_ARG`, as documented in the API Proposal.
 
 ## `gex_MK_Destroy()`
 
-This API is implemented, but is only legal for a kind not currently in use by
-any segment.  Given the lack of a `gex_Segment_Destroy()` implementation, this
-API is therefore only useful for a kind which has been created but never used.
+This API is implemented, but is currently only allowed for a `gex_MK_t` not
+ever used to create a segment.
