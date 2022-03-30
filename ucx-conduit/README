@@ -71,7 +71,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
 @ Section: Job Spawning @
 
-If using UPC, Titanium, etc. the language-specific commands should be used
+If using UPC++, Chapel, etc. the language-specific commands should be used
 to launch applications.  Otherwise, applications can be launched using
 the gasnetrun_ucx utility:
 + usage summary:
@@ -90,6 +90,12 @@ can launch an ucx-conduit application.  Ssh-based spawning is always
 available, and mpi- and pmi-based spawning are available if the respective
 support was located at configure time.  The default is established at
 configure time (see section "Build-time Configuration").
+
+The choice of spawner only affects the protocol used for parallel job setup and
+teardown; in particular it is NOT used to implement any part of the
+steady-state GASNet communication operations. As such, the selected protocol
+needs to be stable and co-exist with GASNet communication, but its performance
+efficiency is usually not a practical consideration.
 
 To select a non-default spawner one may either use the "-spawner=" command-
 line argument or set the environment variable GASNET_UCX_SPAWNER to "ssh",
