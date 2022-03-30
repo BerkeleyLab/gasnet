@@ -1,5 +1,5 @@
-#ifndef GASNET_ARIES_H
-#define GASNET_ARIES_H
+#ifndef _GASNET_ARIES_H
+#define _GASNET_ARIES_H
 
 #include <stdint.h>
 #include <stdio.h>
@@ -376,8 +376,8 @@ void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 int gasnetc_try_pin(void *addr, uintptr_t size);
 
 /* exit related */
-volatile int gasnetc_shutdownInProgress;
-double gasnetc_shutdown_seconds; /* number of seconds to poll before forceful shutdown */
+extern volatile int gasnetc_shutdownInProgress;
+extern double gasnetc_shutdown_seconds; /* number of seconds to poll before forceful shutdown */
 int gasnetc_sys_exit(int *exitcode);
 void gasnetc_sys_fini(void);
 
@@ -389,6 +389,7 @@ void gasnetc_init_md(void);
 
 void gasnetc_init_gni(gasnet_seginfo_t seginfo);
 void gasnetc_segment_register(gasnetc_Segment_t segment);
+void gasnetc_segment_deregister(gasnetc_Segment_t segment);
 void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps);
 uintptr_t gasnetc_init_messaging(void);
 void gasnetc_shutdown(void); /* clean up all gni state */
@@ -589,5 +590,5 @@ void gasnete_consume_eop(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
 #define GASNETE_IOP_CNTRS(_iop,_putget) \
         GASNETE_IOP_CNTRS_##_putget(_iop)
 
-#endif /* GASNET_ARIES_H */
+#endif /* _GASNET_ARIES_H */
 

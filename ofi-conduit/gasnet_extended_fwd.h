@@ -1,7 +1,6 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_extended_fwd.h $
- * Description: GASNet Extended API Header for ucx Conduit (forward decls)
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ofi-conduit/gasnet_extended_fwd.h $
+ * Description: GASNet Extended API Header for OFI conduit (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
- * Copyright 2019-2020, Mellanox Technologies LTD. All rights reserved.
  * Terms of use are as specified in license.txt
  */
 
@@ -12,35 +11,37 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-
+#if GASNETC_OFI_REFERENCE_EXTENDED
+#define GASNET_EXTENDED_VERSION      GASNET_RELEASE_VERSION_MAJOR.GASNET_RELEASE_VERSION_MINOR
+#define GASNET_EXTENDED_NAME         REFERENCE
+#else
 #define GASNET_EXTENDED_VERSION      GASNET_CORE_VERSION
+#define GASNET_EXTENDED_NAME         OFI
+#endif
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
-#define GASNET_EXTENDED_NAME         UCX
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
 #define GASNETI_EOP_IS_HANDLE 1
 
-/* Configure use of AM-based implementation of get/put */
-/* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-#if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
-#define GASNETE_USING_REF_EXTENDED_GET      0
-#define GASNETE_USING_REF_EXTENDED_PUT      0
-#else
-#define GASNETE_USING_REF_EXTENDED_GET      1
-#define GASNETE_USING_REF_EXTENDED_PUT      1
+  /* if conduit-internal threads may call the Extended API and/or they may run
+     progress functions, then define GASNETE_CONDUIT_THREADS_USING_TD to the
+     maximum COUNT of such threads to allocate space for their threaddata
+   */
+#if 0
+  #define GASNETE_CONDUIT_THREADS_USING_TD ###
 #endif
 
-/* this can be used to add statistical collection values
-   specific to the extended API implementation (see gasnet_help.h) */
+  /* this can be used to add statistical collection values 
+     specific to the extended API implementation (see gasnet_help.h) */
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
-      GASNETI_VIS_STATS(CNT,VAL,TIME)      \
-      GASNETI_COLL_STATS(CNT,VAL,TIME)     \
-      GASNETI_RATOMIC_STATS(CNT,VAL,TIME)  \
-      CNT(C, DYNAMIC_THREADLOOKUP, cnt)
+        GASNETI_VIS_STATS(CNT,VAL,TIME)      \
+        GASNETI_COLL_STATS(CNT,VAL,TIME)     \
+        GASNETI_RATOMIC_STATS(CNT,VAL,TIME)  \
+        CNT(C, DYNAMIC_THREADLOOKUP, cnt)    
 
 #define GASNETE_AUXSEG_DECLS \
     extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
-#define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc,
+#define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc, 
 
 /*
  * When implementing a conduit-specific implementation of the Extended API, one
@@ -73,21 +74,21 @@
  *   set: conduit provides own gasnete_get_val() as an inline
  */
 
-/* We perform these blocking ops w/o the overhead of eop alloc/free: */
-//#define GASNETI_DIRECT_BLOCKING_GET 1
-//#define GASNETI_DIRECT_BLOCKING_PUT 1
+/* Configure use of AM-based implementation of get/put */
+/* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
 
-/* Implement all "base" operations directly via amref: */
-#if !defined(GASNET_SEGMENT_FAST) && !defined(GASNET_SEGMENT_LARGE)
-#define gasnete_amref_get_nb        gasnete_get_nb
-#define gasnete_amref_put_nb        gasnete_put_nb
-#define gasnete_amref_get_nbi       gasnete_get_nbi
-#define gasnete_amref_put_nbi       gasnete_put_nbi
+#if GASNETC_OFI_REFERENCE_EXTENDED
+  // Legacy/deprecated option that implement all RMA directly via amref
+  #define GASNETE_USING_REF_EXTENDED_GET    1
+  #define GASNETE_USING_REF_EXTENDED_PUT    1
+  #define gasnete_amref_get_nb        gasnete_get_nb
+  #define gasnete_amref_put_nb        gasnete_put_nb
+  #define gasnete_amref_get_nbi       gasnete_get_nbi
+  #define gasnete_amref_put_nbi       gasnete_put_nbi
+#else
+  #define GASNETE_USING_REF_EXTENDED_GET    0
+  #define GASNETE_USING_REF_EXTENDED_PUT    0
 #endif
 
-#if !defined(GASNET_DISABLE_MUNMAP_DEFAULT) && PLATFORM_ARCH_64
- // default to disabling munmap due to bug 4164 (odp performance)
- #define GASNET_DISABLE_MUNMAP_DEFAULT 1
 #endif
 
-#endif
