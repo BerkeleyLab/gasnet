@@ -289,6 +289,8 @@ static void gasnetc_minfo_reset(gasnetc_mem_info_t *minfo)
 static gasnetc_mem_info_t*
 gasnetc_segment_register(void *seg_start, size_t segsize)
 {
+  GASNETI_TRACE_PRINTF(C,("Registering segment [%p, %p)", seg_start, (void*)(segsize + (uintptr_t)seg_start)));
+
   ucs_status_t status;
   gasnet_ep_info_t * my_ep_info = &gasneti_ucx_module.ep_tbl[gasneti_mynode];
   gasnetc_mem_info_t *mem_info;
@@ -322,6 +324,33 @@ gasnetc_segment_register(void *seg_start, size_t segsize)
   gasneti_list_enq(&my_ep_info->mem_tbl, mem_info);
 
   return mem_info;
+}
+
+static int
+gasnetc_segment_deregister(gasnetc_Segment_t segment)
+{
+  GASNETI_TRACE_PRINTF(C,("Deregistering segment [%p, %p)", segment->_addr, segment->_ub));
+
+  gasnet_ep_info_t *my_ep_info = &gasneti_ucx_module.ep_tbl[gasneti_mynode];
+  gasnetc_mem_info_t *mem_info = segment->mem_info;
+
+  gasneti_list_rem(&my_ep_info->mem_tbl, mem_info);
+
+  ucs_status_t status;
+  status = ucp_mem_unmap(gasneti_ucx_module.ucp_context,
+                        mem_info->mem_h);
+  if (status != UCS_OK) {
+    gasneti_console_message("WARNING", "ucp_mem_unmap failed: %s",
+                            ucs_status_string(status));
+    return GASNET_ERR_BAD_ARG;
+  }
+
+  ucp_rkey_buffer_release(mem_info->buffer);
+  ucp_rkey_destroy(mem_info->rkey);
+
+  gasneti_free(mem_info);
+
+  return GASNET_OK;
 }
 
 // Exchange client segment info
@@ -489,6 +518,7 @@ static void gasnetc_unpin_segment(void)
 
     while(NULL !=
           (mem_info = GASNETI_LIST_POP(mem_tbl, gasnetc_mem_info_t))) {
+      // TODO: factor or merge w/ gasnetc_deregister_segment()
       if (gasneti_mynode == i) {
         status = ucp_mem_unmap(gasneti_ucx_module.ucp_context, mem_info->mem_h);
         if (status != UCS_OK) {
@@ -832,6 +862,13 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
   }
 #endif
   return GASNET_OK;
+}
+
+void gasnetc_segment_destroy_hook(gasneti_Segment_t i_segment)
+{
+#if GASNETC_PIN_SEGMENT
+  gasneti_assert_zeroret( gasnetc_segment_deregister((gasnetc_Segment_t) i_segment) );
+#endif
 }
 
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)

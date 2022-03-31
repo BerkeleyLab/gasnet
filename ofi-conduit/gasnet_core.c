@@ -54,6 +54,8 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   if (gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already initialized");
 
+  gasneti_init_done = 1; /* enable early to allow tracing */
+
   gasneti_freezeForDebugger();
 
   #if GASNET_DEBUG_VERBOSE
@@ -66,6 +68,9 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
   /* Must init timers after global env, and preferably before tracing */
   GASNETI_TICKS_INIT();
+
+  /* Now enable tracing of all the following steps */
+  gasneti_trace_init(argc, argv);
 
   /* bootstrap the nodes for ofi conduit */
   int ret = gasnetc_ofi_init();
@@ -166,6 +171,13 @@ extern int gasnetc_attach_primary(void) {
 /* ------------------------------------------------------------------------------------ */
 int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 {
+  // Until we have key management for more than aux + client:
+  static int count = 0;
+  if (count > 1) { // Note that the aux seg is not counted here
+    GASNETI_RETURN_ERRR(RESOURCE,"ofi-conduit does not support multiple user segments");
+  }
+  ++count;
+
   // Register the segment
   gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
   // TODO: non-fatal error handling:
@@ -175,6 +187,11 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
   // Currently there is a leak of the registration created by `fi_mr_reg()`, which
   // is inconsequential in practice until multi-EP support is added.
   return gasnetc_segment_register(segment);
+}
+
+void gasnetc_segment_destroy_hook(gasneti_Segment_t i_segment)
+{
+  gasneti_assert_zeroret( gasnetc_segment_deregister((gasnetc_Segment_t) i_segment) );
 }
 
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
@@ -218,7 +235,10 @@ extern int gasnetc_Client_Init(
   if (!gasneti_init_done) {
     int retval = gasnetc_init(argc, argv, flags);
     if (retval != GASNET_OK) GASNETI_RETURN(retval);
+  #if 0
+    /* called within gasnetc_init to allow init tracing */
     gasneti_trace_init(argc, argv);
+  #endif
   }
 
   // Do NOT move this prior to the gasneti_trace_init() call
@@ -486,6 +506,20 @@ extern void gasnetc_exit(int exitcode) {
   // TODO: 120 is arbitrary and hard-coded
   alarm(MAX(120, timeout));
   if (graceful) {
+    GASNETC_EXIT_STATE("draining network");
+    { GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
+      gex_Event_t *events = NULL;
+      size_t count;
+      gasneti_finalize_all_nbi_ff(&events, &count GASNETI_THREAD_PASS);
+      if (count) { // bounded polling (upto 25% of the total timeout) to drain any nbi_ff operations
+        const uint64_t timeout_ns = (timeout * 1000000000L) / 4;
+        const gasneti_tick_t t_start = gasneti_ticks_now();
+        gasneti_polluntil((gasneti_ticks_to_ns(gasneti_ticks_now() - t_start) > timeout_ns) ||
+                          (GASNET_ERR_NOT_READY != gasnete_test_all(events, count GASNETI_THREAD_PASS)));
+      }
+      gasneti_free(events);
+    }
+
     GASNETC_EXIT_STATE("in gasnetc_ofi_exit()");
     gasnetc_ofi_exit();
   }

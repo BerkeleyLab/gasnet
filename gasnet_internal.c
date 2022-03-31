@@ -527,6 +527,7 @@ gasneti_Segment_t gasneti_alloc_segment(
                        void *addr,
                        uintptr_t size,
                        gex_MK_t kind,
+                       int client_allocated,
                        gex_Flags_t flags)
 {
   gasneti_Segment_t segment;
@@ -545,6 +546,7 @@ gasneti_Segment_t gasneti_alloc_segment(
   segment->_addr = addr;
   segment->_ub = (void*)((uintptr_t)addr + size);
   segment->_size = size;
+  segment->_client_allocated = client_allocated;
 #ifdef GASNETC_SEGMENT_INIT_HOOK
   GASNETC_SEGMENT_INIT_HOOK(segment);
 #else
@@ -654,6 +656,26 @@ extern int gex_Segment_Create(
   #endif
 
   GASNETI_RETURN(rc);
+}
+
+extern void gex_Segment_Destroy(
+                gex_Segment_t           e_segment,
+                gex_Flags_t             flags)
+{
+  GASNETI_TRACE_PRINTF(O,("gex_Segment_Destroy: segment=%p flags=%d",
+                          (void*)e_segment, flags));
+  GASNETI_CHECK_INJECT();
+
+  if (!e_segment) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Destroy() with NULL segment");
+  }
+  if (flags) {
+    gasneti_fatalerror("Invalid call to gex_Segment_Destroy() with non-zero flags");
+  }
+  // TODO: check reference count, once implemented
+
+  gasneti_Segment_t i_segment = gasneti_import_segment(e_segment);
+  gasneti_assert_zeroret( gasneti_segmentDestroy(i_segment, 1) );
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -948,6 +970,51 @@ gasneti_Segment_t gasneti_epidx_to_segment(gasneti_TM_t i_tm, gex_EP_Index_t ep_
    gasneti_assert(i_ep);
    return i_ep->_segment;
 }
+
+#if GASNET_DEBUG && GASNET_HAVE_MK_CLASS_MULTIPLE
+// Helper for bounds checking local address range for host-vs-device bound segment.
+// Local address must match kind of bound segment, if any
+//
+// If bound segment kind is device, the local address must be in-segment.
+//   Returns GASNETI_BAD_LOCAL_OUTSIDE_DEVICE_SEGMENT if this constraint is violated
+// Otherwise, the local address must not be in any device segment
+//   Returns GASNETI_BAD_LOCAL_INSIDE_DEVICE_SEGMENT if this constraint is violated
+// Returns 0 in the absence of violations
+// Returns the device segment via *segment_p if either constraint is violated
+int _gasneti_boundscheck_local(gex_TM_t tm, void *addr, size_t len, gasneti_Segment_t *segment_p)
+{
+  gasneti_EP_t i_ep = gasneti_e_tm_to_i_ep(tm);
+  gasneti_Segment_t i_bound_segment = i_ep->_segment;
+  gex_Segment_t e_bound_segment = gasneti_export_segment(i_bound_segment);
+
+  if (!len || (e_bound_segment && _gasneti_in_segment_t(addr, len, e_bound_segment))) {
+    // Zero-length, or in the bound segment (if any) are always OK.
+  } else if (! gasneti_i_segment_kind_is_host(i_bound_segment)) {
+    // Local "device memory" must never be outside the bound segment.
+    *segment_p = i_bound_segment;
+    return GASNETI_BAD_LOCAL_OUTSIDE_DEVICE_SEGMENT;
+  } else if (gasneti_in_local_auxsegment(i_ep, addr, len)) {
+    // When not bound to device segment, local aux segment is OK.
+  } else {
+    // Search segment table for a match
+    // If a match is found, it must not be a device segment, but no match is fine too
+    gasneti_Segment_t i_segment;
+    GASNETI_SEGTBL_LOCK();
+    GASNETI_SEGTBL_FOR_EACH(i_segment) {
+      gex_Segment_t e_segment = gasneti_export_segment(i_segment);
+      if (_gasneti_in_segment_t(addr, len, e_segment)) {
+        if (gasneti_i_segment_kind_is_host(i_segment)) break;
+        GASNETI_SEGTBL_UNLOCK();
+        *segment_p = i_segment;
+        return GASNETI_BAD_LOCAL_INSIDE_DEVICE_SEGMENT;
+      }
+    }
+    GASNETI_SEGTBL_UNLOCK();
+  }
+  *segment_p = NULL;
+  return 0;
+}
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -2361,10 +2428,25 @@ void gasneti_segtbl_del(gasneti_Segment_t seg) {
       return buffer;
   }
 
+  // bug 4366: avoid spammy assertions if we are running in the context of a
+  // signal that arrived during a memcheck operation
+  // _gasneti_mutex_trylock_mayberecursive() is a version of gasneti_mutex_trylock
+  // that returns failure instead of asserting on a recursive attempt in DEBUG mode
+  // TODO: possibly promote this to the general gasneti_mutex API?
+  static int _gasneti_mutex_trylock_mayberecursive(gasneti_mutex_t *mut) {
+    #ifdef _gasneti_mutex_heldbyme
+      if (_gasneti_mutex_heldbyme(mut)) {
+        // we know we are already holding this mutex, return failure instead of asserting below
+        return EBUSY;
+      }
+    #endif
+    return gasneti_mutex_trylock(mut);
+  }
+
   extern void _gasneti_memcheck_one(const char *curloc) {
     if (gasneti_memalloc_extracheck) _gasneti_memcheck_all(curloc);
     else {
-      gasneti_mutex_lock(&gasneti_memalloc_lock);
+      if (_gasneti_mutex_trylock_mayberecursive(&gasneti_memalloc_lock)) return;
         if (gasneti_memalloc_pos) {
           _gasneti_memcheck(gasneti_memalloc_pos+1, curloc, 2);
           gasneti_memalloc_pos = gasneti_memalloc_pos->nextdesc;
@@ -2373,7 +2455,7 @@ void gasneti_segtbl_del(gasneti_Segment_t seg) {
     }
   }
   extern void _gasneti_memcheck_all(const char *curloc) {
-    gasneti_mutex_lock(&gasneti_memalloc_lock);
+    if (_gasneti_mutex_trylock_mayberecursive(&gasneti_memalloc_lock)) return;
       if (gasneti_memalloc_pos) {
         gasneti_memalloc_desc_t *begin = gasneti_memalloc_pos;
         uint64_t cnt;
@@ -2700,7 +2782,7 @@ void gasneti_segtbl_del(gasneti_Segment_t seg) {
       gasnett_getheapstats(&stats);
       fprintf(fp, "# GASNet Debug Mallocator Report\n");
       fprintf(fp, "#\n");
-      fprintf(fp, "# program: %s\n",gasneti_exename);
+      fprintf(fp, "# program: %s\n",gasneti_exe_name());
       fprintf(fp, "# date:    %s\n",temp);
       fprintf(fp, "# host:    %s\n",gasnett_gethostname());
       fprintf(fp, "# pid:     %i\n",(int)getpid());

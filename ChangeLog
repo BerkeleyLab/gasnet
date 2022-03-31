@@ -19,10 +19,14 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX-YY-ZZ: PENDING
+2022-03-31: GASNet-EX 2022.3.0 Release
 
 * General and Misc.
   - Add docs/gasnet1_differences.md guide for legacy GASNet-1 clients
+  - Reduce locking overheads inside AMPoll for single-node runs of
+    {udp,mpi}-conduit in PAR mode.
+  - A new environment variable `GASNET_HOST_DETECT` controls the
+    algorithm used for detecting compute node boundaries in a job.
 
 * InfiniBand Verbs (details in ibv-conduit README)
   - Improved reporting of fatal errors reported via IBV completion queues
@@ -34,11 +38,31 @@ GASNet-EX ChangeLog
     In the absence of these settings, default buffer size remains unchanged.
   - `GASNET_DISABLE_MUNMAP=1` is now the default for ucx-conduit.
 
+* Libfabric [EXPERIMENTAL] (details in ofi-conduit README)
+  - Initial support for the "cxi" provider for the HPE Slingshot-11 network.
+    + Added support for providers which set the `FI_MR_ENDPOINT` memory mode bit
+    + Added support for providers which do not support multiple endpoints
+      reporting TX completions to a single completion queue
+  - ofi-conduit is now the recommended conduit for HPE Slingshot (such as 
+    present in HPE Cray EX systems) and Intel Omni-Path (OPA) networks
+  - A new family of `GASNET_OFI_DEVICE*` environment variables provide
+    control over which device is used by a given process.  When configure can
+    find (optional) hwloc, this can be based on a process's location in the node
+    architecture (e.g. by socket or numa node).
+  - The implementation now includes a native implementation of the
+    Extended API (Put and Get) in terms of `fi_write()` and `fi_read()`.
+
 * GASNet-EX Spec v0.15: (details in docs/GASNet-EX.txt)
   - Clarify that src/dst overlap within one operation yields undefined behavior
+  - Initial implementation of gex_Segment_Destroy()
+
+* GASNet tools (spec v1.19): (details in README-tools)
+  - Add gasnett_exe_name() for exposing the current executable name
+  - gasnett_gethostname() now normalizes hostnames to lowercase
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
-  - bug4211: intermittent udp-conduit exit-time hangs on macos
+  - bug4211: intermittent udp-conduit exit-time hangs on macOS
+  - bug4227: Bogus maybe-uninit warning building libgasnet with GCC-11.1+ 
   - bug4297: incorrect nbrhd construction for some multi-homed hosts
   - bug4321: Intermittent "EBADENDPOINT" failures in single-node udp-conduit
   - bug4339: ucx: many-to-one deadlock
@@ -46,7 +70,13 @@ GASNet-EX ChangeLog
   - bug4355: Erroneous memory access when deleting a segment
   - bug4356: Missing bounds checks for Long payloads
   - bug4360: Insufficient fixed exit timeouts (ucx, ibv, ofi)
+  - bug4361: (partial fix) reductions on DT_USER of unbounded length
+  - bug4366: intermittent exit-time assertion failures from debug memcheck
+  - bug4373: ofi: FI_MR_ENDPOINT support
   - bug4374: Update mr_mode handling to OFI 1.5 API spec (or newer?)
+  - bug4375: ofi: support multiple tx CQs
+  - bug4376: ofi: infrequent FI_EAGAIN when reposting multi-recv buffer
+  - bug4399: (partial fix) stronger local address range checks when using kinds
 
 ----------------------------------------------------------------------
 2021-09-30: GASNet-EX 2021.9.0 Release
