@@ -1504,25 +1504,33 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   mn = GASNET_EXTENDED_NAME_STR;
   m = myext; while (*mn) { *m = tolower(*mn); m++; mn++; }
   *m = '\0';
-  int haveOmniPath = 0; // bug 3609: this oddball needs special handling
+  int lowQualityVerbs = 0; // bug 3609: some verbs-compatible networks need special handling
   #if PLATFORM_OS_LINUX
-    const char *filename = "/sys/class/infiniband/hfi1_0/board_id";
-    FILE *fp = fopen(filename,"r");
-    if (fp) {
-      char buffer[128];
-      size_t r = fread(&buffer, 1, sizeof(buffer), fp);
-      if (r) { // eg: "Intel Omni-Path HFI Adapter 100 Series, 1 Port, PCIe x16"
-        buffer[r-1] = 0;
-        if (strstr(buffer, "Omni-Path")) haveOmniPath = 1;
+    const char *filename[] = {
+      "/sys/class/infiniband/hfi1_0/board_id", // Intel Omni-Path
+      "/sys/class/infiniband/qib0/board_id",   // QLogic/Intel TrueScale
+    };
+    for (int i=0; i < sizeof(filename)/sizeof(filename[0]); i++) {
+      FILE *fp = fopen(filename[i],"r");
+      if (fp) {
+        char buffer[128];
+        size_t r = fread(&buffer, 1, sizeof(buffer), fp);
+        if (r) { 
+          buffer[r-1] = 0;
+          // eg: "Intel Omni-Path HFI Adapter 100 Series, 1 Port, PCIe x16"
+          if (strstr(buffer, "Omni-Path")) lowQualityVerbs = 1;
+          // eg: "InfiniPath_QLE7340"
+          if (strstr(buffer, "InfiniPath")) lowQualityVerbs = 1;
+        }
+        fclose(fp);
       }
-      fclose(fp);
     }
   #endif
   
   if ( /* is a portable network conduit */
          (!strcmp("mpi",mycore) && !strcmp("reference",myext))
       || (!strcmp("udp",mycore) && !strcmp("reference",myext))
-      || (!strcmp("ofi",mycore) && !strcmp("ofi",myext) && !haveOmniPath)
+      || (!strcmp("ofi",mycore) && !strcmp("ofi",myext) && !lowQualityVerbs)
       ) {
     const char *p = GASNETI_CONDUITS;
     char natives[255];
@@ -1543,8 +1551,8 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!strcmp(name,"smp")) continue;
         if (!strcmp(name,"mpi")) continue;
         if (!strcmp(name,"udp")) continue;
-        if (!strcmp(name,"ofi") && !haveOmniPath) continue;
-        if (!strcmp(name,"ibv") && haveOmniPath) continue; // never recommend ibv over OPA
+        if (!strcmp(name,"ofi") && !lowQualityVerbs) continue;
+        if (!strcmp(name,"ibv") && lowQualityVerbs) continue; // never recommend ibv on these networks
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,name);
       }
@@ -1573,7 +1581,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!stat(known_devs[i].filename,&stat_buf) && 
             (!known_devs[i].filemode || (known_devs[i].filemode & stat_buf.st_mode))) {
             int hwid = known_devs[i].hwid;
-            if (hwid == 2 && haveOmniPath) continue; // never recommend ibv over OPA
+            if (hwid == 2 && lowQualityVerbs) continue; // never recommend ibv on these networks
             if (strlen(natives)) strcat(natives,", ");
             strcat(natives,known_devs[i].desc);
             while (i < lim && hwid == known_devs[i].hwid) i++; /* don't report a network twice */
