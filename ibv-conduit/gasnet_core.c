@@ -1858,13 +1858,16 @@ static void gasnetc_probe_ports(int max_ports) {
       gasnetc_hca_t *hca = &gasnetc_hca[hca_count];
 
       if (gasneti_getenv_yesno_withdefault("GASNET_IBV_MODEL_WARN", 1)) {
-        if (!strncmp(hca_name, "hfi1_", 5)) {
+        const char *bad_model = NULL;
+        if (!strncmp(hca_name, "hfi1_", 5)) bad_model = "Omni-Path";
+        if (!strncmp(hca_name, "qib", 2))   bad_model = "TrueScale";
+        if (bad_model) {
           fprintf(stderr,
-                  "WARNING: Use of ibv-conduit with Omni-Path NIC %s is not recommended.\n"
+                  "WARNING: Use of ibv-conduit with %s NIC %s is not recommended.\n"
                   "         See GASNet's ibv-conduit README for more information.\n"
                   "         Alternatively, you may set environment variable\n"
                   "         GASNET_IBV_MODEL_WARN=0 to silence this message.\n",
-                  hca_name);
+                  bad_model, hca_name);
         }
       }
 
