@@ -890,16 +890,17 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
   #define GASNETC_MAX_ARGS_NBRHD   (gex_AM_MaxArgs())
 #endif
 #ifndef GASNETC_MAX_MEDIUM_NBRHD
-  // Assumes gex_AM_LUB{Request,Reply}Medium() expand to compile-time constants
-  // AND that the LUB is the *greatest* upper-bound.  If either property is not
-  // true for a given conduit, then it must define GASNETC_MAX_MEDIUM_NBRHD to
-  // an appropriate compile-time constant bound in its gasnet_core_fwd.h.
+  // This default assumes gex_AM_LUB{Request,Reply}Medium() expand to their
+  // *greatest* upper-bound.  If that is not true for a given conduit, then it
+  // must define GASNETC_MAX_MEDIUM_NBRHD in its gasnet_core_fwd.h to an
+  // expression which evaluates to the correct value no later than execution
+  // of gasneti_pshm_init().
   // The value may be a conservative upper-bound if the real value cannot be
-  // known until run time (at the cost of wasted memory).
+  // known that early (at the cost of wasted memory).
   #define GASNETC_MAX_MEDIUM_NBRHD MAX(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())
 #endif
 #ifndef GASNETC_MAX_LONG_NBRHD
-  // Same assumptions and usage as GASNETC_MAX_MEDIUM_NBRHD, above, but for Long.
+  // Same assumption and usage as GASNETC_MAX_MEDIUM_NBRHD, above, but for Long.
   #define GASNETC_MAX_LONG_NBRHD MAX(gex_AM_LUBRequestLong(),gex_AM_LUBReplyLong())
 #endif
 
