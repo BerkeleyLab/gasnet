@@ -274,9 +274,10 @@ ssize_t gasnetc_fi_cq_readerr(struct fid_cq *cq, struct fi_cq_err_entry *buf, ui
   return fi_cq_readerr(cq, buf, flags);
 }
 
-/* Reads any user-provided settings from the environment to avoid clogging up
- * the gasnetc_ofi_init() function with this code. */
-static void gasnetc_ofi_read_env_vars() {
+// Reads any user-provided settings from the environment to avoid clogging up
+// the gasnetc_ofi_init() function with this code.
+// Runs after provier and domain selection to allow for provider-specific defaults
+static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) {
     const char* am_max_medium_env =  "GASNET_OFI_MAX_MEDIUM";
     const char* max_am_request_buffs_env =  "GASNET_OFI_MAX_REQUEST_BUFFS";
     const char* max_am_reply_buffs_env =  "GASNET_OFI_MAX_REPLY_BUFFS";
@@ -358,9 +359,6 @@ static void gasnetc_ofi_read_env_vars() {
                 "--with-ofi-max-medium=<new size>.\n",
                 long_rma_threshold_env, (int)OFI_AM_MAX_DATA_LENGTH);
     }
-
-    gasnetc_ofi_device = gasneti_getenv_hwloc_withdefault("GASNET_OFI_DEVICE", "", "Socket");
-    if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
 
     tx_cq_size = gasneti_getenv_int_withdefault("GASNET_OFI_TX_CQ_SIZE", 0, 0);
     rx_cq_size = gasneti_getenv_int_withdefault("GASNET_OFI_RX_CQ_SIZE", 0, 0);
@@ -509,7 +507,6 @@ int gasnetc_ofi_init(void)
   
   int high_perf_prov = 0;
 
-  gasnetc_ofi_read_env_vars();
   /* Ensure uniform FI_* env vars */
   /* TODO: what about provider-specific env vars? */
   gasneti_propagate_env("FI_", GASNETI_PROPAGATE_ENV_PREFIX);
@@ -536,6 +533,8 @@ int gasnetc_ofi_init(void)
   if (!hints) gasneti_fatalerror("fi_allocinfo for hints failed\n");
 
   // constrain the device/domain if provided by the user
+  gasnetc_ofi_device = gasneti_getenv_hwloc_withdefault("GASNET_OFI_DEVICE", "", "Socket");
+  if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
   hints->domain_attr->name = gasnetc_ofi_device;
 
   /* caps: fabric interface capabilities */
@@ -714,6 +713,9 @@ int gasnetc_ofi_init(void)
   ret = fi_domain(gasnetc_ofi_fabricfd, info, &gasnetc_ofi_domainfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_domain failed");
   GASNETI_TRACE_PRINTF(I, ("Opened domain '%s'", info->domain_attr->name));
+
+  // Now read user-provided environment settings
+  gasnetc_ofi_read_env_vars(info->fabric_attr->prov_name, info->domain_attr->name);
 
   /* The intention here is to ensure that subsequent calls to fi_getinfo()
    * won't ever give us a different provider.
