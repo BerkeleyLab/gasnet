@@ -624,7 +624,7 @@ int gasnetc_ofi_init(void)
   }
 
   // Check if this provider is one we consider "high performance"
-  const char *high_perf_providers[] = { "psm2", "cxi" };
+  const char *high_perf_providers[] = { "psm2", "cxi", "verbs;ofi_rxm" };
   for (i = 0; i < sizeof(high_perf_providers)/sizeof(high_perf_providers[0]); ++i) {
     if (!strcmp(info->fabric_attr->prov_name, high_perf_providers[i])) {
       high_perf_prov = 1;
