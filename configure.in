@@ -4270,7 +4270,7 @@ configured for that provider. If that is not your desired provider, override thi
                 ],
                 [AC_MSG_ERROR([--with-ofi-max-medium must be no smaller than 512])],
                  [ofi_max_medium=8192])
-    AC_DEFINE_UNQUOTED(GASNETC_OFI_MAX_MEDIUM, [$ofi_max_medium])
+    AC_DEFINE_UNQUOTED(GASNETC_OFI_MAX_MEDIUM_DFLT, [$ofi_max_medium])
 
     GASNET_IF_ENABLED_NOHELP(ofi-legacy-extended,
                       [AC_DEFINE(GASNETC_OFI_REFERENCE_EXTENDED)

@@ -104,12 +104,14 @@ typedef struct {
   ==========================
 */
 
+extern size_t gasnetc_ofi_max_medium;
+
 #define gex_AM_MaxArgs()          ((unsigned int)16)
 
   /* Define least-upper-bound (worst case) limits on payload sizes */
 #define GASNETC_LONG_MSG_LIMIT (0x7fffffff)
-#define gex_AM_LUBRequestMedium() ((size_t)MIN(GASNETC_OFI_MAX_MEDIUM, GASNETC_MAX_MEDIUM_NBRHD_DFLT))
-#define gex_AM_LUBReplyMedium()   ((size_t)MIN(GASNETC_OFI_MAX_MEDIUM, GASNETC_MAX_MEDIUM_NBRHD_DFLT))
+#define gex_AM_LUBRequestMedium() ((size_t)gasnetc_ofi_max_medium) // redundant cast prevents assignment
+#define gex_AM_LUBReplyMedium()   ((size_t)gasnetc_ofi_max_medium) // redundant cast prevents assignment
 #define gex_AM_LUBRequestLong()   ((size_t)GASNETC_LONG_MSG_LIMIT)
 #define gex_AM_LUBReplyLong()     ((size_t)GASNETC_LONG_MSG_LIMIT)
 

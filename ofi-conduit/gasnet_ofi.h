@@ -31,7 +31,7 @@
   } while (0)
 
 #define OFI_AM_MAX_DATA_LENGTH \
-  GASNETI_ALIGNUP_NOASSERT(GASNETC_OFI_MAX_MEDIUM + \
+  GASNETI_ALIGNUP_NOASSERT(gasnetc_ofi_max_medium + \
                            GASNETI_ALIGNUP_NOASSERT(sizeof(gex_AM_Arg_t) * gex_AM_MaxArgs(), \
                                                     GASNETI_MEDBUF_ALIGNMENT), \
                            GASNETI_MEDBUF_ALIGNMENT)
@@ -94,15 +94,14 @@ typedef struct gasnetc_ofi_am_short_buf {
 } gasnetc_ofi_am_short_buf_t;
 
 typedef struct gasnetc_ofi_am_medium_buf {
-   uint8_t 				data[OFI_AM_MAX_DATA_LENGTH]
-                            __attribute__((aligned(GASNETI_MEDBUF_ALIGNMENT)));
+  uint8_t      data[1] // Flexible array member. Actual size OFI_AM_MAX_DATA_LENGTH
+               __attribute__((aligned(GASNETI_MEDBUF_ALIGNMENT)));
    
 } gasnetc_ofi_am_medium_buf_t;
 
 typedef struct gasnetc_ofi_am_long_buf {
-  void 					*dest_ptr;
-  uint8_t 				data[OFI_AM_MAX_DATA_LENGTH];
-
+  void         *dest_ptr;
+  uint8_t      data[1]; // Flexible array member. Actual size OFI_AM_MAX_DATA_LENGTH
 } gasnetc_ofi_am_long_buf_t;
 
 typedef struct gasnetc_ofi_am_send_buf {
@@ -123,7 +122,8 @@ typedef struct gasnetc_ofi_am_buf {
   event_callback_fn 	callback;
   gasnetc_ofi_am_send_buf_t 	sendbuf;
 } gasnetc_ofi_am_buf_t;
-
+#define GASNETC_SIZEOF_AM_BUF_T \
+        (offsetof(gasnetc_ofi_am_buf_t, sendbuf.buf.long_buf.data) + OFI_AM_MAX_DATA_LENGTH)
 
 typedef struct gasnetc_ofi_ctxt {
   // Conduit code assumes ctxt is the first field
