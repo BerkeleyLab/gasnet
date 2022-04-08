@@ -45,6 +45,11 @@
 
 #define GASNET_MAXNODES AMUDP_MAX_NUMTRANSLATIONS
 
+  // If this conduit is considered a "portable conduit" only *conditionally*,
+  // uncomment to enable calls to gasnetc_check_portable_conduit(void) as
+  // described in gasnet_internal.c.
+//#define GASNETC_CHECK_PORTABLE_CONDUIT_HOOK 1
+
   // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
 //#define GASNET_HAVE_MK_CLASS_CUDA_UVA GASNETI_MK_CLASS_CUDA_UVA_ENABLED
 //#define GASNET_HAVE_MK_CLASS_HIP GASNETI_MK_CLASS_HIP_ENABLED

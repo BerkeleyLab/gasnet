@@ -1495,6 +1495,17 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+#ifdef GASNETC_CHECK_PORTABLE_CONDUIT_HOOK
+  // If a conduit is *conditionally* considered a "portable conduit", then this
+  // hook can be implemented to allow the conduit to indicate if those
+  // conditions are met.  This function should return non-zero when the conduit
+  // is "portable" and zero when "native".
+  // Runs via gasnete_check_config(), called by gasnete_init().
+  extern int gasnetc_check_portable_conduit(void);
+#else
+  #define gasnetc_check_portable_conduit() 0
+#endif
+
 static void gasneti_check_portable_conduit(void) { /* check for portable conduit abuse */
   char mycore[80], myext[80];
   char const *mn = GASNET_CORE_NAME_STR;
@@ -1528,7 +1539,8 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   #endif
   
   if ( /* is a portable network conduit */
-         (!strcmp("mpi",mycore) && !strcmp("reference",myext))
+      gasnetc_check_portable_conduit()
+      || (!strcmp("mpi",mycore) && !strcmp("reference",myext))
       || (!strcmp("udp",mycore) && !strcmp("reference",myext))
       || (!strcmp("ofi",mycore) && !strcmp("ofi",myext) && !lowQualityVerbs)
       ) {
