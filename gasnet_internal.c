@@ -1569,9 +1569,11 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
       } known_devs[] = {
         { "/dev/infiniband/uverbs0",     S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
         { "/dev/infiniband/ofs/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* Solaris */
+        { "/dev/cxi0",                   S_IFCHR, "HPE Slingshot (OFI)", 3 },
+        { "/sys/class/cxi",              S_IFDIR, "HPE Slingshot (OFI)", 3 },
         #if !GASNET_SEGMENT_EVERYTHING
-          { "/dev/kgni0",            S_IFCHR, "Cray Gemini", 6 },
-          { "/proc/kgnilnd",         S_IFDIR, "Cray Gemini", 6 },
+          { "/dev/kgni0",            S_IFCHR, "Cray Aries", 6 },
+          { "/proc/kgnilnd",         S_IFDIR, "Cray Aries", 6 },
         #endif
         { "/list_terminator", S_IFDIR, "", 9999 }
       };
@@ -1587,10 +1589,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
             while (i < lim && hwid == known_devs[i].hwid) i++; /* don't report a network twice */
         }
       }
-      #if PLATFORM_OS_CNL
-        if (strlen(natives)) strcat(natives,", ");
-        strcat(natives,"Cray Gemini (XE and XK) or Aries (XC)");
-      #endif
       if (natives[0]) {
         sprintf(reason, "WARNING: This system appears to contain recognized network hardware: %s\n"
                         "WARNING: which is supported by a GASNet native conduit, although\n"
