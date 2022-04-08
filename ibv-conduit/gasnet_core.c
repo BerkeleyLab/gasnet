@@ -1860,7 +1860,7 @@ static void gasnetc_probe_ports(int max_ports) {
       if (gasneti_getenv_yesno_withdefault("GASNET_IBV_MODEL_WARN", 1)) {
         const char *bad_model = NULL;
         if (!strncmp(hca_name, "hfi1_", 5)) bad_model = "Omni-Path";
-        if (!strncmp(hca_name, "qib", 2))   bad_model = "TrueScale";
+        if (!strncmp(hca_name, "qib", 3))   bad_model = "TrueScale";
         if (bad_model) {
           fprintf(stderr,
                   "WARNING: Use of ibv-conduit with %s NIC %s is not recommended.\n"
