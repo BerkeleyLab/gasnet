@@ -200,6 +200,10 @@ static int using_psm_provider = 0;
 static char *gasnetc_ofi_device = NULL;
 static const char *supported_providers = GASNETC_OFI_PROVIDER_LIST;
 
+static int gasnetc_high_perf_prov = 0;
+static char *gasneti_ofi_provider = NULL;
+static char *gasneti_ofi_domain = NULL;
+
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 static gasnetc_ofi_recv_metadata_t* metadata_array;
@@ -272,6 +276,19 @@ void gasnetc_ofi_am_recv_poll_cold(int is_request) { // non-inline wrapper to av
 GASNETI_NEVER_INLINE(gasnetc_fi_cq_readerr, // this wrapper silences a warning on gcc 4.8.5
 ssize_t gasnetc_fi_cq_readerr(struct fid_cq *cq, struct fi_cq_err_entry *buf, uint64_t flags)) {
   return fi_cq_readerr(cq, buf, flags);
+}
+
+// ofi-conduit should not be considered "portable" when using
+// a high-performance provider (unless used w/ inappropriate h/w)
+int gasnetc_check_portable_conduit(void) {
+  gasneti_assert(gasnetc_ofi_inited);
+  if (strcmp(gasneti_ofi_provider, "verbs;ofi_rxm")) {
+    // extension of bug 3609: some verbs-compatible networks need special handling
+    // TODO: warn specifically about the right providers
+    if (!strncmp(gasneti_ofi_domain, "hfi1_", 5)) return 1; // psm2
+    if (!strncmp(gasneti_ofi_domain, "qib", 3))   return 1; // psm
+  }
+  return !gasnetc_high_perf_prov;
 }
 
 // Reads any user-provided settings from the environment to avoid clogging up
@@ -505,8 +522,6 @@ int gasnetc_ofi_init(void)
   int num_locks; 
   int i;
   
-  int high_perf_prov = 0;
-
   /* Ensure uniform FI_* env vars */
   /* TODO: what about provider-specific env vars? */
   gasneti_propagate_env("FI_", GASNETI_PROPAGATE_ENV_PREFIX);
@@ -636,7 +651,7 @@ int gasnetc_ofi_init(void)
   const char *high_perf_providers[] = { "psm2", "cxi", "verbs;ofi_rxm" };
   for (i = 0; i < sizeof(high_perf_providers)/sizeof(high_perf_providers[0]); ++i) {
     if (!strcmp(info->fabric_attr->prov_name, high_perf_providers[i])) {
-      high_perf_prov = 1;
+      gasnetc_high_perf_prov = 1;
       break;
     }
   }
@@ -666,7 +681,7 @@ int gasnetc_ofi_init(void)
   }
 #endif
 
-  if (!high_perf_prov && !gasneti_mynode) {
+  if (!gasnetc_high_perf_prov && !gasneti_mynode) {
           const char * msg = 
           "WARNING: Using OFI provider (%s), which has not been validated to provide\n"
           "WARNING: acceptable GASNet performance. You should consider using a more\n"
@@ -708,11 +723,13 @@ int gasnetc_ofi_init(void)
                            info->fabric_attr->prov_name,
                            (unsigned int)FI_MAJOR(info->fabric_attr->prov_version),
                            (unsigned int)FI_MINOR(info->fabric_attr->prov_version)));
+  gasneti_leak( gasneti_ofi_provider = gasneti_strdup(info->fabric_attr->prov_name) );
 
   /* Open a fabric access domain, also referred to as a resource domain */
   ret = fi_domain(gasnetc_ofi_fabricfd, info, &gasnetc_ofi_domainfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_domain failed");
   GASNETI_TRACE_PRINTF(I, ("Opened domain '%s'", info->domain_attr->name));
+  gasneti_leak( gasneti_ofi_domain = gasneti_strdup(info->domain_attr->name) );
 
   // Now read user-provided environment settings
   gasnetc_ofi_read_env_vars(info->fabric_attr->prov_name, info->domain_attr->name);
@@ -721,8 +738,8 @@ int gasnetc_ofi_init(void)
    * won't ever give us a different provider.
    * This is necessary when more than one provider matches the other hints,
    * and the first match is not the one we want. */
-  hints->fabric_attr->prov_name = gasneti_strdup(info->fabric_attr->prov_name);
-  hints->domain_attr->name = gasneti_strdup(info->domain_attr->name);
+  hints->fabric_attr->prov_name = gasneti_ofi_provider;
+  hints->domain_attr->name = gasneti_ofi_domain;
 
   /* Allocate a new active endpoint for RDMA operations */
   hints->caps = FI_RMA;
@@ -739,9 +756,8 @@ int gasnetc_ofi_init(void)
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for MSG endpoints");
 
-  gasneti_free(hints->domain_attr->name);
+  // Don't allow libfabric to free() our strings
   hints->domain_attr->name = NULL;
-  gasneti_free(hints->fabric_attr->prov_name);
   hints->fabric_attr->prov_name = NULL;
 
   ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_request_epfd, NULL);

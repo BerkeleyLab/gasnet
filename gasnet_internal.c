@@ -1542,7 +1542,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
       gasnetc_check_portable_conduit()
       || (!strcmp("mpi",mycore) && !strcmp("reference",myext))
       || (!strcmp("udp",mycore) && !strcmp("reference",myext))
-      || (!strcmp("ofi",mycore) && !strcmp("ofi",myext) && !lowQualityVerbs)
       ) {
     const char *p = GASNETI_CONDUITS;
     char natives[255];
