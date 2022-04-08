@@ -99,16 +99,15 @@ typedef struct {
 
 #define gex_AM_MaxArgs()          ((unsigned int)###)
 
-  /* Define least-upper-bound (worst case) limits on payload sizes */
-  /* (###) Conduit must "negotiate" with the NBRHD logic for the max size of a
-   * Medium message.  This can either be done by lowering the conduit's value
-   * to the GASNETC_MAX_MEDIUM_NBRHD_DFLT (as with the MIN() expressions below),
-   * or the conduit may define GASNETC_MAX_MEDIUM_NBRHD in gasnet_core_fwd.h to
-   * raise or lower the MaxMedium value used by NBRHD.
-   * TODO-EX: Maxes should become independent with locality-aware Max queries.
-   */
-#define gex_AM_LUBRequestMedium() ((size_t)MIN(###, GASNETC_MAX_MEDIUM_NBRHD_DFLT))
-#define gex_AM_LUBReplyMedium()   ((size_t)MIN(###, GASNETC_MAX_MEDIUM_NBRHD_DFLT))
+  // Define least-upper-bound (worst case) limits on payload sizes
+  //
+  // Conduit must also provide the NBRHD logic with the max (best case) sizes of
+  // messages, and by default these are used for that purpose.  If the best and
+  // worst cases are *not* the same (such as larger limits with fewer arguments)
+  // then the conduit must define GASNETC_MAX_{MEDIUM,LONG}_NBRHD.  For more
+  // information see the comments in gasnetex.h which describe those two macros.
+#define gex_AM_LUBRequestMedium() ((size_t)###)
+#define gex_AM_LUBReplyMedium()   ((size_t)###)
 #define gex_AM_LUBRequestLong()   ((size_t)###)
 #define gex_AM_LUBReplyLong()     ((size_t)###)
 

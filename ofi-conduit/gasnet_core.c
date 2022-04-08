@@ -18,6 +18,10 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
+
+GASNETI_IDENT(gasnetc_IdentString_AMMaxMediumDefault,
+              "$GASNetAMMaxMediumDefault: " _STRINGIFY(GASNETC_OFI_MAX_MEDIUM_DFLT) " $");
+
 gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
 /* Exit coordination timeouts */
