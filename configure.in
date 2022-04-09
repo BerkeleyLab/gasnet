@@ -1646,7 +1646,7 @@ AC_DEFUN([GASNET_PACKAGE_LDFLAGS],[
   pushdef([the_guess],$1[]_ldflags_guess)
   pushdef([extra_flags],ifelse(len([$3]),[0],[],[ $3]))  dnl prepends space only if non-empty
   pushdef([rpath_opt],translit($1,'A-Z_','a-z-')-rpath)
-  pushdef([rpath_var],enable_[]translit($1,'A-Z-','a-z_')_rpath)
+  pushdef([rpath_var],enabled_[]translit($1,'A-Z-','a-z_')_rpath)
   dnl TODO - strengthen this if we can determine linker's default search path:
   case "$the_home" in
     /usr|/) the_guess='$3';;
@@ -5112,9 +5112,14 @@ if test "$enable_mk_hip" != "no"; then
             # but always depends on functions from CUDA runtime (library name can vary).
             # libcudart is generally NOT in CUDA_LIBS, since the CUDA MK does not require it
             GASNET_ENV_DEFAULT(HIP_LIBS, -lamdhip64 -lcudart)
-            # extra_flags below ensures default HIP_LDFLAGS includes the CUDA libdir (for libcudart)
+            # extra_cudart_flags ensures default HIP_LDFLAGS includes the CUDA libdir (for libcudart)
             # which notably may or may not be in CUDA_LDFLAGS (since CUDA only requires libcuda)
-            GASNET_PACKAGE_LDFLAGS(HIP, amdhip64, -L$CUDA_HOME/lib64)
+            extra_cudart_flags="-L$CUDA_HOME/lib64"
+            if test -n "$cc_rpath_option" && test "x$enable_cuda_rpath" != "xno" && \
+               test "${enable_cuda_rpath}x${enabled_rpath}" != "xno" ; then
+              extra_cudart_flags="$extra_cudart_flags $cc_rpath_option$CUDA_HOME/lib64"
+            fi
+            GASNET_PACKAGE_LDFLAGS(HIP, amdhip64, $extra_cudart_flags)
 
             # Suppress warnings when compiling gasnet_hip.c and testhip.c
             # due to "issues" in hip_runtime.h when parsed by a C compiler in
