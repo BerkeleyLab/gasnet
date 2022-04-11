@@ -1601,6 +1601,33 @@ static int gasneti_nativeOfiProvider(void) {
   return nativeOfiProvider;
 }
 
+// Search for hardware where we will recommend ucx-conduit as native.
+// Currently we only document support for Mellanox ConnectX-5 and newer.
+// However, we currently accept anything not on ibv-consuit's ban list.
+// TODO: more accurate device probe?
+// TODO: more platforms than just Linux?
+static int gasneti_nativeUcxSupport(void) {
+  static int nativeUcxSupport = 0;
+#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL
+  static int is_init = 0;
+  if (!is_init) {
+    gasneti_device_probe_t dev_list[] = { GASNETI_IBV_DEVICES };
+    if (gasneti_lowQualityVerbs()) {
+      // Assume no good if any ban-listed HCA is found (we assume single fabric)
+    } else {
+      for (int i = 0; i < sizeof(dev_list)/sizeof(dev_list[0]); ++i) {
+        if (gasneti_device_probe(dev_list + i)) {
+          nativeUcxSupport = 1;
+          break;
+        }
+      }
+    }
+    is_init = 1;
+  }
+#endif
+  return nativeUcxSupport;
+}
+
 static void gasneti_check_portable_conduit(void) { /* check for portable conduit abuse */
   char mycore[80], myext[80];
   char const *mn = GASNET_CORE_NAME_STR;
@@ -1615,6 +1642,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
       gasnetc_check_portable_conduit()
       || (!strcmp("mpi",mycore) && !strcmp("reference",myext))
       || (!strcmp("udp",mycore) && !strcmp("reference",myext))
+      || (!strcmp("ucx",mycore) && !gasneti_nativeUcxSupport())
       ) {
     const char *p = GASNETI_CONDUITS;
     char natives[255];
@@ -1635,6 +1663,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!strcmp(name,"smp")) continue;
         if (!strcmp(name,"mpi")) continue;
         if (!strcmp(name,"udp")) continue;
+        if (!strcmp(name,"ucx") && !gasneti_nativeUcxSupport()) continue;
         if (!strcmp(name,"ofi") && !gasneti_nativeOfiProvider()) continue;
         if (!strcmp(name,"ibv") && gasneti_lowQualityVerbs()) continue; // never recommend ibv on these networks
         if (strlen(natives)) strcat(natives,", ");

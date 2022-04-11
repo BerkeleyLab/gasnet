@@ -45,6 +45,11 @@
   // If this conduit is considered a "portable conduit" only *conditionally*,
   // uncomment to enable calls to gasnetc_check_portable_conduit(void) as
   // described in gasnet_internal.c.
+// TODO: As originally noted in bug 4438, our intent is to only recommend
+// ucx-conduit for use with supported hardware (currently Mellanox ConnectX-5
+// or newer).  If/when UCP can provide us with information about this selected
+// transports OR we recode to UCT (and thus control the selection), we should
+// apply this conduit-specific knowledge to implement this hook.
 //#define GASNETC_CHECK_PORTABLE_CONDUIT_HOOK 1
 
   // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
