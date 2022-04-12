@@ -53,6 +53,11 @@ To use the template:
 * If possible, add auto-detection for your network hardware to 
   gasneti_check_portable_conduit() in gasnet_internal.c
 
+* If your conduit is only "native" for some hardware and "portable" for others,
+  then define GASNETC_CHECK_PORTABLE_CONDUIT_HOOK in gasnet_core_fwd.h and
+  provide an implementation of gasnetc_check_portable_conduit() to distinguish
+  the two cases
+
 * Delete this file (<conduitname>-conduit/README.template) file 
 
 * Fill in conduit documentation in <conduitname>-conduit/README

@@ -1495,17 +1495,50 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-static void gasneti_check_portable_conduit(void) { /* check for portable conduit abuse */
-  char mycore[80], myext[80];
-  char const *mn = GASNET_CORE_NAME_STR;
-  char *m;
-  m = mycore; while (*mn) { *m = tolower(*mn); m++; mn++; }
-  *m = '\0';
-  mn = GASNET_EXTENDED_NAME_STR;
-  m = myext; while (*mn) { *m = tolower(*mn); m++; mn++; }
-  *m = '\0';
-  int lowQualityVerbs = 0; // bug 3609: some verbs-compatible networks need special handling
-  #if PLATFORM_OS_LINUX
+#ifdef GASNETC_CHECK_PORTABLE_CONDUIT_HOOK
+  // If a conduit is *conditionally* considered a "portable conduit", then this
+  // hook can be implemented to allow the conduit to indicate if those
+  // conditions are met.  This function should return non-zero when the conduit
+  // is "portable" and zero when "native".
+  // Runs via gasnete_check_config(), called by gasnete_init().
+  extern int gasnetc_check_portable_conduit(void);
+#else
+  #define gasnetc_check_portable_conduit() 0
+#endif
+
+typedef struct { 
+    const char *filename;
+    mode_t filemode;
+    const char *desc;
+    int hwid;
+} gasneti_device_probe_t;
+
+#define GASNETI_IBV_DEVICES \
+        { "/dev/infiniband/uverbs0",     S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */ \
+        { "/dev/infiniband/ofs/uverbs0", S_IFCHR, "InfiniBand IBV", 2 }   /* Solaris */
+#define GASNETI_CXI_DEVICES \
+        { "/dev/cxi0",                   S_IFCHR, "HPE Slingshot-11 (OFI)", 3 }, \
+        { "/sys/class/cxi",              S_IFDIR, "HPE Slingshot-11 (OFI)", 3 } 
+#define GASNETI_GNI_DEVICES \
+        { "/dev/kgni0",                  S_IFCHR, "Cray Aries/Gemini", 6 }, \
+        { "/proc/kgnilnd",               S_IFDIR, "Cray Aries/Gemini", 6 }
+
+// Boolean probe for device nodes (file or directory)
+static int gasneti_device_probe(gasneti_device_probe_t *dev_to_probe) {
+  struct stat stat_buf;
+  return !stat(dev_to_probe->filename,&stat_buf) && 
+         (!dev_to_probe->filemode || (dev_to_probe->filemode & stat_buf.st_mode));
+}
+
+// bug 3609: some verbs-compatible networks need special handling
+// While that bug is about ibv-conduit, something simlar holds for OFI verbs provider
+#define GASNETI_HCA_OMNI_PATH  1
+#define GASNETI_HCA_TRUESCALE  2
+static int gasneti_probeInfiniBandHCAs(void) {
+  static int probeInfiniBandHCAs = 0;
+#if PLATFORM_OS_LINUX
+  static int is_init = 0;
+  if (!is_init) {
     const char *filename[] = {
       "/sys/class/infiniband/hfi1_0/board_id", // Intel Omni-Path
       "/sys/class/infiniband/qib0/board_id",   // QLogic/Intel TrueScale
@@ -1518,19 +1551,98 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (r) { 
           buffer[r-1] = 0;
           // eg: "Intel Omni-Path HFI Adapter 100 Series, 1 Port, PCIe x16"
-          if (strstr(buffer, "Omni-Path")) lowQualityVerbs = 1;
+          if (strstr(buffer, "Omni-Path")) probeInfiniBandHCAs |= GASNETI_HCA_OMNI_PATH;
           // eg: "InfiniPath_QLE7340"
-          if (strstr(buffer, "InfiniPath")) lowQualityVerbs = 1;
+          if (strstr(buffer, "InfiniPath")) probeInfiniBandHCAs |= GASNETI_HCA_TRUESCALE;
         }
         fclose(fp);
       }
     }
-  #endif
+    is_init = 1;
+  }
+#endif
+  return probeInfiniBandHCAs;
+}
+
+// bug 3609: some verbs-compatible networks need special handling
+static int gasneti_lowQualityVerbs(void) {
+  int mask = (GASNETI_HCA_OMNI_PATH | GASNETI_HCA_TRUESCALE);
+  return gasneti_probeInfiniBandHCAs() & mask;
+}
+
+// Search for hardware with a corresponding "native" OFI provider
+//
+// TODO: Mellanox drivers are available for at least FreeBSD and macOS, and
+// libfabric support's both of those as well.  So, the Linux-specific probe
+// for GASNETI_IBV_DEVICES should be expanded if we have interest in the
+// verbs provider on those platforms.
+static int gasneti_nativeOfiProvider(void) {
+  static int nativeOfiProvider = 0;
+#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL
+  static int is_init = 0;
+  if (!is_init) {
+    gasneti_device_probe_t dev_list[] = {
+      GASNETI_IBV_DEVICES, // verbs or psm2 providers
+      GASNETI_CXI_DEVICES  // cxi provider
+    };
+    if (gasneti_probeInfiniBandHCAs() & GASNETI_HCA_TRUESCALE) {
+      // Assume no good if TrueScale HCA is found (we assume single fabric)
+    } else {
+      for (int i = 0; i < sizeof(dev_list)/sizeof(dev_list[0]); ++i) {
+        if (gasneti_device_probe(dev_list + i)) {
+          nativeOfiProvider = 1;
+          break;
+        }
+      }
+    }
+    is_init = 1;
+  }
+#endif
+  return nativeOfiProvider;
+}
+
+// Search for hardware where we will recommend ucx-conduit as native.
+// Currently we only document support for Mellanox ConnectX-5 and newer.
+// However, we currently accept anything not on ibv-consuit's ban list.
+// TODO: more accurate device probe?
+// TODO: more platforms than just Linux?
+static int gasneti_nativeUcxSupport(void) {
+  static int nativeUcxSupport = 0;
+#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL
+  static int is_init = 0;
+  if (!is_init) {
+    gasneti_device_probe_t dev_list[] = { GASNETI_IBV_DEVICES };
+    if (gasneti_lowQualityVerbs()) {
+      // Assume no good if any ban-listed HCA is found (we assume single fabric)
+    } else {
+      for (int i = 0; i < sizeof(dev_list)/sizeof(dev_list[0]); ++i) {
+        if (gasneti_device_probe(dev_list + i)) {
+          nativeUcxSupport = 1;
+          break;
+        }
+      }
+    }
+    is_init = 1;
+  }
+#endif
+  return nativeUcxSupport;
+}
+
+static void gasneti_check_portable_conduit(void) { /* check for portable conduit abuse */
+  char mycore[80], myext[80];
+  char const *mn = GASNET_CORE_NAME_STR;
+  char *m;
+  m = mycore; while (*mn) { *m = tolower(*mn); m++; mn++; }
+  *m = '\0';
+  mn = GASNET_EXTENDED_NAME_STR;
+  m = myext; while (*mn) { *m = tolower(*mn); m++; mn++; }
+  *m = '\0';
   
   if ( /* is a portable network conduit */
-         (!strcmp("mpi",mycore) && !strcmp("reference",myext))
+      gasnetc_check_portable_conduit()
+      || (!strcmp("mpi",mycore) && !strcmp("reference",myext))
       || (!strcmp("udp",mycore) && !strcmp("reference",myext))
-      || (!strcmp("ofi",mycore) && !strcmp("ofi",myext) && !lowQualityVerbs)
+      || (!strcmp("ucx",mycore) && !gasneti_nativeUcxSupport())
       ) {
     const char *p = GASNETI_CONDUITS;
     char natives[255];
@@ -1551,8 +1663,9 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!strcmp(name,"smp")) continue;
         if (!strcmp(name,"mpi")) continue;
         if (!strcmp(name,"udp")) continue;
-        if (!strcmp(name,"ofi") && !lowQualityVerbs) continue;
-        if (!strcmp(name,"ibv") && lowQualityVerbs) continue; // never recommend ibv on these networks
+        if (!strcmp(name,"ucx") && !gasneti_nativeUcxSupport()) continue;
+        if (!strcmp(name,"ofi") && !gasneti_nativeOfiProvider()) continue;
+        if (!strcmp(name,"ibv") && gasneti_lowQualityVerbs()) continue; // never recommend ibv on these networks
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,name);
       }
@@ -1561,36 +1674,24 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
     if (natives[0]) {
       sprintf(reason, "WARNING: Support was detected for native GASNet conduits: %s",natives);
     } else { /* look for hardware devices supported by native conduits */
-      struct { 
-        const char *filename;
-        mode_t filemode;
-        const char *desc;
-        int hwid;
-      } known_devs[] = {
-        { "/dev/infiniband/uverbs0",     S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
-        { "/dev/infiniband/ofs/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* Solaris */
+      gasneti_device_probe_t known_devs[] = {
+        GASNETI_IBV_DEVICES,
+        GASNETI_CXI_DEVICES,
         #if !GASNET_SEGMENT_EVERYTHING
-          { "/dev/kgni0",            S_IFCHR, "Cray Gemini", 6 },
-          { "/proc/kgnilnd",         S_IFDIR, "Cray Gemini", 6 },
+          GASNETI_GNI_DEVICES,
         #endif
         { "/list_terminator", S_IFDIR, "", 9999 }
       };
-      int i, lim = sizeof(known_devs)/sizeof(known_devs[0]);
-      for (i = 0; i < lim; i++) {
-        struct stat stat_buf;
-        if (!stat(known_devs[i].filename,&stat_buf) && 
-            (!known_devs[i].filemode || (known_devs[i].filemode & stat_buf.st_mode))) {
+      int lim = sizeof(known_devs)/sizeof(known_devs[0]);
+      for (int i = 0; i < lim; i++) {
+        if (gasneti_device_probe(known_devs + i)) {
             int hwid = known_devs[i].hwid;
-            if (hwid == 2 && lowQualityVerbs) continue; // never recommend ibv on these networks
+            if (hwid == 2 && gasneti_lowQualityVerbs()) continue; // never recommend ibv on these networks
             if (strlen(natives)) strcat(natives,", ");
             strcat(natives,known_devs[i].desc);
             while (i < lim && hwid == known_devs[i].hwid) i++; /* don't report a network twice */
         }
       }
-      #if PLATFORM_OS_CNL
-        if (strlen(natives)) strcat(natives,", ");
-        strcat(natives,"Cray Gemini (XE and XK) or Aries (XC)");
-      #endif
       if (natives[0]) {
         sprintf(reason, "WARNING: This system appears to contain recognized network hardware: %s\n"
                         "WARNING: which is supported by a GASNet native conduit, although\n"
