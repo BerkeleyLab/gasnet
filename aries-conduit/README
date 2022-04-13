@@ -209,7 +209,7 @@ GASNET_LONG_DEPTH - depth of per-peer Long tracking
   that can be outstanding between a given pair of peers before flow-control.
   This limit is applied in addition to any flow-control required due to the
   "NETWORKDEPTH" variables, above.
-  The value default is no additional constraint.
+  The default value is no additional constraint.
   The minimum value is 1 and the maximum is 64.
 
 GASNET_GNI_PACKEDLONG_CUTOVER
