@@ -843,13 +843,31 @@ static void gasneti_pshm_abort_handler(int sig) {
 
   // Best-effort message if this is not due to gasneti_fatalerror()
   if (sig != SIGABRT) {
-    const char msg1[] = "*** FATAL ERROR: fatal ";
-    const char msg2[] = " while mapping shared memory\n";
+    // convert signal number to string
     const char *signame = gasnett_signame_fromval(sig);
     if (!signame) signame = "signal";
+    // convert rank to string
+    char *procstr;
+    char procstr_aux[10] = {'\0', }; // room for 9 digits
+    {
+      gex_Rank_t tmp = gasneti_mynode;
+      size_t procstrlen = 0;
+      size_t maxlen = sizeof(procstr_aux) - 1;
+      procstr = &procstr_aux[maxlen];
+      for (int i = 0; i < maxlen; ++i) {
+        ++procstrlen;
+        *(--procstr) = '0' + (tmp % 10);
+        tmp /= 10;
+        if (!tmp) break;
+      }
+    }
+    // generate full message
+    const char msg1[] = "*** FATAL ERROR (proc ";
+    const char msg2[] = "): fatal ";
+    const char msg3[] = " while mapping shared memory\n";
     char msg[128] = { '\0', };
     gasneti_assert(strlen(msg1) + strlen(signame) + strlen(msg2) + 1 <= sizeof(msg));
-    strcat(strcat(strcat(msg, msg1), signame), msg2);
+    strcat(strcat(strcat(strcat(strcat(msg, msg1), procstr), msg2), signame), msg3);
     int ignore = write(STDERR_FILENO, msg, strlen(msg));
   }
 
