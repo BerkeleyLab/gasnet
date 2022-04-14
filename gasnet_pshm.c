@@ -146,7 +146,20 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     // total to request:
     mmapsz += round_up_to_pshmpage(info_sz);
   }
-  mmapsz += round_up_to_pshmpage(aux_sz);
+  size_t padded_aux_sz = round_up_to_pshmpage(aux_sz);
+  mmapsz += padded_aux_sz;
+
+  // Report size before allocation to help identify out-of-memory crashes
+  { const char *msg = "Allocating shared memory in nbrhd %d (containing %d procs): %s for intra-nbrhd AMs and %s for conduit use";
+    char valstr1[32], valstr2[32];
+    gasnett_format_number(mmapsz - padded_aux_sz, valstr1, sizeof(valstr1), 1);
+    gasnett_format_number(padded_aux_sz, valstr2, sizeof(valstr2), 1);
+    GASNETI_TRACE_PRINTF(I,(msg, gasneti_nodemap_global_rank, gasneti_nodemap_local_count, valstr1, valstr2));
+    if (!gasneti_mynode &&
+        gasneti_getenv_yesno_withdefault("GASNET_AMPSHM_MEMORY_REPORT", 0)) {
+      gasneti_console_message("INFO", msg, gasneti_nodemap_global_rank, gasneti_nodemap_local_count, valstr1, valstr2);
+    }
+  }
 
   /* setup vnet shared memory region for AM infrastructure and supernode barrier.
    */
@@ -156,7 +169,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     const int save_errno = errno;
     char buf[16];
     gasneti_unlink_vnet();
-    gasneti_fatalerror("Failed to mmap %s for intra-node shared memory communication, errno=%s(%i)",
+    gasneti_fatalerror("Failed to mmap %s for intra-nbrhd shared memory communication, errno=%s(%i)",
                        gasneti_format_number(mmapsz, buf, sizeof(buf), 1),
                        strerror(save_errno), save_errno);
   }
@@ -830,13 +843,31 @@ static void gasneti_pshm_abort_handler(int sig) {
 
   // Best-effort message if this is not due to gasneti_fatalerror()
   if (sig != SIGABRT) {
-    const char msg1[] = "*** FATAL ERROR: fatal ";
-    const char msg2[] = " while mapping shared memory\n";
+    // convert signal number to string
     const char *signame = gasnett_signame_fromval(sig);
     if (!signame) signame = "signal";
+    // convert rank to string
+    char *procstr;
+    char procstr_aux[10] = {'\0', }; // room for 9 digits
+    {
+      gex_Rank_t tmp = gasneti_mynode;
+      size_t procstrlen = 0;
+      size_t maxlen = sizeof(procstr_aux) - 1;
+      procstr = &procstr_aux[maxlen];
+      for (int i = 0; i < maxlen; ++i) {
+        ++procstrlen;
+        *(--procstr) = '0' + (tmp % 10);
+        tmp /= 10;
+        if (!tmp) break;
+      }
+    }
+    // generate full message
+    const char msg1[] = "*** FATAL ERROR (proc ";
+    const char msg2[] = "): fatal ";
+    const char msg3[] = " while mapping shared memory\n";
     char msg[128] = { '\0', };
     gasneti_assert(strlen(msg1) + strlen(signame) + strlen(msg2) + 1 <= sizeof(msg));
-    strcat(strcat(strcat(msg, msg1), signame), msg2);
+    strcat(strcat(strcat(strcat(strcat(msg, msg1), procstr), msg2), signame), msg3);
     int ignore = write(STDERR_FILENO, msg, strlen(msg));
   }
 

@@ -2028,6 +2028,32 @@ extern void gasneti_nodemapParse(void) {
 
   gasneti_free(s);
 
+#if GASNET_PSHM
+  GASNETI_TRACE_PRINTF(I,("nodemap: process %d of %d in its nbrhd, %d of %d on host %s",
+                          gasneti_mysupernode.node_rank, gasneti_mysupernode.node_count,
+                          gasneti_myhost.node_rank, gasneti_myhost.node_count,
+                          gasneti_gethostname()));
+  gex_Rank_t nonh_rank, nonh_count;  // "Nbrhd ON Host" coordinates
+  nonh_rank = nonh_count = 0;
+  for (i = 0; i < gasneti_myhost.node_count; ++i) {
+    j = gasneti_myhost.nodes[i];  // iterating over procs on my host
+    if (gasneti_nodemap[j] == j) { // first proc in its nbrhd
+      nonh_count += 1;
+      nonh_rank += (j <= gasneti_mynode); // too high by 1, corrected after loop
+    }
+  }
+  --nonh_rank;
+  GASNETI_TRACE_PRINTF(I,("nodemap: nbrhd %d of %d in the job, %d of %d on host %s",
+                          gasneti_mysupernode.grp_rank, gasneti_mysupernode.grp_count,
+                          nonh_rank, nonh_count, gasneti_gethostname()));
+#else
+  GASNETI_TRACE_PRINTF(I,("nodemap: process %d of %d on host %s",
+                          gasneti_myhost.node_rank, gasneti_myhost.node_count,
+                          gasneti_gethostname()));
+#endif
+  GASNETI_TRACE_PRINTF(I,("nodemap: host %d of %d",
+                          gasneti_myhost.grp_rank, gasneti_myhost.grp_count));
+
   #if GASNET_DEBUG_VERBOSE
   if (!gasneti_mynode) {
     for (i = 0; i < gasneti_nodes; ++i) {
