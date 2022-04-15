@@ -851,11 +851,9 @@ static void gasneti_pshm_abort_handler(int sig) {
     char procstr_aux[10] = {'\0', }; // room for 9 digits
     {
       gex_Rank_t tmp = gasneti_mynode;
-      size_t procstrlen = 0;
       size_t maxlen = sizeof(procstr_aux) - 1;
       procstr = &procstr_aux[maxlen];
       for (int i = 0; i < maxlen; ++i) {
-        ++procstrlen;
         *(--procstr) = '0' + (tmp % 10);
         tmp /= 10;
         if (!tmp) break;
@@ -866,7 +864,7 @@ static void gasneti_pshm_abort_handler(int sig) {
     const char msg2[] = "): fatal ";
     const char msg3[] = " while mapping shared memory\n";
     char msg[128] = { '\0', };
-    gasneti_assert(strlen(msg1) + strlen(signame) + strlen(msg2) + 1 <= sizeof(msg));
+    gasneti_assert(strlen(msg1) + strlen(procstr) + strlen(msg2) + strlen(signame) + strlen(msg3) + 1 <= sizeof(msg));
     strcat(strcat(strcat(strcat(strcat(msg, msg1), procstr), msg2), signame), msg3);
     int ignore = write(STDERR_FILENO, msg, strlen(msg));
   }
