@@ -1049,13 +1049,9 @@ static void gasnetc_exit_sighandler(int sig) {
 
     (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
 
-    /* assume sig < 100 */
-    if (sig > 9) {
-      digit = '0' + ((sig / 10) % 10);
-      (void) write(STDERR_FILENO, &digit, 1);
-    }
-    digit = '0' + (sig % 10);
-    (void) write(STDERR_FILENO, &digit, 1);
+    char sigstr[4];
+    size_t n = gasneti_utoa(sig, sigstr, sizeof(sigstr), 10);
+    (void) write(STDERR_FILENO, sigstr, n);
 
     (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
     (void) write(STDERR_FILENO, state, state_len);

@@ -848,18 +848,8 @@ static void gasneti_pshm_abort_handler(int sig) {
     const char *signame = gasnett_signame_fromval(sig);
     if (!signame) signame = "signal";
     // convert rank to string
-    char *procstr;
-    char procstr_aux[10] = {'\0', }; // room for 9 digits
-    {
-      gex_Rank_t tmp = gasneti_mynode;
-      size_t maxlen = sizeof(procstr_aux) - 1;
-      procstr = &procstr_aux[maxlen];
-      for (int i = 0; i < maxlen; ++i) {
-        *(--procstr) = '0' + (tmp % 10);
-        tmp /= 10;
-        if (!tmp) break;
-      }
-    }
+    char procstr[10]; // room for 9 digits
+    gasneti_utoa(gasneti_mynode, procstr, sizeof(procstr), 10);
     // generate full message
     const char msg1[] = "*** FATAL ERROR (proc ";
     const char msg2[] = "): fatal ";

@@ -377,6 +377,8 @@ size_t gasneti_strnlen(const char *_s, size_t _maxlen) {
   return _len;
 }
 
+extern size_t gasneti_utoa(uint64_t _val, char *_buffer, size_t _buflen, unsigned int _base);
+
 /* ------------------------------------------------------------------------------------ */
 /* Count zero bytes in a region w/ or w/o a memcpy(), or in a "register" */
 

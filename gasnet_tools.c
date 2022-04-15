@@ -1083,6 +1083,39 @@ gasnett_siginfo_t *gasnett_siginfo_fromstr(const char *str) {
   }
 }
 /* ------------------------------------------------------------------------------------ */
+// Utility for signal context formatting of integers - available even without STATS/TRACE
+
+// Convert an unsigned 64-bit integer to null-terminated string of given base.
+// Returns the number of digits written (excluding the '\0').
+// The `buflen` is maximum number of characters written including the '\0'.
+// If `buflen` must be 4 or larger.
+// If `buflen` is too small for the digits of `val`, an empty string is generated (and return is 0).
+// Safe for use in signal context (otherwise printf-family would suffice).
+size_t gasneti_utoa(uint64_t val, char *buffer, size_t buflen, unsigned int base) {
+  gasneti_assert(buflen >= 4);
+  gasneti_assert(buffer);
+  gasneti_assert(base > 1);
+  gasneti_assert(base <= 16);
+  size_t maxlen = buflen - 1;
+  char *p = buffer + buflen; // one past end
+  size_t len = 0;
+  // construct output in reverse order (starting with least-significant digit)
+  static const char digits[] = "0123456789abcdef";
+  for (size_t i = 0; i < maxlen; ++i) {
+    ++len;
+    *(--p) = digits[val % base];
+    val /= base;
+    if (!val) break;
+  }
+  gasneti_assert_uint(len ,<=, maxlen);
+  if (val) len = 0; // overflow
+  // shift output to align with start of caller's buffer
+  for (size_t i = 0; i < len; ++i) buffer[i] = p[i];
+  buffer[len] = '\0';
+  return len;
+}
+
+/* ------------------------------------------------------------------------------------ */
 extern int gasneti_raise(int sig) {
   #if PLATFORM_OS_CYGWIN && CYGWIN_VERSION_DLL_MAJOR < 3000 && \
       GASNETT_THREAD_SAFE && HAVE_PTHREAD_KILL 
