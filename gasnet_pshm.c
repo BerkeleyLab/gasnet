@@ -56,6 +56,7 @@ static struct gasneti_pshm_info {
 #define pshmnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
         ((structname*)(((uintptr_t)fieldaddr) - offsetof(structname,fieldname)))
 
+static const char *gasnetc_pshm_abort_context = "";
 static void (*gasnetc_pshm_abort_callback)(void);
 
 void gasneti_pshm_prefault(void *addr, size_t len) {
@@ -862,10 +863,10 @@ static void gasneti_pshm_abort_handler(int sig) {
     // generate full message
     const char msg1[] = "*** FATAL ERROR (proc ";
     const char msg2[] = "): fatal ";
-    const char msg3[] = " while mapping shared memory\n";
+    const char *context = gasnetc_pshm_abort_context;
     char msg[128] = { '\0', };
-    gasneti_assert(strlen(msg1) + strlen(procstr) + strlen(msg2) + strlen(signame) + strlen(msg3) + 1 <= sizeof(msg));
-    strcat(strcat(strcat(strcat(strcat(msg, msg1), procstr), msg2), signame), msg3);
+    gasneti_assert(strlen(msg1) + strlen(procstr) + strlen(msg2) + strlen(signame) + strlen(context) + 2 <= sizeof(msg));
+    strcat(strcat(strcat(strcat(strcat(strcat(msg, msg1), procstr), msg2), signame), context), "\n");
     int ignore = write(STDERR_FILENO, msg, strlen(msg));
   }
 
@@ -885,8 +886,9 @@ static void gasneti_pshm_abort_handler(int sig) {
   gasneti_raise(sig);
 }
 
-void gasneti_pshm_cs_enter(void (*callback)(void))
+void gasneti_pshm_cs_enter(const char *context, void (*callback)(void))
 {
+  gasnetc_pshm_abort_context = context;
   gasnetc_pshm_abort_callback = callback;
   for (int i = 0; gasneti_pshm_catch_signals[i].sig; ++i) {
     gasneti_pshm_catch_signals[i].old_hand =
@@ -897,6 +899,7 @@ void gasneti_pshm_cs_enter(void (*callback)(void))
 
 void gasneti_pshm_cs_leave(void)
 {
+  gasnetc_pshm_abort_context = "";
   gasnetc_pshm_abort_callback = NULL;
   for (int i = 0; gasneti_pshm_catch_signals[i].sig; ++i) {
     gasneti_reghandler(gasneti_pshm_catch_signals[i].sig,

@@ -1352,7 +1352,7 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
   const gex_Rank_t local_count = gasneti_myhost.node_count;
 
 #if GASNET_PSHM
-  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
+  gasneti_pshm_cs_enter(" in gasneti_segmentLimit()",  &gasneti_cleanup_shm);
 #endif
 
   // This is assumed implictly
@@ -1521,7 +1521,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 {
   const int legacy_mode = flags & GASNETI_FLAG_INIT_LEGACY;
 #if GASNET_PSHM
-  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
+  gasneti_pshm_cs_enter(" in gasneti_segmentInit()", &gasneti_cleanup_shm);
 #endif
 
   gasneti_assert_uint(gasneti_MaxLocalSegmentSize ,==, 0);
@@ -1901,7 +1901,10 @@ gasneti_do_attach_segment(
 {
 #if GASNET_PSHM
   /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
-  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
+  const char *context = (all_segments == gasneti_seginfo_aux)
+                      ? " while attaching the aux segment"
+                      : " while attaching the client segment";
+  gasneti_pshm_cs_enter(context, &gasneti_cleanup_shm);
   gasneti_pshmnet_bootstrapBarrier();
 #endif
 
