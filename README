@@ -554,7 +554,7 @@ although we generally recommend the vendor C compiler for performance reasons.
 
 The following compilers are believed to work on platforms listed above, 
 with the provided minimum version:
-Gnu (gcc 3.0+), LLVM (clang 3.6+), Apple (Xcode 7.1+), PGI (pgcc 10.9 to 20.4),
+Gnu (gcc 3.0+), LLVM (clang 3.6+), Apple (Xcode 7.1+), PGI (pgcc 11.0 to 20.4),
 NVHPC (20.9+), Intel (icc 16+), Intel oneAPI (icx 21+), IBM XL (xlc 13+),
 Cray (CCE 8.6+)
 
