@@ -2062,6 +2062,15 @@ extern void gasneti_nodemapParse(void) {
   }
   #endif
   
+#if GASNET_NDEBUG && !GASNET_PSHM
+  if (!gasneti_mynode && (gasneti_nodes != gasneti_myhost.grp_count)) {
+    // at least one host holds more than one process
+    gasneti_console_message("WARNING",
+        "Running with multiple processes per host without shared-memory communication support (PSHM).  "
+        "This can significantly reduce performance.  "
+        "Please re-configure GASNet using `--enable-pshm` to enable fast intra-host comms.");
+  }
+#endif
 }
 
 // gasneti_nodemapInit(exchangefn, ids, sz, stride)
