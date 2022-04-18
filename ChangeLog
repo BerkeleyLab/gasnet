@@ -28,6 +28,7 @@ GASNet-EX ChangeLog
     In the absence of these settings, default buffer size remains unchanged.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4392: Warn when running with --disable-pshm and multiple PPN
   - bug4434: RFE: runtime adjustment of ofi-conduit MaxMedium
 
 ----------------------------------------------------------------------
