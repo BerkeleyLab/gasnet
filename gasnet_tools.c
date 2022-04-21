@@ -645,10 +645,20 @@ extern double gasneti_tick_metric(int idx) {
     #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
   #endif
 #endif
+#if GASNETI_BUILDING_CONDUIT
+  typedef uint32_t gasneti_Rank_t; // shadows gasnet_fwd.h, which is deliberately excluded
+  extern gasneti_Rank_t gasneti_mynode;
+  #define GASNETI_PROCID         gasneti_mynode
+  #define GASNETI_PROCID_INVALID ((gasneti_Rank_t)-1)
+#else
+  #define GASNETI_PROCID          0
+  #define GASNETI_PROCID_INVALID -1
+#endif
 extern const char *gasneti_procid_str;
 const char *gasneti_procid_str = NULL;
 
 extern void gasneti_console_messageVA(const char *funcname, const char *filename, int linenum,
+                                      int console_procid, // -1 == wildcard
                                       const char *prefix, const char *msg, va_list argptr) {
   #ifndef GASNETI_CONSOLEMSG_PREFIX_LEN
   #define GASNETI_CONSOLEMSG_PREFIX_LEN 128
@@ -659,8 +669,13 @@ extern void gasneti_console_messageVA(const char *funcname, const char *filename
   #ifndef GASNETI_CONSOLEMSG_CONTEXT_LEN
   #define GASNETI_CONSOLEMSG_CONTEXT_LEN 128
   #endif
+  int console_speak = 1;
   char expandedmsg[GASNETI_CONSOLEMSG_PREFIX_LEN+GASNETI_CONSOLEMSG_IDSTR_LEN+GASNETI_CONSOLEMSG_CONTEXT_LEN+20];
-  if (gasneti_procid_str) {
+  if (console_procid >= 0) { // omit proc id for "job-wide" messages
+    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s: ", prefix);
+    console_speak = (console_procid == GASNETI_PROCID)          // I am the walrus
+                 || (GASNETI_PROCID == GASNETI_PROCID_INVALID); // too early to know, assume I am the walrus
+  } else if (gasneti_procid_str) {
     snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s (%s): ", prefix, gasneti_procid_str);
   } else {
     // we are either in tools-only mode or early in conduit startup before procid's are established
@@ -727,7 +742,7 @@ extern void gasneti_console_messageVA(const char *funcname, const char *filename
     va_end(args);
   }
 
-  FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
+  FILE * streams[] = { (console_speak ? stderr : NULL), GASNETI_MAYBE_TRACEFILE };
   for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
     FILE *stream = streams[s];
     if (stream) {
@@ -749,11 +764,14 @@ extern void gasneti_console_messageVA(const char *funcname, const char *filename
     }
   }
 }
+#undef GASNETI_MAYBE_TRACEFILE
+#undef GASNETI_PROCID
+#undef GASNETI_PROCID_INVALID
 
 extern void gasneti_console_message(const char *prefix, const char *msg, ...) {
   va_list argptr;
   va_start(argptr, msg); /*  pass in last argument */
-    gasneti_console_messageVA(0,0,0, prefix, msg, argptr);
+    gasneti_console_messageVA(0,0,0,-1, prefix, msg, argptr);
   va_end(argptr);
 }
 
@@ -814,7 +832,7 @@ extern void _gasneti_fatalerror(const char *msg, ...) {
     gasneti_console_messageVA(_gasneti_fatalerror_funcname,
                               _gasneti_fatalerror_filename, 
                               _gasneti_fatalerror_linenum,
-                              "FATAL ERROR", msg, argptr);
+                              -1, "FATAL ERROR", msg, argptr);
   va_end(argptr);
   gasneti_error_abort();
 }
@@ -822,7 +840,7 @@ extern void _gasneti_fatalerror(const char *msg, ...) {
 extern void gasneti_fatalerror_nopos(const char *msg, ...) {
   va_list argptr;
   va_start(argptr, msg); /*  pass in last argument */
-    gasneti_console_messageVA(0,0,0, "FATAL ERROR", msg, argptr);
+    gasneti_console_messageVA(0,0,0,-1, "FATAL ERROR", msg, argptr);
   va_end(argptr);
   gasneti_error_abort();
 }
@@ -832,7 +850,7 @@ extern void _gasneti_assert_fail(const char *funcname, const char *filename, int
   // generate the fatal error and crash
   va_list argptr;
   va_start(argptr, fmt); /*  pass in last argument */
-    gasneti_console_messageVA(funcname, filename, linenum,
+    gasneti_console_messageVA(funcname, filename, linenum, -1,
                               "FATAL ERROR: Assertion failure", fmt, argptr);
   va_end(argptr);
   gasneti_error_abort();

@@ -290,6 +290,7 @@ extern void gasneti_console_message(const char *_prefix, const char *_msg, ...))
 GASNETI_COLD
 GASNETI_FORMAT_PRINTF(gasneti_console_messageVA,5,0,
 extern void gasneti_console_messageVA(const char *_funcname, const char *_filename, int _linenum,
+                                      int _console_procid, // -1 == wildcard
                                       const char *_prefix, const char *_msg, va_list _argptr));
 
 // gasneti_fatalerror(format, ...) - print a fatal error with func/file/line info, then abort
