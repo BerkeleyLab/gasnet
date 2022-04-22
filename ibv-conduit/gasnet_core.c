@@ -3294,11 +3294,7 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 #define GASNETC_EXIT_STATE_MAXLEN 40
 
 #if GASNET_DEBUG_VERBOSE
-  #define GASNETC_TRACE_EXIT_STATE() do {                 \
-        fprintf(stderr, "%d> EXIT STATE %s\n",            \
-                (int)gasneti_mynode, gasnetc_exit_state); \
-        fflush(NULL);                                     \
-  } while (0)
+  #define GASNETC_TRACE_EXIT_STATE() gasneti_console_message("EXIT STATE", gasnetc_exit_state)
 #else
   #define GASNETC_TRACE_EXIT_STATE() ((void)0)
 #endif
@@ -3561,10 +3557,7 @@ static void gasnetc_exit_now(int exitcode) {
   /* If anybody is still waiting, let them go */
   gasneti_atomic_set(&gasnetc_exit_done, 1, GASNETI_ATOMIC_WMB_POST);
 
-  #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_exit(): node %i/%i calling killmyprocess...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
+  GASNETC_EXIT_STATE("calling gasneti_killmyprocess()");
   gasneti_killmyprocess(exitcode);
   /* NOT REACHED */
 
