@@ -106,7 +106,7 @@ int gasneti_MK_Create_hip(
     // try to Init (should not be necessary, but might as well try)
     int initRes = hipInit(0);
     if (initRes == hipSuccess) {
-      hipError_t res = hipDeviceGet(&devHandle, dev);
+      res = hipDeviceGet(&devHandle, dev);
     } else if (initRes == hipErrorNoDevice) {
       GASNETI_RETURN_ERRR(BAD_ARG,"GEX_MK_CLASS_HIP: no HIP devices found");
     } else {
