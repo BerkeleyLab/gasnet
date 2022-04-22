@@ -33,11 +33,7 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 #define GASNETC_EXIT_STATE_MAXLEN 60
 
 #if GASNET_DEBUG_VERBOSE
-  #define GASNETC_TRACE_EXIT_STATE() do {                 \
-        fprintf(stderr, "%d> EXIT STATE %s\n",            \
-                (int)gasneti_mynode, gasnetc_exit_state); \
-        fflush(NULL);                                     \
-  } while (0)
+  #define GASNETC_TRACE_EXIT_STATE() gasneti_console_message("EXIT STATE", gasnetc_exit_state)
 #else
   #define GASNETC_TRACE_EXIT_STATE() ((void)0)
 #endif
@@ -588,8 +584,7 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   gasneti_freezeForDebugger();
 
   #if GASNET_DEBUG_VERBOSE
-    /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-    fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
+    gasneti_console_message("gasnetc_init","about to spawn...");
   #endif
 
   /* (###) bootstrap the nodes for your conduit - may need to modify if not using 
@@ -604,8 +599,8 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   GASNETI_TICKS_INIT();
 
   #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
+    gasneti_console_message("gasnetc_init","spawn successful - node %i/%i starting...", 
+      gasneti_mynode, gasneti_nodes);
   #endif
 
   gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
@@ -789,14 +784,10 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   gasnetc_segment_exchange_aux(mem_info);
 #endif
 
-  if (0 == gasneti_mynode) {
-    fflush(NULL);
-    fprintf(stderr,
-      " WARNING: ucx-conduit is experimental and should not be used for\n"
-      "          performance measurements.\n"
-      "          Please see `ucx-conduit/README` for more details.\n");
-    fflush(NULL);
-  }
+  gasneti_console0_message("WARNING",
+      "ucx-conduit is experimental and should not be used for performance measurements.\n"
+      "    WARNING: Please see `ucx-conduit/README` for more details.");
+
   gasneti_registerExitHandler(gasnetc_atexit);
 
   if (GASNET_OK != (rc = gasnetc_recv_init())) {
@@ -993,10 +984,7 @@ static void gasnetc_exit_now(int exitcode) {
   /* If anybody is still waiting, let them go */
   gasneti_atomic_set(&gasnetc_exit_done, 1, GASNETI_ATOMIC_WMB_POST);
 
-  #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_exit(): node %i/%i calling killmyprocess...\n",
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
+  GASNETC_EXIT_STATE("calling gasneti_killmyprocess()");
   gasneti_killmyprocess(exitcode);
   /* NOT REACHED */
 
