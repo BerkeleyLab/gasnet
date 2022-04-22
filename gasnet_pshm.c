@@ -532,11 +532,11 @@ static uintptr_t get_queue_mem(int nodes)
                                          GASNETI_PSHM_NETWORK_DEPTH_DEFAULT, 0);
   
   if (gasneti_pshmnet_network_depth < GASNETI_PSHM_NETWORK_DEPTH_MIN) {
-    fprintf(stderr, "WARNING: GASNET_PSHM_NETWORK_DEPTH (%lu) less than min: using %lu\n",
+    gasneti_console_message("WARNING","GASNET_PSHM_NETWORK_DEPTH (%lu) less than min: using %lu",
             gasneti_pshmnet_network_depth, GASNETI_PSHM_NETWORK_DEPTH_MIN);
     gasneti_pshmnet_network_depth = GASNETI_PSHM_NETWORK_DEPTH_MIN;
   } else if (gasneti_pshmnet_network_depth > GASNETI_PSHM_NETWORK_DEPTH_MAX) {
-    fprintf(stderr, "WARNING: GASNET_PSHM_NETWORK_DEPTH (%lu) greater than max: using %lu\n",
+    gasneti_console_message("WARNING","GASNET_PSHM_NETWORK_DEPTH (%lu) greater than max: using %lu",
             gasneti_pshmnet_network_depth, GASNETI_PSHM_NETWORK_DEPTH_MAX);
     gasneti_pshmnet_network_depth = GASNETI_PSHM_NETWORK_DEPTH_MAX;
   }

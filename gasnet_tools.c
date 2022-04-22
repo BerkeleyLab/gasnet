@@ -244,9 +244,8 @@ static int gasneti_slow_atomic_warning_issued = 0;
 GASNETI_NEVER_INLINE(gasneti_slow_atomic_warn,
 static void gasneti_slow_atomic_warn(void)) {
   gasneti_slow_atomic_warning_issued = 1;
-  fprintf(stderr,
-          "WARNING: using slow atomics due to use of a compiler not probed by GASNet at configure time\n");
-  fflush(stderr);
+  gasneti_console_message("WARNING",
+          "WARNING: using slow atomics due to use of a compiler not probed by GASNet at configure time");
 }
 #define GASNETI_SLOW_ATOMIC_WARNING() do { \
     if_pf (! gasneti_slow_atomic_warning_issued) gasneti_slow_atomic_warn(); \
@@ -2114,8 +2113,8 @@ extern void gasneti_backtrace_init(const char *exename) {
 
   gasneti_tmpdir_bt = gasneti_tmpdir();
   if (!gasneti_tmpdir_bt) {
-    fprintf(stderr,"WARNING: Failed to init backtrace support because none of $GASNET_TMPDIR, $TMPDIR or /tmp is usable\n");
-    fflush(stderr);
+    gasneti_console_message("WARNING",
+      "Failed to init backtrace support because none of $GASNET_TMPDIR, $TMPDIR or /tmp is usable");
     return;
   }
 
@@ -2160,8 +2159,7 @@ extern int gasneti_print_backtrace(int fd) {
   int retval = 1;
 
   if (!gasneti_backtrace_isinit) {
-    fprintf(stderr,"WARNING: Ignoring call to gasneti_print_backtrace before gasneti_backtrace_init\n");
-    fflush(stderr);
+    gasneti_console_message("WARNING", "Ignoring call to gasneti_print_backtrace before gasneti_backtrace_init");
     return -1;
   }
 
@@ -2337,15 +2335,13 @@ void gasneti_registerSignalHandlers(gasneti_sighandlerfn_t handler) {
 static int _gasneti_print_backtrace_ifenabled(int fd) {
   static int noticeshown = 0;
   if (!gasneti_backtrace_isinit) {
-    fprintf(stderr,"WARNING: Ignoring call to gasneti_print_backtrace_ifenabled before gasneti_backtrace_init\n");
-    fflush(stderr);
+    gasneti_console_message("WARNING", "Ignoring call to gasneti_print_backtrace_ifenabled before gasneti_backtrace_init");
     return -1;
   }
   #if !GASNET_DEBUG
     #define GASNETI_NDEBUG_ADVISORY() do { \
       if (!noticeshown) {                  \
-        fprintf(stderr, "NOTICE: We recommend linking the debug version of GASNet to assist you in resolving this application issue.\n"); \
-        fflush(stderr);                    \
+        gasneti_console_message("NOTICE","We recommend linking the debug version of GASNet to assist you in resolving this application issue."); \
         noticeshown = 1;                   \
       }                                    \
     } while (0)
@@ -2362,8 +2358,7 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
     if (gasneti_internal_crash) gasneti_output_config(); // GEX info iff this looks like a GEX-related crash
     return gasneti_print_backtrace(fd);
   } else if (gasneti_backtrace_mechanism_count && !noticeshown) {
-    fprintf(stderr, "NOTICE: Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace. \n");
-    fflush(stderr);
+    gasneti_console_message("NOTICE", "Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace.");
     GASNETI_NDEBUG_ADVISORY();
     noticeshown = 1;
     return 1;
@@ -3164,8 +3159,7 @@ static int gasneti_set_affinity_cpus(void) {
       static int once = 1;
       if (once) {
 	once = 0;
-        fprintf(stderr, "WARNING: gasnett_set_affinity called, but cannot determine cpu count.\n");
-        fflush(stderr);
+        gasneti_console_message("WARNING","gasnett_set_affinity called, but cannot determine cpu count.");
       }
     }
     return cpus;
@@ -3675,7 +3669,7 @@ static void gasneti_clock_init(void) {
       // Monotonic but subject to rate adjustment by NTP
       gasneti_clockid = CLOCK_MONOTONIC;
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TICKS: using clock_gettime(CLOCK_MONOTONIC)\n");
+      gasneti_console_message("TICKS","using clock_gettime(CLOCK_MONOTONIC)");
       #endif
     } else
     #endif
@@ -3683,11 +3677,11 @@ static void gasneti_clock_init(void) {
       // May be adjusted by both ntp and by clock_settime()
       gasneti_assert(gasneti_clockid == CLOCK_REALTIME);
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TICKS: using clock_gettime(CLOCK_REALTIME)\n");
+      gasneti_console_message("TICKS","using clock_gettime(CLOCK_REALTIME)");
       #endif
     }
   #elif GASNET_DEBUG_VERBOSE
-    fprintf(stderr, "TICKS: using gettimeofday()\n");
+    gasneti_console_message("TICKS","using gettimeofday()");
   #endif
 }
 GASNETI_INLINE(gasneti_clock_gettime)
@@ -3802,7 +3796,7 @@ retry_calibration:;
   }
 
   #if GASNET_DEBUG_VERBOSE
-  fprintf(stderr, "TICKS: ticks and wallclock resolutions are %d and %d ns (or better)\n",
+  gasneti_console_message("TICKS","ticks and wallclock resolutions are %d and %d ns (or better)",
           (int)ticks_res, (int)ref_res);
   #endif
 
@@ -3945,10 +3939,10 @@ retry_calibration:;
     sum += (lo1[i] - hi0[i]) / delta;
   }
   double mean = sum / (2 * count);
-  fprintf(stderr, "TICKS: range: %"PRIu64" +/- %"PRIu64"  mean: %"PRIu64"  offset: %"PRId64"\n",
+  gasneti_console_message("TICKS","range: %"PRIu64" +/- %"PRIu64"  mean: %"PRIu64"  offset: %"PRId64,
           (uint64_t)(1e9 * mid),  (uint64_t)(1e9 * half_width),
           (uint64_t)(1e9 * mean), (int64_t)(1e9 * (mean-mid)));
-  fprintf(stderr, "TICKS: calibrated to err of %g in %d iters\n", err, GASNETI_TICKS_WC_ITERS);
+  gasneti_console_message("TICKS","calibrated to err of %g in %d iters\n", err, GASNETI_TICKS_WC_ITERS);
   #endif
 
   return mid;
@@ -4173,7 +4167,7 @@ extern double gasneti_calibrate_tsc(void) {
         sum += delta;
       }
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TICKS: reference resolution is %d ns or better (in %d iters, %lu ns)\n",
+      gasneti_console_message("TICKS","reference resolution is %d ns or better (in %d iters, %lu ns)\n",
                       (int)ref_res, i, (unsigned long)sum);
       #endif
       if_pf (ref_res > max_res) {
@@ -4239,12 +4233,12 @@ extern double gasneti_calibrate_tsc(void) {
         }
       }
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TICKS: relative to wallclock = %g\n", best);
+      gasneti_console_message("TICKS","relative to wallclock = %g", best);
       #endif
     }
 
     #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr, "TICKS: rate calibrated to %g MHz in %g sec\n",
+    gasneti_console_message("TICKS","rate calibrated to %g MHz in %g sec",
             1e3/Tick, 1e-9*(gasneti_clock_getns()-begin_tsc_calibration));
     #endif
   #endif
