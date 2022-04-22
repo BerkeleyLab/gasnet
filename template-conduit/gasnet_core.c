@@ -42,8 +42,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasneti_freezeForDebugger();
 
   #if GASNET_DEBUG_VERBOSE
-    /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-    fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
+    gasneti_console_message("gasnetc_init","about to spawn...");
   #endif
 
   /* (###) bootstrap the nodes for your conduit - may need to modify if not using 
@@ -56,8 +55,8 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   GASNETI_TICKS_INIT();
 
   #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
+    gasneti_console_message("gasnetc_init","spawn successful - node %i/%i starting...", 
+      gasneti_mynode, gasneti_nodes);
   #endif
 
   /* (###) Add code here to determine which GASNet nodes may share memory.
