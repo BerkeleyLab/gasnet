@@ -775,6 +775,13 @@ extern void gasneti_console_message(const char *prefix, const char *msg, ...) {
   va_end(argptr);
 }
 
+extern void gasneti_console0_message(const char *prefix, const char *msg, ...) {
+  va_list argptr;
+  va_start(argptr, msg); /*  pass in last argument */
+    gasneti_console_messageVA(0,0,0,0, prefix, msg, argptr);
+  va_end(argptr);
+}
+
 static void gasneti_output_config(void) {
   gasneti_console_message("Details for bug reporting", 
                           "config=" GASNETT_CONFIG_STRING
