@@ -574,10 +574,8 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
   temp_size = gasnete_coll_nextpower2(dissem_limit_per_thread*my_images);
   dissem_limit = gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ALL_DISSEM_LIMIT", temp_size, 1);
   if(temp_size != dissem_limit) {
-    if(mynode == 0) {
-      fprintf(stderr, "WARNING: Conflicting environment values for GASNET_COLL_GATHER_ALL_DISSEM_LIMIT (%"PRIuPTR") and GASNET_COLL_GATHER_ALL_DISSEM_LIMIT_PER_THREAD (%"PRIuPTR")\n", (uintptr_t) dissem_limit, (uintptr_t) dissem_limit_per_thread);
-      fprintf(stderr, "WARNING: Using: %"PRIuPTR"\n", (uintptr_t) MIN(dissem_limit, temp_size));
-    }
+    gasneti_console0_message("WARNING","Conflicting environment values for GASNET_COLL_GATHER_ALL_DISSEM_LIMIT (%"PRIuPTR") and GASNET_COLL_GATHER_ALL_DISSEM_LIMIT_PER_THREAD (%"PRIuPTR")", (uintptr_t) dissem_limit, (uintptr_t) dissem_limit_per_thread);
+    gasneti_console0_message("WARNING","Using: %"PRIuPTR, (uintptr_t) MIN(dissem_limit, temp_size));
   }
   ret->gather_all_dissem_limit = MIN(dissem_limit, temp_size);
   
@@ -585,10 +583,8 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
   temp_size = gasnete_coll_nextpower2(dissem_limit_per_thread*my_images*my_images);
   dissem_limit = gasneti_getenv_int_withdefault("GASNET_COLL_EXCHANGE_DISSEM_LIMIT", temp_size, 1);
   if(temp_size != dissem_limit) {
-    if(mynode == 0) {
-      fprintf(stderr, "WARNING: Conflicting environment values for GASNET_COLL_EXCHANGE_DISSEM_LIMIT (%"PRIuPTR") and GASNET_COLL_EXCHANGE_DISSEM_LIMIT_PER_THREAD (%"PRIuPTR")\n", (uintptr_t) dissem_limit, (uintptr_t) temp_size);
-      fprintf(stderr, "WARNING: Using: %"PRIuPTR"\n", (uintptr_t) MIN(dissem_limit, temp_size));
-    }
+    gasneti_console0_message("WARNING","Conflicting environment values for GASNET_COLL_EXCHANGE_DISSEM_LIMIT (%"PRIuPTR") and GASNET_COLL_EXCHANGE_DISSEM_LIMIT_PER_THREAD (%"PRIuPTR")", (uintptr_t) dissem_limit, (uintptr_t) temp_size);
+    gasneti_console0_message("WARNING","Using: %"PRIuPTR, (uintptr_t) MIN(dissem_limit, temp_size));
   }
   ret->exchange_dissem_limit = MIN(dissem_limit, temp_size);
   ret->exchange_dissem_radix = MIN(gasneti_getenv_int_withdefault("GASNET_COLL_EXCHANGE_DISSEM_RADIX", 2, 0),total_images);
@@ -599,21 +595,16 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
    } 
    */
   if(ret->pipe_seg_size*total_images > min_scratch_size) {
-    if(mynode == 0) {
-      fprintf(stderr, "WARNING: Conflicting evnironment values for scratch space allocated (%d bytes) and GASNET_COLL_PIPE_SEG_SIZE (%d bytes)\n", (int) min_scratch_size, (int)ret->pipe_seg_size);
-      fprintf(stderr, "WARNING: Using %d bytes for GASNET_COLL_PIPE_SEG_SIZE\n", (int)(min_scratch_size/total_images));
-    } 
+    gasneti_console0_message("WARNING","Conflicting evnironment values for scratch space allocated (%d bytes) and GASNET_COLL_PIPE_SEG_SIZE (%d bytes)", (int) min_scratch_size, (int)ret->pipe_seg_size);
+    gasneti_console0_message("WARNING","Using %d bytes for GASNET_COLL_PIPE_SEG_SIZE", (int)(min_scratch_size/total_images));
     ret->pipe_seg_size = min_scratch_size/(total_images);
   } 
   
   if(ret->pipe_seg_size*total_images > gex_AM_LUBRequestLong()) {
-    if(mynode == 0) {
-      fprintf(stderr, "WARNING: GASNET_COLL_PIPE_SEG_SIZE (%d bytes) * total images (%d) has to be less than max size for an AMLong for this conduit (%"PRIuPTR")\n", 
+    gasneti_console0_message("WARNING","GASNET_COLL_PIPE_SEG_SIZE (%d bytes) * total images (%d) has to be less than max size for an AMLong for this conduit (%"PRIuPTR")", 
               (int)ret->pipe_seg_size, (int)total_images, (uintptr_t) gex_AM_LUBRequestLong());
-      fprintf(stderr, "WARNING: Using %"PRIuPTR" bytes for GASNET_COLL_PIPE_SEG_SIZE instead\n", (uintptr_t) gex_AM_LUBRequestLong()/total_images);
-      ret->pipe_seg_size = gex_AM_LUBRequestLong()/total_images;
-    }
-    
+    gasneti_console0_message("WARNING","Using %"PRIuPTR" bytes for GASNET_COLL_PIPE_SEG_SIZE instead", (uintptr_t) gex_AM_LUBRequestLong()/total_images);
+    ret->pipe_seg_size = gex_AM_LUBRequestLong()/total_images;
   } 
 
 	/*initialize the autotune size array to 2 so we always get a binary tree*/
@@ -1056,7 +1047,7 @@ gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnet
   /*throw a warning if the tree does not match the current tree*/
   if(STRINGS_MATCH(MYXML_TAG(tuning_data), "machine")) {
     if(!STRINGS_MATCH(MYXML_ATTRIBUTES(tuning_data)[0].attribute_value, GASNET_CONFIG_STRING)) {
-      printf("warning! tuning data's config string: %s does not match current gasnet config string: %s\n", MYXML_ATTRIBUTES(tuning_data)[0].attribute_value, GASNET_CONFIG_STRING);
+      gasneti_console_message("WARNING","collective tuning data's config string: %s does not match current gasnet config string: %s\n", MYXML_ATTRIBUTES(tuning_data)[0].attribute_value, GASNET_CONFIG_STRING);
     } 
     root= load_autotuner_defaults_helper(autotune_info, tuning_data, tree_levels, 1, 8, (gasnet_coll_optype_t)(-1));
   } else {
@@ -1355,10 +1346,10 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
     int sync_flags_ok = ((sync_flags & team->autotune_info->collective_algorithms[op][algidx].syncflags) == sync_flags);
     int nreq_flags_ok = (!(req_flags & team->autotune_info->collective_algorithms[op][algidx].n_requirements));
 #if GASNET_DEBUG
-    if(!size_ok){if(team->myrank==0 && gasnete_coll_print_autotuner_timers) fprintf(stderr, "%d> skipping alg: %d (reason: size too large)\n", (int)gasneti_mynode, algidx);continue;}
-    if(!req_flags_ok){if(team->myrank==0 && gasnete_coll_print_autotuner_timers) fprintf(stderr, "%d> skipping alg: %d (reason: all req flags are not present)\n", (int)gasneti_mynode, algidx);continue;}
-    if(!nreq_flags_ok){if(team->myrank==0 && gasnete_coll_print_autotuner_timers) fprintf(stderr, "%d> skipping alg: %d (reason: one of the nreq flags is present)\n", (int)gasneti_mynode, algidx);continue;}
-    if(!sync_flags_ok){if(team->myrank==0 && gasnete_coll_print_autotuner_timers) fprintf(stderr, "%d> skipping alg: %d (reason: not valid for this syncflag)\n", (int)gasneti_mynode, algidx);continue;}
+    if(!size_ok){if(team->myrank==0 && gasnete_coll_print_autotuner_timers) gasneti_console_message("COLL INFO","skipping alg: %d (reason: size too large)", algidx);continue;}
+    if(!req_flags_ok){if(team->myrank==0 && gasnete_coll_print_autotuner_timers) gasneti_console_message("COLL INFO","skipping alg: %d (reason: all req flags are not present)", algidx);continue;}
+    if(!nreq_flags_ok){if(team->myrank==0 && gasnete_coll_print_autotuner_timers) gasneti_console_message("COLL INFO","skipping alg: %d (reason: one of the nreq flags is present)", algidx);continue;}
+    if(!sync_flags_ok){if(team->myrank==0 && gasnete_coll_print_autotuner_timers) gasneti_console_message("COLL INFO","skipping alg: %d (reason: not valid for this syncflag)", algidx);continue;}
     
 #else
     if(!(size_ok && req_flags_ok && sync_flags_ok &&  nreq_flags_ok/*match!*/)) {
@@ -1610,7 +1601,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
     char buf1[256], buf2[256];
     print_op_str(buf1, op, flags);
     print_flag_str(buf2, flags);
-    fprintf(stderr, "Autotuning %s: flags %s, nbytes %"PRIuPTR", root %u\n", buf1, buf2, (uintptr_t)args.nbytes, (unsigned int)args.rootimg);
+    gasneti_console_message("COLL INFO","Autotuning %s: flags %s, nbytes %"PRIuPTR", root %u", buf1, buf2, (uintptr_t)args.nbytes, (unsigned int)args.rootimg);
   }
 
   /*if a tuning file has been specified for TEAM ALL and hasn't been yet loaded load it now*/
@@ -1636,7 +1627,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
 
       if (gasnete_coll_print_coll_alg && team->myrank == 0) {
         /* print a search hit here */
-        fprintf(stderr, "The algorithm for the collective is in the existing autotuning database.\n");
+        gasneti_console_message("COLL INFO","The algorithm for the collective is in the existing autotuning database.");
         gasnete_coll_implementation_print(ret, stderr);
       }
       return ret;
@@ -1663,7 +1654,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
     myrank = team->myrank;
 #if 0
     if(myrank == srcimage) {
-      fprintf(stderr, "%d> starting autotune for %s %d byte broadcast\n", myrank, print_flag_str(flagstr, flags), (int)nbytes);
+      gasneti_console_message("COLL INFO","starting autotune for %s %d byte broadcast\n", print_flag_str(flagstr, flags), (int)nbytes);
     }
 #endif
     gasnete_coll_tune_generic_op(team, op, 
@@ -1674,7 +1665,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
     /*until we have a solution for teams with srcimages*/
     if(myrank == args.rootimg) {
 #if 0
-      fprintf(stderr, "%d> finishing autotune for %s %d byte broadcast\n", myrank, print_flag_str(flagstr, flags), (int)nbytes);      
+      gasneti_console_message("COLL INFO","finishing autotune for %s %d byte broadcast\n", print_flag_str(flagstr, flags), (int)nbytes);      
 #endif
       temp->optype = op;
       temp->flags = flags;
@@ -1712,7 +1703,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
     PTHREAD_BARRIER(team, 1); 
     
     if (gasnete_coll_print_coll_alg && team->myrank == 0) {
-      fprintf(stderr, "Finish autotuning. The best algorithm searched is:\n");
+      gasneti_console_message("COLL INFO","Finish autotuning. The best algorithm searched is:");
       gasnete_coll_implementation_print(ret, stderr);
     }
 
@@ -1720,7 +1711,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
   } else {
 
     if (gasnete_coll_print_coll_alg && team->myrank == 0) {
-      fprintf(stderr, "Search is disabled or the team is not GASNET_TEAM_ALL.\n");
+      gasneti_console_message("COLL INFO","Search is disabled or the team is not GASNET_TEAM_ALL.");
     }
 
     return NULL;
@@ -1804,7 +1795,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
   }
   
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
-    fprintf(stderr, "The algorithm for broadcast is selected by the default logic.\n");
+    gasneti_console_message("COLL INFO","The algorithm for broadcast is selected by the default logic.");
     gasnete_coll_implementation_print(ret, stderr);
   }
 
@@ -1883,7 +1874,7 @@ gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst
   }
 
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
-    fprintf(stderr, "The algorithm for scatter is selected by the default logic.\n");
+    gasneti_console_message("COLL INFO","The algorithm for scatter is selected by the default logic.");
     gasnete_coll_implementation_print(ret, stderr);
   }
 
@@ -1966,7 +1957,7 @@ gasnete_coll_autotune_get_gather_algorithm(gasnet_team_handle_t team,gasnet_imag
   }
 
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
-    fprintf(stderr, "The algorithm for gather is selected by the default logic.\n");
+    gasneti_console_message("COLL INFO","The algorithm for gather is selected by the default logic.");
     gasnete_coll_implementation_print(ret, stderr);
   }
 
@@ -2013,7 +2004,7 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
   }
  
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
-    fprintf(stderr, "The algorithm for gather_all is selected by the default logic.\n");
+    gasneti_console_message("COLL INFO","The algorithm for gather_all is selected by the default logic.");
     gasnete_coll_implementation_print(ret, stderr);
   }
 
@@ -2060,7 +2051,7 @@ gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *ds
   }
 
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
-    fprintf(stderr, "The algorithm for exchange is selected by the default logic.\n");
+    gasneti_console_message("COLL INFO","The algorithm for exchange is selected by the default logic.");
     gasnete_coll_implementation_print(ret, stderr);
   }
 
@@ -2128,7 +2119,7 @@ void gasnete_coll_dumpTuningState(char *filename, gasnete_coll_team_t team GASNE
     node = myxml_createNode(NULL, (char*) "machine", (char*)"CONFIG", (char*) GASNET_CONFIG_STRING, NULL);
     
     if(!filename) {
-      if(team!=GASNET_TEAM_ALL) {fprintf(stderr, "WARNING: printing tuning output to default filename is not recommended for non-TEAM-ALL teams\n");}
+      if(team!=GASNET_TEAM_ALL) {gasneti_console_message("WARNING","printing tuning output to default filename is not recommended for non-TEAM-ALL teams");}
       outstream = fopen("gasnet_coll_tuning_defaults.bin", "w");
     } else {
       outstream = fopen(filename, "w");
@@ -2182,7 +2173,7 @@ void gasnete_coll_dumpProfile(char *filename, gasnete_coll_team_t team GASNETI_T
     node = myxml_createNode(NULL, (char*) "machine", (char*)"CONFIG", (char*) GASNET_CONFIG_STRING, NULL);
     
     if(!filename) {
-      if(team!=GASNET_TEAM_ALL) {fprintf(stderr, "WARNING: printing tuning output to default filename is not recommended for non-TEAM-ALL teams\n");}
+      if(team!=GASNET_TEAM_ALL) {gasneti_console_message("WARNING","printing tuning output to default filename is not recommended for non-TEAM-ALL teams");}
       outstream = fopen("gasnet_coll_profile.bin", "w");
     } else {
       outstream = fopen(filename, "w");
@@ -2204,7 +2195,7 @@ void gasnete_coll_loadTuningState(char *filename, gasnete_coll_team_t team GASNE
       myxml_bytestream_t file_content;
       
       if(!filename) {
-        if(team!=GASNET_TEAM_ALL) {fprintf(stderr, "WARNING: loading tuning output to default filename is not recommended for non-TEAM-ALL teams\n");}
+        if(team!=GASNET_TEAM_ALL) {gasneti_console_message("WARNING","loading tuning output to default filename is not recommended for non-TEAM-ALL teams");}
         instream = fopen("gasnet_coll_tuning_defaults.bin", "r");
       } else {
         instream = fopen(filename, "r");
