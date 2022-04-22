@@ -63,8 +63,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasneti_freezeForDebugger();
 
   #if GASNET_DEBUG_VERBOSE
-    /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-    fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
+    gasneti_console_message("gasnetc_init","about to spawn..."); 
   #endif
 
   gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
@@ -82,8 +81,8 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 	 return ret;
 
   #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
+    gasneti_console_message("gasnetc_init","spawn successful - node %i/%i starting...", 
+      gasneti_mynode, gasneti_nodes);
   #endif
 
   gasneti_assert_zeroret(gasnetc_exit_init());
@@ -149,14 +148,9 @@ extern int gasnetc_attach_primary(void) {
 
   gasneti_nodemapFini();
 
-  if (! gasneti_mynode) {
-    fflush(NULL);
-    fprintf(stderr,
-      " WARNING: ofi-conduit is experimental and should not be used for\n"
-      "          performance measurements.\n"
-      "          Please see `ofi-conduit/README` for more details.\n");
-    fflush(NULL);
-  }
+  gasneti_console0_message("WARNING",
+      "ofi-conduit is experimental and should not be used for performance measurements.\n"
+      "    WARNING: Please see `ofi-conduit/README` for more details.");
 
   /* ensure extended API is initialized across nodes */
   gasneti_spawner->Barrier();
@@ -303,11 +297,7 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 #define GASNETC_EXIT_STATE_MAXLEN 40
 
 #if GASNET_DEBUG_VERBOSE
-  #define GASNETC_TRACE_EXIT_STATE() do {                 \
-        fprintf(stderr, "%d> EXIT STATE %s\n",            \
-                (int)gasneti_mynode, gasnetc_exit_state); \
-        fflush(NULL);                                     \
-  } while (0)
+  #define GASNETC_TRACE_EXIT_STATE() gasneti_console_message("EXIT STATE", gasnetc_exit_state)
 #else
   #define GASNETC_TRACE_EXIT_STATE() ((void)0)
 #endif
@@ -489,7 +479,7 @@ extern void gasnetc_exit(int exitcode) {
   /* Prior to attach we cannot send AMs to coordinate the exit */
   if (! gasneti_attach_done) {
     GASNETC_EXIT_STATE("in pre-attach gasneti_bootstrapAbort()");
-    fprintf(stderr, "WARNING: GASNet ofi-conduit may not shutdown cleanly when gasnet_exit() is called before gasnet_attach()\n");
+    gasneti_console_message("WARNING","GASNet ofi-conduit may not shutdown cleanly when gasnet_exit() is called before gasnet_attach()");
     gasneti_bootstrapAbort(exitcode);
     gasneti_killmyprocess(exitcode);
   }

@@ -668,26 +668,24 @@ int gasnetc_ofi_init(void)
 
   int quiet = gasneti_getenv_yesno_withdefault("GASNET_QUIET", 0);
 #if GASNET_PAR
-  if (!gasneti_mynode) {
-      if (!using_psm_provider && GASNETC_OFI_USE_THREAD_DOMAIN) {
-          const char * msg =
-            "WARNING: Using OFI provider \"%s\" when the ofi-conduit was configured for FI_THREAD_DOMAIN\n"
+  if (!using_psm_provider && GASNETC_OFI_USE_THREAD_DOMAIN) {
+      const char * msg =
+            "Using OFI provider \"%s\" when the ofi-conduit was configured for FI_THREAD_DOMAIN\n"
             "(possibly because the psm or psm2 provider was detected at configure time). In GASNET_PAR mode,\n"
             "this has the effect of using a global lock instead of fine-grained locking. If this causes \n"
-            "undesirable performance in PAR, reconfigure GASNet using: --with-ofi-provider=%s --disable-thread-domain\n";
-          if (!quiet)
-              fprintf(stderr, msg, info->fabric_attr->prov_name, info->fabric_attr->prov_name);
-      }
+            "undesirable performance in PAR, reconfigure GASNet using: --with-ofi-provider=%s --disable-thread-domain";
+      if (quiet) GASNETI_TRACE_PRINTF(I,(msg, info->fabric_attr->prov_name, info->fabric_attr->prov_name));
+      else gasneti_console0_message("WARNING", msg, info->fabric_attr->prov_name, info->fabric_attr->prov_name);
   }
 #endif
 
-  if (!gasnetc_high_perf_prov && !gasneti_mynode) {
-          const char * msg = 
-          "WARNING: Using OFI provider (%s), which has not been validated to provide\n"
-          "WARNING: acceptable GASNet performance. You should consider using a more\n"
-          "WARNING: hardware-appropriate GASNet conduit. See ofi-conduit/README.\n";
-	  if (!quiet)
-		  fprintf(stderr, msg, info->fabric_attr->prov_name);
+  if (!gasnetc_high_perf_prov) {
+      const char * msg = 
+          "Using OFI provider (%s), which has not been validated to provide\n"
+          "    WARNING: acceptable GASNet performance. You should consider using a more\n"
+          "    WARNING: hardware-appropriate GASNet conduit. See ofi-conduit/README.";
+      if (quiet) GASNETI_TRACE_PRINTF(I,(msg, info->fabric_attr->prov_name));
+      else gasneti_console0_message("WARNING", msg, info->fabric_attr->prov_name);
   }
 
 #if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
