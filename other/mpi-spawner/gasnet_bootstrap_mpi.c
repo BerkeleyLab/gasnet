@@ -105,7 +105,7 @@ extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_mpi(int *argc, char ***a
     if (override) {
       int overreq = threadstr2int(override);
       if (overreq >= MPI_THREAD_SINGLE) required = overreq;
-      else { fprintf(stderr,"WARNING: Ignoring unrecognized GASNET_MPI_THREAD value."); fflush(stderr); }
+      else gasneti_console_message("WARNING","Ignoring unrecognized GASNET_MPI_THREAD value: %s",override);
     }
     if (gasnetc_mpi_preinitialized) {  // MPI already init, query current thread support level
       #if HAVE_MPI_QUERY_THREAD
@@ -116,25 +116,23 @@ extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_mpi(int *argc, char ***a
       #endif
     } else { // init MPI and request our needed level of thread safety
       #if GASNET_DEBUG_VERBOSE
-        fprintf(stderr,"mpi-spawner: MPI_Init_thread(%s)\n",threadint2str(required));
-        fflush(stderr);
+        gasneti_console_message("MPI-SPAWNER","MPI_Init_thread(%s)",threadint2str(required));
       #endif
       err = MPI_Init_thread(argc, argv, required, &provided);
       if (err != MPI_SUCCESS) return NULL;
     }
     #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr,"mpi-spawner: MPI threading mode: %s required, %s provided.\n",
+      gasneti_console_message("MPI-SPAWNER","MPI threading mode: %s required, %s provided.",
                      threadint2str(required), threadint2str(provided));
-      fflush(stderr);
     #endif
     if (provided < required) {
-      fprintf(stderr,"WARNING: GASNet requested MPI threading support model: %s\n"
-                     "WARNING: but the MPI library only provided: %s\n"
-                     "WARNING: You may need to link a more thread-safe MPI library to ensure correct operation.\n"
-                     "WARNING: You can override the required level by setting GASNET_MPI_THREAD.\n",
+      gasneti_console_message("MPI-SPAWNER",
+                     "WARNING: GASNet requested MPI threading support model: %s\n"
+                     "    but the MPI library only provided: %s\n"
+                     "    You may need to link a more thread-safe MPI library to ensure correct operation.\n"
+                     "    You can override the required level by setting GASNET_MPI_THREAD.",
                      threadint2str(required), threadint2str(provided)
              );
-      fflush(stderr);
     } 
 #endif
 
