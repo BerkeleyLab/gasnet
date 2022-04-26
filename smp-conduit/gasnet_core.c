@@ -472,9 +472,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
     gasneti_freezeForDebugger();
 
-  #if GASNET_DEBUG_VERBOSE
-    gasneti_console_message("gasnetc_init","about to spawn...");
-  #endif
+    gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
+
+    if (gasneti_spawn_verbose) 
+      gasneti_console_message("gasnetc_init","about to spawn...");
 
   /* Must init timers after global env, and preferably before tracing */
   /* Note that we are intentionly doing this before we fork() */
@@ -519,10 +520,9 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gex_Rank_t));
   gasneti_nodemapParse();
 
-  #if GASNET_DEBUG_VERBOSE
+  if (gasneti_spawn_verbose) 
     gasneti_console_message("gasnetc_init","spawn successful - node %i/%i starting...", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
 
 #if GASNET_PSHM
   #ifdef HAVE_PR_SET_PDEATHSIG
@@ -747,7 +747,8 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_mutex_lock(&exit_lock);
   }
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   gasneti_flush_streams();
   gasneti_trace_finish();

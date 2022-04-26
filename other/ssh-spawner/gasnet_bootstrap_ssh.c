@@ -943,7 +943,8 @@ static void configure_ssh(void) {
   for (i=0; i<ssh_argc; ++i) {
     BOOTSTRAP_VERBOSE(("\t%s\n", ssh_argv[i]));
   }
-  BOOTSTRAP_VERBOSE(("\tHOST\n\tCMD\n"));
+  BOOTSTRAP_VERBOSE(("\tHOST"));
+  BOOTSTRAP_VERBOSE(("\tCMD"));
 }
 
 /* Reduce nnodes when presented with a short nodelist */
@@ -1529,9 +1530,9 @@ static void spawn_one_control(gex_Rank_t child_id, const char *cmdline, const ch
 	(void)prctl(PR_SET_PDEATHSIG, SIGHUP);
       }
       #endif
-      BOOTSTRAP_VERBOSE(("[%d] spawning process %d on %s via %s\n",
+      BOOTSTRAP_VERBOSE(("[%d] spawning process %d on %s via %s\n\tCMD: %s",
 			 myname,
-			 (int)child[child_id].rank, host, ssh_argv[0]));
+			 (int)child[child_id].rank, host, ssh_argv[0], cmd));
       ssh_argv[ssh_argc] = (/* noconst */ char *)host;
       ssh_argv[ssh_argc+1] = cmd;
       execvp(ssh_argv[0], ssh_argv);
@@ -2319,6 +2320,7 @@ static void do_master(const char *spawn_args, int *argc_p, char ***argv_p) {
 
   is_root = 1;
   is_control = 1;
+  is_verbose = gasneti_getenv_yesno_withdefault(ENV_PREFIX "SPAWN_VERBOSE",0); // can be provided via env or cmdline
 
   fd_sets_init();
   gasneti_reghandler(SIGURG, &sigurg_handler);

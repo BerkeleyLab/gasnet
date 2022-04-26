@@ -26,6 +26,8 @@ static int gasnetc_mpi_preinitialized = 0;
 static int gasnetc_mpi_size = -1;
 static int gasnetc_mpi_rank = -1;
 
+static int is_verbose = 0;
+
 GASNETI_IDENT(gasnetc_IdentString_HaveMPISpawner, "$GASNetMPISpawner: 1 $");
 
 static gasneti_spawnerfn_t const spawnerfn;
@@ -69,16 +71,21 @@ static const char *threadint2str(int id) {
 
 extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_mpi(int *argc, char ***argv, gex_Rank_t *nodes, gex_Rank_t *mynode) {
   MPI_Group world;
-  int err;
+
+  // environment may or may not be propagated yet, so this is "best effort"
+  is_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
 
   /* Call MPI_Init exactly once */
-  err = MPI_Initialized(&gasnetc_mpi_preinitialized);
+  int err = MPI_Initialized(&gasnetc_mpi_preinitialized);
   if (MPI_SUCCESS != err) return NULL;
+  if (is_verbose) gasneti_console_message("MPI-SPAWNER","MPI %s already initialized",
+                                          (gasnetc_mpi_preinitialized ? "IS" : "IS NOT"));
 #if !HAVE_MPI_INIT_THREAD
   if (!gasnetc_mpi_preinitialized) {
   #if MPI_VERSION < 2
     if (!argc || !argv) return NULL;
   #endif
+    if (is_verbose) gasneti_console_message("MPI-SPAWNER","MPI_Init()");
     err = MPI_Init(argc, argv);
     if (MPI_SUCCESS != err) return NULL;
   }
@@ -109,22 +116,21 @@ extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_mpi(int *argc, char ***a
     }
     if (gasnetc_mpi_preinitialized) {  // MPI already init, query current thread support level
       #if HAVE_MPI_QUERY_THREAD
+        if (is_verbose) gasneti_console_message("MPI-SPAWNER","MPI_Query_thread()");
         MPI_Query_thread(&provided);
         // deliberately ignore errors on query
       #else
         provided = required;
       #endif
     } else { // init MPI and request our needed level of thread safety
-      #if GASNET_DEBUG_VERBOSE
+      if (is_verbose)
         gasneti_console_message("MPI-SPAWNER","MPI_Init_thread(%s)",threadint2str(required));
-      #endif
       err = MPI_Init_thread(argc, argv, required, &provided);
       if (err != MPI_SUCCESS) return NULL;
     }
-    #if GASNET_DEBUG_VERBOSE
+    if (is_verbose)
       gasneti_console_message("MPI-SPAWNER","MPI threading mode: %s required, %s provided.",
                      threadint2str(required), threadint2str(provided));
-    #endif
     if (provided < required) {
       gasneti_console_message("MPI-SPAWNER",
                      "WARNING: GASNet requested MPI threading support model: %s\n"
@@ -181,11 +187,13 @@ static void bootstrapFini(void) {
    * hang on exit, which is no alternative at all.
    */
   if (!gasnetc_mpi_preinitialized) {
+    if (is_verbose) gasneti_console_message("MPI-SPAWNER","MPI_Finalize()");
     (void) MPI_Finalize();
   }
 }
 
 static void bootstrapAbort(int exitcode) {
+  if (is_verbose) gasneti_console_message("MPI-SPAWNER","MPI_Abort(%i)",exitcode);
   (void) MPI_Abort(gasnetc_mpi_comm, exitcode);
 
   gasneti_reghandler(SIGABRT, SIG_DFL);

@@ -2281,6 +2281,8 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
   extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_pmi(int *argc, char ***argv, gex_Rank_t *nodes, gex_Rank_t *mynode);
 #endif
 
+int gasneti_spawn_verbose = 0;
+
 extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_p,
                                   const char *force_spawner,
                                   gex_Rank_t *nodes_p, gex_Rank_t *mynode_p) {
@@ -2337,6 +2339,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
   }
 
   gasneti_free(tmp);
+
+  gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
 
   return res;
 }

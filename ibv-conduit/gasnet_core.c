@@ -2616,10 +2616,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
     return i;
   }
 
-  #if GASNET_DEBUG_VERBOSE
-    gasneti_console_message("gasnetc_init","spawn successful - node %i/%i starting...",
+  if (gasneti_spawn_verbose)
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
       gasneti_mynode, gasneti_nodes);
-  #endif
 
   /* From this point forward gasneti_bootstrap*() can safely be implemented
    * via AMs or "raw" IB if desired for efficiency (but no segment for RDMA).
@@ -3280,16 +3279,10 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 // volume of garbage that might get printed in the event of memory corruption.
 #define GASNETC_EXIT_STATE_MAXLEN 40
 
-#if GASNET_DEBUG_VERBOSE
-  #define GASNETC_TRACE_EXIT_STATE() gasneti_console_message("EXIT STATE", gasnetc_exit_state)
-#else
-  #define GASNETC_TRACE_EXIT_STATE() ((void)0)
-#endif
-
 #define GASNETC_EXIT_STATE(st) do {                                      \
         gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
         gasnetc_exit_state = st;                                         \
-        GASNETC_TRACE_EXIT_STATE();                                      \
+        if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE", gasnetc_exit_state); \
   } while (0)
 
 /*
@@ -3779,7 +3772,8 @@ static void gasnetc_exit_body(void) {
   // prevent possible GASNETI_CHECK_INJECT() failures when we communicate
   GASNETI_CHECK_INJECT_RESET();
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* Timed MAX(exitcode) reduction to clearly distinguish collective exit */
   alarm(2 + timeout); // +2 is margin of safety around the timed reduction

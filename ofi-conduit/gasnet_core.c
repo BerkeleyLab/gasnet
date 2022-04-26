@@ -80,10 +80,9 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   if (GASNET_OK != ret)
 	 return ret;
 
-  #if GASNET_DEBUG_VERBOSE
-    gasneti_console_message("gasnetc_init","spawn successful - node %i/%i starting...", 
+  if (gasneti_spawn_verbose)
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...", 
       gasneti_mynode, gasneti_nodes);
-  #endif
 
   gasneti_assert_zeroret(gasnetc_exit_init());
 
@@ -296,16 +295,10 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 // volume of garbage that might get printed in the event of memory corruption.
 #define GASNETC_EXIT_STATE_MAXLEN 40
 
-#if GASNET_DEBUG_VERBOSE
-  #define GASNETC_TRACE_EXIT_STATE() gasneti_console_message("EXIT STATE", gasnetc_exit_state)
-#else
-  #define GASNETC_TRACE_EXIT_STATE() ((void)0)
-#endif
-
 #define GASNETC_EXIT_STATE(st) do {                                      \
         gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
         gasnetc_exit_state = st;                                         \
-        GASNETC_TRACE_EXIT_STATE();                                      \
+        if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE", gasnetc_exit_state); \
   } while (0)
 
 // TODO-EX: is this really necessary?
@@ -462,7 +455,8 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_mutex_lock(&exit_lock);
   }
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* Establish a last-ditch signal handler in case of failure. */
   gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);

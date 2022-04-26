@@ -432,6 +432,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
                                   const char *force_spawner,
                                   gex_Rank_t *nodes_p, gex_Rank_t *mynode_p);
 
+extern int gasneti_spawn_verbose;
+
 /* ------------------------------------------------------------------------------------ */
 /* memory segment registration and management */
 

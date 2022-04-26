@@ -425,7 +425,10 @@ sub expand {
 
 # We need to gather a list of important environment variables
     # Form a list of the vars given by -E, plus any GASNET_* vars
-    $ENV{"GASNET_VERBOSEENV"} = "1" if ($verbose);
+    if ($verbose) {
+      $ENV{"GASNET_VERBOSEENV"} = "1";
+      $ENV{"GASNET_SPAWN_VERBOSE"} = "1";
+    }
     my @envvars = ((grep {+exists($ENV{$_})} split(',', $envlist)),
 		   (grep {+m/^GASNET_/} keys(%ENV)));
 

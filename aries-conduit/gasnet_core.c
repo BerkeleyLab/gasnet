@@ -595,10 +595,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* Now enable tracing of all the following steps */
   gasneti_trace_init(argc, argv);
 
-  #if GASNET_DEBUG_VERBOSE
+  if (gasneti_spawn_verbose)
     gasneti_console_message("gasnetc_init","gasnetc_init done - node %i/%i starting...", 
       gasneti_mynode, gasneti_nodes); 
-  #endif
 
   /* Retreive the nidlist to construct the gasneti_nodemap[]  */
   { int *nidlist;
@@ -951,7 +950,8 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_mutex_lock(&exit_lock);
   }
 
-  GASNETI_TRACE_PRINTF(C,("gasnetc_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* LCS Code modelled after portals-conduit */
   /* should prevent us from entering again */
