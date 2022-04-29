@@ -42,7 +42,7 @@ extern uint64_t gasneti_max_threads(void) {
         val = gasneti_getenv_int_withdefault("GASNET_MAX_THREADS", val, 0);
         if (val > GASNETI_MAX_THREADS) {
           gasneti_console0_message("WARNING", "GASNET_MAX_THREADS value exceeds permissable limit (%i), "
-                         "lowering it to match. %s\n", GASNETI_MAX_THREADS, GASNETI_MAX_THREADS_REASON);
+                         "lowering it to match. %s", GASNETI_MAX_THREADS, GASNETI_MAX_THREADS_REASON);
         }
         val = MIN(GASNETI_MAX_THREADS, val);
       }

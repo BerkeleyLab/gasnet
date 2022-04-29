@@ -520,9 +520,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gex_Rank_t));
   gasneti_nodemapParse();
 
-  if (gasneti_spawn_verbose) 
-    gasneti_console_message("gasnetc_init","spawn successful - node %i/%i starting...", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
+  if (gasneti_spawn_verbose) {
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
+      gasneti_mynode, gasneti_nodes);
+  }
 
 #if GASNET_PSHM
   #ifdef HAVE_PR_SET_PDEATHSIG

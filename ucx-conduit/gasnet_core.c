@@ -592,9 +592,10 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   /* Must init timers after global env, and preferably before tracing */
   GASNETI_TICKS_INIT();
 
-  if (gasneti_spawn_verbose)
-    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...", 
+  if (gasneti_spawn_verbose) {
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
       gasneti_mynode, gasneti_nodes);
+  }
 
   gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
           GASNETC_DEFAULT_EXITTIMEOUT_MIN,
@@ -1364,13 +1365,13 @@ static void gasnetc_exit_body(void) {
   // TODO: 30 is arbitrary and hard-coded
   alarm(MAX(30, timeout));
   if (graceful) {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
+    GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
     gasneti_bootstrapFini();
     // TODO: this may belong earlier, but placement earlier leads to errors
     GASNETC_EXIT_STATE("ucx finalization");
     gasnetc_ucx_fini();
   } else {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
+    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort() during forceful exit");
     gasneti_bootstrapAbort(exitcode);
   }
   alarm(0);

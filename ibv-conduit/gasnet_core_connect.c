@@ -2265,7 +2265,7 @@ gasnetc_connect_static(gasnetc_EP_t ep)
       fp = fopen(filename, "r");
     #endif
       if (!fp) {
-        gasneti_console_message("ERROR","unable to open connection table input file '%s'\n", filename);
+        gasneti_console_message("ERROR","unable to open connection table input file '%s'", filename);
       }
       if (filename != envstr) gasneti_free((/* not const */ char *)filename);
 

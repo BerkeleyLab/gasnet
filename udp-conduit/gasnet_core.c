@@ -255,9 +255,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
     gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
 
-    if (gasneti_spawn_verbose) 
-      gasneti_console_message("gasnetc_init","spawn successful - node %i/%i starting...", 
+    if (gasneti_spawn_verbose) {
+      gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
         gasneti_mynode, gasneti_nodes);
+    }
 
     // Note intentional lack of env var tracing when just check for deprecated use
     if (gasneti_getenv("GASNET_USE_GETHOSTID") && !gasneti_getenv("GASNET_HOST_DETECT")) {

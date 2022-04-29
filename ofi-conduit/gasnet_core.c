@@ -80,9 +80,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   if (GASNET_OK != ret)
 	 return ret;
 
-  if (gasneti_spawn_verbose)
-    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...", 
+  if (gasneti_spawn_verbose) {
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
       gasneti_mynode, gasneti_nodes);
+  }
 
   gasneti_assert_zeroret(gasnetc_exit_init());
 
@@ -293,7 +294,7 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 
 // NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
 // volume of garbage that might get printed in the event of memory corruption.
-#define GASNETC_EXIT_STATE_MAXLEN 40
+#define GASNETC_EXIT_STATE_MAXLEN 50
 
 #define GASNETC_EXIT_STATE(st) do {                                      \
         gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
@@ -517,10 +518,10 @@ extern void gasnetc_exit(int exitcode) {
   // TODO: 30 is arbitrary and hard-coded
   alarm(MAX(30, timeout));
   if (graceful) {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
+    GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
     gasneti_bootstrapFini();
   } else {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
+    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort() during forceful exit");
     gasneti_bootstrapAbort(exitcode);
   }
   alarm(0);

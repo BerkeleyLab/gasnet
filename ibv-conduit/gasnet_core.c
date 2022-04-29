@@ -1067,7 +1067,6 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
         }
         if (max_limit > ((uint64_t)2 << 30)) {
           gasneti_console0_message("WARNING","Beginning a potentially slow probe of max pinnable memory...");
-          fflush(stderr);
           did_warn = 1;
         }
       }
@@ -2616,9 +2615,10 @@ static int gasnetc_init( gex_Client_t            *client_p,
     return i;
   }
 
-  if (gasneti_spawn_verbose)
+  if (gasneti_spawn_verbose) {
     gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
       gasneti_mynode, gasneti_nodes);
+  }
 
   /* From this point forward gasneti_bootstrap*() can safely be implemented
    * via AMs or "raw" IB if desired for efficiency (but no segment for RDMA).
@@ -3277,7 +3277,7 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 
 // NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
 // volume of garbage that might get printed in the event of memory corruption.
-#define GASNETC_EXIT_STATE_MAXLEN 40
+#define GASNETC_EXIT_STATE_MAXLEN 50
 
 #define GASNETC_EXIT_STATE(st) do {                                      \
         gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
@@ -3887,13 +3887,11 @@ static void gasnetc_exit_body(void) {
   /* XXX potential problems here if exiting from the "Wrong" thread, or from a signal handler */
   {
     if (graceful) {
-      GASNETC_EXIT_STATE("Graceful exit initiated");
-      GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
+      GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
       gasneti_bootstrapFini();
     } else {
       /* We couldn't reach our peers, so hope the bootstrap code can kill the entire job */
-      GASNETC_EXIT_STATE("Ungraceful exit initiated");
-      GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
+      GASNETC_EXIT_STATE("in gasneti_bootstrapAbort() during forceful exit");
       gasneti_bootstrapAbort(exitcode);
       /* NOT REACHED */
     }

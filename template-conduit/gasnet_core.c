@@ -54,9 +54,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   /* Must init timers after global env, and preferably before tracing */
   GASNETI_TICKS_INIT();
 
-  if (gasneti_spawn_verbose)
-    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...", 
+  if (gasneti_spawn_verbose) {
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
       gasneti_mynode, gasneti_nodes);
+  }
 
   /* (###) Add code here to determine which GASNet nodes may share memory.
      The collection of nodes sharing memory are known as a "supernode".

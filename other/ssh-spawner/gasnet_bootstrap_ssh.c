@@ -230,7 +230,7 @@ static void do_message(const char *fmt, ...)) {
 }
 #define BOOTSTRAP_VERBOSE(ARGS) do { \
   if_pf (is_verbose) do_message ARGS; \
-} while (0);
+} while (0)
 
 /* Add single quotes around a string, taking care of any existing quotes */
 static char *quote_arg(const char *arg) {

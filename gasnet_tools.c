@@ -245,7 +245,7 @@ GASNETI_NEVER_INLINE(gasneti_slow_atomic_warn,
 static void gasneti_slow_atomic_warn(void)) {
   gasneti_slow_atomic_warning_issued = 1;
   gasneti_console_message("WARNING",
-          "WARNING: using slow atomics due to use of a compiler not probed by GASNet at configure time");
+          "using slow atomics due to use of a compiler not probed by GASNet at configure time");
 }
 #define GASNETI_SLOW_ATOMIC_WARNING() do { \
     if_pf (! gasneti_slow_atomic_warning_issued) gasneti_slow_atomic_warn(); \
@@ -645,10 +645,10 @@ extern double gasneti_tick_metric(int idx) {
   #endif
 #endif
 #if GASNETI_BUILDING_CONDUIT
-  typedef uint32_t gasneti_Rank_t; // shadows gasnet_fwd.h, which is deliberately excluded
-  extern gasneti_Rank_t gasneti_mynode;
+  // shadows gasnet_fwd.h, which is deliberately excluded:
+  extern uint32_t gasneti_mynode;
   #define GASNETI_PROCID         gasneti_mynode
-  #define GASNETI_PROCID_INVALID ((gasneti_Rank_t)-1)
+  #define GASNETI_PROCID_INVALID ((uint32_t)-1)
 #else
   #define GASNETI_PROCID          0
   #define GASNETI_PROCID_INVALID -1
