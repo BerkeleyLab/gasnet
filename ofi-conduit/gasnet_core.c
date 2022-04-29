@@ -96,7 +96,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* bootstrap the nodes for ofi conduit */
   int ret = gasnetc_ofi_init();
   if (GASNET_OK != ret)
-	 return ret;
+    return ret;
 
   if (gasneti_spawn_verbose) {
     gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
