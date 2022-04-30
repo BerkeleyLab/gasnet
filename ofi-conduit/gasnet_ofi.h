@@ -104,6 +104,7 @@ typedef struct gasnetc_ofi_am_long_buf {
 typedef struct gasnetc_ofi_am_send_buf {
     gasnetc_ofi_am_type type:2;
     uint8_t argnum:6;
+    uint8_t overhead;
     uint8_t handler;
     gex_Rank_t sourceid;
     union {

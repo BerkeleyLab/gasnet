@@ -278,7 +278,7 @@ static inline int gasnetc_is_exiting(void) {
  * Function Declarations
  *-------------------------------------------------*/
 GASNETI_INLINE(gasnetc_ofi_handle_am)
-void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, size_t nbytes);
+void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, uint64_t cq_data);
 void gasnetc_ofi_am_send_complete(gasnetc_ofi_am_buf_t *header);
 void gasnetc_ofi_tx_poll();
 GASNETI_INLINE(gasnetc_ofi_am_recv_poll)
@@ -1101,7 +1101,7 @@ void gasnetc_ofi_exit(void)
 
 /* Handle Active Messages */
 GASNETI_INLINE(gasnetc_ofi_handle_am)
-void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, size_t nbytes)
+void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, uint64_t cq_data)
 {
     uint8_t *addr;
     int handler = header->handler;
@@ -1111,6 +1111,7 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
     int numargs = header->argnum;
     int data_offset;
     gex_Token_t token = (gex_Token_t)header;
+    size_t nbytes;
     switch(header->type) {
         case OFI_AM_SHORT:
             args = (gex_AM_Arg_t *)header->buf.short_buf.data;
@@ -1120,24 +1121,27 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
             data_offset = GASNETI_ALIGNUP(sizeof(gex_AM_Arg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
             args = (gex_AM_Arg_t *)header->buf.medium_buf.data;
             addr = header->buf.medium_buf.data + data_offset;
+            nbytes = msg_len - header->overhead;
             GASNETI_RUN_HANDLER_MEDIUM(isreq, handler, handler_fn, token, args, numargs, addr, nbytes);
             break;
         case OFI_AM_LONG:
             data_offset = sizeof(gex_AM_Arg_t)*numargs;
             args = (gex_AM_Arg_t *)header->buf.long_buf.data;
             addr = header->buf.long_buf.dest_ptr;
+            nbytes = cq_data;
             GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, token, args, numargs, addr, nbytes);
             break;
         case OFI_AM_LONG_MEDIUM:
             data_offset = sizeof(gex_AM_Arg_t)*numargs;
             args = (gex_AM_Arg_t *)header->buf.long_buf.data;
             addr = header->buf.long_buf.dest_ptr;
+            nbytes = cq_data;
             memcpy(addr, header->buf.long_buf.data + data_offset, nbytes);
             GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, token, args, numargs, addr, nbytes);
             break;
         default:
-            gasneti_fatalerror("undefined header type in gasnetc_ofi_handle_am: %d\n",
-            header->type);
+            gasneti_unreachable_error(("undefined header type in gasnetc_ofi_handle_am: %d",
+                                       header->type));
     }
 }
 
@@ -1546,7 +1550,7 @@ void gasnetc_ofi_am_recv_poll(int is_request)
         GASNETC_OFI_PAR_UNLOCK(lock_p);
 
         if_pt (re.flags & FI_RECV) {
-            /* re.data contains the number of bytes transferred in a medium or long message */
+            // re.data contains the payload length for a Long
             gasnetc_ofi_handle_am(re.buf, is_request, re.len, re.data);
         }
 
@@ -1732,16 +1736,21 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
         arglist[i] = va_arg(argptr, gex_AM_Arg_t);
     }
 
+    // Enable reconstruction of nbytes from message length
+    size_t overhead = len - nbytes;
+    sendbuf->overhead = overhead;
+    gasneti_assert_uint(overhead ,<, 256);
+
     // Send
     if(len <= max_buffered_send) {
         OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.am_tx,
-                             ret = fi_injectdata(ep, sendbuf, len, nbytes, am_dest),
+                             ret = fi_inject(ep, sendbuf, len, am_dest),
                              poll_type, flags & GEX_FLAG_IMMEDIATE, out_imm);
         GASNETC_OFI_CHECK_RET(ret, "fi_inject for medium am failed");
         gasnetc_ofi_free_am_header(header);
     } else {
         OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.am_tx,
-                             ret = fi_senddata(ep, sendbuf, len, NULL, nbytes, am_dest, &header->ctxt),
+                             ret = fi_send(ep, sendbuf, len, NULL, am_dest, &header->ctxt),
                              poll_type, flags & GEX_FLAG_IMMEDIATE, out_imm);
         GASNETC_OFI_CHECK_RET(ret, "fi_send for medium am failed");
 #if GASNET_DEBUG
