@@ -85,9 +85,6 @@ typedef enum GASNETC_OFI_AM_TYPE {
   OFI_AM_LONG_MEDIUM
 } gasnetc_ofi_am_type;
 
-typedef  void (*event_callback_fn) (struct fi_cq_data_entry *re, void *buf);
-
-
 typedef struct gasnetc_ofi_am_short_buf {
     gex_AM_Arg_t     data[gex_AM_MaxArgs()];
 
@@ -119,7 +116,7 @@ typedef struct gasnetc_ofi_am_send_buf {
 typedef struct gasnetc_ofi_am_buf {
   // Conduit code assumes ctxt is the first field
   struct fi_context             ctxt;
-  event_callback_fn             callback;
+  gasneti_lifo_head_t           *pool;
   gasnetc_ofi_am_send_buf_t     sendbuf;
 } gasnetc_ofi_am_buf_t;
 #define GASNETC_SIZEOF_AM_BUF_T \

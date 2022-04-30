@@ -265,8 +265,7 @@ static inline int gasnetc_is_exiting(void) {
  *-------------------------------------------------*/
 GASNETI_INLINE(gasnetc_ofi_handle_am)
 void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, size_t nbytes);
-void gasnetc_ofi_release_request_am(struct fi_cq_data_entry *re, void *buf);
-void gasnetc_ofi_release_reply_am(struct fi_cq_data_entry *re, void *buf);
+void gasnetc_ofi_am_send_complete(gasnetc_ofi_am_buf_t *header);
 void gasnetc_ofi_tx_poll();
 GASNETI_INLINE(gasnetc_ofi_am_recv_poll)
 void gasnetc_ofi_am_recv_poll(int is_request);
@@ -962,15 +961,15 @@ int gasnetc_ofi_init(void)
 
   GASNETC_STAT_EVENT_VAL(ALLOC_REQ_BUFF, num_init_am_request_buffs);
   for (i = 0; i < (int)num_init_am_request_buffs; i++) {
-     bufp->callback = gasnetc_ofi_release_request_am;
-     gasneti_lifo_push(&ofi_am_request_pool, bufp);
+     bufp->pool = &ofi_am_request_pool;
+     gasneti_lifo_push(bufp->pool, bufp);
      bufp = (gasnetc_ofi_am_buf_t*)((uintptr_t)bufp - GASNETC_SIZEOF_AM_BUF_T);
   }  
 
   GASNETC_STAT_EVENT_VAL(ALLOC_REP_BUFF, num_init_am_reply_buffs);
   for (i = 0; i < (int)num_init_am_reply_buffs; i++) {
-      bufp->callback = gasnetc_ofi_release_reply_am;
-      gasneti_lifo_push(&ofi_am_reply_pool, bufp);
+      bufp->pool = &ofi_am_reply_pool;
+      gasneti_lifo_push(bufp->pool, bufp);
       bufp = (gasnetc_ofi_am_buf_t*)((uintptr_t)bufp - GASNETC_SIZEOF_AM_BUF_T);
   }
 
@@ -1169,18 +1168,6 @@ void gasnetc_ofi_handle_rdma(void *buf)
     }
 }
 
-/* Release ACKed send buffer */
-void gasnetc_ofi_release_request_am(struct fi_cq_data_entry *re, void *buf)
-{
-	gasnetc_ofi_am_buf_t *header = (gasnetc_ofi_am_buf_t*)buf;
-	gasneti_lifo_push(&ofi_am_request_pool, header);
-}
-void gasnetc_ofi_release_reply_am(struct fi_cq_data_entry *re, void *buf)
-{
-	gasnetc_ofi_am_buf_t *header = (gasnetc_ofi_am_buf_t*)buf;
-	gasneti_lifo_push(&ofi_am_reply_pool, header);
-}
-
 // Allocate an AM send buffer, spin-polling if necessary
 // TODO: GEX_FLAG_IMMEDIATE support
 // TODO: should Reply be permitted to borrow from Request pool?
@@ -1204,11 +1191,10 @@ gasnetc_ofi_am_buf_t *gasnetc_ofi_am_header(int isreq GASNETI_THREAD_FARG)
         // TODO: cache-align and allocate more than one at a time
         header = gasneti_malloc(GASNETC_SIZEOF_AM_BUF_T);
         gasneti_leak(header);
+        header->pool = pool;
         if (isreq) {
-            header->callback = gasnetc_ofi_release_request_am;
             GASNETC_STAT_EVENT_VAL(ALLOC_REQ_BUFF, 1);
         } else {
-            header->callback = gasnetc_ofi_release_reply_am;
             GASNETC_STAT_EVENT_VAL(ALLOC_REP_BUFF, 1);
         }
         return header;
@@ -1225,6 +1211,17 @@ gasnetc_ofi_am_buf_t *gasnetc_ofi_am_header(int isreq GASNETI_THREAD_FARG)
     }
 
     return header;
+}
+
+// Release unused AM send buffer
+#define gasnetc_ofi_free_am_header(header) \
+        gasneti_lifo_push(header->pool, header)
+
+// Process completed AM send
+// TODO: Async LC handling goes here
+void gasnetc_ofi_am_send_complete(gasnetc_ofi_am_buf_t *header)
+{
+    gasnetc_ofi_free_am_header(header);
 }
 
 GASNETI_INLINE(gasnetc_ofi_get_bounce_ctxt)
@@ -1438,7 +1435,7 @@ void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
                     gasnetc_paratomic_decrement(&pending_am, 0);
 #endif
                     gasnetc_ofi_am_buf_t *header = (gasnetc_ofi_am_buf_t *)re[i].op_context;
-                    header->callback(&re[i], header);
+                    gasnetc_ofi_am_send_complete(header);
                 }
                 else if(re[i].flags & FI_WRITE || re[i].flags & FI_READ) {
 #if GASNET_DEBUG
@@ -1655,9 +1652,7 @@ int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler,
         OFI_INJECT_RETRY(&gasnetc_ofi_locks.am_tx,
             ret = fi_inject(ep, sendbuf, len, am_dest), poll_type);
         GASNETC_OFI_CHECK_RET(ret, "fi_inject for short am failed");
-
-        /* Data buffer is ready for reuse, handle it by callback function */
-        header->callback(NULL, header);
+        gasnetc_ofi_free_am_header(header);
     } else {
         OFI_INJECT_RETRY(&gasnetc_ofi_locks.am_tx,
             ret = fi_send(ep, sendbuf, len, NULL, am_dest, &header->ctxt), poll_type);
@@ -1722,7 +1717,7 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
         OFI_INJECT_RETRY(&gasnetc_ofi_locks.am_tx,
             ret = fi_injectdata(ep, sendbuf, len, nbytes, am_dest), poll_type);
         GASNETC_OFI_CHECK_RET(ret, "fi_inject for medium ashort failed");
-        header->callback(NULL, header);
+        gasnetc_ofi_free_am_header(header);
     } else {
         OFI_INJECT_RETRY(&gasnetc_ofi_locks.am_tx,
             ret = fi_senddata(ep, sendbuf, len, NULL, nbytes, am_dest, &header->ctxt), poll_type);
@@ -1828,7 +1823,7 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         OFI_INJECT_RETRY(&gasnetc_ofi_locks.am_tx,
             ret = fi_injectdata(ep, sendbuf, len, nbytes, am_dest), poll_type);
         GASNETC_OFI_CHECK_RET(ret, "fi_inject for long ashort failed");
-        header->callback(NULL, header);
+        gasnetc_ofi_free_am_header(header);
     } else {
         OFI_INJECT_RETRY(&gasnetc_ofi_locks.am_tx,
             ret = fi_senddata(ep, sendbuf, len, NULL, nbytes, am_dest, &header->ctxt), poll_type);
