@@ -151,16 +151,23 @@ typedef struct gasnetc_ofi_bounce_buf {
 } gasnetc_ofi_bounce_buf_t;
 
 typedef struct gasnetc_ofi_bounce_op_ctxt {
-    // Conduit code assumes ctxt is the first field
+    // Conduit code assumes ctxt is the first field and callback is second
     struct fi_context   ctxt;
     rdma_callback_fn        callback;
     /* bounce buffers to return to the pool */
     gasneti_lifo_head_t bbuf_list;
     /* Pointer to the original context for the "big" request */
-    gasnetc_ofi_op_ctxt_t*      orig_op;
+    gasnetc_ofi_nb_op_ctxt_t*      orig_op;
     /* Counter to determine when the bbuf transfers are done */
     gasnetc_paratomic_t cntr;
 } gasnetc_ofi_bounce_op_ctxt_t;
+
+typedef struct gasnetc_ofi_blocking_op_ctxt {
+    // Conduit code assumes ctxt is the first field and callback is second
+    struct fi_context     ctxt;
+    rdma_callback_fn      callback;
+    volatile int          complete;
+} gasnetc_ofi_blocking_op_ctxt_t;
 
 // Conduit-specific Segment type
 typedef struct gasnetc_Segment_t_ {
@@ -194,9 +201,9 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
 
 /* One-siede PUT/GET Functions */
 void gasnetc_rdma_put(gex_Rank_t node, void *dest, void * src, size_t nbytes,
-        gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
+        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
 void gasnetc_rdma_get(void *dest, gex_Rank_t node, void * src, size_t nbytes,
-        gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
+        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
 
 GASNETI_INLINE(gasnetc_rdma_put_will_block)
 int gasnetc_rdma_put_will_block (size_t nbytes) {
@@ -204,7 +211,7 @@ int gasnetc_rdma_put_will_block (size_t nbytes) {
 } 
 
 gex_Event_t gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
-        size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr GASNETI_THREAD_FARG);
+        size_t nbytes, gasnetc_ofi_nb_op_ctxt_t* ctxt_ptr GASNETI_THREAD_FARG);
 
 extern int gasnetc_exit_in_progress;
 

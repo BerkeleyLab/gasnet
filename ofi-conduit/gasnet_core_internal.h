@@ -34,10 +34,10 @@ extern gex_AM_Entry_t *gasnetc_handler;
 
 /* Additions to default eop and iop types */
 #define GASNETE_CONDUIT_EOP_FIELDS \
-                gasnetc_ofi_op_ctxt_t ofi;
+                gasnetc_ofi_nb_op_ctxt_t ofi;
 #define GASNETE_CONDUIT_IOP_FIELDS      \
-                gasnetc_ofi_op_ctxt_t get_ofi;  \
-                gasnetc_ofi_op_ctxt_t put_ofi;
+                gasnetc_ofi_nb_op_ctxt_t get_ofi;  \
+                gasnetc_ofi_nb_op_ctxt_t put_ofi;
 
 /* ------------------------------------------------------------------------------------ */
 // For EOP/IOP fields, above
@@ -46,22 +46,19 @@ extern gex_AM_Entry_t *gasnetc_handler;
 
 typedef void (*rdma_callback_fn) (void *buf);
 
-typedef enum GASNETC_OFI_OP_TYPE {
-  OFI_TYPE_AM = 0,
-  OFI_TYPE_AM_DATA,
+typedef enum {
   OFI_TYPE_EGET,
   OFI_TYPE_EPUT,
   OFI_TYPE_IGET,
   OFI_TYPE_IPUT
-} gasnetc_ofi_op_type;
+} gasnetc_ofi_nb_op_type;
 
-typedef struct gasnetc_ofi_op_ctxt {
-  // Conduit code assumes ctxt is the first field
+typedef struct gasnetc_ofi_nb_op_ctxt {
+  // Conduit code assumes ctxt is the first field and callback is second
   struct fi_context     ctxt;
   rdma_callback_fn      callback;
-  gasnetc_ofi_op_type   type;
-  int                   data_sent;
-} gasnetc_ofi_op_ctxt_t;
+  gasnetc_ofi_nb_op_type   type;
+} gasnetc_ofi_nb_op_ctxt_t;
 
 /* ------------------------------------------------------------------------------------ */
 

@@ -1145,12 +1145,17 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
     }
 }
 
+// Handle completion of a simple blocking operation
+void gasnetc_ofi_handle_blocking(void *buf)
+{
+    gasnetc_ofi_blocking_op_ctxt_t *ptr = (gasnetc_ofi_blocking_op_ctxt_t*)buf;
+    ptr->complete = 1;
+}
+
 /* Handle RDMA completion as the initiator */
-GASNETI_INLINE(gasnetc_ofi_handle_rdma)
 void gasnetc_ofi_handle_rdma(void *buf)
 {
-
-    gasnetc_ofi_op_ctxt_t *ptr = (gasnetc_ofi_op_ctxt_t*)buf;
+    gasnetc_ofi_nb_op_ctxt_t *ptr = (gasnetc_ofi_nb_op_ctxt_t*)buf;
 
     switch (ptr->type) {
         case OFI_TYPE_EGET:
@@ -1173,11 +1178,6 @@ void gasnetc_ofi_handle_rdma(void *buf)
                 gasnete_iop_t *iop = gasneti_container_of(ptr, gasnete_iop_t, put_ofi);
                 gasnete_iop_check(iop);
                 GASNETE_IOP_CNT_FINISH(iop, put, 1, GASNETI_ATOMIC_NONE);
-            }
-            break;
-        case OFI_TYPE_AM_DATA:
-            {
-                ptr->data_sent = 1;
             }
             break;
         default:
@@ -1269,7 +1269,7 @@ void gasnetc_ofi_handle_bounce_rdma(void *buf)
 {
     gasnetc_ofi_bounce_op_ctxt_t* op = (gasnetc_ofi_bounce_op_ctxt_t*) buf;
     if (gasnetc_paratomic_decrement_and_test(&op->cntr, 0)) {
-        gasnetc_ofi_op_ctxt_t* orig_op = op->orig_op;
+        gasnetc_ofi_nb_op_ctxt_t* orig_op = op->orig_op;
         gasnetc_ofi_bounce_buf_t * bbuf_to_return;
         while (NULL != (bbuf_to_return = gasneti_lifo_pop(&op->bbuf_list)))
             gasneti_lifo_push(&ofi_bbuf_pool, bbuf_to_return);
@@ -1470,7 +1470,7 @@ void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
 #if GASNET_DEBUG
                     gasnetc_paratomic_decrement(&pending_rdma, 0);
 #endif
-                    gasnetc_ofi_op_ctxt_t *header = (gasnetc_ofi_op_ctxt_t *)re[i].op_context;
+                    gasnetc_ofi_nb_op_ctxt_t *header = (gasnetc_ofi_nb_op_ctxt_t *)re[i].op_context;
                     header->callback(header);
                 }
                 else {
@@ -1806,10 +1806,9 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         goto out_imm;
     } else {
         // Launch the long data payload transfer with RMA operation
-        gasnetc_ofi_op_ctxt_t lam_ctxt;
-        lam_ctxt.type = OFI_TYPE_AM_DATA;
-        lam_ctxt.data_sent = 0;
-        lam_ctxt.callback = gasnetc_ofi_handle_rdma;
+        gasnetc_ofi_blocking_op_ctxt_t lam_ctxt;
+        lam_ctxt.complete = 0;
+        lam_ctxt.callback = gasnetc_ofi_handle_blocking;
 
         GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.rdma_tx, 
             OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt.ctxt));
@@ -1826,7 +1825,7 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         /* Because the order is not guaranteed between different ep, */
         /* we send the am part after confirming the large rdma operation */
         /* is successful. */
-        while(!lam_ctxt.data_sent) {
+        while(!lam_ctxt.complete) {
             GASNETC_OFI_POLL_SELECTIVE(poll_type);
         }
         sendbuf->type = OFI_AM_LONG;
@@ -1898,7 +1897,7 @@ int get_bounce_bufs(int n, gasnetc_ofi_bounce_buf_t ** arr) {
  */
 gex_Event_t
 gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
-        size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr GASNETI_THREAD_FARG)
+        size_t nbytes, gasnetc_ofi_nb_op_ctxt_t* ctxt_ptr GASNETI_THREAD_FARG)
 {
 
     int i;
@@ -1906,7 +1905,7 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
     uintptr_t src_ptr = (uintptr_t)src_addr;
     uintptr_t dest_ptr = GET_REMOTEADDR(dest_addr, dest);
 
-    ((gasnetc_ofi_op_ctxt_t *)ctxt_ptr)->callback = gasnetc_ofi_handle_rdma;
+    ((gasnetc_ofi_nb_op_ctxt_t *)ctxt_ptr)->callback = gasnetc_ofi_handle_rdma;
 
     PERIODIC_RMA_POLL();
 
@@ -2007,11 +2006,11 @@ block_anyways:
 
 void
 gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes,
-        gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG)
+        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG)
 {
     int ret = FI_SUCCESS;
 
-    ((gasnetc_ofi_op_ctxt_t *)ctxt_ptr)->callback = gasnetc_ofi_handle_rdma;
+    ((gasnetc_ofi_nb_op_ctxt_t *)ctxt_ptr)->callback = gasnetc_ofi_handle_rdma;
 
     PERIODIC_RMA_POLL();
     OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
@@ -2024,11 +2023,11 @@ gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes
 
 void
 gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbytes,
-        gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG)
+        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG)
 {
     int ret = FI_SUCCESS;
 
-    ((gasnetc_ofi_op_ctxt_t *)ctxt_ptr)->callback = gasnetc_ofi_handle_rdma;
+    ((gasnetc_ofi_nb_op_ctxt_t *)ctxt_ptr)->callback = gasnetc_ofi_handle_rdma;
 
     PERIODIC_RMA_POLL();
 
