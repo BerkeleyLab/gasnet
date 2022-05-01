@@ -785,6 +785,7 @@ int gasnetc_ofi_init(void)
 
   /* Allocate a new active endpoint for RDMA operations */
   hints->caps = FI_RMA;
+  hints->mode = 0;  // in particular we do not support FI_CONTEXT due to many-to-one iop
 
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_rma_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for RMA endpoint");
@@ -812,6 +813,7 @@ int gasnetc_ofi_init(void)
 
   /* Allocate a new active endpoint for AM operations buffer */
   hints->caps     = FI_MSG | FI_MULTI_RECV;
+  hints->mode     = FI_CONTEXT;
 
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_msg_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for MSG endpoints");
@@ -1839,11 +1841,11 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         lam_ctxt.callback = gasnetc_ofi_handle_blocking;
 
         GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.rdma_tx, 
-            OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt.ctxt));
+            OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt));
         while (ret == -FI_EAGAIN) {
             GASNETC_OFI_POLL_SELECTIVE(poll_type);
             GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.rdma_tx, 
-                OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt.ctxt));
+                OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt));
         }
         GASNETC_OFI_CHECK_RET(ret, "fi_write failed for AM long");
 #if GASNET_DEBUG

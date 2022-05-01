@@ -151,8 +151,7 @@ typedef struct gasnetc_ofi_bounce_buf {
 } gasnetc_ofi_bounce_buf_t;
 
 typedef struct gasnetc_ofi_bounce_op_ctxt {
-    // Conduit code assumes ctxt is the first field and callback is second
-    struct fi_context   ctxt;
+    // Conduit code assumes callback is first field
     rdma_callback_fn        callback;
     /* bounce buffers to return to the pool */
     gasneti_lifo_head_t bbuf_list;
@@ -163,8 +162,7 @@ typedef struct gasnetc_ofi_bounce_op_ctxt {
 } gasnetc_ofi_bounce_op_ctxt_t;
 
 typedef struct gasnetc_ofi_blocking_op_ctxt {
-    // Conduit code assumes ctxt is the first field and callback is second
-    struct fi_context     ctxt;
+    // Conduit code assumes callback is first field
     rdma_callback_fn      callback;
     volatile int          complete;
 } gasnetc_ofi_blocking_op_ctxt_t;
