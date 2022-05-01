@@ -201,8 +201,8 @@ static char *gasnetc_ofi_device = NULL;
 static const char *supported_providers = GASNETC_OFI_PROVIDER_LIST;
 
 static int gasnetc_high_perf_prov = 0;
-static char *gasneti_ofi_provider = NULL;
-static char *gasneti_ofi_domain = NULL;
+static char *gasnetc_ofi_provider = NULL;
+static char *gasnetc_ofi_domain = NULL;
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
@@ -282,11 +282,11 @@ ssize_t gasnetc_fi_cq_readerr(struct fid_cq *cq, struct fi_cq_err_entry *buf, ui
 // a high-performance provider (unless used w/ inappropriate h/w)
 int gasnetc_check_portable_conduit(void) {
   gasneti_assert(gasnetc_ofi_inited);
-  if (strcmp(gasneti_ofi_provider, "verbs;ofi_rxm")) {
+  if (strcmp(gasnetc_ofi_provider, "verbs;ofi_rxm")) {
     // extension of bug 3609: some verbs-compatible networks need special handling
     // TODO: warn specifically about the right providers
-    if (!strncmp(gasneti_ofi_domain, "hfi1_", 5)) return 1; // psm2
-    if (!strncmp(gasneti_ofi_domain, "qib", 3))   return 1; // psm
+    if (!strncmp(gasnetc_ofi_domain, "hfi1_", 5)) return 1; // psm2
+    if (!strncmp(gasnetc_ofi_domain, "qib", 3))   return 1; // psm
   }
   return !gasnetc_high_perf_prov;
 }
@@ -721,13 +721,13 @@ int gasnetc_ofi_init(void)
                            info->fabric_attr->prov_name,
                            (unsigned int)FI_MAJOR(info->fabric_attr->prov_version),
                            (unsigned int)FI_MINOR(info->fabric_attr->prov_version)));
-  gasneti_leak( gasneti_ofi_provider = gasneti_strdup(info->fabric_attr->prov_name) );
+  gasneti_leak( gasnetc_ofi_provider = gasneti_strdup(info->fabric_attr->prov_name) );
 
   /* Open a fabric access domain, also referred to as a resource domain */
   ret = fi_domain(gasnetc_ofi_fabricfd, info, &gasnetc_ofi_domainfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_domain failed");
   GASNETI_TRACE_PRINTF(I, ("Opened domain '%s'", info->domain_attr->name));
-  gasneti_leak( gasneti_ofi_domain = gasneti_strdup(info->domain_attr->name) );
+  gasneti_leak( gasnetc_ofi_domain = gasneti_strdup(info->domain_attr->name) );
 
   // Now read user-provided environment settings
   gasnetc_ofi_read_env_vars(info->fabric_attr->prov_name, info->domain_attr->name);
@@ -736,8 +736,8 @@ int gasnetc_ofi_init(void)
    * won't ever give us a different provider.
    * This is necessary when more than one provider matches the other hints,
    * and the first match is not the one we want. */
-  hints->fabric_attr->prov_name = gasneti_ofi_provider;
-  hints->domain_attr->name = gasneti_ofi_domain;
+  hints->fabric_attr->prov_name = gasnetc_ofi_provider;
+  hints->domain_attr->name = gasnetc_ofi_domain;
 
   /* Allocate a new active endpoint for RDMA operations */
   hints->caps = FI_RMA;
