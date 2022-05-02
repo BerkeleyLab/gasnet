@@ -954,11 +954,11 @@ int gasnetc_ofi_init(void)
         metadata->am_buff_ctxt.event_cntr = 0;
         gasnetc_paratomic_set(&metadata->am_buff_ctxt.consumed_cntr, 0, 0);
         metadata->am_buff_ctxt.metadata = metadata;
-        /* Post buffers for Active Messages */
-        if (i % 2 == 0)
-            ret = fi_recvmsg(gasnetc_ofi_request_epfd, &metadata->am_buff_msg, FI_MULTI_RECV);
-        else
-            ret = fi_recvmsg(gasnetc_ofi_reply_epfd, &metadata->am_buff_msg, FI_MULTI_RECV);
+        // Post multi-recv buffers for Active Messages
+        struct fid_ep *epfd = (i % 2 == 0)
+                            ? gasnetc_ofi_request_epfd
+                            : gasnetc_ofi_reply_epfd;
+        ret = fi_recvmsg(epfd, &metadata->am_buff_msg, FI_MULTI_RECV);
 
         GASNETC_OFI_CHECK_RET(ret, "fi_recvmsg failed");
     }
@@ -1026,9 +1026,6 @@ int gasnetc_ofi_init(void)
  * ----------------------------------------------*/
 void gasnetc_ofi_exit(void)
 {
-  int i;
-  int ret = FI_SUCCESS;
-
   if (!gasnetc_ofi_inited)
       return;
 
@@ -1041,14 +1038,13 @@ void gasnetc_ofi_exit(void)
   });
 #endif
 
-    for(i = 0; i < num_multirecv_buffs; i++) {
-        gasnetc_ofi_recv_metadata_t* metadata = metadata_array + i;
-        gasnetc_ofi_ctxt_t am_buff_ctxt = metadata->am_buff_ctxt;
-      /* cancel the multi-recv */
-        if (i % 2 == 0)
-            ret = fi_cancel(&gasnetc_ofi_request_epfd->fid, &am_buff_ctxt.ctxt);
-        else
-            ret = fi_cancel(&gasnetc_ofi_reply_epfd->fid, &am_buff_ctxt.ctxt);
+    // (attempt to) cancel multi-recv operations for Active Messages
+    for (int i = 0; i < num_multirecv_buffs; i++) {
+        gasnetc_ofi_ctxt_t *am_buff_ctxt = &metadata_array[i].am_buff_ctxt;
+        struct fid_ep *epfd = (i % 2 == 0)
+                            ? gasnetc_ofi_request_epfd
+                            : gasnetc_ofi_reply_epfd;
+        (void) fi_cancel(&epfd->fid, &am_buff_ctxt->ctxt);
     }
 
   #if GASNETI_CLIENT_THREADS
