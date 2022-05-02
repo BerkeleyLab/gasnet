@@ -953,7 +953,6 @@ int gasnetc_ofi_init(void)
         metadata->am_buff_ctxt.final_cntr = 0;
         metadata->am_buff_ctxt.event_cntr = 0;
         gasnetc_paratomic_set(&metadata->am_buff_ctxt.consumed_cntr, 0, 0);
-        metadata->am_buff_ctxt.metadata = metadata;
         // Post multi-recv buffers for Active Messages
         struct fid_ep *epfd = (i % 2 == 0)
                             ? gasnetc_ofi_request_epfd
@@ -1584,7 +1583,8 @@ void gasnetc_ofi_am_recv_poll(int is_request)
          * still running. */
         uint64_t tmp = gasnetc_paratomic_add(&header->consumed_cntr, 1, GASNETI_ATOMIC_ACQ);
         if_pf (tmp == (GASNETI_ATOMIC_MAX & header->final_cntr)) {
-            gasnetc_ofi_recv_metadata_t* metadata = header->metadata;
+            gasnetc_ofi_recv_metadata_t* metadata =
+                    gasneti_container_of(header, gasnetc_ofi_recv_metadata_t, am_buff_ctxt);
             struct fi_msg* am_buff_msg = &metadata->am_buff_msg;
             GASNETC_OFI_LOCK(&gasnetc_ofi_locks.am_rx);
             int post_ret = fi_recvmsg(ep, am_buff_msg, FI_MULTI_RECV);
@@ -1619,7 +1619,8 @@ void gasnetc_ofi_am_recv_poll(int is_request)
         gasnetc_ofi_ctxt_t *curr = *prev_p;
         while (curr) {
             gasnetc_ofi_ctxt_t *next = curr->next;
-            gasnetc_ofi_recv_metadata_t* metadata = curr->metadata;
+            gasnetc_ofi_recv_metadata_t* metadata =
+                    gasneti_container_of(curr, gasnetc_ofi_recv_metadata_t, am_buff_ctxt);
             struct fi_msg* am_buff_msg = &metadata->am_buff_msg;
         #if GASNET_PAR && GASNETC_OFI_USE_THREAD_DOMAIN // avoid recursive acquire of big_lock
             int post_ret = fi_recvmsg(ep, am_buff_msg, FI_MULTI_RECV);

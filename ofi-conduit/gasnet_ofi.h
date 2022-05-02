@@ -127,12 +127,11 @@ typedef struct gasnetc_ofi_ctxt {
   // Conduit code assumes ctxt is the first field
   struct fi_context ctxt; // An opaque array of an even number of void*
   uint64_t event_cntr;
-  void * metadata;
 #if GASNETC_OFI_RETRY_RECVMSG
   struct gasnetc_ofi_ctxt *next;
-  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t) + 2*sizeof(void*))];
+  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t) + sizeof(void*))];
 #else
-  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t) +   sizeof(void*))];
+  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t))];
 #endif
 
   // accessed as a pair except when recycling the multi-recv buffer
