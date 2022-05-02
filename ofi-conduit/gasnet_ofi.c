@@ -1308,18 +1308,6 @@ void gasnetc_ofi_am_send_complete(gasnetc_ofi_send_ctxt_t *header)
     gasnetc_ofi_free_am_header(header);
 }
 
-GASNETI_INLINE(gasnetc_ofi_get_bounce_ctxt)
-gasnetc_ofi_bounce_op_ctxt_t* gasnetc_ofi_get_bounce_ctxt(void)
-{
-    gasnetc_ofi_bounce_op_ctxt_t* ctxt = gasneti_lifo_pop(&ofi_bbuf_ctxt_pool);
-    if (NULL == ctxt) {
-        ctxt = gasneti_calloc(1,sizeof(gasnetc_ofi_bounce_op_ctxt_t));
-        gasneti_lifo_init(&ctxt->bbuf_list);
-        gasneti_leak(ctxt);
-    }
-    return ctxt;
-}
-
 void gasnetc_ofi_handle_bounce_rdma(void *op_context)
 {
     gasnetc_ofi_bounce_op_ctxt_t *op = gasneti_container_of(op_context, gasnetc_ofi_bounce_op_ctxt_t, callback);
@@ -1332,6 +1320,19 @@ void gasnetc_ofi_handle_bounce_rdma(void *op_context)
         gasnetc_ofi_handle_rdma(gasnetc_rdma_ctxt_to_op_ctxt(op->orig_op));
         gasneti_lifo_push(&ofi_bbuf_ctxt_pool, op);
     }
+}
+
+GASNETI_INLINE(gasnetc_ofi_get_bounce_ctxt)
+gasnetc_ofi_bounce_op_ctxt_t* gasnetc_ofi_get_bounce_ctxt(void)
+{
+    gasnetc_ofi_bounce_op_ctxt_t* ctxt = gasneti_lifo_pop(&ofi_bbuf_ctxt_pool);
+    if (NULL == ctxt) {
+        ctxt = gasneti_calloc(1,sizeof(gasnetc_ofi_bounce_op_ctxt_t));
+        ctxt->callback = gasnetc_ofi_handle_bounce_rdma;
+        gasneti_lifo_init(&ctxt->bbuf_list);
+        gasneti_leak(ctxt);
+    }
+    return ctxt;
 }
 
 /*------------------------------------------------
@@ -1965,7 +1966,7 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
     uintptr_t src_ptr = (uintptr_t)src_addr;
     uintptr_t dest_ptr = GET_REMOTEADDR(dest_addr, dest);
 
-    ctxt_ptr->callback = gasnetc_ofi_handle_rdma;
+    gasneti_assert_ptr(ctxt_ptr->callback ,==, gasnetc_ofi_handle_rdma);
 
     PERIODIC_RMA_POLL();
 
@@ -2018,8 +2019,8 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
         if (!ret) goto block_anyways;
 
         gasnetc_ofi_bounce_op_ctxt_t * bbuf_ctxt = gasnetc_ofi_get_bounce_ctxt();
+        gasneti_assert_ptr(bbuf_ctxt->callback ,==, gasnetc_ofi_handle_bounce_rdma);
         bbuf_ctxt->orig_op = ctxt_ptr;
-        bbuf_ctxt->callback = gasnetc_ofi_handle_bounce_rdma;
         gasnetc_paratomic_set(&bbuf_ctxt->cntr, num_bufs_needed, 0);
 
         i = 0;
@@ -2070,7 +2071,7 @@ gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes
 {
     int ret = FI_SUCCESS;
 
-    ctxt_ptr->callback = gasnetc_ofi_handle_rdma;
+    gasneti_assert_ptr(ctxt_ptr->callback ,==, gasnetc_ofi_handle_rdma);
 
     PERIODIC_RMA_POLL();
     OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
@@ -2087,7 +2088,7 @@ gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbyte
 {
     int ret = FI_SUCCESS;
 
-    ctxt_ptr->callback = gasnetc_ofi_handle_rdma;
+    gasneti_assert_ptr(ctxt_ptr->callback ,==, gasnetc_ofi_handle_rdma);
 
     PERIODIC_RMA_POLL();
 

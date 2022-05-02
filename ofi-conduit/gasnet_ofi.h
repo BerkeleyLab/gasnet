@@ -150,11 +150,12 @@ typedef struct gasnetc_ofi_bounce_buf {
 
 // NOTE: first sizeof(void*) is overwritten when on freelist
 typedef struct gasnetc_ofi_bounce_op_ctxt {
-    gasnetc_rdma_callback_fn callback;
-    /* bounce buffers to return to the pool */
-    gasneti_lifo_head_t bbuf_list;
     /* Pointer to the original context for the "big" request */
     gasnetc_ofi_nb_op_ctxt_t*      orig_op;
+    /* bounce buffers to return to the pool */
+    gasneti_lifo_head_t bbuf_list; // persistent - should not be first
+    // Callback to run upon completion
+    gasnetc_rdma_callback_fn callback; // persistent - should not be first
     /* Counter to determine when the bbuf transfers are done */
     gasnetc_paratomic_t cntr;
 } gasnetc_ofi_bounce_op_ctxt_t;
