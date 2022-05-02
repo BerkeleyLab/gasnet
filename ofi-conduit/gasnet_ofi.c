@@ -979,7 +979,7 @@ int gasnetc_ofi_init(void)
   char* buf = (char*)bounce_region_start + (ofi_num_bbufs-1)*ofi_bbuf_size;
   for (i = 0; i < (int)ofi_num_bbufs; i++) {
       gasneti_assert(buf);
-      gasnetc_ofi_bounce_buf_t* container = gasneti_malloc(sizeof(gasnetc_ofi_bounce_op_ctxt_t));
+      gasnetc_ofi_bounce_buf_t* container = gasneti_malloc(sizeof(gasnetc_ofi_bounce_buf_t));
       container->buf = buf;
       gasneti_lifo_push(&ofi_bbuf_pool, container);
       buf -= ofi_bbuf_size;
