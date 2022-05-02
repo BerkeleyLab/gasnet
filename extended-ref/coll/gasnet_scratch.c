@@ -95,7 +95,7 @@ void gasnete_coll_free_scratch_status(gasnete_coll_team_t team) {
 }
 
 
-void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
+void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, uint32_t seq) {
   gasnete_coll_scratch_config_t *config = &team->scratch_status->active_config_and_ops;
   
   for (int i = 0; i < config->numpeers; i++) {
@@ -103,7 +103,7 @@ void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
                                 gasneti_handleridx(gasnete_coll_scratch_update_reqh), 0,
                                 team->team_id, team->myrank);
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
-    gasneti_console_message("COLL INFO","%d> CLEAR!->%d\n", seq, config->peers[i]);
+    gasneti_console_message("COLL INFO","%u> CLEAR!->%u", seq, config->peers[i]);
 #endif
   }
  }
@@ -378,7 +378,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
     gasnete_coll_scratch_add_to_wait(scratch_req, op);
     
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
-    gasneti_console_message("COLL INFO","%d> op added to wait (wait queue non empty)",  op->sequence); 
+    gasneti_console_message("COLL INFO","%u> op added to wait (wait queue non empty)",  op->sequence); 
 #endif
     return 0;
   } 
@@ -418,7 +418,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
       gasnete_coll_scratch_add_op_to_config(&stat->active_config_and_ops, scratch_req);
       /* return the appropriate amount of local/remote scratch space*/
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
-       gasneti_console_message("COLL INFO","allocating for op %d", op->sequence); 
+       gasneti_console_message("COLL INFO","%u> op allocating scratch", op->sequence); 
 #endif
       op->myscratchpos = gasnete_coll_scratch_make_local_alloc(scratch_req, stat);
       gasnete_coll_scratch_alloc_pos(scratch_req);
@@ -429,7 +429,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
       if(!op->waiting_scratch_op) {
         gasnete_coll_scratch_add_to_wait(scratch_req, op);
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS        
-	gasneti_console_message("COLL INFO","%d> op added to wait (remote alloc fail on reconfig)", op->sequence); 
+	gasneti_console_message("COLL INFO","%u> op added to wait (remote alloc fail on reconfig)", op->sequence); 
 #endif
       }
       return 0;
@@ -452,7 +452,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
         if(!op->waiting_scratch_op) {
           gasnete_coll_scratch_add_to_wait(scratch_req, op);
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS          
-	  gasneti_console_message("COLL INFO","%d> op added to wait (local full)\n", op->sequence); 
+	  gasneti_console_message("COLL INFO","%u> op added to wait (local full)", op->sequence); 
 #endif
         }
         return 0;
@@ -476,7 +476,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
       gasnete_coll_scratch_add_op_to_config(&stat->active_config_and_ops, scratch_req);
       /* return the appropriate amount of local/remote scratch space*/
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS      
-      gasneti_console_message("COLL INFO","allocating for op %d", op->sequence); 
+      gasneti_console_message("COLL INFO","%u> op allocating scratch", op->sequence); 
 #endif
       op->myscratchpos = gasnete_coll_scratch_make_local_alloc(scratch_req, stat);
       gasnete_coll_scratch_alloc_pos(scratch_req);
@@ -495,7 +495,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
     if(!op->waiting_scratch_op) {
       gasnete_coll_scratch_add_to_wait(scratch_req, op);
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
-       gasneti_console_message("COLL INFO","%d> op added to wait (config mismatch w/ active ops)", op->sequence); 
+       gasneti_console_message("COLL INFO","%u> op added to wait (config mismatch w/ active ops)", op->sequence); 
 #endif
     }
     return 0;
@@ -505,7 +505,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
   
 void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS 
-  gasneti_console_message("COLL INFO","%d> finishing op", op->sequence);
+  gasneti_console_message("COLL INFO","%u> finishing op", op->sequence);
 #endif
 
   /* remove op from the active scratch op list */
