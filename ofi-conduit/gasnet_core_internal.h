@@ -42,7 +42,7 @@ extern gex_AM_Entry_t *gasnetc_handler;
 /* ------------------------------------------------------------------------------------ */
 // For EOP/IOP fields, above
 
-typedef void (*rdma_callback_fn) (void *buf);
+typedef void (*gasnetc_rdma_callback_fn) (void *context);
 
 typedef enum {
   OFI_TYPE_EGET,
@@ -52,8 +52,7 @@ typedef enum {
 } gasnetc_ofi_nb_op_type;
 
 typedef struct gasnetc_ofi_nb_op_ctxt {
-  // Conduit code assumes callback is the first field
-  rdma_callback_fn      callback;
+  gasnetc_rdma_callback_fn callback;
   gasnetc_ofi_nb_op_type   type;
 } gasnetc_ofi_nb_op_ctxt_t;
 

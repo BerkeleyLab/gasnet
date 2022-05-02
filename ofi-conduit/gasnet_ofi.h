@@ -114,21 +114,20 @@ typedef struct gasnetc_ofi_am_send_buf {
     } buf;
 } gasnetc_ofi_am_send_buf_t;
 
-typedef struct gasnetc_ofi_am_buf {
-  // Conduit code assumes ctxt is the first field
+// NOTE: first sizeof(void*) is overwritten when on freelist
+typedef struct gasnetc_ofi_send_ctxt {
   struct fi_context             ctxt;
   gasneti_lifo_head_t           *pool;
   gasnetc_ofi_am_send_buf_t     sendbuf;
-} gasnetc_ofi_am_buf_t;
+} gasnetc_ofi_send_ctxt_t;
 #define GASNETC_SIZEOF_AM_BUF_T \
-        (offsetof(gasnetc_ofi_am_buf_t, sendbuf.buf.long_buf.data) + OFI_AM_MAX_DATA_LENGTH)
+        (offsetof(gasnetc_ofi_send_ctxt_t, sendbuf.buf.long_buf.data) + OFI_AM_MAX_DATA_LENGTH)
 
-typedef struct gasnetc_ofi_ctxt {
-  // Conduit code assumes ctxt is the first field
+typedef struct gasnetc_ofi_recv_ctxt {
   struct fi_context ctxt; // An opaque array of an even number of void*
   uint64_t event_cntr;
 #if GASNETC_OFI_RETRY_RECVMSG
-  struct gasnetc_ofi_ctxt *next;
+  struct gasnetc_ofi_recv_ctxt *next;
   char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t) + sizeof(void*))];
 #else
   char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t))];
@@ -137,7 +136,7 @@ typedef struct gasnetc_ofi_ctxt {
   // accessed as a pair except when recycling the multi-recv buffer
   uint64_t final_cntr;
   gasnetc_paratomic_t   consumed_cntr;
-} gasnetc_ofi_ctxt_t;
+} gasnetc_ofi_recv_ctxt_t;
 
 
 /* The following struct is for storing certain dynamically allocated
@@ -149,9 +148,9 @@ typedef struct gasnetc_ofi_bounce_buf {
     void* buf;
 } gasnetc_ofi_bounce_buf_t;
 
+// NOTE: first sizeof(void*) is overwritten when on freelist
 typedef struct gasnetc_ofi_bounce_op_ctxt {
-    // Conduit code assumes callback is first field
-    rdma_callback_fn        callback;
+    gasnetc_rdma_callback_fn callback;
     /* bounce buffers to return to the pool */
     gasneti_lifo_head_t bbuf_list;
     /* Pointer to the original context for the "big" request */
@@ -161,8 +160,7 @@ typedef struct gasnetc_ofi_bounce_op_ctxt {
 } gasnetc_ofi_bounce_op_ctxt_t;
 
 typedef struct gasnetc_ofi_blocking_op_ctxt {
-    // Conduit code assumes callback is first field
-    rdma_callback_fn      callback;
+    gasnetc_rdma_callback_fn callback;
     volatile int          complete;
 } gasnetc_ofi_blocking_op_ctxt_t;
 
