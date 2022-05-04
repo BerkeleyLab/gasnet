@@ -26,11 +26,14 @@ GASNet-EX ChangeLog
     size of AM Medium buffers at job launch, and the preexisting configure
     option `--with-ofi-max-medium` is now used to set the default value.
     In the absence of these settings, default buffer size remains unchanged.
+  - Improvements to `--with-ofi-provider` argument handling, as documented
+    in the conduit README.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4379: HIP support using deprecated context functionality
   - bug4392: Warn when running with --disable-pshm and multiple PPN
   - bug4434: RFE: runtime adjustment of ofi-conduit MaxMedium
+  - bug4432: OFI provider selection issues
 
 ----------------------------------------------------------------------
 2022-03-31: GASNet-EX 2022.3.0 Release
