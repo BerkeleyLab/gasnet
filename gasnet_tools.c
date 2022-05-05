@@ -2637,6 +2637,18 @@ extern char *gasneti_getenv(const char *keyname) {
   return retval;
 }
 
+// parse a GASNET_VERBOSEENV value into boolean enable/disable
+extern int gasneti_verboseenv_parse(const char *v) {
+  if (!v) return 0; // default is off
+  else {
+    char s[10];
+    strncpy(s, v, sizeof(s)-1); s[sizeof(s)-1] = '\0';
+    for (size_t i = 0; i < sizeof(s) && s[i]; i++) s[i] = toupper(s[i]);
+    if (!strcmp(s, "N") || !strcmp(s, "NO") || !strcmp(s, "0")) return 0;
+    else return 1; // for legacy reasons accept anything else including empty as yes
+  }
+}
+
 /* indicate whether GASNET_VERBOSEENV reporting is enabled on this node 
    1 = yes, 0 = no, -1 = not yet / don't know
 */
@@ -2645,7 +2657,7 @@ extern int gasneti_verboseenv(void) {
   if (gasneti_verboseenv_fn) return (*gasneti_verboseenv_fn)();
   else 
 #endif
-    return !!gasneti_getenv("GASNET_VERBOSEENV");
+    return gasneti_verboseenv_parse(gasneti_getenv("GASNET_VERBOSEENV"));
 }
 
 typedef struct gasneti_verboseenv_S {

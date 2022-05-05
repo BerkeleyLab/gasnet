@@ -1346,15 +1346,19 @@ extern const char *gasneti_decode_envval(const char *val) {
 #ifndef GASNETI_ENV_OUTPUT_NODE
 #define GASNETI_ENV_OUTPUT_NODE()  (gasneti_mynode == 0)
 #endif
+extern int gasneti_verboseenv_parse(const char *);
 extern int _gasneti_verboseenv_fn(void) {
   static int verboseenv = -1;
   if (verboseenv == -1) {
     if (gasneti_init_done && gasneti_mynode != (gex_Rank_t)-1) {
+      if (!GASNETI_ENV_OUTPUT_NODE()) verboseenv = 0; // wrong process
+      else {
       #if GASNET_DEBUG_VERBOSE
-        verboseenv = GASNETI_ENV_OUTPUT_NODE();
+        verboseenv = 1; // hard-wired to enabled
       #else
-        verboseenv = !!gasneti_getenv("GASNET_VERBOSEENV") && GASNETI_ENV_OUTPUT_NODE();
+        verboseenv = gasneti_verboseenv_parse(gasneti_getenv("GASNET_VERBOSEENV"));
       #endif
+      }
       gasneti_sync_writes();
     }
   } else gasneti_sync_reads();
