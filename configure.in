@@ -4148,8 +4148,8 @@ if test "$enabled_ofi" = yes; then
     CONDUIT_SPAWNER
 
     ofi_provider=""
-    ofi_define_mr_scalable="no"
-    ofi_known_provider="yes"
+    ofi_define_mr_scalable="no" # tri-state: "no" omits "#define", forcing runtime selection
+    ofi_single_provider="yes"
     detected_ofi_provider=""
     ofi_use_thread_domain=0
     ofi_use_multi_cq=0
@@ -4175,6 +4175,18 @@ if test "$enabled_ofi" = yes; then
             ofi_provider="$detected_ofi_provider"
         fi
         GASNET_POPVAR(PATH)
+    else
+        unset aliased_ofi_provider
+        case "$ofi_provider" in
+            verbs) aliased_ofi_provider='verbs;ofi_rxm' ;;
+              tcp) aliased_ofi_provider='tcp;ofi_rxm' ;;
+              udp) aliased_ofi_provider='udp;ofi_rxd' ;;
+              *:*) aliased_ofi_provider=`echo "$ofi_provider" | sed -e 's/:/;/'` ;;
+        esac
+        if test "${aliased_ofi_provider+set}" = set ; then
+            GASNET_MSG_WARN([Option --with-ofi-provider='$ofi_provider' converted to --with-ofi-provider='$aliased_ofi_provider'])
+            ofi_provider="$aliased_ofi_provider"
+        fi
     fi
     case "$ofi_provider" in
         psm2)
@@ -4203,18 +4215,27 @@ if test "$enabled_ofi" = yes; then
             ofi_define_mr_scalable=1
         ;;
         default|"")
-            ofi_known_provider="no"
+            if test -n "$ofi_provider"; then
+                why='as requested via --with-ofi-provider=default'
+            else
+                why='because no OFI provider was specified via the --with-ofi-provider option and no known provider could be auto-detected'
+            fi
+            GASNET_MSG_WARN([Using runtime provider feature detection in ofi-conduit $why.])
             ofi_use_multi_cq=1
             ofi_retry_recvmsg=1
+            ofi_single_provider='no'
         ;;
         *)
-        GASNET_MSG_WARN([
-WARNING: Invalid or unsupported OFI provider specified via the --with-ofi-provider flag. 
-Defaulting to runtime provider feature detection for ofi-conduit.])
-            ofi_known_provider="no"
+            GASNET_IF_ENABLED_NOHELP(allow-unknown-ofi-provider, [
+                GASNET_MSG_WARN([dnl
+Unknown OFI provider '$ofi_provider' requested together with '--enable-allow-unknown-ofi-provider'.
+Runtime provider feature detection and conservative defaults will be used except where overridden via --(en|dis)able-ofi-[[feature]] options.])
+                ofi_use_multi_cq=1
+                ofi_retry_recvmsg=1
+            ], GASNET_MSG_ERROR([Unknown OFI provider '$ofi_provider' requested]))
         ;;
     esac
-    if test "$ofi_known_provider" = "yes"; then
+    if test "$ofi_single_provider" = "yes"; then
         AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$ofi_provider"])
     else
         AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$known_providers"])

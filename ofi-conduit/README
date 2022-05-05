@@ -117,6 +117,12 @@ The following configure options are also available:
       it supports, it will add branches in critical paths that may increase
       software overheads.  This case is referred to as "unknown provider" below.
 
+      Note that some providers, such as "verbs;ofi_rxm" include a semi-colon in
+      their name.  To avoid issues with shell quoting, the configure script will
+      allow substitution of a colon for the semi-colon (e.g. "verbs:ofi_rxm") as
+      well as use of just the first word (e.g. "verbs") if no ambiguity would
+      result.
+
     * --with-ofi-num-completions=VALUE
       Specifies the maximum number of transmit completions to be read from the
       transmit CQ during each call to the polling function.
