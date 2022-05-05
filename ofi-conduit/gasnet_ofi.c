@@ -1904,7 +1904,7 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         }
         sendbuf->type = OFI_AM_LONG;
     }
-    len += offsetof(gasnetc_ofi_am_long_buf_t, data) + offsetof(gasnetc_ofi_am_send_buf_t, buf.long_buf);
+    len += offsetof(gasnetc_ofi_am_send_buf_t, buf.long_buf.data);
     len = GASNETI_ALIGNUP(len, GASNETI_MEDBUF_ALIGNMENT); // ensure multi-recv buffer alignment
 
     // Initialize metadata (handler, args, etc.)
