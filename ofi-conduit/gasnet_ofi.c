@@ -188,6 +188,7 @@ static gasneti_lifo_head_t ofi_bbuf_ctxt_pool = GASNETI_LIFO_INITIALIZER;
 static size_t num_multirecv_buffs;
 static size_t multirecv_buff_size;
 static void* receive_region_start = NULL;
+static size_t receive_region_size = 0;
 
 /* Variables for bounce buffering of non-blocking, non-bulk puts.
  * The gasnetc_ofi_bbuf_threshold variable is defined in gasnet_ofi.h
@@ -570,6 +571,17 @@ int gasnetc_setenv_uint(const char *key, unsigned int val, int replace)
       char valstr[16];
       snprintf(valstr, sizeof(valstr), "%u", val);
       return gasnetc_setenv_string(key, valstr, replace);
+}
+
+// Helper for (large) page-aligned allocation
+#include <sys/mman.h> // for MAP_FAILED
+static void *gasnetc_alloc_pages(size_t len, const char *desc)
+{
+    void *result = gasneti_mmap(GASNETI_PAGE_ALIGNUP(len));
+    if (MAP_FAILED == result) {
+        gasneti_fatalerror("Failed to allocate %"PRIuSZ " bytes %s", len, desc);
+    }
+    return result;
 }
 
 /*------------------------------------------------
@@ -962,7 +974,8 @@ int gasnetc_ofi_init(void)
       gasnetc_ofi_target_aux_keys = gasnetc_ofi_target_keys + gasneti_nodes;
   }
 
-  receive_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, multirecv_buff_size*num_multirecv_buffs);
+  receive_region_size = multirecv_buff_size*num_multirecv_buffs;
+  receive_region_start = gasnetc_alloc_pages(receive_region_size, "for multi-recv buffers");
   metadata_array = gasneti_malloc(sizeof(gasnetc_ofi_recv_metadata_t)*num_multirecv_buffs);
   { char valstr[16];
     gasneti_format_number(multirecv_buff_size*num_multirecv_buffs, valstr, sizeof(valstr), 1);
@@ -995,14 +1008,13 @@ int gasnetc_ofi_init(void)
   
   /* Allocate bounce buffers*/
   bounce_region_size = GASNETI_PAGE_ALIGNUP(ofi_num_bbufs * ofi_bbuf_size);
-  bounce_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, bounce_region_size);
+  bounce_region_start = gasnetc_alloc_pages(bounce_region_size, "for bounce buffers");
   { char valstr[16];
     gasneti_format_number(bounce_region_size, valstr, sizeof(valstr), 1);
     GASNETI_TRACE_PRINTF(I, ("Allocated %s for %"PRIuSZ " bounce buffers",
                               valstr, ofi_num_bbufs));
   }
 
-  gasneti_leak_aligned(bounce_region_start);
   /* Progress backwards so that when these buffers are added to the stack, they
    * will come off of it in order by address */
   char* buf = (char*)bounce_region_start + (ofi_num_bbufs-1)*ofi_bbuf_size;
@@ -1020,8 +1032,7 @@ int gasnetc_ofi_init(void)
 
   size_t total_init = num_init_am_request_buffs + num_init_am_reply_buffs;
   am_buffers_region_size = GASNETI_PAGE_ALIGNUP(total_init*GASNETC_SIZEOF_AM_BUF_T);
-  am_buffers_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, am_buffers_region_size);
-  gasneti_leak_aligned(am_buffers_region_start);
+  am_buffers_region_start = gasnetc_alloc_pages(am_buffers_region_size, "for AM send buffers");
   { char valstr[16];
     gasneti_format_number(am_buffers_region_size, valstr, sizeof(valstr), 1);
     GASNETI_TRACE_PRINTF(I, ("Allocated %s for %"PRIuSZ " (out of max %"PRIuSZ ") AM send buffers",
@@ -1080,7 +1091,10 @@ void gasnetc_ofi_exit(void)
     /* Unsafe to free resources if other threads may be using them */
   #else
     gasneti_free(metadata_array);
-    gasneti_free_aligned(receive_region_start);
+    gasneti_munmap(receive_region_start, receive_region_size);
+    // TODO: when/if the following are proven safe
+    //gasneti_munmap(bounce_region_start, bounce_region_size);
+    //gasneti_munmap(am_buffers_region_start, am_buffers_region_size);
   #endif
 
   if(fi_close(&gasnetc_ofi_reply_epfd->fid)!=FI_SUCCESS) {
