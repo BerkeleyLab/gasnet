@@ -399,7 +399,10 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
     #if AMX_DEBUG_VERBOSE
       AMX_SilentMode = 0;
     #else
-      AMX_SilentMode = !AMUDP_getenv_prefixed("VERBOSEENV");
+      /* Approximate match to GASNet's acceptance of 'no|NO|n|N|0' */
+      char *envval = AMUDP_getenv_prefixed_withdefault("SPAWN_VERBOSE", "NO");
+      char c = envval[0];
+      AMX_SilentMode = ((c == '0') || (c == 'n') || (c == 'N'));
     #endif
 
     /* defaulting */
