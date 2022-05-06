@@ -195,7 +195,7 @@ static void gasnetc_exit_sighand(int sig_recvd) {
     case SIGABRT: case SIGILL: case SIGSEGV: case SIGBUS: case SIGFPE:
       /* These signals indicates a bug in the exit handling code. */
       (void)gasneti_reghandler(sig_recvd, SIG_DFL); /* avoid recursion - do as early as possible */
-      fprintf(stderr, "ERROR: exit code received fatal signal %d - Terminating\n", sig_recvd);
+      gasneti_console_message("ERROR","exit code received fatal signal %d - Terminating", sig_recvd);
       sig_to_send = SIGKILL;
       fatal = 1;
       break;
@@ -445,7 +445,7 @@ static int gasnetc_get_pshm_nodecount(void)
     gasneti_fatalerror("Nodes requested (%d) > maximum (%d)", (int)nodes,
                        GASNETI_PSHM_MAX_NODES);
   } else if (nodes == 0) {
-    fprintf(stderr, "Warning: GASNET_PSHM_NODES not specified: running with 1 node\n");
+    gasneti_console_message("WARNING","GASNET_PSHM_NODES not specified: running with 1 process");
     nodes = 1;
   }
 
@@ -472,10 +472,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
     gasneti_freezeForDebugger();
 
-  #if GASNET_DEBUG_VERBOSE
-    /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-    fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
-  #endif
+    gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
+
+    if (gasneti_spawn_verbose) 
+      gasneti_console_message("gasnetc_init","about to spawn...");
 
   /* Must init timers after global env, and preferably before tracing */
   /* Note that we are intentionly doing this before we fork() */
@@ -520,10 +520,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gex_Rank_t));
   gasneti_nodemapParse();
 
-  #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
+  if (gasneti_spawn_verbose) {
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
+      gasneti_mynode, gasneti_nodes);
+  }
 
 #if GASNET_PSHM
   #ifdef HAVE_PR_SET_PDEATHSIG
@@ -748,7 +748,8 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_mutex_lock(&exit_lock);
   }
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   gasneti_flush_streams();
   gasneti_trace_finish();

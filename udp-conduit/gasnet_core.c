@@ -91,8 +91,8 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
 
 #define INITERR(type, reason) do {                                      \
    if (gasneti_VerboseErrors) {                                         \
-     fprintf(stderr, "GASNet initialization encountered an error: %s\n" \
-      "  in %s at %s:%i\n",                                             \
+     gasneti_console_message("ERROR","GASNet initialization encountered an error: %s\n" \
+      "  in %s at %s:%i",                                               \
       #reason, GASNETI_CURRENT_FUNCTION,  __FILE__, __LINE__);          \
    }                                                                    \
    retval = GASNET_ERR_ ## type;                                        \
@@ -133,9 +133,9 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
     /* parse node count from command line */
     if (*argc < 2) {
-      fprintf(stderr, "GASNet: Missing parallel node count\n");
-      fprintf(stderr, "GASNet: Specify node count as first argument, or use upcrun/tcrun spawner script to start job\n");
-      fprintf(stderr, "GASNet: Usage '%s <num_nodes> {program arguments}'\n", (*argv)[0]);
+      gasneti_console0_message("GASNet","Missing parallel node count");
+      gasneti_console0_message("GASNet","Specify node count as first argument, or use programming model spawn script to start job");
+      gasneti_console0_message("GASNet","Usage '%s <num_nodes> {program arguments}'", (*argv)[0]);
       exit(-1);
     }
     /*
@@ -146,8 +146,8 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
      */
     num_nodes = atoi((*argv)[1]);
     if (num_nodes < 1) {
-      fprintf (stderr, "GASNet: Invalid number of nodes: %s\n", (*argv)[1]);
-      fprintf (stderr, "GASNet: Usage '%s <num_nodes> {program arguments}'\n", (*argv)[0]);
+      gasneti_console0_message("GASNet","Invalid number of nodes: %s", (*argv)[1]);
+      gasneti_console0_message("GASNet","Usage '%s <num_nodes> {program arguments}'", (*argv)[0]);
       exit (1);
     }
 
@@ -182,18 +182,17 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     }
 
     if (!fp) {
-      fprintf (stderr, "GASNet: Invalid spawn function specified in GASNET_SPAWNFN\n");
-      fprintf (stderr, "GASNet: The following mechanisms are available:\n");
+      gasneti_console0_message("GASNet","Invalid spawn function specified in GASNET_SPAWNFN");
+      gasneti_console0_message("GASNet","The following mechanisms are available:");
       for (i=0; AMUDP_Spawnfn_Desc[i].abbrev; i++) {
-        fprintf(stderr, "    '%c'  %s\n",  
+        gasneti_console0_message("GASNet","    '%c'  %s\n",  
               toupper(AMUDP_Spawnfn_Desc[i].abbrev), AMUDP_Spawnfn_Desc[i].desc);
       }
       exit(1);
     }
 
     #if GASNET_DEBUG_VERBOSE
-      /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-      fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
+      gasneti_console_message("gasnetc_init","about to spawn..."); 
     #endif
 
     retval = AMUDP_SPMDStartup(argc, argv, 
@@ -254,10 +253,12 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
       gasnet_set_waitmode(GASNET_WAIT_BLOCK);
     }
 
-    #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
-        gasneti_mynode, gasneti_nodes); fflush(stderr);
-    #endif
+    gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
+
+    if (gasneti_spawn_verbose) {
+      gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
+        gasneti_mynode, gasneti_nodes);
+    }
 
     // Note intentional lack of env var tracing when just check for deprecated use
     if (gasneti_getenv("GASNET_USE_GETHOSTID") && !gasneti_getenv("GASNET_HOST_DETECT")) {
@@ -538,7 +539,8 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_mutex_lock(&exit_lock);
   }
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   gasneti_flush_streams();
   gasneti_trace_finish();

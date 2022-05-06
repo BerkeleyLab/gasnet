@@ -2598,11 +2598,11 @@ extern void gasnete_coll_stat(void) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
   int used = gasnete_coll_event_list.used;
   gasnete_coll_op_t *op;
-  fprintf(stderr, "%d> %d events used\n", (int)gasneti_mynode, used);
+  gasneti_console_message("COLL INFO","%d events used\n", used);
 
   if (used) {
     for (int i = 0; i < used; ++i) {
-      fprintf(stderr, "EVENT %p\n", (void *)gasnete_coll_event_list.events[i]);
+      gasneti_console_message("COLL INFO","EVENT %p\n", (void *)gasnete_coll_event_list.events[i]);
     }
   }
 
@@ -2610,7 +2610,7 @@ extern void gasnete_coll_stat(void) {
   op = gasnete_coll_active_first();
   while (op) {
     gasnete_coll_generic_data_t *data = op->data;
-    fprintf(stderr, "OP: %p in state %d\n", (void *)op, data->state);
+    gasneti_console_message("COLL INFO","OP: %p in state %d\n", (void *)op, data->state);
     op = gasnete_coll_active_next(op);
   }
   /* gasneti_mutex_unlock(&gasnete_coll_active_lock); */

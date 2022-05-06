@@ -244,9 +244,8 @@ static int gasneti_slow_atomic_warning_issued = 0;
 GASNETI_NEVER_INLINE(gasneti_slow_atomic_warn,
 static void gasneti_slow_atomic_warn(void)) {
   gasneti_slow_atomic_warning_issued = 1;
-  fprintf(stderr,
-          "WARNING: using slow atomics due to use of a compiler not probed by GASNet at configure time\n");
-  fflush(stderr);
+  gasneti_console_message("WARNING",
+          "using slow atomics due to use of a compiler not probed by GASNet at configure time");
 }
 #define GASNETI_SLOW_ATOMIC_WARNING() do { \
     if_pf (! gasneti_slow_atomic_warning_issued) gasneti_slow_atomic_warn(); \
@@ -645,10 +644,20 @@ extern double gasneti_tick_metric(int idx) {
     #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
   #endif
 #endif
+#if GASNETI_BUILDING_CONDUIT
+  // shadows gasnet_fwd.h, which is deliberately excluded:
+  extern uint32_t gasneti_mynode;
+  #define GASNETI_PROCID         gasneti_mynode
+  #define GASNETI_PROCID_INVALID ((uint32_t)-1)
+#else
+  #define GASNETI_PROCID          0
+  #define GASNETI_PROCID_INVALID -1
+#endif
 extern const char *gasneti_procid_str;
 const char *gasneti_procid_str = NULL;
 
 extern void gasneti_console_messageVA(const char *funcname, const char *filename, int linenum,
+                                      int console_procid, // -1 == wildcard
                                       const char *prefix, const char *msg, va_list argptr) {
   #ifndef GASNETI_CONSOLEMSG_PREFIX_LEN
   #define GASNETI_CONSOLEMSG_PREFIX_LEN 128
@@ -659,8 +668,13 @@ extern void gasneti_console_messageVA(const char *funcname, const char *filename
   #ifndef GASNETI_CONSOLEMSG_CONTEXT_LEN
   #define GASNETI_CONSOLEMSG_CONTEXT_LEN 128
   #endif
+  int console_speak = 1;
   char expandedmsg[GASNETI_CONSOLEMSG_PREFIX_LEN+GASNETI_CONSOLEMSG_IDSTR_LEN+GASNETI_CONSOLEMSG_CONTEXT_LEN+20];
-  if (gasneti_procid_str) {
+  if (console_procid >= 0) { // omit proc id for "job-wide" messages
+    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s: ", prefix);
+    console_speak = (console_procid == GASNETI_PROCID)          // I am the walrus
+                 || (GASNETI_PROCID == GASNETI_PROCID_INVALID); // too early to know, assume I am the walrus
+  } else if (gasneti_procid_str) {
     snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s (%s): ", prefix, gasneti_procid_str);
   } else {
     // we are either in tools-only mode or early in conduit startup before procid's are established
@@ -727,7 +741,7 @@ extern void gasneti_console_messageVA(const char *funcname, const char *filename
     va_end(args);
   }
 
-  FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
+  FILE * streams[] = { (console_speak ? stderr : NULL), GASNETI_MAYBE_TRACEFILE };
   for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
     FILE *stream = streams[s];
     if (stream) {
@@ -749,11 +763,21 @@ extern void gasneti_console_messageVA(const char *funcname, const char *filename
     }
   }
 }
+#undef GASNETI_MAYBE_TRACEFILE
+#undef GASNETI_PROCID
+#undef GASNETI_PROCID_INVALID
 
 extern void gasneti_console_message(const char *prefix, const char *msg, ...) {
   va_list argptr;
   va_start(argptr, msg); /*  pass in last argument */
-    gasneti_console_messageVA(0,0,0, prefix, msg, argptr);
+    gasneti_console_messageVA(0,0,0,-1, prefix, msg, argptr);
+  va_end(argptr);
+}
+
+extern void gasneti_console0_message(const char *prefix, const char *msg, ...) {
+  va_list argptr;
+  va_start(argptr, msg); /*  pass in last argument */
+    gasneti_console_messageVA(0,0,0,0, prefix, msg, argptr);
   va_end(argptr);
 }
 
@@ -814,7 +838,7 @@ extern void _gasneti_fatalerror(const char *msg, ...) {
     gasneti_console_messageVA(_gasneti_fatalerror_funcname,
                               _gasneti_fatalerror_filename, 
                               _gasneti_fatalerror_linenum,
-                              "FATAL ERROR", msg, argptr);
+                              -1, "FATAL ERROR", msg, argptr);
   va_end(argptr);
   gasneti_error_abort();
 }
@@ -822,7 +846,7 @@ extern void _gasneti_fatalerror(const char *msg, ...) {
 extern void gasneti_fatalerror_nopos(const char *msg, ...) {
   va_list argptr;
   va_start(argptr, msg); /*  pass in last argument */
-    gasneti_console_messageVA(0,0,0, "FATAL ERROR", msg, argptr);
+    gasneti_console_messageVA(0,0,0,-1, "FATAL ERROR", msg, argptr);
   va_end(argptr);
   gasneti_error_abort();
 }
@@ -832,7 +856,7 @@ extern void _gasneti_assert_fail(const char *funcname, const char *filename, int
   // generate the fatal error and crash
   va_list argptr;
   va_start(argptr, fmt); /*  pass in last argument */
-    gasneti_console_messageVA(funcname, filename, linenum,
+    gasneti_console_messageVA(funcname, filename, linenum, -1,
                               "FATAL ERROR: Assertion failure", fmt, argptr);
   va_end(argptr);
   gasneti_error_abort();
@@ -2089,8 +2113,8 @@ extern void gasneti_backtrace_init(const char *exename) {
 
   gasneti_tmpdir_bt = gasneti_tmpdir();
   if (!gasneti_tmpdir_bt) {
-    fprintf(stderr,"WARNING: Failed to init backtrace support because none of $GASNET_TMPDIR, $TMPDIR or /tmp is usable\n");
-    fflush(stderr);
+    gasneti_console_message("WARNING",
+      "Failed to init backtrace support because none of $GASNET_TMPDIR, $TMPDIR or /tmp is usable");
     return;
   }
 
@@ -2135,8 +2159,7 @@ extern int gasneti_print_backtrace(int fd) {
   int retval = 1;
 
   if (!gasneti_backtrace_isinit) {
-    fprintf(stderr,"WARNING: Ignoring call to gasneti_print_backtrace before gasneti_backtrace_init\n");
-    fflush(stderr);
+    gasneti_console_message("WARNING", "Ignoring call to gasneti_print_backtrace before gasneti_backtrace_init");
     return -1;
   }
 
@@ -2312,15 +2335,13 @@ void gasneti_registerSignalHandlers(gasneti_sighandlerfn_t handler) {
 static int _gasneti_print_backtrace_ifenabled(int fd) {
   static int noticeshown = 0;
   if (!gasneti_backtrace_isinit) {
-    fprintf(stderr,"WARNING: Ignoring call to gasneti_print_backtrace_ifenabled before gasneti_backtrace_init\n");
-    fflush(stderr);
+    gasneti_console_message("WARNING", "Ignoring call to gasneti_print_backtrace_ifenabled before gasneti_backtrace_init");
     return -1;
   }
   #if !GASNET_DEBUG
     #define GASNETI_NDEBUG_ADVISORY() do { \
       if (!noticeshown) {                  \
-        fprintf(stderr, "NOTICE: We recommend linking the debug version of GASNet to assist you in resolving this application issue.\n"); \
-        fflush(stderr);                    \
+        gasneti_console_message("NOTICE","We recommend linking the debug version of GASNet to assist you in resolving this application issue."); \
         noticeshown = 1;                   \
       }                                    \
     } while (0)
@@ -2337,8 +2358,7 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
     if (gasneti_internal_crash) gasneti_output_config(); // GEX info iff this looks like a GEX-related crash
     return gasneti_print_backtrace(fd);
   } else if (gasneti_backtrace_mechanism_count && !noticeshown) {
-    fprintf(stderr, "NOTICE: Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace. \n");
-    fflush(stderr);
+    gasneti_console_message("NOTICE", "Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace.");
     GASNETI_NDEBUG_ADVISORY();
     noticeshown = 1;
     return 1;
@@ -2617,6 +2637,18 @@ extern char *gasneti_getenv(const char *keyname) {
   return retval;
 }
 
+// parse a GASNET_VERBOSEENV value into boolean enable/disable
+extern int gasneti_verboseenv_parse(const char *v) {
+  if (!v) return 0; // default is off
+  else {
+    char s[10];
+    strncpy(s, v, sizeof(s)-1); s[sizeof(s)-1] = '\0';
+    for (size_t i = 0; i < sizeof(s) && s[i]; i++) s[i] = toupper(s[i]);
+    if (!strcmp(s, "N") || !strcmp(s, "NO") || !strcmp(s, "0")) return 0;
+    else return 1; // for legacy reasons accept anything else including empty as yes
+  }
+}
+
 /* indicate whether GASNET_VERBOSEENV reporting is enabled on this node 
    1 = yes, 0 = no, -1 = not yet / don't know
 */
@@ -2625,7 +2657,7 @@ extern int gasneti_verboseenv(void) {
   if (gasneti_verboseenv_fn) return (*gasneti_verboseenv_fn)();
   else 
 #endif
-    return !!gasneti_getenv("GASNET_VERBOSEENV");
+    return gasneti_verboseenv_parse(gasneti_getenv("GASNET_VERBOSEENV"));
 }
 
 typedef struct gasneti_verboseenv_S {
@@ -3139,8 +3171,7 @@ static int gasneti_set_affinity_cpus(void) {
       static int once = 1;
       if (once) {
 	once = 0;
-        fprintf(stderr, "WARNING: gasnett_set_affinity called, but cannot determine cpu count.\n");
-        fflush(stderr);
+        gasneti_console_message("WARNING","gasnett_set_affinity called, but cannot determine cpu count.");
       }
     }
     return cpus;
@@ -3650,7 +3681,7 @@ static void gasneti_clock_init(void) {
       // Monotonic but subject to rate adjustment by NTP
       gasneti_clockid = CLOCK_MONOTONIC;
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TICKS: using clock_gettime(CLOCK_MONOTONIC)\n");
+      gasneti_console_message("TICKS","using clock_gettime(CLOCK_MONOTONIC)");
       #endif
     } else
     #endif
@@ -3658,11 +3689,11 @@ static void gasneti_clock_init(void) {
       // May be adjusted by both ntp and by clock_settime()
       gasneti_assert(gasneti_clockid == CLOCK_REALTIME);
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TICKS: using clock_gettime(CLOCK_REALTIME)\n");
+      gasneti_console_message("TICKS","using clock_gettime(CLOCK_REALTIME)");
       #endif
     }
   #elif GASNET_DEBUG_VERBOSE
-    fprintf(stderr, "TICKS: using gettimeofday()\n");
+    gasneti_console_message("TICKS","using gettimeofday()");
   #endif
 }
 GASNETI_INLINE(gasneti_clock_gettime)
@@ -3777,7 +3808,7 @@ retry_calibration:;
   }
 
   #if GASNET_DEBUG_VERBOSE
-  fprintf(stderr, "TICKS: ticks and wallclock resolutions are %d and %d ns (or better)\n",
+  gasneti_console_message("TICKS","ticks and wallclock resolutions are %d and %d ns (or better)",
           (int)ticks_res, (int)ref_res);
   #endif
 
@@ -3920,10 +3951,10 @@ retry_calibration:;
     sum += (lo1[i] - hi0[i]) / delta;
   }
   double mean = sum / (2 * count);
-  fprintf(stderr, "TICKS: range: %"PRIu64" +/- %"PRIu64"  mean: %"PRIu64"  offset: %"PRId64"\n",
+  gasneti_console_message("TICKS","range: %"PRIu64" +/- %"PRIu64"  mean: %"PRIu64"  offset: %"PRId64,
           (uint64_t)(1e9 * mid),  (uint64_t)(1e9 * half_width),
           (uint64_t)(1e9 * mean), (int64_t)(1e9 * (mean-mid)));
-  fprintf(stderr, "TICKS: calibrated to err of %g in %d iters\n", err, GASNETI_TICKS_WC_ITERS);
+  gasneti_console_message("TICKS","calibrated to err of %g in %d iters\n", err, GASNETI_TICKS_WC_ITERS);
   #endif
 
   return mid;
@@ -4148,7 +4179,7 @@ extern double gasneti_calibrate_tsc(void) {
         sum += delta;
       }
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TICKS: reference resolution is %d ns or better (in %d iters, %lu ns)\n",
+      gasneti_console_message("TICKS","reference resolution is %d ns or better (in %d iters, %lu ns)\n",
                       (int)ref_res, i, (unsigned long)sum);
       #endif
       if_pf (ref_res > max_res) {
@@ -4214,12 +4245,12 @@ extern double gasneti_calibrate_tsc(void) {
         }
       }
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TICKS: relative to wallclock = %g\n", best);
+      gasneti_console_message("TICKS","relative to wallclock = %g", best);
       #endif
     }
 
     #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr, "TICKS: rate calibrated to %g MHz in %g sec\n",
+    gasneti_console_message("TICKS","rate calibrated to %g MHz in %g sec",
             1e3/Tick, 1e-9*(gasneti_clock_getns()-begin_tsc_calibration));
     #endif
   #endif

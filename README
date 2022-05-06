@@ -710,6 +710,9 @@ these aliases.
  through non-GASNet spawn scripts, in to order to ensure their safe delivery
  to the GASNet client program.
 
+* GASNET_SPAWN_VERBOSE - Boolean setting to enable console debugging output of
+ operations related to job creation and teardown. Details vary by configuration.
+
 * GASNET_BARRIER - select the communication algorithm for use in GASNet barriers.
  The following values are available on all conduits:
   AMDISSEM - uses Active Messages to implement the Dissemination barrier

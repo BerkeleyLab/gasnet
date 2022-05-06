@@ -350,9 +350,10 @@ extern void gasneti_check_config_postattach(void) {
           GASNETI_TRACE_PRINTF(I,("Setting mallopt M_TRIM_THRESHOLD=-1 and M_MMAP_MAX=0"));
           gasneti_malloc_munmap_disabled = 1;
         #else
-          GASNETI_TRACE_PRINTF(I,("WARNING: GASNET_DISABLE_MUNMAP set on an unsupported platform"));
           if (gasneti_verboseenv()) 
-            fprintf(stderr, "WARNING: GASNET_DISABLE_MUNMAP set on an unsupported platform\n");
+            gasneti_console0_message("WARNING","GASNET_DISABLE_MUNMAP set on an unsupported platform");
+          else
+            GASNETI_TRACE_PRINTF(I,("WARNING: GASNET_DISABLE_MUNMAP set on an unsupported platform"));
         #endif
       }
       #if GASNET_NDEBUG
@@ -1345,15 +1346,19 @@ extern const char *gasneti_decode_envval(const char *val) {
 #ifndef GASNETI_ENV_OUTPUT_NODE
 #define GASNETI_ENV_OUTPUT_NODE()  (gasneti_mynode == 0)
 #endif
+extern int gasneti_verboseenv_parse(const char *);
 extern int _gasneti_verboseenv_fn(void) {
   static int verboseenv = -1;
   if (verboseenv == -1) {
     if (gasneti_init_done && gasneti_mynode != (gex_Rank_t)-1) {
+      if (!GASNETI_ENV_OUTPUT_NODE()) verboseenv = 0; // wrong process
+      else {
       #if GASNET_DEBUG_VERBOSE
-        verboseenv = GASNETI_ENV_OUTPUT_NODE();
+        verboseenv = 1; // hard-wired to enabled
       #else
-        verboseenv = !!gasneti_getenv("GASNET_VERBOSEENV") && GASNETI_ENV_OUTPUT_NODE();
+        verboseenv = gasneti_verboseenv_parse(gasneti_getenv("GASNET_VERBOSEENV"));
       #endif
+      }
       gasneti_sync_writes();
     }
   } else gasneti_sync_reads();
@@ -1672,7 +1677,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
       #undef GASNETI_CONDUITS_DELIM
     }
     if (natives[0]) {
-      sprintf(reason, "WARNING: Support was detected for native GASNet conduits: %s",natives);
+      sprintf(reason, "    WARNING: Support was detected for native GASNet conduits: %s",natives);
     } else { /* look for hardware devices supported by native conduits */
       gasneti_device_probe_t known_devs[] = {
         GASNETI_IBV_DEVICES,
@@ -1693,19 +1698,19 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         }
       }
       if (natives[0]) {
-        sprintf(reason, "WARNING: This system appears to contain recognized network hardware: %s\n"
-                        "WARNING: which is supported by a GASNet native conduit, although\n"
-                        "WARNING: it was not detected at configure time (missing drivers?)",
+        sprintf(reason, "    WARNING: This system appears to contain recognized network hardware: %s\n"
+                        "    WARNING: which is supported by a GASNet native conduit, although\n"
+                        "    WARNING: it was not detected at configure time (missing drivers?)",
                         natives);
       }
     }
-    if (reason[0] && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0) && gasneti_mynode == 0) {
-      fprintf(stderr,"WARNING: Using GASNet's %s-conduit, which exists for portability convenience.\n"
+    if (reason[0] && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+      gasneti_console0_message("WARNING",
+                     "Using GASNet's %s-conduit, which exists for portability convenience.\n"
                      "%s\n"
-                     "WARNING: You should *really* use the high-performance native GASNet conduit\n"
-                     "WARNING: if communication performance is at all important in this program run.\n",
+                     "    WARNING: You should *really* use the high-performance native GASNet conduit\n"
+                     "    WARNING: if communication performance is at all important in this program run.",
               mycore, reason);
-      fflush(stderr);
     }
   }
 }
@@ -1723,17 +1728,14 @@ static void gasneti_check_architecture(void) { // check for bad build configurat
     int isKNL = !!strstr(model, "Phi");
     #ifdef __CRAY_MIC_KNL  // module craype-mic-knl that tunes for AVX512
       const char *warning = isKNL ? 0 :
-      "WARNING: This executable was optimized for MIC KNL (module craype-mic-knl) but run on another processor!\n";
+      "This executable was optimized for MIC KNL (module craype-mic-knl) but run on another processor!";
     #else // some other x86 tuning mode
       const char *warning = isKNL ? 
-      "WARNING: This executable is running on a MIC KNL architecture, but was not optimized for MIC KNL.\n"
-      "WARNING: This often has a MAJOR impact on performance. Please re-build with module craype-mic-knl!\n"
+      "This executable is running on a MIC KNL architecture, but was not optimized for MIC KNL.\n"
+      "    WARNING: This often has a MAJOR impact on performance. Please re-build with module craype-mic-knl!"
       : 0;
     #endif
-    if (warning && gasneti_mynode == 0) {
-      fputs(warning, stderr);
-      fflush(stderr);
-    }
+    if (warning) gasneti_console0_message("WARNING", warning);
   }
   #endif
 }
@@ -1961,9 +1963,8 @@ extern void gasneti_nodemapParse(void) {
 #if GASNET_PSHM
   limit = gasneti_getenv_int_withdefault("GASNET_SUPERNODE_MAXSIZE", 0, 0);
  #if GASNET_CONDUIT_SMP
-  if (limit && !gasneti_mynode) {
-    fprintf(stderr, "WARNING: ignoring GASNET_SUPERNODE_MAXSIZE for smp-conduit with PSHM.\n");
-    fflush(stderr);
+  if (limit) {
+    gasneti_console0_message("WARNING","ignoring GASNET_SUPERNODE_MAXSIZE for smp-conduit with PSHM.");
   }
   limit = gasneti_nodes;
  #else
@@ -2055,11 +2056,9 @@ extern void gasneti_nodemapParse(void) {
                           gasneti_myhost.grp_rank, gasneti_myhost.grp_count));
 
   #if GASNET_DEBUG_VERBOSE
-  if (!gasneti_mynode) {
     for (i = 0; i < gasneti_nodes; ++i) {
-      fprintf(stderr, "gasneti_nodemap[%i] = %i\n", (int)i, (int)gasneti_nodemap[i]);
+      gasneti_console0_message("INFO","gasneti_nodemap[%i] = %i\n", (int)i, (int)gasneti_nodemap[i]);
     }
-  }
   #endif
   
 #if GASNET_NDEBUG && !GASNET_PSHM
@@ -2286,6 +2285,8 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
   extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_pmi(int *argc, char ***argv, gex_Rank_t *nodes, gex_Rank_t *mynode);
 #endif
 
+int gasneti_spawn_verbose = 0;
+
 extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_p,
                                   const char *force_spawner,
                                   gex_Rank_t *nodes_p, gex_Rank_t *mynode_p) {
@@ -2342,6 +2343,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
   }
 
   gasneti_free(tmp);
+
+  gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
 
   return res;
 }
@@ -2534,17 +2537,11 @@ void gasneti_segtbl_del(gasneti_Segment_t seg) {
           gasneti_memalloc_extracheck = gasneti_getenv_yesno_withdefault("GASNET_MALLOC_EXTRACHECK", 0);
           if (gasneti_memalloc_scanfreed && !gasneti_memalloc_clobber) {
             gasneti_memalloc_clobber = 1;
-            if (gasneti_mynode == 0) { 
-              fprintf(stderr, "WARNING: GASNET_MALLOC_SCANFREED requires GASNET_MALLOC_CLOBBER: enabling it.\n");
-              fflush(stderr);
-            }
+            gasneti_console0_message("WARNING", "GASNET_MALLOC_SCANFREED requires GASNET_MALLOC_CLOBBER: enabling it.");
           }
           if (gasneti_memalloc_scanfreed && !gasneti_memalloc_leakall) {
             gasneti_memalloc_leakall = 1;
-            if (gasneti_mynode == 0) { 
-              fprintf(stderr, "WARNING: GASNET_MALLOC_SCANFREED requires GASNET_MALLOC_LEAKALL: enabling it.\n");
-              fflush(stderr);
-            }
+            gasneti_console0_message("WARNING", "GASNET_MALLOC_SCANFREED requires GASNET_MALLOC_LEAKALL: enabling it.");
           }
         }
       gasneti_mutex_unlock(&gasneti_memalloc_lock);
