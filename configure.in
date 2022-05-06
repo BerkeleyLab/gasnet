@@ -4103,6 +4103,8 @@ AM_CONDITIONAL(USE_ARIES_CONDUIT, test "$enabled_aries$have_aries" = yesyes)
 #--------------------------------------------------------------------------------------------------------
 # Libfabric Conduit
 
+# TODO: Remove 'if test "$force_ofi" = yes' from the detected_ofi_provider
+#       warning when no longer experimental
 CONDUIT_BEGIN(ofi,exp,[Portable OpenFabrics Interfaces conduit (ofi)])
 if test "$enabled_ofi" = yes; then
   have_ofi=yes
@@ -4254,10 +4256,12 @@ Runtime provider feature detection and conservative defaults will be used except
                  [ofi_define_mr_scalable="1"], [ofi_define_mr_scalable="0"], [])
     # Inform the user that settings were autodetected
     if test -n "$detected_ofi_provider" && test "$ofi_define_mr_scalable" != "no"; then
+        if test "$force_ofi" = yes; then # NOTE: to reduce confusion while experimental
             GASNET_MSG_WARN([
 The $detected_ofi_provider OFI provider was detected on your system and the ofi-conduit has been
 configured for that provider. If that is not your desired provider, override this by using the
 --with-ofi-provider=<provider name> configure flag. See the ofi-conduit README for details.])
+        fi
     fi
 
     if test "$ofi_define_mr_scalable" != "no"; then
