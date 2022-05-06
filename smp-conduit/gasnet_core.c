@@ -292,7 +292,7 @@ static void gasnetc_fork_children(void) {
   gasnetc_fds = gasneti_malloc(2 * gasneti_nodes * sizeof(int));
   gasneti_leak(gasnetc_fds);
 
-  gasneti_assert(gasneti_mynode == 0);
+  gasneti_assert(gasneti_mynode == -1);
 
   { /* set O_APPEND on stdout and stderr (same reasons as in bug 2136) */
     int rc;
@@ -304,6 +304,7 @@ static void gasnetc_fork_children(void) {
 
   gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, gasnetc_remote_exit_sighand);
 
+  gasneti_mynode = 0; 
   for (i = 1; i < gasneti_nodes; i++) {
     int rc, fork_return;
 
@@ -483,9 +484,6 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
   /* add code here to bootstrap the nodes for your conduit */
 
-  gasneti_mynode = 0;
-  gasneti_nodes = 1;
-
 #if GASNET_PSHM
   gasneti_nodes = gasnetc_get_pshm_nodecount();
 
@@ -510,7 +508,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   #endif
 
   /* A fork in the road! */
-  gasnetc_fork_children();
+  gasnetc_fork_children(); // sets gasneti_mynode
+#else
+  gasneti_mynode = 0;
+  gasneti_nodes = 1;
 #endif
 
   /* enable tracing */
