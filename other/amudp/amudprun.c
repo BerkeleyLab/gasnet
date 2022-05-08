@@ -117,11 +117,12 @@ int main(int argc, char **argv) {
     }
   }
   if (verbose >= 2) {
+    int i;
     if (!AMUDP_getenv_prefixed("SPAWN_VERBOSE")) { 
       putenv((char *)AMX_ENV_PREFIX_STR "_SPAWN_VERBOSE=1");
     }
     fprintf(stderr,"%s: Launching: ",argvzero);
-    for (int i = 0; i < argc; i++) {
+    for (i = 0; i < argc; i++) {
       fprintf(stderr,"%s ", argv[i]);
     }
     fprintf(stderr,"\n");
