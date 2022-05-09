@@ -183,8 +183,8 @@ int gasnete_get_nbi(
 {
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
+  gasneti_assert(op->get_ofi.type == OFI_TYPE_IGET);
   op->initiated_get_cnt++;
-  op->get_ofi.type = OFI_TYPE_IGET;
   gasnetc_rdma_get(dest, gasneti_e_tm_rank_to_jobrank(tm,rank), src, nbytes, &op->get_ofi GASNETI_THREAD_PASS);
   return GASNET_OK;
 }
@@ -203,8 +203,8 @@ int gasnete_put_nbi(
   const gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm,rank);
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
+  gasneti_assert(op->put_ofi.type == OFI_TYPE_IPUT);
   op->initiated_put_cnt++;
-  op->put_ofi.type = OFI_TYPE_IPUT;
 
 #if GASNET_DEBUG
   if (gasneti_leaf_is_pointer(lc_opt)) {

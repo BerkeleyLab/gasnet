@@ -49,7 +49,9 @@ extern void gasnetc_ofi_handle_rdma(void *);
 
 #define GASNETE_IOP_ALLOC_EXTRA(_iop) do { \
     (_iop)->get_ofi.callback = gasnetc_ofi_handle_rdma; \
+    (_iop)->get_ofi.type = OFI_TYPE_IGET; \
     (_iop)->put_ofi.callback = gasnetc_ofi_handle_rdma; \
+    (_iop)->put_ofi.type = OFI_TYPE_IPUT; \
   } while (0)
 
 /* ------------------------------------------------------------------------------------ */
