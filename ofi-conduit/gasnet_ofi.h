@@ -195,9 +195,9 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         int numargs, va_list argptr, int isreq, gex_Flags_t flags
         GASNETI_THREAD_FARG);
 
-/* One-siede PUT/GET Functions */
+// One-sided PUT/GET Functions
 void gasnetc_rdma_put(gex_Rank_t node, void *dest, void * src, size_t nbytes,
-        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
+        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc GASNETI_THREAD_FARG);
 void gasnetc_rdma_get(void *dest, gex_Rank_t node, void * src, size_t nbytes,
         gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
 

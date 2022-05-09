@@ -113,9 +113,9 @@ static size_t rx_cq_size = 0;
 #define GASNETC_OFI_GET_MR_KEY(addr,jobrank) (gasneti_assert(!GASNETC_OFI_HAS_MR_SCALABLE),\
         GASNETC_OFI_GET_MR_KEY_AUX(jobrank,GASNETC_OFI_IS_AUX(addr,jobrank)))
 
-#define OFI_WRITE(ep, src_addr, nbytes, dest, dest_addr, ctxt_ptr)\
+#define OFI_WRITE(ep, src_addr, nbytes, dest, dest_addr, ctxt_ptr, aux)\
     do {\
-        void *_op_ctxt = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr);\
+        void *_op_ctxt = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr, aux);\
         int _is_auxseg = GASNETC_OFI_IS_AUX(dest_addr, dest); \
         if (GASNETC_OFI_HAS_MR_SCALABLE){\
             uint64_t key = !_is_auxseg; \
@@ -128,9 +128,9 @@ static size_t rx_cq_size = 0;
         }\
     } while(0)
 
-#define OFI_READ(ep, dest_buf, nbytes, src, src_addr, ctxt_ptr)\
+#define OFI_READ(ep, dest_buf, nbytes, src, src_addr, ctxt_ptr, aux)\
     do {\
-        void *_op_ctxt = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr);\
+        void *_op_ctxt = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr, aux);\
         int _is_auxseg = GASNETC_OFI_IS_AUX(src_addr, src); \
         if (GASNETC_OFI_HAS_MR_SCALABLE) {\
             uint64_t key = !_is_auxseg; \
@@ -300,14 +300,36 @@ GASNETI_INLINE(gasnetc_op_ctxt_to_recv_ctxt)
 gasnetc_ofi_recv_ctxt_t *gasnetc_op_ctxt_to_recv_ctxt(void *p)
 { return gasneti_container_of(p, gasnetc_ofi_recv_ctxt_t, ctxt); }
 
+
+// We reserve low 2 bits to hold per-operation "aux" data for RDMA callbacks
+// Assumes pointers have at least 4-bytes alignment in structs
+#define GASNETC_RDMA_CTXT_MASK (~(uintptr_t)3)
+
 // Conversion from conduit's RDMA contexts to fi operation context.
 // This is for use with gasnetc_ofi_{nb,bounce,blocking}_op_ctxt_t,
 // where we use the callback function as the operation context.
 // The callbacks perform the reverse using gasneti_container_of().
-#define gasnetc_rdma_ctxt_to_op_ctxt(p) (&(p)->callback)
+GASNETI_INLINE(gasnetc_rdma_ctxt_to_op_ctxt_inner)
+void *gasnetc_rdma_ctxt_to_op_ctxt_inner(void *p, unsigned int aux)
+{
+  uintptr_t raw = (uintptr_t)p;
+  gasneti_assert(0 == (raw & ~GASNETC_RDMA_CTXT_MASK));
+  gasneti_assert(0 == (aux &  GASNETC_RDMA_CTXT_MASK));
+  return (void *)(raw | aux);
+}
+#define gasnetc_rdma_ctxt_to_op_ctxt(p,aux) \
+        gasnetc_rdma_ctxt_to_op_ctxt_inner(&(p)->callback,aux)
 
-// Conversion from fi operation context to rdma callback function
-#define gasnetc_op_ctxt_to_rdma_callback(p) (*(gasnetc_rdma_callback_fn *)(p))
+// Convert fi operation context to rdma callback function and call
+GASNETI_INLINE(gasnetc_op_ctxt_run_rdma_callback)
+void gasnetc_op_ctxt_run_rdma_callback(void *ctxt)
+{
+  uintptr_t raw = (uintptr_t)ctxt;
+  void *ptr = (void*)(raw &  GASNETC_RDMA_CTXT_MASK);
+  unsigned int aux = (raw & ~GASNETC_RDMA_CTXT_MASK);
+  gasnetc_rdma_callback_fn callback = *(gasnetc_rdma_callback_fn *)ptr;
+  callback(ptr, aux);
+}
 
 /*-------------------------------------------------
  * Function Declarations
@@ -1215,23 +1237,31 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
 }
 
 // Handle completion of a simple blocking operation
-void gasnetc_ofi_handle_blocking(void *op_context)
+void gasnetc_ofi_handle_blocking(void *op_context, unsigned int aux)
 {
     gasnetc_ofi_blocking_op_ctxt_t *ptr = gasneti_container_of(op_context, gasnetc_ofi_blocking_op_ctxt_t, callback);
     ptr->complete = 1;
 }
 
-/* Handle RDMA completion as the initiator */
-void gasnetc_ofi_handle_rdma(void *op_context)
+// Handle RDMA completion as the initiator
+// TODO: refine if/when more bits of "aux" are defined
+void gasnetc_ofi_handle_rdma(void *op_context, unsigned int aux)
 {
     gasnetc_ofi_nb_op_ctxt_t *ptr = gasneti_container_of(op_context, gasnetc_ofi_nb_op_ctxt_t, callback);
 
     switch (ptr->type) {
         case OFI_TYPE_EGET:
+            {
+                gasnete_eop_t *eop = gasneti_container_of(ptr, gasnete_eop_t, ofi);
+                gasnete_eop_check(eop);
+                GASNETE_EOP_MARKDONE(eop);
+            }
+            break;
         case OFI_TYPE_EPUT:
             {
                 gasnete_eop_t *eop = gasneti_container_of(ptr, gasnete_eop_t, ofi);
                 gasnete_eop_check(eop);
+                if (aux) GASNETE_EOP_LC_FINISH(eop);
                 GASNETE_EOP_MARKDONE(eop);
             }
             break;
@@ -1246,6 +1276,7 @@ void gasnetc_ofi_handle_rdma(void *op_context)
             {
                 gasnete_iop_t *iop = gasneti_container_of(ptr, gasnete_iop_t, put_ofi);
                 gasnete_iop_check(iop);
+                if (aux) GASNETE_IOP_LC_FINISH(iop);
                 GASNETE_IOP_CNT_FINISH(iop, put, 1, GASNETI_ATOMIC_NONE);
             }
             break;
@@ -1322,7 +1353,7 @@ void gasnetc_ofi_am_send_complete(gasnetc_ofi_send_ctxt_t *header)
     gasnetc_ofi_free_am_header(header);
 }
 
-void gasnetc_ofi_handle_bounce_rdma(void *op_context)
+void gasnetc_ofi_handle_bounce_rdma(void *op_context, unsigned int aux)
 {
     gasnetc_ofi_bounce_op_ctxt_t *op = gasneti_container_of(op_context, gasnetc_ofi_bounce_op_ctxt_t, callback);
 
@@ -1331,7 +1362,7 @@ void gasnetc_ofi_handle_bounce_rdma(void *op_context)
         while (NULL != (bbuf_to_return = gasneti_lifo_pop(&op->bbuf_list)))
             gasneti_lifo_push(&ofi_bbuf_pool, bbuf_to_return);
         /* These completions will always be RDMA, so call the callback directly */
-        gasnetc_ofi_handle_rdma(gasnetc_rdma_ctxt_to_op_ctxt(op->orig_op));
+        gasnetc_ofi_handle_rdma(gasnetc_rdma_ctxt_to_op_ctxt(op->orig_op,0),0);
         gasneti_lifo_push(&ofi_bbuf_ctxt_pool, op);
     }
 }
@@ -1540,9 +1571,7 @@ void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
 #if GASNET_DEBUG
                     gasnetc_paratomic_decrement(&pending_rdma, 0);
 #endif
-                    void *op_context = re[i].op_context;
-                    gasnetc_rdma_callback_fn callback = gasnetc_op_ctxt_to_rdma_callback(op_context);
-                    callback(op_context);
+                    gasnetc_op_ctxt_run_rdma_callback(re[i].op_context);
                 }
                 else {
                     gasneti_fatalerror("Unknown completion type received for gasnetc_ofi_tx_poll\n");
@@ -1885,11 +1914,11 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         lam_ctxt.callback = gasnetc_ofi_handle_blocking;
 
         GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.rdma_tx, 
-            OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt));
+            OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt, 0));
         while (ret == -FI_EAGAIN) {
             GASNETC_OFI_POLL_SELECTIVE(poll_type);
             GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.rdma_tx, 
-                OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt));
+                OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt, 0));
         }
         GASNETC_OFI_CHECK_RET(ret, "fi_write failed for AM long");
 #if GASNET_DEBUG
@@ -2004,7 +2033,7 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
             rma_iov.key = GASNETC_OFI_GET_MR_KEY_AUX(dest, is_auxseg);
         }
 
-        msg.context = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr);
+        msg.context = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr,0);
         msg.msg_iov = &iovec;
         msg.iov_count = 1;
         msg.rma_iov = &rma_iov;
@@ -2049,9 +2078,9 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
 
             OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
                 OFI_WRITE(gasnetc_ofi_rdma_epfd, buf_container->buf, bytes_to_copy, 
-                    dest, dest_ptr, bbuf_ctxt), OFI_POLL_ALL);
+                    dest, dest_ptr, bbuf_ctxt, 0), OFI_POLL_ALL);
 
-            GASNETC_OFI_CHECK_RET(ret, "fi_writemsg for bounce buffered data failed");
+            GASNETC_OFI_CHECK_RET(ret, "fi_write for bounce buffered data failed");
 
 #if GASNET_DEBUG
             gasnetc_paratomic_increment(&pending_rdma,0);
@@ -2074,23 +2103,24 @@ block_anyways:
       GASNETC_STAT_EVENT(NB_PUT_BLOCK);
       gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
       eop->ofi.type = OFI_TYPE_EPUT;
-      gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, &eop->ofi GASNETI_THREAD_PASS);
+      gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, &eop->ofi, 0 GASNETI_THREAD_PASS);
       return (gex_Event_t)eop;
     }
 }
 
 void
 gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes,
-        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG)
+        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc GASNETI_THREAD_FARG)
 {
     int ret = FI_SUCCESS;
 
     gasneti_assert_ptr(ctxt_ptr->callback ,==, gasnetc_ofi_handle_rdma);
+    gasneti_assert((alc == 0) || (alc == 1));
 
     PERIODIC_RMA_POLL();
     OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
-        OFI_WRITE(gasnetc_ofi_rdma_epfd, src_addr, nbytes, dest, dest_addr, ctxt_ptr), OFI_POLL_ALL);
-    GASNETC_OFI_CHECK_RET(ret, "fi_write for normal message failed");
+        OFI_WRITE(gasnetc_ofi_rdma_epfd, src_addr, nbytes, dest, dest_addr, ctxt_ptr, alc), OFI_POLL_ALL);
+    GASNETC_OFI_CHECK_RET(ret, "fi_write failed");
 #if GASNET_DEBUG
     gasnetc_paratomic_increment(&pending_rdma,0);
 #endif
@@ -2107,7 +2137,7 @@ gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbyte
     PERIODIC_RMA_POLL();
 
     OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
-        OFI_READ(gasnetc_ofi_rdma_epfd, dest_addr, nbytes, dest, src_addr, ctxt_ptr), OFI_POLL_ALL);
+        OFI_READ(gasnetc_ofi_rdma_epfd, dest_addr, nbytes, dest, src_addr, ctxt_ptr, 0), OFI_POLL_ALL);
 
     GASNETC_OFI_CHECK_RET(ret, "fi_read failed");
 #if GASNET_DEBUG

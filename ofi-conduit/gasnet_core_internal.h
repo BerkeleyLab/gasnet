@@ -30,11 +30,11 @@ extern gex_AM_Entry_t *gasnetc_handler;
 /* #define gasnete_op_atomic_(_id) gasnetc_atomic_##_id */
 
 // Define if conduit performs local-completion detection:
-// TODO-EX:  #define GASNETE_HAVE_LC
+#define GASNETE_HAVE_LC 1
 
 // Additions to default eop and iop types
 
-extern void gasnetc_ofi_handle_rdma(void *);
+extern void gasnetc_ofi_handle_rdma(void *, unsigned int);
 
 #define GASNETE_CONDUIT_EOP_FIELDS \
                 gasnetc_ofi_nb_op_ctxt_t ofi;
@@ -57,7 +57,7 @@ extern void gasnetc_ofi_handle_rdma(void *);
 /* ------------------------------------------------------------------------------------ */
 // For EOP/IOP fields, above
 
-typedef void (*gasnetc_rdma_callback_fn) (void *context);
+typedef void (*gasnetc_rdma_callback_fn) (void *context, unsigned int aux);
 
 typedef enum {
   OFI_TYPE_EGET,
