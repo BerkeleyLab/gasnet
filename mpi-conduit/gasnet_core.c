@@ -190,7 +190,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
       if (gasneti_getenv_yesno_withdefault("GASNET_QUIET",0))
         GASNETI_TRACE_PRINTF(I,("*** WARNING: %s",tmsgstr));
       else
-        gasneti_console0_message("WARNING",tmsgstr);
+        gasneti_console0_message("WARNING","%s",tmsgstr);
     }
 
     gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);

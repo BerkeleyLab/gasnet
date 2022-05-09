@@ -35,7 +35,8 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 #define GASNETC_EXIT_STATE(st) do {                                      \
         gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
         gasnetc_exit_state = st;                                         \
-        if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE", gasnetc_exit_state); \
+        if (gasneti_spawn_verbose) /* %s to silence -Wformat-security */ \
+          gasneti_console_message("EXIT STATE", "%s", gasnetc_exit_state); \
   } while (0)
 
 #define GASNETC_ROOT_NODE 0
