@@ -1605,7 +1605,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
                                 "You probably need to re-configure with --disable-aligned-segments to avoid "
                                 "errors at job startup (especially for runs with large node count or shared segment size).";
              if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
-               gasneti_console_message("WARNING",wmsg);
+               gasneti_console_message("WARNING", "%s", wmsg);
              } else {
                GASNETI_TRACE_PRINTF(I, ("WARNING: %s", wmsg));
              }
