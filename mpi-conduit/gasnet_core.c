@@ -106,8 +106,8 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
 
 #define INITERR(type, reason) do {                                      \
    if (gasneti_VerboseErrors) {                                         \
-     fprintf(stderr, "GASNet initialization encountered an error: %s\n" \
-      "  in %s at %s:%i\n",                                             \
+     gasneti_console_message("ERROR","GASNet initialization encountered an error: %s\n" \
+      "  in %s at %s:%i",                                               \
       #reason, GASNETI_CURRENT_FUNCTION,  __FILE__, __LINE__);          \
    }                                                                    \
    retval = GASNET_ERR_ ## type;                                        \
@@ -131,8 +131,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     gasneti_freezeForDebugger();
 
     #if GASNET_DEBUG_VERBOSE
-      /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-      fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
+      gasneti_console_message("gasnetc_init","about to spawn..."); 
     #endif
 
     /*  choose network depth */
@@ -159,9 +158,9 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
         // User can ignore this warning or hide it by setting GASNET_MPI_THREAD or GASNET_QUIET if they want to "live dangerously".
         static char tmsg[1024];
         snprintf(tmsg, sizeof(tmsg),
-                      "*** WARNING: This MPI implementation reports it can only support %s.\n"
+                      "This MPI implementation reports it can only support %s.\n"
                       GASNETI_THREADMODE_MSG
-                      "*** WARNING: You can override the requested thread mode by setting GASNET_MPI_THREAD.\n"
+                      "*** WARNING: You can override the requested thread mode by setting GASNET_MPI_THREAD."
                       , pstr);
         tmsgstr = tmsg;
       }
@@ -187,14 +186,19 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     gasneti_trace_init(argc, argv);
     GASNETI_AM_SAFE(AMMPI_SPMDSetExitCallback(gasnetc_traceoutput));
     if (pstr)    GASNETI_TRACE_PRINTF(C,("AMMPI_SPMDSetThreadMode/MPI_Init_thread()=>%s",pstr));
-    if (tmsgstr) GASNETI_TRACE_PRINTF(I,("%s",tmsgstr));
-    if (tmsgstr && !gasneti_mynode &&
-        !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) { fprintf(stderr, "%s", tmsgstr); fflush(stderr); }
+    if (tmsgstr) {
+      if (gasneti_getenv_yesno_withdefault("GASNET_QUIET",0))
+        GASNETI_TRACE_PRINTF(I,("*** WARNING: %s",tmsgstr));
+      else
+        gasneti_console0_message("WARNING","%s",tmsgstr);
+    }
 
-    #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
-        gasneti_mynode, gasneti_nodes); fflush(stderr);
-    #endif
+    gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
+
+    if (gasneti_spawn_verbose) {
+      gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
+        gasneti_mynode, gasneti_nodes);
+    }
 
     gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
@@ -405,7 +409,8 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_mutex_lock(&exit_lock);
   }
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   #ifdef GASNETE_EXIT_CALLBACK
     /* callback for native conduits using an mpi-conduit core 
@@ -1014,8 +1019,7 @@ extern void gasnetc_hsl_unlock (gex_HSL_t *hsl) {
         gasneti_fatalerror("HSL USAGE VIOLATION: tried to gex_HSL_Unlock() an HSL out of order");
     { float NIStime = gasneti_ticks_to_ns(gasneti_ticks_now() - hsl->timestamp)/1000.0;
       if (NIStime > GASNETC_NISTIMEOUT_WARNING_THRESHOLD) {
-        fprintf(stderr,"HSL USAGE WARNING: held an HSL for a long interval (%8.3f sec)\n", NIStime/1000000.0);
-        fflush(stderr);
+        gasneti_console_message("HSL USAGE WARNING","held an HSL for a long interval (%8.3f sec)", NIStime/1000000.0);
       }
     }
     hsl->islocked = 0;

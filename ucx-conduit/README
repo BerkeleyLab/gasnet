@@ -62,7 +62,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   See the extended-ref README for the GASNet general-purpose configuration parameters.
 
   --with-ucx-max-medium=[value]
-    By default gex_AM_LUB{Request,Reply}Long() return 3992, which is a
+    By default gex_AM_LUB{Request,Reply}Medium() return 3992, which is a
     4KiB buffer minus overheads such as handler arguments.  This configure
     option sets the default value for the GASNET_UCX_MAX_MEDIUM environment
     variable, which determines the LUB size at runtime.
@@ -125,7 +125,7 @@ Additional environment variables:
   + GASNET_UCX_MAX_MEDIUM
 
     This setting determines the size of buffers used for AM Mediums, and
-    thus the return value of the gex_AM_LUB{Request,Reply}Long() queries.
+    thus the return value of the gex_AM_LUB{Request,Reply}Medium() queries.
     The value cannot be less than 512.
     Unless a different value was set using --with-ucx-max-medium=[value]
     at configure time, the default value is 3992.

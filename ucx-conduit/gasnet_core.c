@@ -32,20 +32,11 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 // volume of garbage that might get printed in the event of memory corruption.
 #define GASNETC_EXIT_STATE_MAXLEN 60
 
-#if GASNET_DEBUG_VERBOSE
-  #define GASNETC_TRACE_EXIT_STATE() do {                 \
-        fprintf(stderr, "%d> EXIT STATE %s\n",            \
-                (int)gasneti_mynode, gasnetc_exit_state); \
-        fflush(NULL);                                     \
-  } while (0)
-#else
-  #define GASNETC_TRACE_EXIT_STATE() ((void)0)
-#endif
-
 #define GASNETC_EXIT_STATE(st) do {                                      \
         gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
         gasnetc_exit_state = st;                                         \
-        GASNETC_TRACE_EXIT_STATE();                                      \
+        if (gasneti_spawn_verbose) /* %s to silence -Wformat-security */ \
+          gasneti_console_message("EXIT STATE", "%s", gasnetc_exit_state); \
   } while (0)
 
 #define GASNETC_ROOT_NODE 0
@@ -588,8 +579,7 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   gasneti_freezeForDebugger();
 
   #if GASNET_DEBUG_VERBOSE
-    /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-    fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
+    gasneti_console_message("gasnetc_init","about to spawn...");
   #endif
 
   /* (###) bootstrap the nodes for your conduit - may need to modify if not using 
@@ -603,10 +593,10 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   /* Must init timers after global env, and preferably before tracing */
   GASNETI_TICKS_INIT();
 
-  #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
+  if (gasneti_spawn_verbose) {
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
+      gasneti_mynode, gasneti_nodes);
+  }
 
   gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
           GASNETC_DEFAULT_EXITTIMEOUT_MIN,
@@ -789,14 +779,10 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   gasnetc_segment_exchange_aux(mem_info);
 #endif
 
-  if (0 == gasneti_mynode) {
-    fflush(NULL);
-    fprintf(stderr,
-      " WARNING: ucx-conduit is experimental and should not be used for\n"
-      "          performance measurements.\n"
-      "          Please see `ucx-conduit/README` for more details.\n");
-    fflush(NULL);
-  }
+  gasneti_console0_message("WARNING",
+      "ucx-conduit is experimental and should not be used for performance measurements.\n"
+      "    WARNING: Please see `ucx-conduit/README` for more details.");
+
   gasneti_registerExitHandler(gasnetc_atexit);
 
   if (GASNET_OK != (rc = gasnetc_recv_init())) {
@@ -993,10 +979,7 @@ static void gasnetc_exit_now(int exitcode) {
   /* If anybody is still waiting, let them go */
   gasneti_atomic_set(&gasnetc_exit_done, 1, GASNETI_ATOMIC_WMB_POST);
 
-  #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_exit(): node %i/%i calling killmyprocess...\n",
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
+  GASNETC_EXIT_STATE("calling gasneti_killmyprocess()");
   gasneti_killmyprocess(exitcode);
   /* NOT REACHED */
 
@@ -1049,13 +1032,9 @@ static void gasnetc_exit_sighandler(int sig) {
 
     (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
 
-    /* assume sig < 100 */
-    if (sig > 9) {
-      digit = '0' + ((sig / 10) % 10);
-      (void) write(STDERR_FILENO, &digit, 1);
-    }
-    digit = '0' + (sig % 10);
-    (void) write(STDERR_FILENO, &digit, 1);
+    char sigstr[4];
+    size_t n = gasneti_utoa(sig, sigstr, sizeof(sigstr), 10);
+    (void) write(STDERR_FILENO, sigstr, n);
 
     (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
     (void) write(STDERR_FILENO, state, state_len);
@@ -1327,7 +1306,8 @@ static void gasnetc_exit_body(void) {
   // prevent possible GASNETI_CHECK_INJECT() failures when we communicate
   GASNETI_CHECK_INJECT_RESET();
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* Timed MAX(exitcode) reduction to clearly distinguish collective exit */
   alarm(2 + timeout); // +2 is margin of safety around the timed reduction
@@ -1386,13 +1366,13 @@ static void gasnetc_exit_body(void) {
   // TODO: 30 is arbitrary and hard-coded
   alarm(MAX(30, timeout));
   if (graceful) {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
+    GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
     gasneti_bootstrapFini();
     // TODO: this may belong earlier, but placement earlier leads to errors
     GASNETC_EXIT_STATE("ucx finalization");
     gasnetc_ucx_fini();
   } else {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
+    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort() during forceful exit");
     gasneti_bootstrapAbort(exitcode);
   }
   alarm(0);

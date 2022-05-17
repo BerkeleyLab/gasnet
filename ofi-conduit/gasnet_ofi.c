@@ -48,6 +48,8 @@ size_t gasnetc_ofi_bbuf_threshold;
 static int gasnetc_fi_mr_endpoint = 0;
 #endif
 
+size_t gasnetc_ofi_max_medium = GASNETC_OFI_MAX_MEDIUM_DFLT;
+
 typedef struct gasnetc_ofi_recv_metadata {
     struct iovec iov;
     struct fi_msg am_buff_msg;
@@ -198,6 +200,10 @@ static int using_psm_provider = 0;
 static char *gasnetc_ofi_device = NULL;
 static const char *supported_providers = GASNETC_OFI_PROVIDER_LIST;
 
+static int gasnetc_high_perf_prov = 0;
+static char *gasnetc_ofi_provider = NULL;
+static char *gasnetc_ofi_domain = NULL;
+
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 static gasnetc_ofi_recv_metadata_t* metadata_array;
@@ -272,9 +278,24 @@ ssize_t gasnetc_fi_cq_readerr(struct fid_cq *cq, struct fi_cq_err_entry *buf, ui
   return fi_cq_readerr(cq, buf, flags);
 }
 
-/* Reads any user-provided settings from the environment to avoid clogging up
- * the gasnetc_ofi_init() function with this code. */
-static void gasnetc_ofi_read_env_vars() {
+// ofi-conduit should not be considered "portable" when using
+// a high-performance provider (unless used w/ inappropriate h/w)
+int gasnetc_check_portable_conduit(void) {
+  gasneti_assert(gasnetc_ofi_inited);
+  if (strcmp(gasnetc_ofi_provider, "verbs;ofi_rxm")) {
+    // extension of bug 3609: some verbs-compatible networks need special handling
+    // TODO: warn specifically about the right providers
+    if (!strncmp(gasnetc_ofi_domain, "hfi1_", 5)) return 1; // psm2
+    if (!strncmp(gasnetc_ofi_domain, "qib", 3))   return 1; // psm
+  }
+  return !gasnetc_high_perf_prov;
+}
+
+// Reads any user-provided settings from the environment to avoid clogging up
+// the gasnetc_ofi_init() function with this code.
+// Runs after provier and domain selection to allow for provider-specific defaults
+static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) {
+    const char* am_max_medium_env =  "GASNET_OFI_MAX_MEDIUM";
     const char* max_am_request_buffs_env =  "GASNET_OFI_MAX_REQUEST_BUFFS";
     const char* max_am_reply_buffs_env =  "GASNET_OFI_MAX_REPLY_BUFFS";
     const char* num_init_request_buffs_env = "GASNET_OFI_NUM_INITIAL_REQUEST_BUFFS";
@@ -282,6 +303,13 @@ static void gasnetc_ofi_read_env_vars() {
     const char* max_err_string =  "%s must be greater than or equal to\n"
                                   "%s, which is set to %d in this run.\n";
     const char* init_err_string = "%s must be greater than or equal to 2.\n";
+
+    // Maxiumum size of an AM Medium payload
+    gasnetc_ofi_max_medium = gasneti_getenv_int_withdefault(am_max_medium_env, GASNETC_OFI_MAX_MEDIUM_DFLT, 1);
+    if (gasnetc_ofi_max_medium < 512) {
+      gasneti_fatalerror("%s setting (%lu) is below the minimum value of 512.",
+                         am_max_medium_env, (unsigned long)gasnetc_ofi_max_medium);
+    }
 
     // Maximum and initial number of buffers to allocate for AM Requests
     max_am_request_buffs = gasneti_getenv_int_withdefault(max_am_request_buffs_env, 1024, 0);
@@ -333,10 +361,10 @@ static void gasnetc_ofi_read_env_vars() {
     if (num_multirecv_buffs < 2)
         gasneti_fatalerror("%s must be at least 2.\n", num_multirecv_buffs_env);
 
-    if (multirecv_buff_size < sizeof(gasnetc_ofi_am_buf_t)) {
+    if (multirecv_buff_size < GASNETC_SIZEOF_AM_BUF_T) {
         gasneti_fatalerror("%s must be at least %d bytes on this build.\n"
                 "This is the size of the largest AM Medium plus the message header.\n", \
-                multirecv_size_env, (int)sizeof(gasnetc_ofi_am_buf_t));
+                multirecv_size_env, (int)GASNETC_SIZEOF_AM_BUF_T);
     }
     const char* long_rma_threshold_env = "GASNET_OFI_LONG_AM_RMA_THRESH";
     long_rma_threshold = gasneti_getenv_int_withdefault(long_rma_threshold_env, OFI_AM_MAX_DATA_LENGTH, 1);
@@ -348,9 +376,6 @@ static void gasnetc_ofi_read_env_vars() {
                 "--with-ofi-max-medium=<new size>.\n",
                 long_rma_threshold_env, (int)OFI_AM_MAX_DATA_LENGTH);
     }
-
-    gasnetc_ofi_device = gasneti_getenv_hwloc_withdefault("GASNET_OFI_DEVICE", "", "Socket");
-    if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
 
     tx_cq_size = gasneti_getenv_int_withdefault("GASNET_OFI_TX_CQ_SIZE", 0, 0);
     rx_cq_size = gasneti_getenv_int_withdefault("GASNET_OFI_RX_CQ_SIZE", 0, 0);
@@ -497,9 +522,6 @@ int gasnetc_ofi_init(void)
   int num_locks; 
   int i;
   
-  int high_perf_prov = 0;
-
-  gasnetc_ofi_read_env_vars();
   /* Ensure uniform FI_* env vars */
   /* TODO: what about provider-specific env vars? */
   gasneti_propagate_env("FI_", GASNETI_PROPAGATE_ENV_PREFIX);
@@ -526,6 +548,8 @@ int gasnetc_ofi_init(void)
   if (!hints) gasneti_fatalerror("fi_allocinfo for hints failed\n");
 
   // constrain the device/domain if provided by the user
+  gasnetc_ofi_device = gasneti_getenv_hwloc_withdefault("GASNET_OFI_DEVICE", "", "Socket");
+  if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
   hints->domain_attr->name = gasnetc_ofi_device;
 
   /* caps: fabric interface capabilities */
@@ -624,10 +648,10 @@ int gasnetc_ofi_init(void)
   }
 
   // Check if this provider is one we consider "high performance"
-  const char *high_perf_providers[] = { "psm2", "cxi" };
+  const char *high_perf_providers[] = { "psm2", "cxi", "verbs;ofi_rxm" };
   for (i = 0; i < sizeof(high_perf_providers)/sizeof(high_perf_providers[0]); ++i) {
     if (!strcmp(info->fabric_attr->prov_name, high_perf_providers[i])) {
-      high_perf_prov = 1;
+      gasnetc_high_perf_prov = 1;
       break;
     }
   }
@@ -644,26 +668,24 @@ int gasnetc_ofi_init(void)
 
   int quiet = gasneti_getenv_yesno_withdefault("GASNET_QUIET", 0);
 #if GASNET_PAR
-  if (!gasneti_mynode) {
-      if (!using_psm_provider && GASNETC_OFI_USE_THREAD_DOMAIN) {
-          const char * msg =
-            "WARNING: Using OFI provider \"%s\" when the ofi-conduit was configured for FI_THREAD_DOMAIN\n"
+  if (!using_psm_provider && GASNETC_OFI_USE_THREAD_DOMAIN) {
+      const char * msg =
+            "Using OFI provider \"%s\" when the ofi-conduit was configured for FI_THREAD_DOMAIN\n"
             "(possibly because the psm or psm2 provider was detected at configure time). In GASNET_PAR mode,\n"
             "this has the effect of using a global lock instead of fine-grained locking. If this causes \n"
-            "undesirable performance in PAR, reconfigure GASNet using: --with-ofi-provider=%s --disable-thread-domain\n";
-          if (!quiet)
-              fprintf(stderr, msg, info->fabric_attr->prov_name, info->fabric_attr->prov_name);
-      }
+            "undesirable performance in PAR, reconfigure GASNet using: --with-ofi-provider=%s --disable-thread-domain";
+      if (quiet) GASNETI_TRACE_PRINTF(I,(msg, info->fabric_attr->prov_name, info->fabric_attr->prov_name));
+      else gasneti_console0_message("WARNING", msg, info->fabric_attr->prov_name, info->fabric_attr->prov_name);
   }
 #endif
 
-  if (!high_perf_prov && !gasneti_mynode) {
-          const char * msg = 
-          "WARNING: Using OFI provider (%s), which has not been validated to provide\n"
-          "WARNING: acceptable GASNet performance. You should consider using a more\n"
-          "WARNING: hardware-appropriate GASNet conduit. See ofi-conduit/README.\n";
-	  if (!quiet)
-		  fprintf(stderr, msg, info->fabric_attr->prov_name);
+  if (!gasnetc_high_perf_prov) {
+      const char * msg = 
+          "Using OFI provider (%s), which has not been validated to provide\n"
+          "    WARNING: acceptable GASNet performance. You should consider using a more\n"
+          "    WARNING: hardware-appropriate GASNet conduit. See ofi-conduit/README.";
+      if (quiet) GASNETI_TRACE_PRINTF(I,(msg, info->fabric_attr->prov_name));
+      else gasneti_console0_message("WARNING", msg, info->fabric_attr->prov_name);
   }
 
 #if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
@@ -699,18 +721,23 @@ int gasnetc_ofi_init(void)
                            info->fabric_attr->prov_name,
                            (unsigned int)FI_MAJOR(info->fabric_attr->prov_version),
                            (unsigned int)FI_MINOR(info->fabric_attr->prov_version)));
+  gasneti_leak( gasnetc_ofi_provider = gasneti_strdup(info->fabric_attr->prov_name) );
 
   /* Open a fabric access domain, also referred to as a resource domain */
   ret = fi_domain(gasnetc_ofi_fabricfd, info, &gasnetc_ofi_domainfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_domain failed");
   GASNETI_TRACE_PRINTF(I, ("Opened domain '%s'", info->domain_attr->name));
+  gasneti_leak( gasnetc_ofi_domain = gasneti_strdup(info->domain_attr->name) );
+
+  // Now read user-provided environment settings
+  gasnetc_ofi_read_env_vars(info->fabric_attr->prov_name, info->domain_attr->name);
 
   /* The intention here is to ensure that subsequent calls to fi_getinfo()
    * won't ever give us a different provider.
    * This is necessary when more than one provider matches the other hints,
    * and the first match is not the one we want. */
-  hints->fabric_attr->prov_name = gasneti_strdup(info->fabric_attr->prov_name);
-  hints->domain_attr->name = gasneti_strdup(info->domain_attr->name);
+  hints->fabric_attr->prov_name = gasnetc_ofi_provider;
+  hints->domain_attr->name = gasnetc_ofi_domain;
 
   /* Allocate a new active endpoint for RDMA operations */
   hints->caps = FI_RMA;
@@ -727,9 +754,8 @@ int gasnetc_ofi_init(void)
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for MSG endpoints");
 
-  gasneti_free(hints->domain_attr->name);
+  // Don't allow libfabric to free() our strings
   hints->domain_attr->name = NULL;
-  gasneti_free(hints->fabric_attr->prov_name);
   hints->fabric_attr->prov_name = NULL;
 
   ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_request_epfd, NULL);
@@ -897,7 +923,7 @@ int gasnetc_ofi_init(void)
   gasneti_semaphore_init(&num_unallocated_reply_buffers, max_am_reply_buffs - num_init_am_reply_buffs, 0);
 
   size_t total_init = num_init_am_request_buffs + num_init_am_reply_buffs;
-  am_buffers_region_size = GASNETI_PAGE_ALIGNUP(total_init*sizeof(gasnetc_ofi_am_buf_t));
+  am_buffers_region_size = GASNETI_PAGE_ALIGNUP(total_init*GASNETC_SIZEOF_AM_BUF_T);
   am_buffers_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, am_buffers_region_size);
   gasneti_leak_aligned(am_buffers_region_start);
   { char valstr[16];
@@ -907,20 +933,21 @@ int gasnetc_ofi_init(void)
   }
 
   /* Add the buffers to the stack in reverse order to be friendly to the cache. */
-  gasnetc_ofi_am_buf_t * bufp = (gasnetc_ofi_am_buf_t*)am_buffers_region_start + (total_init - 1);
+  gasnetc_ofi_am_buf_t * bufp = (gasnetc_ofi_am_buf_t*)
+      ((uintptr_t)am_buffers_region_start + GASNETC_SIZEOF_AM_BUF_T*(total_init - 1));
 
   GASNETC_STAT_EVENT_VAL(ALLOC_REQ_BUFF, num_init_am_request_buffs);
   for (i = 0; i < (int)num_init_am_request_buffs; i++) {
      bufp->callback = gasnetc_ofi_release_request_am;
      gasneti_lifo_push(&ofi_am_request_pool, bufp);
-     bufp--;
+     bufp = (gasnetc_ofi_am_buf_t*)((uintptr_t)bufp - GASNETC_SIZEOF_AM_BUF_T);
   }  
 
   GASNETC_STAT_EVENT_VAL(ALLOC_REP_BUFF, num_init_am_reply_buffs);
   for (i = 0; i < (int)num_init_am_reply_buffs; i++) {
       bufp->callback = gasnetc_ofi_release_reply_am;
       gasneti_lifo_push(&ofi_am_reply_pool, bufp);
-      bufp--;
+      bufp = (gasnetc_ofi_am_buf_t*)((uintptr_t)bufp - GASNETC_SIZEOF_AM_BUF_T);
   }
 
   gasnetc_ofi_inited = 1;
@@ -1151,7 +1178,7 @@ gasnetc_ofi_am_buf_t *gasnetc_ofi_am_header(int isreq GASNETI_THREAD_FARG)
                                       : &num_unallocated_reply_buffers;
     if (gasneti_semaphore_trydown(sema)) {
         // TODO: cache-align and allocate more than one at a time
-        header = gasneti_malloc(sizeof(gasnetc_ofi_am_buf_t));
+        header = gasneti_malloc(GASNETC_SIZEOF_AM_BUF_T);
         gasneti_leak(header);
         if (isreq) {
             header->callback = gasnetc_ofi_release_request_am;

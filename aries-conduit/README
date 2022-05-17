@@ -207,9 +207,10 @@ GASNET_NETWORKDEPTH_SPACE - volume of Eager AM Request queue
 GASNET_LONG_DEPTH - depth of per-peer Long tracking
   This determines the maximum number of AM Long Requests payload transfers
   that can be outstanding between a given pair of peers before flow-control.
-  This is in addition to any flow-control required due to the "NETWORKDEPTH"
-  variables, above.
-  The default value is no limit, the minimum is 1, and the maximum is 64.
+  This limit is applied in addition to any flow-control required due to the
+  "NETWORKDEPTH" variables, above.
+  The default value is no additional constraint.
+  The minimum value is 1 and the maximum is 64.
 
 GASNET_GNI_PACKEDLONG_CUTOVER
   This determines the maximum Long AM size using a "Packed Long" protocol.

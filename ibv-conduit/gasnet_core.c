@@ -460,10 +460,8 @@ extern void gasneti_bootstrapBarrier(void)
 {
   if (gasneti_bootstrap_native_coll) {
   #if GASNET_DEBUG
-    if (!gasneti_mynode) {
-      fprintf(stderr, "@ DEVWARN: Indirect native Barrier\n");
-      /* gasnett_print_backtrace(2); */
-    }
+    gasneti_console0_message("DEVWARN","Indirect native Barrier");
+    // gasnett_print_backtrace(2);
   #endif
     gasnetc_bootstrapBarrier_ib();
   } else {
@@ -642,10 +640,8 @@ extern void gasneti_bootstrapExchange(void *src, size_t len, void *dest)
 {
   if (gasneti_bootstrap_native_coll) {
   #if GASNET_DEBUG
-    if (!gasneti_mynode) {
-      fprintf(stderr, "@ DEVWARN: Indirect native Exchange\n");
-      /* gasnett_print_backtrace(2); */
-    }
+    gasneti_console0_message("DEVWARN","Indirect native Exchange");
+    // gasnett_print_backtrace(2);
   #endif
     gasnetc_bootstrapExchange_ib(src, len, dest);
   } else {
@@ -787,7 +783,7 @@ static void gasnetc_physmem_check(const char *reason, uintptr_t limit) {
 
 static void gasnetc_physmem_report(double elapsed, gasnetc_pin_info_t *all_info)
 {
-  fprintf(stderr, "WARNING: Probe of max pinnable memory completed in %gs.\n", elapsed);
+  gasneti_console0_message("WARNING","Probe of max pinnable memory completed in %gs.", elapsed);
   char valstr1[80], valstr2[80], valstr3[80];
   double sum_frac, min_frac, max_frac;
   uintptr_t min_mem, max_mem;
@@ -823,28 +819,30 @@ static void gasnetc_physmem_report(double elapsed, gasnetc_pin_info_t *all_info)
     single_valued = 1;
   }
   if (single_valued) {
-    fprintf(stderr, "WARNING:   Probe of max pinnable memory has yielded '%s'.\n", valstr1);
-    fprintf(stderr, "WARNING:   If you have the same memory configuration on all nodes, then\n");
-    fprintf(stderr, "WARNING:   to avoid this probe in the future either reconfigure using\n");
-    fprintf(stderr, "WARNING:      --with-ibv-physmem-max='%s'\n", valstr1);
-    fprintf(stderr, "WARNING:   or run with environment variable\n");
-    fprintf(stderr, "WARNING:      GASNET_PHYSMEM_MAX='%s'.\n", valstr1);
+    gasneti_console0_message("WARNING",
+      "Probe of max pinnable memory has yielded '%s'.\n"
+      "    WARNING: If you have the same memory configuration on all nodes, then\n"
+      "    WARNING: to avoid this probe in the future either reconfigure using\n"
+      "    WARNING:    --with-ibv-physmem-max='%s'\n"
+      "    WARNING: or run with environment variable\n"
+      "    WARNING:    GASNET_PHYSMEM_MAX='%s'.",
+      valstr1, valstr1, valstr1);
   } else {
-    fprintf(stderr, "WARNING:   Probe of max pinnable memory found varying results\n");
+    gasneti_console0_message("WARNING","Probe of max pinnable memory found varying results");
     gasneti_format_number(sum_mem/gasneti_nodemap_global_count, valstr1, sizeof(valstr1), 1);
     gasneti_format_number(min_mem, valstr2, sizeof(valstr2), 1);
     gasneti_format_number(max_mem, valstr3, sizeof(valstr3), 1);
-    fprintf(stderr, "WARNING:   Physical memory   MEAN/MIN/MAX = %s / %s / %s\n",
+    gasneti_console0_message("WARNING","  Physical memory   MEAN/MIN/MAX = %s / %s / %s",
                     valstr1, valstr2, valstr3);
     gasneti_format_number(sum_pin/gasneti_nodemap_global_count, valstr1, sizeof(valstr1), 1);
     gasneti_format_number(min_pin, valstr2, sizeof(valstr2), 1);
     gasneti_format_number(max_pin, valstr3, sizeof(valstr3), 1);
-    fprintf(stderr, "WARNING:   Pinnable memory   MEAN/MIN/MAX = %s / %s / %s\n",
+    gasneti_console0_message("WARNING","  Pinnable memory   MEAN/MIN/MAX = %s / %s / %s",
                     valstr1, valstr2, valstr3);
     snprintf(valstr1, sizeof(valstr1), "%.3g", sum_frac/gasneti_nodemap_global_count);
     snprintf(valstr2, sizeof(valstr2), "%.3g", min_frac);
     snprintf(valstr3, sizeof(valstr3), "%.3g", max_frac);
-    fprintf(stderr, "WARNING:   Pinnable fraction MEAN/MIN/MAX = %s / %s / %s\n",
+    gasneti_console0_message("WARNING","  Pinnable fraction MEAN/MIN/MAX = %s / %s / %s",
                     valstr1, valstr2, valstr3);
 
     // Report memory "lost" at min absolute size
@@ -864,11 +862,11 @@ static void gasnetc_physmem_report(double elapsed, gasnetc_pin_info_t *all_info)
       max_frac = MAX(max_frac, frac);
     }
     gasneti_format_number(try_abs, valstr1, sizeof(valstr1), 1);
-    fprintf(stderr, "WARNING:   Unusable pinned memory with an absolute max of '%s':\n", valstr1);
+    gasneti_console0_message("WARNING","  Unusable pinned memory with an absolute max of '%s':\n", valstr1);
     gasneti_format_number(sum_mem, valstr1, sizeof(valstr1), 1);
     gasneti_format_number(sum_mem/gasneti_nodemap_global_count, valstr2, sizeof(valstr2), 1);
     gasneti_format_number(max_mem, valstr3, sizeof(valstr3), 1);
-    fprintf(stderr, "WARNING:     SUM/MEAN/MAX = %s / %s / %s\n", valstr1, valstr2, valstr3);
+    gasneti_console0_message("WARNING","     SUM/MEAN/MAX = %s / %s / %s\n", valstr1, valstr2, valstr3);
 
     // Report memory "lost" at min relative size
     double try_rel = min_frac;
@@ -886,14 +884,13 @@ static void gasnetc_physmem_report(double elapsed, gasnetc_pin_info_t *all_info)
       sum_frac += frac;
       max_frac = MAX(max_frac, frac);
     }
-    fprintf(stderr, "WARNING:   Unusable pinned memory with a relative max of '%.3g':\n", try_rel);
+    gasneti_console0_message("WARNING","  Unusable pinned memory with a relative max of '%.3g':\n", try_rel);
     gasneti_format_number(sum_mem, valstr1, sizeof(valstr1), 1);
     gasneti_format_number(sum_mem/gasneti_nodemap_global_count, valstr2, sizeof(valstr2), 1);
     gasneti_format_number(max_mem, valstr3, sizeof(valstr3), 1);
-    fprintf(stderr, "WARNING:     SUM/MEAN/MAX = %s / %s / %s\n", valstr1, valstr2, valstr3);
+    gasneti_console0_message("WARNING","    SUM/MEAN/MAX = %s / %s / %s\n", valstr1, valstr2, valstr3);
   }
-  fprintf(stderr, "WARNING: For more information see \"Slow PHYSMEM probe at start-up\"\n");
-  fprintf(stderr, "WARNING: in ibv-conduit's README.\n");
+  gasneti_console0_message("WARNING","For more information see \"Slow PHYSMEM probe at start-up\" in ibv-conduit's README.");
 }
 
 /* Search for the total amount of memory we can pin per process.
@@ -1069,8 +1066,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
           max_limit = MAX(max_limit, all_limits[i]);
         }
         if (max_limit > ((uint64_t)2 << 30)) {
-          fprintf(stderr, "WARNING: Beginning a potentially slow probe of max pinnable memory...\n");
-          fflush(stderr);
+          gasneti_console0_message("WARNING","Beginning a potentially slow probe of max pinnable memory...");
           did_warn = 1;
         }
       }
@@ -1735,7 +1731,7 @@ static void gasnetc_probe_ports(int max_ports) {
 #else
     const char *current = "without multi-rail support";
 #endif
-    fprintf(stderr, "WARNING: Found %d IB HCAs, but GASNet was configured %s.  "
+    gasneti_console_message("WARNING","Found %d IB HCAs, but GASNet was configured %s.  "
 		    "To utilize all your HCAs, you should "
 		    "reconfigure GASNet using '--with-ibv-max-hcas=%d'.  You can silence this warning "
 		    "by setting the environment variable GASNET_IBV_PORTS as described in the file "
@@ -1829,8 +1825,7 @@ static void gasnetc_probe_ports(int max_ports) {
         if (gasnetc_qp_rd_atom) { /* Zero means use HCA/port limit */
           int limit = MIN(hca_cap.max_qp_init_rd_atom, hca_cap.max_qp_rd_atom);
           if (gasnetc_qp_rd_atom > limit) {
-	    fprintf(stderr,
-		"WARNING: Requested GASNET_QP_RD_ATOM %d reduced to HCA limit %d\n",
+	    gasneti_console_message("WARNING","Requested GASNET_QP_RD_ATOM %d reduced to HCA limit %d",
 		gasnetc_qp_rd_atom, limit);
             gasnetc_qp_rd_atom = limit;
           }
@@ -1858,13 +1853,16 @@ static void gasnetc_probe_ports(int max_ports) {
       gasnetc_hca_t *hca = &gasnetc_hca[hca_count];
 
       if (gasneti_getenv_yesno_withdefault("GASNET_IBV_MODEL_WARN", 1)) {
-        if (!strncmp(hca_name, "hfi1_", 5)) {
-          fprintf(stderr,
-                  "WARNING: Use of ibv-conduit with Omni-Path NIC %s is not recommended.\n"
+        const char *bad_model = NULL;
+        if (!strncmp(hca_name, "hfi1_", 5)) bad_model = "Omni-Path";
+        if (!strncmp(hca_name, "qib", 3))   bad_model = "TrueScale";
+        if (bad_model) {
+         gasneti_console_message("WARNING", 
+                  "Use of ibv-conduit with %s NIC %s is not recommended.\n"
                   "         See GASNet's ibv-conduit README for more information.\n"
                   "         Alternatively, you may set environment variable\n"
                   "         GASNET_IBV_MODEL_WARN=0 to silence this message.\n",
-                  hca_name);
+                  bad_model, hca_name);
         }
       }
 
@@ -2098,8 +2096,8 @@ static void gasneti_odp_init(void) {
                 "         GASNET_ODP_VERBOSE=2 (or higher).\n";
         }
         // report the summary information (verbose > 0)
-        fprintf(stderr,
-                "WARNING: ODP disabled on %d of %d processes %s.\n%s%s",
+        gasneti_console0_message("WARNING",
+                "ODP disabled on %d of %d processes %s.\n%s%s",
                 (int)non_odp_procs, (int)gasneti_nodes, why, less_msg, more_msg);
         // report detailed information (verbose > 1)
         if (verbose > 1) {
@@ -2109,10 +2107,10 @@ static void gasneti_odp_init(void) {
               if (p->missing != missing_none) {
                 const char *msg = message[(int)p->missing];
                 if (show_ids) {
-                   fprintf(stderr, "    Process %d (hca '%s'): %s support is missing.\n",
+                   gasneti_console0_message("WARNING","    Process %d (hca '%s'): %s support is missing.\n",
                            i, p->hca_id, msg);
                 } else {
-                   fprintf(stderr, "    Process %d: %s support is missing.\n",
+                   gasneti_console0_message("WARNING","    Process %d: %s support is missing.\n",
                            i, msg);
                 }
               }
@@ -2196,8 +2194,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* Initialize the bootstrapping support. */
   /* Must come very early to get the global ENV. */
   #if GASNET_DEBUG_VERBOSE
-    /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-    fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
+    gasneti_console_message("gasnetc_init","about to spawn...");
   #endif
   gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
   if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
@@ -2328,9 +2325,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
       }
     }
     
-    if (!gasnetc_use_srq && !gasneti_mynode) {
-      fprintf(stderr,
-              "WARNING: GASNET_USE_SRQ disabled because HCA lacks support.\n"
+    if (!gasnetc_use_srq) {
+      gasneti_console0_message( 
+              "WARNING","GASNET_USE_SRQ disabled because HCA lacks support.\n"
               "         To suppress this message set environment variable\n"
               "         GASNET_USE_SRQ=0 or reconfigure with --disable-ibv-srq.\n"
              );
@@ -2340,13 +2337,11 @@ static int gasnetc_init( gex_Client_t            *client_p,
 #if GASNETC_IBV_XRC
   if (gasnetc_use_xrc && !gasnetc_use_srq) {
     gasnetc_use_xrc =0 ;
-    if (!gasneti_mynode) {
-      fprintf(stderr,
-              "WARNING: GASNET_USE_XRC disabled because SRQ is unavailable.\n"
+    gasneti_console0_message( 
+              "WARNING","GASNET_USE_XRC disabled because SRQ is unavailable.\n"
               "         To suppress this message set environment variable\n"
               "         GASNET_USE_XRC=0 or reconfigure with --disable-ibv-xrc.\n"
              );
-    }
   } else if (gasnetc_use_xrc) {
     GASNETC_FOR_ALL_HCA(hca) {
       if (0 == (hca->hca_cap.device_cap_flags & IBV_DEVICE_XRC)) {
@@ -2355,9 +2350,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
       }
     }
 
-    if (!gasnetc_use_xrc && !gasneti_mynode) {
-      fprintf(stderr,
-              "WARNING: GASNET_USE_XRC disabled because HCA lacks support.\n"
+    if (!gasnetc_use_xrc) {
+      gasneti_console0_message( 
+              "WARNING","GASNET_USE_XRC disabled because HCA lacks support.\n"
               "         To suppress this message set environment variable\n"
               "         GASNET_USE_XRC=0 or reconfigure with --disable-ibv-xrc.\n"
              );
@@ -2386,13 +2381,10 @@ static int gasnetc_init( gex_Client_t            *client_p,
         gasnetc_use_xrc = 0;
         srq_squashed = 1;
       #endif
-        GASNETI_TRACE_PRINTF(I, ("SRQ disabled because availability differs across nodes"));
-        if (!gasneti_mynode) {
-          fprintf(stderr,
-                  "WARNING: SRQ disabled because availability differs across nodes.\n"
+        gasneti_console0_message( 
+                  "WARNING","SRQ disabled because availability differs across nodes.\n"
                   "         To suppress this message set environment variable\n"
                   "         GASNET_USE_SRQ=0 or reconfigure with --disable-ibv-srq.\n");
-        }
       }
     }
 #endif // GASNETC_IBV_SRQ
@@ -2403,13 +2395,10 @@ static int gasnetc_init( gex_Client_t            *client_p,
       if (xrc_flag & (config_word ^ all_configs[i])) {
         gasnetc_use_xrc = 0;
         if (!srq_squashed) {
-          GASNETI_TRACE_PRINTF(I, ("XRC disabled because availability differs across nodes"));
-          if (!gasneti_mynode) {
-            fprintf(stderr,
-                    "WARNING: XRC disabled because availability differs across nodes.\n"
+          gasneti_console0_message( 
+                    "WARNING","XRC disabled because availability differs across nodes.\n"
                     "         To suppress this message set environment variable\n"
                     "         GASNET_USE_XRC=0 or reconfigure with --disable-ibv-xrc.\n");
-          }
         }
       }
     }
@@ -2528,8 +2517,8 @@ static int gasnetc_init( gex_Client_t            *client_p,
         count += all[i];
       }
       if (count) {
-        fprintf(stderr,
-                "WARNING: %d of %d processes have HCAs believed to support ODP.  However, the\n"
+        gasneti_console0_message(
+                "WARNING","%d of %d processes have HCAs believed to support ODP.  However, the\n"
                 "         corresponding software support was not found at configure time.\n"
                 "         Please see the README for GASNet's ibv-conduit for more info on ODP.\n"
                 "         To suppress this message set environment variable\n"
@@ -2626,10 +2615,10 @@ static int gasnetc_init( gex_Client_t            *client_p,
     return i;
   }
 
-  #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
+  if (gasneti_spawn_verbose) {
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
+      gasneti_mynode, gasneti_nodes);
+  }
 
   /* From this point forward gasneti_bootstrap*() can safely be implemented
    * via AMs or "raw" IB if desired for efficiency (but no segment for RDMA).
@@ -3288,22 +3277,13 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 
 // NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
 // volume of garbage that might get printed in the event of memory corruption.
-#define GASNETC_EXIT_STATE_MAXLEN 40
-
-#if GASNET_DEBUG_VERBOSE
-  #define GASNETC_TRACE_EXIT_STATE() do {                 \
-        fprintf(stderr, "%d> EXIT STATE %s\n",            \
-                (int)gasneti_mynode, gasnetc_exit_state); \
-        fflush(NULL);                                     \
-  } while (0)
-#else
-  #define GASNETC_TRACE_EXIT_STATE() ((void)0)
-#endif
+#define GASNETC_EXIT_STATE_MAXLEN 50
 
 #define GASNETC_EXIT_STATE(st) do {                                      \
         gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
         gasnetc_exit_state = st;                                         \
-        GASNETC_TRACE_EXIT_STATE();                                      \
+        if (gasneti_spawn_verbose) /* %s to silence -Wformat-security */ \
+          gasneti_console_message("EXIT STATE", "%s", gasnetc_exit_state); \
   } while (0)
 
 /*
@@ -3558,10 +3538,7 @@ static void gasnetc_exit_now(int exitcode) {
   /* If anybody is still waiting, let them go */
   gasneti_atomic_set(&gasnetc_exit_done, 1, GASNETI_ATOMIC_WMB_POST);
 
-  #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_exit(): node %i/%i calling killmyprocess...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
+  GASNETC_EXIT_STATE("calling gasneti_killmyprocess()");
   gasneti_killmyprocess(exitcode);
   /* NOT REACHED */
 
@@ -3627,13 +3604,9 @@ static void gasnetc_exit_sighandler(int sig) {
 
     (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
 
-    /* assume sig < 100 */
-    if (sig > 9) {
-      digit = '0' + ((sig / 10) % 10);
-      (void) write(STDERR_FILENO, &digit, 1);
-    }
-    digit = '0' + (sig % 10);
-    (void) write(STDERR_FILENO, &digit, 1);
+    char sigstr[4];
+    size_t n = gasneti_utoa(sig, sigstr, sizeof(sigstr), 10);
+    (void) write(STDERR_FILENO, sigstr, n);
     
     (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
     (void) write(STDERR_FILENO, state, state_len);
@@ -3800,7 +3773,8 @@ static void gasnetc_exit_body(void) {
   // prevent possible GASNETI_CHECK_INJECT() failures when we communicate
   GASNETI_CHECK_INJECT_RESET();
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* Timed MAX(exitcode) reduction to clearly distinguish collective exit */
   alarm(2 + timeout); // +2 is margin of safety around the timed reduction
@@ -3854,9 +3828,7 @@ static void gasnetc_exit_body(void) {
   // This has two global communication steps each with their own timeout interval
 
   exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
-#if GASNET_DEBUG_VERBOSE
-  fprintf(stderr, "Exitcode reduction timed-out on node %d\n", (int)gasneti_mynode);
-#endif
+  GASNETC_EXIT_STATE("Exitcode reduction timed-out");
 
   /* Determine our role (leader or member) in the coordination of this shutdown */
   GASNETC_EXIT_STATE("performing non-collective exit");
@@ -3916,17 +3888,11 @@ static void gasnetc_exit_body(void) {
   /* XXX potential problems here if exiting from the "Wrong" thread, or from a signal handler */
   {
     if (graceful) {
-      #if GASNET_DEBUG_VERBOSE
-	fprintf(stderr, "Graceful exit initiated by node %d\n", (int)gasneti_mynode);
-      #endif
-      GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
+      GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
       gasneti_bootstrapFini();
     } else {
       /* We couldn't reach our peers, so hope the bootstrap code can kill the entire job */
-      #if GASNET_DEBUG_VERBOSE
-	fprintf(stderr, "Ungraceful exit initiated by node %d\n", (int)gasneti_mynode);
-      #endif
-      GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
+      GASNETC_EXIT_STATE("in gasneti_bootstrapAbort() during forceful exit");
       gasneti_bootstrapAbort(exitcode);
       /* NOT REACHED */
     }

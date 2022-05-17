@@ -460,7 +460,7 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
             perror("sigaction(save)"); \
             sigprof = 0; \
           } else if (sigaction(sigprof, &act_ign, 0)) perror("sigaction(clear)"); \
-          /*fprintf(stderr,"SIGPROF sa_flags=\t%x sa_handler=%p sa_sigaction=%p\n", act_save.sa_flags,  act_save.sa_handler, act_save.sa_sigaction);*/ \
+          /*gasneti_console_message("INFO","SIGPROF sa_flags=\t%x sa_handler=%p sa_sigaction=%p", act_save.sa_flags,  act_save.sa_handler, act_save.sa_sigaction);*/ \
         } \
         /* wait a bit.. */ \
         pause = MIN(1e9,pause<<3); \
@@ -1352,7 +1352,7 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
   const gex_Rank_t local_count = gasneti_myhost.node_count;
 
 #if GASNET_PSHM
-  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
+  gasneti_pshm_cs_enter(" in gasneti_segmentLimit()",  &gasneti_cleanup_shm);
 #endif
 
   // This is assumed implictly
@@ -1521,7 +1521,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 {
   const int legacy_mode = flags & GASNETI_FLAG_INIT_LEGACY;
 #if GASNET_PSHM
-  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
+  gasneti_pshm_cs_enter(" in gasneti_segmentInit()", &gasneti_cleanup_shm);
 #endif
 
   gasneti_assert_uint(gasneti_MaxLocalSegmentSize ,==, 0);
@@ -1599,15 +1599,15 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
          if (fp) {
            int VMrand = fgetc(fp);
            if (VMrand != EOF && VMrand != '0') {
-             const char *wmsg = "WARNING: It appears your compute nodes are using a Linux security feature "
+             const char *wmsg = "It appears your compute nodes are using a Linux security feature "
                                 "which intentionally randomizes the virtual address space, "
                                 "but GASNet was configured to optimize for congruent address spaces. "
                                 "You probably need to re-configure with --disable-aligned-segments to avoid "
                                 "errors at job startup (especially for runs with large node count or shared segment size).";
-             GASNETI_TRACE_MSG(I, wmsg);
              if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
-               fprintf(stderr, "%s\n", wmsg);
-               fflush(stderr);
+               gasneti_console_message("WARNING", "%s", wmsg);
+             } else {
+               GASNETI_TRACE_PRINTF(I, ("WARNING: %s", wmsg));
              }
            }
            fclose(fp);
@@ -1632,19 +1632,20 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     GASNETI_TRACE_MSG(C, alignstats);
 
     if (maxbase >= minend) { /* no overlap - maybe should be a fatal error... */
-      const char *wmsg = "WARNING: unable to locate overlapping mmap segments: "
+      const char *wmsg = "unable to locate overlapping mmap segments: "
                          "perhaps you need to re-configure with --disable-aligned-segments";
       GASNETI_TRACE_MSG(I, wmsg);
-      if (!gasneti_mynode && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
-        fprintf(stderr, "%s\n%s\n", wmsg, alignstats);
+      if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+        gasneti_console0_message("WARNING","%s\n%s", wmsg, alignstats);
         for (int i = 0; i < gasneti_nodes; i++) {
-          fprintf(stderr, " %i: seg=["GASNETI_LADDRFMT","GASNETI_LADDRFMT"]"
+          gasneti_console0_message("WARNING", " %i: seg=["GASNETI_LADDRFMT","GASNETI_LADDRFMT"]"
                           " size=%"PRIuPTR"\n", i,
                   GASNETI_LADDRSTR(gasneti_segexch[i].addr),
                   GASNETI_LADDRSTR(((uintptr_t)gasneti_segexch[i].addr)+gasneti_segexch[i].size),
                   gasneti_segexch[i].size);
-          fflush(stderr);
         }
+      } else {
+        GASNETI_TRACE_PRINTF(I, ("WARNING: %s\n%s", wmsg, alignstats));
       }
 
       // Zero my size (in two place) to yield Max{Local,Global}SegmentSize == 0
@@ -1901,7 +1902,10 @@ gasneti_do_attach_segment(
 {
 #if GASNET_PSHM
   /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
-  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
+  const char *context = (all_segments == gasneti_seginfo_aux)
+                      ? " while attaching the aux segment"
+                      : " while attaching the client segment";
+  gasneti_pshm_cs_enter(context, &gasneti_cleanup_shm);
   gasneti_pshmnet_bootstrapBarrier();
 #endif
 

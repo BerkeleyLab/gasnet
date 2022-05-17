@@ -11,7 +11,7 @@ define([cv_prefix],[gasnet_cv_])
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2022])
 define([GASNET_RELEASE_VERSION_MINOR_D],[3])
-define([GASNET_RELEASE_VERSION_PATCH_D],[0])
+define([GASNET_RELEASE_VERSION_PATCH_D],[1])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
 define([GASNETEX_SPEC_VERSION_MINOR_D],[15])
@@ -1646,7 +1646,7 @@ AC_DEFUN([GASNET_PACKAGE_LDFLAGS],[
   pushdef([the_guess],$1[]_ldflags_guess)
   pushdef([extra_flags],ifelse(len([$3]),[0],[],[ $3]))  dnl prepends space only if non-empty
   pushdef([rpath_opt],translit($1,'A-Z_','a-z-')-rpath)
-  pushdef([rpath_var],enable_[]translit($1,'A-Z-','a-z_')_rpath)
+  pushdef([rpath_var],enabled_[]translit($1,'A-Z-','a-z_')_rpath)
   dnl TODO - strengthen this if we can determine linker's default search path:
   case "$the_home" in
     /usr|/) the_guess='$3';;
@@ -4103,6 +4103,8 @@ AM_CONDITIONAL(USE_ARIES_CONDUIT, test "$enabled_aries$have_aries" = yesyes)
 #--------------------------------------------------------------------------------------------------------
 # Libfabric Conduit
 
+# TODO: Remove 'if test "$force_ofi" = yes' from the detected_ofi_provider
+#       warning when no longer experimental
 CONDUIT_BEGIN(ofi,exp,[Portable OpenFabrics Interfaces conduit (ofi)])
 if test "$enabled_ofi" = yes; then
   have_ofi=yes
@@ -4148,8 +4150,8 @@ if test "$enabled_ofi" = yes; then
     CONDUIT_SPAWNER
 
     ofi_provider=""
-    ofi_define_mr_scalable="no"
-    ofi_known_provider="yes"
+    ofi_define_mr_scalable="no" # tri-state: "no" omits "#define", forcing runtime selection
+    ofi_single_provider="yes"
     detected_ofi_provider=""
     ofi_use_thread_domain=0
     ofi_use_multi_cq=0
@@ -4175,6 +4177,18 @@ if test "$enabled_ofi" = yes; then
             ofi_provider="$detected_ofi_provider"
         fi
         GASNET_POPVAR(PATH)
+    else
+        unset aliased_ofi_provider
+        case "$ofi_provider" in
+            verbs) aliased_ofi_provider='verbs;ofi_rxm' ;;
+              tcp) aliased_ofi_provider='tcp;ofi_rxm' ;;
+              udp) aliased_ofi_provider='udp;ofi_rxd' ;;
+              *:*) aliased_ofi_provider=`echo "$ofi_provider" | sed -e 's/:/;/'` ;;
+        esac
+        if test "${aliased_ofi_provider+set}" = set ; then
+            GASNET_MSG_WARN([Option --with-ofi-provider='$ofi_provider' converted to --with-ofi-provider='$aliased_ofi_provider'])
+            ofi_provider="$aliased_ofi_provider"
+        fi
     fi
     case "$ofi_provider" in
         psm2)
@@ -4203,18 +4217,27 @@ if test "$enabled_ofi" = yes; then
             ofi_define_mr_scalable=1
         ;;
         default|"")
-            ofi_known_provider="no"
+            if test -n "$ofi_provider"; then
+                why='as requested via --with-ofi-provider=default'
+            else
+                why='because no OFI provider was specified via the --with-ofi-provider option and no known provider could be auto-detected'
+            fi
+            GASNET_MSG_WARN([Using runtime provider feature detection in ofi-conduit $why.])
             ofi_use_multi_cq=1
             ofi_retry_recvmsg=1
+            ofi_single_provider='no'
         ;;
         *)
-        GASNET_MSG_WARN([
-WARNING: Invalid or unsupported OFI provider specified via the --with-ofi-provider flag. 
-Defaulting to runtime provider feature detection for ofi-conduit.])
-            ofi_known_provider="no"
+            GASNET_IF_ENABLED_NOHELP(allow-unknown-ofi-provider, [
+                GASNET_MSG_WARN([dnl
+Unknown OFI provider '$ofi_provider' requested together with '--enable-allow-unknown-ofi-provider'.
+Runtime provider feature detection and conservative defaults will be used except where overridden via --(en|dis)able-ofi-[[feature]] options.])
+                ofi_use_multi_cq=1
+                ofi_retry_recvmsg=1
+            ], GASNET_MSG_ERROR([Unknown OFI provider '$ofi_provider' requested]))
         ;;
     esac
-    if test "$ofi_known_provider" = "yes"; then
+    if test "$ofi_single_provider" = "yes"; then
         AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$ofi_provider"])
     else
         AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$known_providers"])
@@ -4233,10 +4256,12 @@ Defaulting to runtime provider feature detection for ofi-conduit.])
                  [ofi_define_mr_scalable="1"], [ofi_define_mr_scalable="0"], [])
     # Inform the user that settings were autodetected
     if test -n "$detected_ofi_provider" && test "$ofi_define_mr_scalable" != "no"; then
+        if test "$force_ofi" = yes; then # NOTE: to reduce confusion while experimental
             GASNET_MSG_WARN([
 The $detected_ofi_provider OFI provider was detected on your system and the ofi-conduit has been
 configured for that provider. If that is not your desired provider, override this by using the
 --with-ofi-provider=<provider name> configure flag. See the ofi-conduit README for details.])
+        fi
     fi
 
     if test "$ofi_define_mr_scalable" != "no"; then
@@ -4270,7 +4295,7 @@ configured for that provider. If that is not your desired provider, override thi
                 ],
                 [AC_MSG_ERROR([--with-ofi-max-medium must be no smaller than 512])],
                  [ofi_max_medium=8192])
-    AC_DEFINE_UNQUOTED(GASNETC_OFI_MAX_MEDIUM, [$ofi_max_medium])
+    AC_DEFINE_UNQUOTED(GASNETC_OFI_MAX_MEDIUM_DFLT, [$ofi_max_medium])
 
     GASNET_IF_ENABLED_NOHELP(ofi-legacy-extended,
                       [AC_DEFINE(GASNETC_OFI_REFERENCE_EXTENDED)
@@ -5112,9 +5137,14 @@ if test "$enable_mk_hip" != "no"; then
             # but always depends on functions from CUDA runtime (library name can vary).
             # libcudart is generally NOT in CUDA_LIBS, since the CUDA MK does not require it
             GASNET_ENV_DEFAULT(HIP_LIBS, -lamdhip64 -lcudart)
-            # extra_flags below ensures default HIP_LDFLAGS includes the CUDA libdir (for libcudart)
+            # extra_cudart_flags ensures default HIP_LDFLAGS includes the CUDA libdir (for libcudart)
             # which notably may or may not be in CUDA_LDFLAGS (since CUDA only requires libcuda)
-            GASNET_PACKAGE_LDFLAGS(HIP, amdhip64, -L$CUDA_HOME/lib64)
+            extra_cudart_flags="-L$CUDA_HOME/lib64"
+            if test -n "$cc_rpath_option" && test "x$enable_cuda_rpath" != "xno" && \
+               test "${enable_cuda_rpath}x${enabled_rpath}" != "xno" ; then
+              extra_cudart_flags="$extra_cudart_flags $cc_rpath_option$CUDA_HOME/lib64"
+            fi
+            GASNET_PACKAGE_LDFLAGS(HIP, amdhip64, $extra_cudart_flags)
 
             # Suppress warnings when compiling gasnet_hip.c and testhip.c
             # due to "issues" in hip_runtime.h when parsed by a C compiler in

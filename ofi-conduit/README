@@ -117,14 +117,22 @@ The following configure options are also available:
       it supports, it will add branches in critical paths that may increase
       software overheads.  This case is referred to as "unknown provider" below.
 
+      Note that some providers, such as "verbs;ofi_rxm" include a semi-colon in
+      their name.  To avoid issues with shell quoting, the configure script will
+      allow substitution of a colon for the semi-colon (e.g. "verbs:ofi_rxm") as
+      well as use of just the first word (e.g. "verbs") if no ambiguity would
+      result.
+
     * --with-ofi-num-completions=VALUE
       Specifies the maximum number of transmit completions to be read from the
       transmit CQ during each call to the polling function.
       Default: 64
 
     * --with-ofi-max-medium=VALUE
-      Specify the maximum size of AMMedium messages in ofi-conduit. This may be
-      useful for tuning the conduit to different network hardware.
+      This option specifes the default value of the environment variable
+      GASNET_OFI_MAX_MEDIUM, which in turn determines the value returned
+      by gex_AM_LUB{Request,Reply}Medium().
+      The value cannot be less than 512.
       Default: 8192
 
 The following configure flags override options set by provider selection via
@@ -301,6 +309,13 @@ Recognized environment variables:
   The default for each setting is the smaller of 256 or the respective MAX.
   In other words: with all defaults, 256 buffers are allocated to each pool and
   each poll is permitted to grow as large as 1024 buffers if the demand exists.
+
+* GASNET_OFI_MAX_MEDIUM - maximum AM Medium payload size
+  This setting determines the size of buffers used for AM Mediums, and thus the
+  return value of the gex_AM_LUB{Request,Reply}Medium() queries.
+  The value cannot be less than 512.
+  Unless a different value was set using --with-ofi-max-medium=[value] at
+  configure time, the default value is 8192.
 
 * GASNET_OFI_DEVICE
   By default, ofi-conduit will open and use the first device enumerated by

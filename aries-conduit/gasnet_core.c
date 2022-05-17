@@ -579,8 +579,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already initialized");
 
 #if GASNET_DEBUG_VERBOSE
-    /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-    fprintf(stderr,"gasnetc_init(): about to call gasnetc_init...\n"); fflush(stderr);
+    gasneti_console_message("gasnetc_init","about to call gasnetc_init..."); 
 #endif
 
   ret = gasnetc_bootstrapInit(argc, argv);
@@ -596,10 +595,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* Now enable tracing of all the following steps */
   gasneti_trace_init(argc, argv);
 
-  #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): gasnetc_init done - node %i/%i starting...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
+  if (gasneti_spawn_verbose)
+    gasneti_console_message("gasnetc_init","gasnetc_init done - node %i/%i starting...", 
+      gasneti_mynode, gasneti_nodes); 
 
   /* Retreive the nidlist to construct the gasneti_nodemap[]  */
   { int *nidlist;
@@ -692,13 +690,13 @@ static int gasnetc_init( gex_Client_t            *client_p,
   }
 
   #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): node %i/%i calling gasnetc_init_messaging.\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
+    gasneti_console_message("gasnetc_init","node %i/%i calling gasnetc_init_messaging.", 
+      gasneti_mynode, gasneti_nodes);
   #endif
   msgspace = gasnetc_init_messaging();
   #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): node %i/%i finished gasnetc_init_messaging.\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
+    gasneti_console_message("gasnetc_init","node %i/%i finished gasnetc_init_messaging.", 
+      gasneti_mynode, gasneti_nodes);
   #endif
 
   /* Now that messaging is available, use it for remaining bootstrap collectives */
@@ -738,8 +736,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   #endif
 
 #if GASNET_DEBUG_VERBOSE
-  fprintf(stderr, "node %i Leaving gasnetc_init\n",gasneti_mynode);
-  fflush(stderr);
+  gasneti_console_message("gasnetc_init","Leaving gasnetc_init");
 #endif
 
   return GASNET_OK;
@@ -953,7 +950,8 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_mutex_lock(&exit_lock);
   }
 
-  GASNETI_TRACE_PRINTF(C,("gasnetc_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* LCS Code modelled after portals-conduit */
   /* should prevent us from entering again */
@@ -1030,10 +1028,9 @@ extern void gasnetc_exit(int exitcode) {
     /* Now we try again, noting that any partial results from 1st attempt are harmless */
     alarm(2 + gasnetc_shutdown_seconds);
     if (gasnetc_sys_exit(&exitcode)) {
-#if 0
-      fprintf(stderr, "Failed to coordinate an orderly shutdown\n");
-      fflush(stderr);
-#endif
+     #if GASNET_DEBUG_VERBOSE
+      gasneti_console_message("INFO","Failed to coordinate an orderly shutdown");
+     #endif
 
       /* Death of any process by a fatal signal will cause launcher to kill entire job.
        * We don't use INT or TERM since one could be blocked if we are in its handler. */

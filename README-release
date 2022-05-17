@@ -228,8 +228,16 @@ GASNet Release Procedure
   + Add a milestone for the next release
 
 * In gasnet-web CVS repository:
-  + Add both tarballs and specs (GASNet and GASNet_Tools) to CVS
-    and the respective date_history
+  + Add the new tarballs to CVS in the following locations
+      tools/GASNet_Tools-[version].tar.gz
+      EX/GASNet-[version].tar.gz
+  + Copy the GASNet-EX spec (docs/GASNet-EX.txt in the tarball) to two places:
+      docs/GASNet-EX.txt          (overwritting the previous version)
+      EX/GASNet-EX-[version].txt  (creating a new file to add to CVS)
+    The following command can be used to populate the first location:
+    `tar --strip-components=1 --wildcards -xf EX/GASNet-[version].tar.gz -- '*/docs/GASNet-EX.txt'`
+  + Update EX/date_history and tools/date_history in CVS with the three
+    versioned files added to the respective directories in the previous two steps.
   + Update index.html for the new release
     Minimum update is:
     - fresh NEWS item
@@ -243,7 +251,6 @@ GASNet Release Procedure
   + "tar xfz ..." to extract the new GASNet release (not Tools)
   + Move the "dist-ex" symbolic link:
     $ ln -sfn GASNet-2040.8.0 dist-ex
-  + Copy dist-ex/docs/GASNet-EX.txt to EX/GASNet-EX-[version].txt
 
 * Update release mirrors:
   + https://bitbucket.org/berkeleylab/gasnet/downloads/

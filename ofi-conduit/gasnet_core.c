@@ -18,6 +18,10 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
+
+GASNETI_IDENT(gasnetc_IdentString_AMMaxMediumDefault,
+              "$GASNetAMMaxMediumDefault: " _STRINGIFY(GASNETC_OFI_MAX_MEDIUM_DFLT) " $");
+
 gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
 /* Exit coordination timeouts */
@@ -59,8 +63,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasneti_freezeForDebugger();
 
   #if GASNET_DEBUG_VERBOSE
-    /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-    fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
+    gasneti_console_message("gasnetc_init","about to spawn..."); 
   #endif
 
   gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
@@ -77,10 +80,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   if (GASNET_OK != ret)
 	 return ret;
 
-  #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
-      gasneti_mynode, gasneti_nodes); fflush(stderr);
-  #endif
+  if (gasneti_spawn_verbose) {
+    gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
+      gasneti_mynode, gasneti_nodes);
+  }
 
   gasneti_assert_zeroret(gasnetc_exit_init());
 
@@ -145,14 +148,9 @@ extern int gasnetc_attach_primary(void) {
 
   gasneti_nodemapFini();
 
-  if (! gasneti_mynode) {
-    fflush(NULL);
-    fprintf(stderr,
-      " WARNING: ofi-conduit is experimental and should not be used for\n"
-      "          performance measurements.\n"
-      "          Please see `ofi-conduit/README` for more details.\n");
-    fflush(NULL);
-  }
+  gasneti_console0_message("WARNING",
+      "ofi-conduit is experimental and should not be used for performance measurements.\n"
+      "    WARNING: Please see `ofi-conduit/README` for more details.");
 
   /* ensure extended API is initialized across nodes */
   gasneti_spawner->Barrier();
@@ -296,22 +294,13 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 
 // NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
 // volume of garbage that might get printed in the event of memory corruption.
-#define GASNETC_EXIT_STATE_MAXLEN 40
-
-#if GASNET_DEBUG_VERBOSE
-  #define GASNETC_TRACE_EXIT_STATE() do {                 \
-        fprintf(stderr, "%d> EXIT STATE %s\n",            \
-                (int)gasneti_mynode, gasnetc_exit_state); \
-        fflush(NULL);                                     \
-  } while (0)
-#else
-  #define GASNETC_TRACE_EXIT_STATE() ((void)0)
-#endif
+#define GASNETC_EXIT_STATE_MAXLEN 50
 
 #define GASNETC_EXIT_STATE(st) do {                                      \
         gasneti_static_assert(sizeof(st) <= GASNETC_EXIT_STATE_MAXLEN+1);\
         gasnetc_exit_state = st;                                         \
-        GASNETC_TRACE_EXIT_STATE();                                      \
+        if (gasneti_spawn_verbose) /* %s to silence -Wformat-security */ \
+          gasneti_console_message("EXIT STATE", "%s", gasnetc_exit_state); \
   } while (0)
 
 // TODO-EX: is this really necessary?
@@ -373,13 +362,9 @@ static void gasnetc_exit_sighandler(int sig) {
 
     (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
 
-    /* assume sig < 100 */
-    if (sig > 9) {
-      digit = '0' + ((sig / 10) % 10);
-      (void) write(STDERR_FILENO, &digit, 1);
-    }
-    digit = '0' + (sig % 10);
-    (void) write(STDERR_FILENO, &digit, 1);
+    char sigstr[4];
+    size_t n = gasneti_utoa(sig, sigstr, sizeof(sigstr), 10);
+    (void) write(STDERR_FILENO, sigstr, n);
 
     (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
     (void) write(STDERR_FILENO, state, state_len);
@@ -472,7 +457,8 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_mutex_lock(&exit_lock);
   }
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","gasnet_exit(%i)",exitcode);
+  else GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* Establish a last-ditch signal handler in case of failure. */
   gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
@@ -489,7 +475,7 @@ extern void gasnetc_exit(int exitcode) {
   /* Prior to attach we cannot send AMs to coordinate the exit */
   if (! gasneti_attach_done) {
     GASNETC_EXIT_STATE("in pre-attach gasneti_bootstrapAbort()");
-    fprintf(stderr, "WARNING: GASNet ofi-conduit may not shutdown cleanly when gasnet_exit() is called before gasnet_attach()\n");
+    gasneti_console_message("WARNING","GASNet ofi-conduit may not shutdown cleanly when gasnet_exit() is called before gasnet_attach()");
     gasneti_bootstrapAbort(exitcode);
     gasneti_killmyprocess(exitcode);
   }
@@ -533,10 +519,10 @@ extern void gasnetc_exit(int exitcode) {
   // TODO: 30 is arbitrary and hard-coded
   alarm(MAX(30, timeout));
   if (graceful) {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
+    GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
     gasneti_bootstrapFini();
   } else {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
+    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort() during forceful exit");
     gasneti_bootstrapAbort(exitcode);
   }
   alarm(0);

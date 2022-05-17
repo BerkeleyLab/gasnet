@@ -554,7 +554,7 @@ although we generally recommend the vendor C compiler for performance reasons.
 
 The following compilers are believed to work on platforms listed above, 
 with the provided minimum version:
-Gnu (gcc 3.0+), LLVM (clang 3.6+), Apple (Xcode 7.1+), PGI (pgcc 10.9 to 20.4),
+Gnu (gcc 3.0+), LLVM (clang 3.6+), Apple (Xcode 7.1+), PGI (pgcc 11.0 to 20.4),
 NVHPC (20.9+), Intel (icc 16+), Intel oneAPI (icx 21+), IBM XL (xlc 13+),
 Cray (CCE 8.6+)
 
@@ -710,6 +710,9 @@ these aliases.
  through non-GASNet spawn scripts, in to order to ensure their safe delivery
  to the GASNet client program.
 
+* GASNET_SPAWN_VERBOSE - Boolean setting to enable console debugging output of
+ operations related to job creation and teardown. Details vary by configuration.
+
 * GASNET_BARRIER - select the communication algorithm for use in GASNet barriers.
  The following values are available on all conduits:
   AMDISSEM - uses Active Messages to implement the Dissemination barrier
@@ -742,10 +745,14 @@ these aliases.
  The default is 0 (linear) on most platforms.
 
 * GASNET_PSHM_NETWORK_DEPTH - set depth of the intra-node AM network
- For configurations using PSHM (a function of OS and conduit) GASNet implements
- intra-node Active Messages using a shared-memory queue.  This variable sets the
- "network depth" of this implementation: the minimum number of outgoing AMs it
- must be capable of buffering before possibly stalling.
+ For configurations using PSHM (the default on most systems) GASNet implements
+ intra-node Active Messages using a shared-memory queue.  This variable sets
+ the "network depth" of this implementation in units of maximum-sized messages.
+ A process can send at least this many out-bound intra-node AMs concurrently
+ (to any peer) before the implementation might stall awaiting peer attentiveness
+ to retire AMs.  When sending smaller messages, the effective depth is greater
+ due to allocating less space in the queue than would be needed for a
+ maximum-sized message.
  The default is 32 and the minimum is 4.
 
 * GASNET_NODEMAP_EXACT - Boolean setting to enable an exact algorithm for
