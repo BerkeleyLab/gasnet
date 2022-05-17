@@ -461,8 +461,11 @@ Known problems:
 
 * Limits to MPI interoperability
   Depending on the libfabric provider in use, it may not be possible to have both
-  MPI and GASNet using the native network API in the same application.  In
-  particular, the psm2 provider has the property that each process may only open
+  MPI and GASNet using the native network API in the same application.  There
+  are known issues with the psm2 and cxi providers, though the latter's issue
+  also represents a general concern.
+
+  The psm2 provider has the property that each process may only open
   the network adapter once.  If you wish to use MPI and GASNet in the same
   application on the Intel Omni-Path fabric, then there are two options:
     1. GASNet may be configured to use an alternative transport.
@@ -471,6 +474,31 @@ Known problems:
   The relative performance implications of these options depends strongly on the
   properties of each application.
 
+  The cxi provider requires use of `FI_` environment variables to configure the
+  provider to reliably handle Active Messages under heavy loads.  It has been
+  observed that HPE Cray MPI uses the same settings, but in a way which is
+  not compatible with ofi-conduit's needs.  As a result, initializing MPI
+  prior to GASNet will yield less reliable Active Messages and possible hangs
+  or crashes as a result.  Therefore, when an ofi-conduit application is
+  launched using `srun`, care is taken to avoid initializing MPI as the spawer.
+  To ensure those automatic measures are sufficient, we have the following
+  recommendations for use of ofi-conduit on the HPE Cray EX platform:
+    + Do not use MPI for job launch:
+      Configure using `--with-ofi-spawner=pmi --with-pmi-version=cray` to
+      ensure the `gasnetrun_ofi` script defaults to use of PMI-based job
+      spawning, and that configure will fail if the necessary Cray PMI library
+      cannot be located.  This latter point is important even if one is not
+      using the `gasnetrun_ofi` script.
+    + Hybrid applications should initialize GASNet before MPI.
+  The most up-to-date information on this issue is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4455
+
+  As noted above, the specific issue with the cxi provider also represents a
+  more general concern that an MPI implementation may configure libfabric in
+  a way which is incompatible with GASNet's ofi-conduit OR that GASNet's
+  settings could cause problems for the MPI implementation.  However, there are
+  currently no known cases of either such interaction other than with the cxi
+  provider as described above.
 
 Future work:
 ------------
