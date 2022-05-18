@@ -1916,6 +1916,47 @@ extern uint32_t gasneti_gethostid(void) {
     return myid;
 }
 
+static enum {
+    gasneti_hostid_alg_invalid = 0,
+    gasneti_hostid_alg_conduit,
+    gasneti_hostid_alg_gethostid,
+    gasneti_hostid_alg_hostname,
+    gasneti_hostid_alg_trivial
+} gasneti_hostid_alg;
+
+static  union {
+    uint64_t hostname;
+    uint32_t hostid;
+} gasneti_my_hostid;
+
+// gasneti_format_host_detect()
+//
+// Returns the hostid, or equivalent, as a printable string (possibly empty).
+// This is for use in error, warning and trace messages (uses gasneti_dynsprintf)
+const char *gasneti_format_host_detect(void) {
+  switch (gasneti_hostid_alg) {
+    case gasneti_hostid_alg_conduit:
+      return "[opaque conduit-specific value]";
+      break;
+
+    case gasneti_hostid_alg_gethostid:
+      return gasneti_dynsprintf("0x%08x", gasneti_my_hostid.hostid);
+      break;
+
+    case gasneti_hostid_alg_hostname:
+      return gasneti_dynsprintf("'%s' (hashed to 0x%"PRIx64")",
+                                gasneti_gethostname(), gasneti_my_hostid.hostname);
+      break;
+
+    case gasneti_hostid_alg_trivial:
+      return gasneti_dynsprintf("%d", gasneti_mynode);
+      break;
+
+    default: gasneti_unreachable_error(("Unknown host detect algorithm %i", (int)gasneti_hostid_alg));
+  }
+}
+
+
 /* gasneti_nodemapParse()
  *
  * Performs "common" tasks after gasneti_nodemap[] has been constucted.
@@ -2120,13 +2161,6 @@ extern void gasneti_nodemapParse(void) {
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride) {
   gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
-  enum {
-    gasneti_hostid_alg_invalid = 0,
-    gasneti_hostid_alg_conduit,
-    gasneti_hostid_alg_gethostid,
-    gasneti_hostid_alg_hostname,
-    gasneti_hostid_alg_trivial
-  } gasneti_hostid_alg;
 
   // First parse GASNET_HOST_DETECT
   // Default is complicated:
@@ -2158,16 +2192,12 @@ extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
   } else {
     gasneti_fatalerror("GASNET_HOST_DETECT='%s' is not recognized", envval);
   }
-  gasneti_free(lowerval);
 
   void *tmp = NULL;
-  union {
-    uint64_t hostname;
-    uint32_t hostid;
-  } local_id;
 
   switch (gasneti_hostid_alg) {
     case gasneti_hostid_alg_conduit:
+      // TODO: save something suitable for gasneti_format_host_detect()
       // If we lack conduit-specific ID(s), then "conduit" is invalid:
       if (!ids) goto out_bad_alg;
       // (ids && !exchangefn) means a *full* vector of conduit-specific IDs:
@@ -2176,15 +2206,15 @@ extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
       break;
 
     case gasneti_hostid_alg_gethostid:
-      local_id.hostid = gasneti_gethostid();
-      sz = sizeof(local_id.hostid);
-      ids = &local_id;
+      gasneti_my_hostid.hostid = gasneti_gethostid();
+      sz = sizeof(gasneti_my_hostid.hostid);
+      ids = &gasneti_my_hostid;
       break;
 
     case gasneti_hostid_alg_hostname:
-      local_id.hostname = gasneti_hosthash();
-      sz = sizeof(local_id.hostname);
-      ids = &local_id;
+      gasneti_my_hostid.hostname = gasneti_hosthash();
+      sz = sizeof(gasneti_my_hostid.hostname);
+      ids = &gasneti_my_hostid;
       break;
 
     case gasneti_hostid_alg_trivial:
@@ -2210,6 +2240,8 @@ no_exchange:
 
 no_helper:
   // Perform "common" work w.r.t the nodemap
+  GASNETI_TRACE_PRINTF(I,("GASNET_HOST_DETECT=%s yields %s", lowerval, gasneti_format_host_detect()));
+  gasneti_free(lowerval);
   gasneti_nodemapParse();
   return;
 
