@@ -344,12 +344,12 @@ void gasnete_coll_register_gather_collectives(gasnete_coll_autotune_info_t* info
 void gasnete_coll_register_gather_all_collectives(gasnete_coll_autotune_info_t* info, size_t smallest_scratch) {
   info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP] = gasneti_malloc(sizeof(gasnete_coll_algorithm_t)*GASNETE_COLL_GATHER_ALL_NUM_ALGS);
 
-  info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][GASNETE_COLL_GATHER_ALL_GATH] =
+  info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][GASNETE_COLL_GATHER_ALL_GATHBCAST] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHER_ALL_OP,
                                            GASNETE_COLL_EVERY_SYNC_FLAG,
                                            0, 0, /*works for every flag (gather will take care of figuiring out right algorithm)*/
                                            GASNETE_COLL_MAX_BYTES, 0, 0,
-                                           0, NULL,  gasnete_coll_gall_Gath, "GATHER_ALL_GATH");
+                                           0, NULL,  gasnete_coll_gall_GathBcast, "GATHER_ALL_GATHBCAST");
   
   info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][GASNETE_COLL_GATHER_ALL_DISSEM_EAGER] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHER_ALL_OP,
@@ -1975,7 +1975,7 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
      max_dissem_msg_size <= MIN(team->scratch_size, gex_AM_LUBRequestLong())) {
     ret->fn_idx = GASNETE_COLL_GATHER_ALL_DISSEM;
   } else {
-      ret->fn_idx = GASNETE_COLL_GATHER_ALL_GATH;
+      ret->fn_idx = GASNETE_COLL_GATHER_ALL_GATHBCAST;
   }
   ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][ret->fn_idx].fn_ptr.gather_all_fn;
  
