@@ -2275,6 +2275,7 @@ gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
                                 size_t nbytes, gex_Flags_t flags,
                                 uint32_t sequence GASNETI_THREAD_FARG)
 {
+  GASNETI_TRACE_TM_BROADCAST(COLL_BROADCAST_NB,e_tm,root,dst,src,nbytes,flags);
   gasnet_team_handle_t team = gasneti_import_tm_nonpair(e_tm)->_coll_team;
   int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
   coll_flags |= (flags & GASNETI_FLAG_COLL_SUBORDINATE) ? GASNETE_COLL_SUBORDINATE : 0;

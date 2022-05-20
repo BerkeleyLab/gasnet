@@ -42,6 +42,7 @@ GASNet-EX ChangeLog
   - bug4432: OFI provider selection issues
   - bug4447: GASNET_VERBOSEENV doesn't have an explicit false setting
   - bug4448: smp-conduit incorrectly duplicates GASNET_VERBOSEENV output
+  - Bug4453: gex_Coll_* should trace more information
 
 ----------------------------------------------------------------------
 2022-03-31: GASNet-EX 2022.3.0 Release
