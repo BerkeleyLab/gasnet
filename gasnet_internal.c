@@ -1888,9 +1888,20 @@ extern uint32_t gasneti_gethostid(void) {
     static uint32_t myid = 0;
 
     if_pf (!myid) {
-    #if PLATFORM_OS_CYGWIN
-      /* gethostid() is known to be unreliable - we'll hash the hostname */
-    #elif HAVE_GETHOSTID
+    #if PLATFORM_OS_CYGWIN || !HAVE_GETHOSTID
+      // gethostid() is known to be either unreliable or unavailable
+      // always hash the hostname
+    #else
+      // gethostid() is available
+      // hash the hostname only if gethostid() looks unreliable after multiple retries.
+      // This allows us to tolerate transient misbehavior such as was reported in
+      // Bug 4483 - gethostid() on Perlmutter rarely returns 0, breaking PSHM detection
+      #ifndef GASNETI_GETHOSTID_RETRIES
+        #define GASNETI_GETHOSTID_RETRIES 24 // try to keep worst case delay under 0.1s
+      #endif
+      int retries = GASNETI_GETHOSTID_RETRIES;
+      uint64_t delay_ns = 1;
+    retry:
       myid = (uint32_t)gethostid();
     #endif
 
@@ -1909,6 +1920,12 @@ extern uint32_t gasneti_gethostid(void) {
           || (myid == 0x0001007f)
           || (myid == 0x0100007f)) {
       #if HAVE_GETHOSTID && !PLATFORM_OS_CYGWIN
+        if (retries-- > 0) {
+          GASNETI_TRACE_PRINTF(I,("Retrying after invalid return 0x%08x from gethostid()", (unsigned int)myid));
+          gasneti_nsleep(delay_ns);
+          delay_ns *= 2;
+          goto retry;
+        }
         gasneti_console_message("WARNING", "Invalid return 0x%08x from gethostid().  "
                                 "Please see documentation on GASNET_HOST_DETECT in README and "
                                 "consider setting its value to 'hostname' or reconfiguring using "
