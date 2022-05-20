@@ -188,6 +188,19 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags) \
 	GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags)
   // GEX Collective Ops
+  #define GASNETI_TRACE_TM_BROADCAST(name,tm,root,dst,src,nbytes,flags) do { \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                             \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                     \
+      GASNETI_TRACE_PRINTF(D, (#name ": root = " GASNETI_TMRANKFMT ", nbytes = %" PRIuSZ,               \
+                               GASNETI_TMRANKSTR((tm),(root)), (size_t)nbytes));                        \
+      if ((root) == gex_TM_QueryRank(tm)) {                                                             \
+        GASNETI_TRACE_PRINTF(D, (#name ": dst = " GASNETI_LADDRFMT ", src = " GASNETI_LADDRFMT,         \
+                                 GASNETI_LADDRSTR(dst), GASNETI_LADDRSTR(src)));                        \
+      } else {                                                                                          \
+        GASNETI_TRACE_PRINTF(D, (#name ": dst = " GASNETI_LADDRFMT, GASNETI_LADDRSTR(dst)));            \
+      }                                                                                                 \
+    }                                                                                                   \
+  } while (0)
   #define GASNETI_TRACE_TM_REDUCE(name,tm,root,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags) do { \
     GASNETI_TRACE_EVENT_VAL(W,name,dt_cnt);                                                             \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                     \
@@ -239,6 +252,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #define GASNETI_TRACE_COLL_GATHER(name,team,root,dst,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags)
+  #define GASNETI_TRACE_TM_BROADCAST(name,tm,root,dst,src,nbytes,flags)
   #define GASNETI_TRACE_TM_REDUCE(name,tm,root,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags)
   #define GASNETI_TRACE_TM_REDUCE_ALL(name,tm,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags)
 #endif
