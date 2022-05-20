@@ -202,7 +202,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
     }                                                                                                   \
   } while (0)
   #define GASNETI_TRACE_TM_REDUCE(name,tm,root,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags) do { \
-    GASNETI_TRACE_EVENT_VAL(W,name,dt_cnt);                                                             \
+    GASNETI_TRACE_EVENT_VAL(W,name,dt_cnt*dt_sz);                                                       \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                     \
       char *_tr_dtstr = (char *)gasneti_extern_malloc(gasneti_format_dt(NULL,(dt)));                    \
       gasneti_format_dt(_tr_dtstr,(dt));                                                                \
@@ -229,7 +229,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
     }                                                                                                   \
   } while (0)
   #define GASNETI_TRACE_TM_REDUCE_ALL(name,tm,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags) do {  \
-    GASNETI_TRACE_EVENT_VAL(W,name,dt_cnt);                                                             \
+    GASNETI_TRACE_EVENT_VAL(W,name,dt_cnt*dt_sz);                                                       \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                     \
       char *_tr_dtstr = (char *)gasneti_extern_malloc(gasneti_format_dt(NULL,(dt)));                    \
       gasneti_format_dt(_tr_dtstr,(dt));                                                                \
