@@ -66,6 +66,7 @@ static gasnetc_counter_t gasnetc_exit_repl_oust = GASNETC_COUNTER_INITIALIZER; /
 static gasneti_atomic_t gasnetc_exit_atsighandler = gasneti_atomic_init(0);
 
 static void gasnetc_atexit(int exitcode);
+static void gasnetc_exit_init(void);
 
 // gex_TM_t used for AM-based bootstrap collectives and exit handling
 static gex_TM_t gasnetc_bootstrap_tm = NULL;
@@ -87,74 +88,6 @@ static char *gasnetc_ucx_addr_array = NULL;
 size_t gasnetc_sizeof_segment_t(void) {
   gasnetc_Segment_t segment;
   return sizeof(*segment);
-}
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Bootstrap collectives
-*/
-
-static gex_Rank_t gasnetc_dissem_peers = 0;
-static gex_Rank_t *gasnetc_dissem_peer = NULL;
-static gex_Rank_t *gasnetc_exchange_rcvd = NULL;
-static gex_Rank_t *gasnetc_exchange_send = NULL;
-
-static void gasnetc_sys_coll_init(void)
-{
-  int i;
-  const gex_Rank_t size = gasneti_nodes;
-  const gex_Rank_t rank = gasneti_mynode;
-
-  if (size == 1) {
-    /* No network comms */
-    goto done;
-  }
-
-  /* Construct vector of the dissemination peers */
-  gasnetc_dissem_peers = 0;
-  for (i = 1; i < size; i *= 2) {
-    ++gasnetc_dissem_peers;
-  }
-  if (NULL == gasnetc_dissem_peer) {
-    gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gex_Rank_t));
-    gasneti_leak(gasnetc_dissem_peer);
-  }
-  for (i = 0; i < gasnetc_dissem_peers; ++i) {
-    const gex_Rank_t distance = 1 << i;
-    const gex_Rank_t peer = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
-    gasnetc_dissem_peer[i] = peer;
-  }
-  /* Compute the recv offset and send count for each step of exchange */
-  gasnetc_exchange_rcvd = gasneti_malloc((gasnetc_dissem_peers+1) * sizeof(gex_Rank_t));
-  gasnetc_exchange_send = gasneti_malloc(gasnetc_dissem_peers * sizeof(gex_Rank_t));
-  {
-    int step;
-    for (step = 0; step < gasnetc_dissem_peers; ++step) {
-      gasnetc_exchange_rcvd[step] = gasnetc_exchange_send[step] = 1 << step;
-    }
-    gasnetc_exchange_send[step-1] = gasneti_nodes - gasnetc_exchange_send[step-1];
-    gasnetc_exchange_rcvd[step] = gasneti_nodes;
-  }
-done:
-  // TODO: collectives
-  //gasneti_assert(! gasneti_bootstrap_native_coll);
-  //gasneti_bootstrap_native_coll = 1;
-  //gasneti_spawner->Cleanup(); /* No futher use of ssh/mpi/pmi collectives */
-  return;
-}
-
-static void gasnetc_sys_coll_fini(void)
-{
-  gasnetc_dissem_peers = 0;
-  gasneti_free(gasnetc_dissem_peer);
-  gasneti_free(gasnetc_exchange_rcvd);
-  gasneti_free(gasnetc_exchange_send);
-
-#if GASNET_DEBUG
-  gasnetc_exchange_rcvd = NULL;
-  gasnetc_exchange_send = NULL;
-#endif
-  //gasneti_bootstrap_native_coll = 0;
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -771,8 +704,6 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
       return status;
   }
 
-  gasnetc_sys_coll_init();
-
 #if GASNETC_PIN_SEGMENT
   /* pin the aux segment and exchange the RKeys */
   gasnetc_mem_info_t *mem_info = gasnetc_segment_register(auxbase, auxsize);
@@ -784,6 +715,7 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
       "    WARNING: Please see `ucx-conduit/README` for more details.");
 
   gasneti_registerExitHandler(gasnetc_atexit);
+  gasnetc_exit_init();
 
   if (GASNET_OK != (rc = gasnetc_recv_init())) {
     return rc;
@@ -964,6 +896,32 @@ int gasnetc_ep_init_hook(gasneti_EP_t i_ep)
 }
 
 /* ------------------------------------------------------------------------------------ */
+// Exit handling logic
+
+static gex_Rank_t gasnetc_dissem_peers = 0;
+static gex_Rank_t *gasnetc_dissem_peer = NULL;
+
+static void gasnetc_exit_init(void) {
+  const gex_Rank_t size = gasneti_nodes;
+  const gex_Rank_t rank = gasneti_mynode;
+
+  if (size == 1) return;  // No network comms
+
+  // Construct vector of the dissemination peers for exitcode reduction
+  gasnetc_dissem_peers = 0;
+  for (int i = 1; i < size; i *= 2) {
+    ++gasnetc_dissem_peers;
+  }
+  if (NULL == gasnetc_dissem_peer) {
+    gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gex_Rank_t));
+    gasneti_leak(gasnetc_dissem_peer);
+  }
+  for (int i = 0; i < gasnetc_dissem_peers; ++i) {
+    const gex_Rank_t distance = 1 << i;
+    const gex_Rank_t peer = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
+    gasnetc_dissem_peer[i] = peer;
+  }
+}
 
 /* gasnetc_exit_now
  *
@@ -1316,8 +1274,6 @@ static void gasnetc_exit_body(void) {
   // A second alarm timer for most of the remaining exit steps
   // TODO: 120 is arbitrary and hard-coded
   alarm(MAX(120, timeout));
-
-  gasnetc_sys_coll_fini();
 
   // Try to flush out all the output
   GASNETC_EXIT_STATE("flushing output");
