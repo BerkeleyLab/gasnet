@@ -2171,6 +2171,7 @@ extern void gasnetc_fatalsignal_cleanup_callback(int sig) {
 
 static int gasnetc_init( gex_Client_t            *client_p,
                          gex_EP_t                *ep_p,
+                         gex_TM_t                *tm_p,
                          const char              *clientName,
                          int                     *argc,
                          char                    ***argv,
@@ -2578,19 +2579,21 @@ static int gasnetc_init( gex_Client_t            *client_p,
 #endif
   gasneti_free(remote_lid);
 
-  //  Create first Client and EP *here*, for use in subsequent bootstrap collectives
-  gasneti_Client_t client;
-  gasneti_EP_t ep;
+  //  Create first Client, EP and TM *here*, for use in subsequent bootstrap communication
   {
     //  allocate the client object
-    client = gasneti_alloc_client(clientName, flags);
+    gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
     if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
-    ep = gasneti_import_ep(*ep_p);
+    gasneti_EP_t ep = gasneti_import_ep(*ep_p);
     gasnetc_ep0 = (gasnetc_EP_t)ep; // TODO-EX: this global variable to be removed
+
+    //  create the tm
+    gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
+    *tm_p = gasneti_export_tm(tm);
   }
 
 #if GASNETC_IBV_XRC
@@ -2625,6 +2628,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
    * Currently only Exchange (aka GatherAll) and Barrier are used beyond this point.
    */
   gasnetc_sys_coll_init();
+  gasneti_attach_done = 1; // Ready to use AM Short and Medium for bootstrap comms
 
   // Determine largest allowable single memory registration supported by the HCA(s)
   gasnetc_pin_maxsz = ~(uint64_t)0;
@@ -3092,31 +3096,20 @@ extern int gasnetc_Client_Init(
   //  main init
   // TODO-EX: must split off per-client and per-endpoint portions
   if (!gasneti_init_done) { // First client
-    // NOTE: gasnetc_init() creates the first Client and EP for use in bootstrap comms
-    int retval = gasnetc_init(client_p, ep_p, clientName, argc, argv, flags);
+    // NOTE: gasnetc_init() creates the first Client, EP and TM for use in bootstrap comms
+    int retval = gasnetc_init(client_p, ep_p, tm_p, clientName, argc, argv, flags);
     if (retval != GASNET_OK) GASNETI_RETURN(retval);
   #if 0
     /* called within gasnetc_init to allow init tracing */
     gasneti_trace_init(argc, argv);
   #endif
-  } else { // NOT first client
-    //  allocate the client object
-    gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
-    *client_p = gasneti_export_client(client);
-
-    //  create the initial endpoint with internal handlers
-    if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
-      GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
+  } else {
+    gasneti_fatalerror("No multi-client support");
   }
-  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   // Do NOT move this prior to the gasneti_trace_init() call
   GASNETI_TRACE_PRINTF(O,("gex_Client_Init: name='%s' argc_p=%p argv_p=%p flags=%d",
                           clientName, (void *)argc, (void *)argv, flags));
-
-  // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
-  *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
@@ -3125,6 +3118,8 @@ extern int gasnetc_Client_Init(
 
     /* ensure everything is initialized across all nodes */
     gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
+  } else {
+    gasneti_attach_done = 0; // Pending client call to gasnet_attach()
   }
 
   return GASNET_OK;

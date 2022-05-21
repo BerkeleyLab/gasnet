@@ -158,15 +158,12 @@ void gasnetc_bootstrapBarrier_gni(void))
 {
     GASNET_BEGIN_FUNCTION();
     static int phase = 0;
-    int pre_attach = !gasneti_attach_done;
     int i;
 
 #if GASNET_PSHM
     gasneti_pshmnet_bootstrapBarrier();
 #endif
  
-    if (pre_attach) gasneti_attach_done = 1; /* to use AMs before attach */
-
     for (i = 0; i < gasnetc_dissem_peers; ++i) { /* EMPTY for all but first per supernode */
       const uint32_t mask = 2 << i; /* (distance << 1) */
 
@@ -179,8 +176,6 @@ void gasnetc_bootstrapBarrier_gni(void))
          gasnetc_poll(GASNETI_THREAD_PASS_ALONE);  /* No PSHM progress required here */
       }
     }
-
-    if (pre_attach) gasneti_attach_done = 0;
 
 #if GASNET_PSHM
     gasneti_pshmnet_bootstrapBarrier();
@@ -223,7 +218,6 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
 {
     static int phase = 0;
 
-    const int pre_attach = !gasneti_attach_done;
     uint8_t *temp = gasnetc_sys_exchange_addr(phase, len);
     int step;
 
@@ -235,8 +229,6 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
     /* Copy in local contribution */
     GASNETI_MEMCPY(temp, src, len);
 #endif
-
-    if (pre_attach) gasneti_attach_done = 1; /* to use AMs before attach */
 
     /* Bruck's concatenation algorithm: */
     for (step = 0; step < gasnetc_dissem_peers; ++step) {
@@ -269,8 +261,6 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
       /* reset */
       gasnetc_sys_exchange_rcvd[phase][step] = 0;
     }
-
-    if (pre_attach) gasneti_attach_done = 0;
 
     /* Copy to destination while performing the rotation or permutation */
 #if GASNET_PSHM
@@ -565,6 +555,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
 
 static int gasnetc_init( gex_Client_t            *client_p,
                          gex_EP_t                *ep_p,
+                         gex_TM_t                *tm_p,
                          const char              *clientName,
                          int                     *argc,
                          char                    ***argv,
@@ -677,7 +668,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasnetc_init_md();
   #endif
 
-  //  Create first Client, EP and TM *here*, for use in subsequent bootstrap collectives
+  //  Create first Client, EP and TM *here*, for use in subsequent bootstrap communication
   {
     //  allocate the client object
     gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
@@ -689,8 +680,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasneti_EP_t ep = gasneti_import_ep(*ep_p);
     gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
+    //  create the tm
     gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
-    gasnetc_bootstrap_tm = gasneti_export_tm(tm);
+    *tm_p = gasnetc_bootstrap_tm = gasneti_export_tm(tm);
   }
 
   #if GASNET_DEBUG_VERBOSE
@@ -707,6 +699,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   // Note that the barrier synchronization by gasneti_spawner->Exchange() in
   // gasnetc_init_messaging() ensure the necessary resources are ready globally.
   gasnetc_sys_coll_init();
+  gasneti_attach_done = 1; // Ready to use AM Short and Medium for bootstrap comms
 
   /* determine max pinnable */
   uintptr_t max_pin = gasnetc_MaxPinMem(msgspace + gasneti_auxseg_preinit());
@@ -837,38 +830,23 @@ extern int gasnetc_Client_Init(
   gasneti_assert(argv);
 #endif
 
-  int first_client = !gasneti_init_done;
-
   //  main init
   // TODO-EX: must split off per-client and per-endpoint portions
-  if (first_client) { // First client
-    // NOTE: gasnetc_init() creates the first Client and EP for use in bootstrap comms
-    int retval = gasnetc_init(client_p, ep_p, clientName, argc, argv, flags);
+  if (!gasneti_init_done) { // First client
+    // NOTE: gasnetc_init() creates the first Client, EP and TM for use in bootstrap comms
+    int retval = gasnetc_init(client_p, ep_p, tm_p, clientName, argc, argv, flags);
     if (retval != GASNET_OK) GASNETI_RETURN(retval);
   #if 0
     /* called within gasnetc_init to allow init tracing */
     gasneti_trace_init(argc, argv);
   #endif
-  } else { // NOT first client
-    //  allocate the client object
-    gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
-    *client_p = gasneti_export_client(client);
-
-    //  create the initial endpoint with internal handlers
-    if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
-      GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
+  } else {
+    gasneti_fatalerror("No multi-client support");
   }
-  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   // Do NOT move this prior to the gasneti_trace_init() call
   GASNETI_TRACE_PRINTF(O,("gex_Client_Init: name='%s' argc_p=%p argv_p=%p flags=%d",
                           clientName, (void *)argc, (void *)argv, flags));
-
-  // TODO-EX: create team
-  gasneti_TM_t tm = first_client
-                    ? gasneti_import_tm(gasnetc_bootstrap_tm) // gasnetc_init() creates very first TM
-                    : gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
-  *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
@@ -877,6 +855,8 @@ extern int gasnetc_Client_Init(
 
     /* ensure everything is initialized across all nodes */
     gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
+  } else {
+    gasneti_attach_done = 0; // Pending client call to gasnet_attach()
   }
 
   return GASNET_OK;
