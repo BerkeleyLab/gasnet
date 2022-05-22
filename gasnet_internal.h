@@ -935,9 +935,16 @@ size_t gasneti_blockingRotatedExchangeV(gex_TM_t tm, GASNETI_BUG4227_CONST void 
 // An AM-based host-scoped barrier
 extern void gasneti_host_barrier(void);
 extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
+
+// An AM-based host-scoped sum of uint64_t
+extern uint64_t gasneti_host_sumu64(uint64_t);
+extern void gasnetc_hsumu64_reqh(gex_Token_t token, gex_AM_Arg_t arg0, gex_AM_Arg_t arg1);
+
 #define GASNETC_COMMON_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0)
+    gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0), \
+    gasneti_handler_tableentry_no_bits(gasnetc_hsumu64_reqh,2,REQUEST,SHORT,0)
 #define _hidx_gasnetc_hbarr_reqh              (GASNETE_HANDLER_BASE-1)
+#define _hidx_gasnetc_hsumu64_reqh            (GASNETE_HANDLER_BASE-2)
 
 /* ------------------------------------------------------------------------------------ */
 // Helpers for debug checks

@@ -4,6 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
+#include <coll/gasnet_coll_internal.h>
 #include <gasnet_core_internal.h> // for handler indices
 
 /* ------------------------------------------------------------------------------------ */
@@ -51,4 +52,73 @@ void gasneti_host_barrier(void)
   phase ^= 1;
 }
 
+/* ------------------------------------------------------------------------------------ */
+// Host-scoped (potentially superset of supernode) reduce-to-all(SUM, uint64_t)
+//
+// Note a lack explicit thread-safety provisions, under the assumption that the
+// only callers are serial initialization.  The use of atomics in the handler
+// are sufficient to guard against concurrent hander execution by a conduit thread.
+
+// Following are both implicitly zero-initialized:
+static gasneti_weakatomic32_t gasneti_hsumu64_rcvd;
+static gasneti_weakatomic64_t gasneti_hsumu64_sum;
+
+extern void gasnetc_hsumu64_reqh(gex_Token_t token, gex_AM_Arg_t arg0, gex_AM_Arg_t arg1)
+{
+  uint64_t operand = GASNETI_MAKEWORD(arg0, arg1);
+  gasneti_weakatomic64_add(&gasneti_hsumu64_sum, operand, 0);
+  gasneti_weakatomic32_increment(&gasneti_hsumu64_rcvd, GASNETI_ATOMIC_REL);
+}
+
+uint64_t gasneti_host_sumu64(uint64_t operand)
+{
+  // Sum on the way up a binimial tree, and then broadcast down the same tree
+  const gex_Rank_t rank = gasneti_myhost.node_rank;
+  const gex_Rank_t size = gasneti_myhost.node_count;
+  gasneti_assert_uint(size ,<, 0x80000000); // otherwise some of the math below goes wrong
+  const gex_Rank_t remain = size - rank;
+  const gex_Rank_t fullsize = (rank & (-rank));
+  const gex_Rank_t subsize = (!fullsize || (fullsize > remain)) ? remain : fullsize;
+  const gex_Rank_t children = 1 + gasnete_coll_log2_rank(subsize - 1);
+  const gex_Rank_t parent = rank - fullsize;
+
+  gasneti_weakatomic32_t *rcvd_counter = &gasneti_hsumu64_rcvd;
+  gasneti_weakatomic64_t *sum = &gasneti_hsumu64_sum;
+  uint64_t result = operand;
+
+  if (children) {
+    // 1. wait for contributions from children
+    GASNET_BLOCKUNTIL((gex_Rank_t)gasneti_weakatomic32_read(rcvd_counter,0) == children);
+    result += gasneti_weakatomic64_read(sum,0);
+    gasneti_weakatomic64_set(sum,0,0);
+  }
+
+  if (rank) {
+    // 2. send partial result to parent
+    gex_AM_RequestShort(gasneti_THUNK_TM, gasneti_myhost.nodes[parent],
+                        gasneti_handleridx(gasnetc_hsumu64_reqh), 0,
+                        GASNETI_HIWORD(result), GASNETI_LOWORD(result));
+    // 3. wait for final result from parent
+    GASNET_BLOCKUNTIL((gex_Rank_t)gasneti_weakatomic32_read(rcvd_counter,0) == children + 1);
+    result = gasneti_weakatomic64_read(sum,0);
+    gasneti_weakatomic64_set(sum,0,0);
+  }
+
+  // 4. reset state for next time
+  gasneti_weakatomic32_set(rcvd_counter,0,0);
+
+  if (children) {
+    // 5. forward result to children
+    uint32_t arg0 = GASNETI_HIWORD(result);
+    uint32_t arg1 = GASNETI_LOWORD(result);
+    for (int idx = children - 1; idx >= 0; --idx) { // Reverse order for deepest subtree first
+      gex_Rank_t peer = gasneti_myhost.nodes[rank + (1 << idx)];
+      gex_AM_RequestShort(gasneti_THUNK_TM, peer,
+                          gasneti_handleridx(gasnetc_hsumu64_reqh), 0,
+                          arg0, arg1);
+    }
+  }
+
+  return result;
+}
 /* ------------------------------------------------------------------------------------ */

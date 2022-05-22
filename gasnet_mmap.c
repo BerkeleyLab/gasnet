@@ -1343,12 +1343,17 @@ uint64_t gasneti_sharedLimit(void) {
    for exchangefn and barrierfn: the implementations are only required to
     perform their functions with respect the peers on a host
     (though exchangefn does require a "full" third argument).
-    however, global implementations are acceptible
+    however, global implementations are acceptable
+
+   If exchangefn is NULL, then gasneti_host_sumu64() is used, which required
+   that gex_AM_RequestShort() be usable.
 
    If barrierfn is NULL, then gasneti_host_barrier() is used, which requires
-   that gex_AM_RequestShort() be usable.  So a conduit only needs to provide
-   barrierfn when gex_AM_RequestShort() is not usable, or when there is a
-   more efficient alternative.
+   that gex_AM_RequestShort() be usable.
+
+   So a conduit only needs to provide an exchangefn or barrierfn when
+   gex_AM_RequestShort() is not usable, or when it can provide a more
+   efficient alternative.
  */
 uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
@@ -1365,7 +1370,6 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
 
   if (! barrierfn) barrierfn = &gasneti_host_barrier;
 
-  gasneti_assert(exchangefn);
   gasneti_assert(gasneti_nodemap);
 
   /* Apply intial limits, even if not sharing nodes */
@@ -1377,7 +1381,6 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
 
   /* Coordinate the search IFF there are any shared nodes. */
   if (gasneti_myhost.grp_count != gasneti_nodes) {
-    uintptr_t *sz_exchg = gasneti_calloc(gasneti_nodes, sizeof(uintptr_t));
     gasnet_seginfo_t se = {0,0};
 
     /* Ensure our probe will not collectively exceed the shareLimit, if any. */
@@ -1398,7 +1401,6 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
         }
         /* Bcast because we can use "declining expectations" to potentially speed later probes */
         gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, &maxsz, sizeof(uintptr_t), &maxsz, i);
-        sz_exchg[gasneti_nodemap_local[i]] = maxsz;
         if (!maxsz) break;
       }
     } else
@@ -1425,13 +1427,21 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
         (*barrierfn)();
       }
     }
-    (*exchangefn)(&se.size, sizeof(uintptr_t), sz_exchg);
 
-    /* Compute the host-local mean */
-    { uint64_t sum = 0;
+    // Compute the host-local mean
+    uint64_t sum = 0;
+    if (exchangefn) {
+      uintptr_t *sz_exchg = gasneti_calloc(gasneti_nodes, sizeof(uintptr_t));
+      (*exchangefn)(&se.size, sizeof(uintptr_t), sz_exchg);
       for (i = 0; i < local_count; ++i) {
         sum += sz_exchg[gasneti_myhost.nodes[i]];
       }
+      gasneti_free(sz_exchg);
+    } else {
+      sum = gasneti_host_sumu64(se.size);
+    }
+
+    {
       maxsz = gasneti_mmap_aligndown(sum / local_count);
 
 #if GASNET_PSHM
@@ -1491,7 +1501,6 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
     }
 
     /* Free held resources */
-    gasneti_free(sz_exchg);
     if (se.size) gasneti_do_munmap(se.addr, se.size);
     (*barrierfn)(); /* Ensures munmap()s complete on-node before return */
   }
