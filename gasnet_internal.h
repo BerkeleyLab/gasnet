@@ -937,6 +937,7 @@ extern void gasneti_host_barrier(void);
 extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
 #define GASNETC_COMMON_HANDLERS() \
     gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0)
+#define _hidx_gasnetc_hbarr_reqh              (GASNETE_HANDLER_BASE-1)
 
 /* ------------------------------------------------------------------------------------ */
 // Helpers for debug checks
