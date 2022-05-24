@@ -537,9 +537,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
   pm_limit -= overheads;
 
   if (gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_PROBE", 1)) {
-    limit = gasneti_segmentLimit((uintptr_t)-1, pm_limit,
-                            &gasnetc_bootstrapExchange_gni,
-                            &gasnetc_bootstrapBarrier_gni);
+    limit = gasneti_segmentLimit((uintptr_t)-1, pm_limit, NULL, NULL);
   } else {
     limit = pm_limit;
   }

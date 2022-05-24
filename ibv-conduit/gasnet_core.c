@@ -2684,10 +2684,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     }
     sharedLimit -= hostAuxSegs;
 
-    mmap_limit = gasneti_segmentLimit(
-                                  local_limit, sharedLimit,
-                                  &gasnetc_bootstrapExchange_ib,
-                                  &gasnetc_bootstrapBarrier_ib);
+    mmap_limit = gasneti_segmentLimit(local_limit, sharedLimit, NULL, NULL);
   #else
     mmap_limit = local_limit; // No better info available
   #endif

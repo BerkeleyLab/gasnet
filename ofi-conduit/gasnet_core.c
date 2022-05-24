@@ -143,9 +143,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     }
     sharedLimit -= hostAuxSegs;
 
-    mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit,
-                                gasneti_spawner->Exchange,
-                                gasneti_spawner->Barrier);
+    mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit, NULL, NULL);
   #else
     // TODO-EX: we can at least look at rlimits but such logic belongs in conduit-indep code
     mmap_limit = (intptr_t)-1;

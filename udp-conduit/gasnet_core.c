@@ -319,6 +319,7 @@ static int gasnetc_init(
     uintptr_t mmap_limit;
     #if HAVE_MMAP
     {
+    AMUNLOCK();
       // Bound per-host (sharedLimit) argument to gasneti_segmentLimit()
       // while properly reserving space for aux segments.
       uint64_t sharedLimit = gasneti_sharedLimit();
@@ -330,9 +331,8 @@ static int gasnetc_init(
       }
       sharedLimit -= hostAuxSegs;
 
-      mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit,
-                                  &gasnetc_bootstrapExchange,
-                                  &gasnetc_bootstrapBarrier);
+      mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit, NULL, NULL);
+    AMLOCK();
     }
     #else
       // TODO-EX: we can at least look at rlimits but such logic belongs in conduit-indep code

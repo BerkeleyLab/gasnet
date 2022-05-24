@@ -708,9 +708,7 @@ static int gasnetc_init(
   void *auxbase = auxseg.addr;
   uintptr_t auxsize = auxseg.size;
 
-  uintptr_t limit = gasneti_segmentLimit((uintptr_t)-1, (uint64_t)-1,
-                                         &gasneti_bootstrapExchange,
-                                         &gasneti_bootstrapBarrier);
+  uintptr_t limit = gasneti_segmentLimit((uintptr_t)-1, (uint64_t)-1, NULL, NULL);
 
   /* determine Max{Local,GLobal}SegmentSize */
   gasneti_segmentInit(limit, &gasneti_bootstrapExchange, flags);

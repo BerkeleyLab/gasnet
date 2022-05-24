@@ -612,9 +612,7 @@ static int gasnetc_init(
     }
     sharedLimit -= hostAuxSegs;
 
-    mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit,
-                                  &gasnetc_bootstrapExchange,
-                                  &gasnetc_bootstrapBarrier);
+    mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit, NULL, &gasnetc_bootstrapBarrier);
   #else
     // TODO-EX: we can at least look at rlimits but such logic belongs in conduit-indep code
     mmap_limit = (intptr_t)-1;
