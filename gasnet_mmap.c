@@ -1344,6 +1344,11 @@ uint64_t gasneti_sharedLimit(void) {
     perform their functions with respect the peers on a host
     (though exchangefn does require a "full" third argument).
     however, global implementations are acceptible
+
+   If barrierfn is NULL, then gasneti_host_barrier() is used, which requires
+   that gex_AM_RequestShort() be usable.  So a conduit only needs to provide
+   barrierfn when gex_AM_RequestShort() is not usable, or when there is a
+   more efficient alternative.
  */
 uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
@@ -1358,8 +1363,9 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
   // This is assumed implictly
   gasneti_assert_uint(gasneti_mmap_pagesize() ,>=, GASNETI_PAGESIZE);
 
+  if (! barrierfn) barrierfn = &gasneti_host_barrier;
+
   gasneti_assert(exchangefn);
-  gasneti_assert(barrierfn); /* No longer optional */
   gasneti_assert(gasneti_nodemap);
 
   /* Apply intial limits, even if not sharing nodes */
