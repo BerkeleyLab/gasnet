@@ -266,25 +266,12 @@ static void gasnetc_sys_coll_init(void)
   gasnetc_bootstrapBarrier_phase = 0;
   gasnetc_bootstrapExchange_phase = 0;
 
-  /* Construct vector of the dissemination peers */
-  gasnetc_dissem_peers = 0;
-  for (i = 1; i < size; i *= 2) {
-    ++gasnetc_dissem_peers;
-  }
-  if (NULL == gasnetc_dissem_peer) {
-    gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gex_Rank_t));
-    gasneti_leak(gasnetc_dissem_peer);
-  }
-  for (i = 0; i < gasnetc_dissem_peers; ++i) {
-    const gex_Rank_t distance = 1 << i;
-    const gex_Rank_t peer = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
+  // Construct vector of the dissemination peers
   #if GASNET_PSHM
-    /* Convert supernode numbers to node numbers */
-    gasnetc_dissem_peer[i] = gasneti_pshm_firsts[peer];
+    gasnetc_dissem_peers = gasneti_get_dissem_peers_pshm(&gasnetc_dissem_peer);
   #else
-    gasnetc_dissem_peer[i] = peer;
+    gasnetc_dissem_peers = gasneti_get_dissem_peers(&gasnetc_dissem_peer);
   #endif
-  }
 
   /* Compute the recv offset and send count for each step of exchange */
   gasnetc_exchange_rcvd = gasneti_malloc((gasnetc_dissem_peers+1) * sizeof(gex_Rank_t));

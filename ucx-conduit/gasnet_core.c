@@ -897,25 +897,7 @@ static gex_Rank_t gasnetc_dissem_peers = 0;
 static gex_Rank_t *gasnetc_dissem_peer = NULL;
 
 static void gasnetc_exit_init(void) {
-  const gex_Rank_t size = gasneti_nodes;
-  const gex_Rank_t rank = gasneti_mynode;
-
-  if (size == 1) return;  // No network comms
-
-  // Construct vector of the dissemination peers for exitcode reduction
-  gasnetc_dissem_peers = 0;
-  for (int i = 1; i < size; i *= 2) {
-    ++gasnetc_dissem_peers;
-  }
-  if (NULL == gasnetc_dissem_peer) {
-    gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gex_Rank_t));
-    gasneti_leak(gasnetc_dissem_peer);
-  }
-  for (int i = 0; i < gasnetc_dissem_peers; ++i) {
-    const gex_Rank_t distance = 1 << i;
-    const gex_Rank_t peer = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
-    gasnetc_dissem_peer[i] = peer;
-  }
+  gasnetc_dissem_peers = gasneti_get_dissem_peers(&gasnetc_dissem_peer);
 }
 
 /* gasnetc_exit_now

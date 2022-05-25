@@ -8,6 +8,95 @@
 #include <gasnet_core_internal.h> // for handler indices
 
 /* ------------------------------------------------------------------------------------ */
+// Return a vector of peers for dissemination barrier or Bruck's GatherAll
+// returns length, writes pointer to *out_p
+// when length is 0, *out_p will be NULL
+//
+// Note that the only thread-safety provisions are guards against concurrent
+// handler execution if GASNETI_CONDUIT_THREADS is asserted.  This is under
+// the assumption that the only callers are serial initialization code and
+// AM handlers such as those in this file.
+gex_Rank_t gasneti_get_dissem_peers(gex_Rank_t **out_p)
+{
+  static gex_Rank_t result_len = 0;
+  static gex_Rank_t *result_vec = NULL;
+  static int is_init = 0;
+
+#if GASNETI_CONDUIT_THREADS
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_lock(&lock);
+#endif
+
+  if (!is_init) {
+    is_init = 1;
+
+    gex_Rank_t size = gasneti_nodes;
+    gex_Rank_t rank = gasneti_mynode;
+
+    if (size > 1) {
+      gasneti_assert_uint(result_len ,==, 0);
+      for (gex_Rank_t i = 1; i < size; i *= 2) result_len += 1;
+
+      result_vec = gasneti_malloc(result_len * sizeof(gex_Rank_t));
+      gasneti_leak(result_vec);
+      for (gex_Rank_t i = 0; i < result_len; ++i) {
+        gex_Rank_t distance = 1 << i;
+        result_vec[i] = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
+      }
+    }
+  }
+
+#if GASNETI_CONDUIT_THREADS
+  gasneti_mutex_unlock(&lock);
+#endif
+
+  *out_p = result_vec;
+  return result_len;
+}
+
+#if GASNET_PSHM
+// As above but consisting of just one "leader" per nbrhd
+gex_Rank_t gasneti_get_dissem_peers_pshm(gex_Rank_t **out_p)
+{
+  static gex_Rank_t result_len = 0;
+  static gex_Rank_t *result_vec = NULL;
+  static int is_init = 0;
+
+#if GASNETI_CONDUIT_THREADS
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_lock(&lock);
+#endif
+
+  if (!is_init) {
+    is_init = 1;
+
+    gex_Rank_t size = gasneti_nodemap_global_count;
+    gex_Rank_t rank = gasneti_nodemap_global_rank;
+
+    if (size > 1) {
+      gasneti_assert_uint(result_len ,==, 0);
+      for (gex_Rank_t i = 1; i < size; i *= 2) result_len += 1;
+
+      result_vec = gasneti_malloc(result_len * sizeof(gex_Rank_t));
+      gasneti_leak(result_vec);
+      for (gex_Rank_t i = 0; i < result_len; ++i) {
+        gex_Rank_t distance = 1 << i;
+        gex_Rank_t peer = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
+        result_vec[i] = gasneti_pshm_firsts[peer];
+      }
+    }
+  }
+
+#if GASNETI_CONDUIT_THREADS
+  gasneti_mutex_unlock(&lock);
+#endif
+
+  *out_p = result_vec;
+  return result_len;
+}
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 // Host-scoped (potentially superset of supernode) barrier
 //
 // Note a lack explicit thread-safety provisions, under the assumption that the

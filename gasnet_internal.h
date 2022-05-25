@@ -946,6 +946,11 @@ extern void gasnetc_hsumu64_reqh(gex_Token_t token, gex_AM_Arg_t arg0, gex_AM_Ar
 #define _hidx_gasnetc_hbarr_reqh              (GASNETE_HANDLER_BASE-1)
 #define _hidx_gasnetc_hsumu64_reqh            (GASNETE_HANDLER_BASE-2)
 
+extern gex_Rank_t gasneti_get_dissem_peers(gex_Rank_t **out_p);
+#if GASNET_PSHM
+extern gex_Rank_t gasneti_get_dissem_peers_pshm(gex_Rank_t **out_p);
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 // Helpers for debug checks
 
