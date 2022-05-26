@@ -14,7 +14,7 @@
 
 /* ------------------------------------------------------------------------------------ */
 #define _hidx_gasnetc_exit_reqh               (GASNETC_HANDLER_BASE+0)
-#define _hidx_gasnetc_sys_barrier_reqh        (GASNETC_HANDLER_BASE+1)
+//#define UNUSED                              (GASNETC_HANDLER_BASE+1)
 #define _hidx_gasnetc_sys_exchange_reqh       (GASNETC_HANDLER_BASE+2)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
@@ -104,7 +104,6 @@ extern gasnetc_exitcode_t *gasnetc_exitcodes;
 
 extern gasneti_spawnerfn_t const *gasneti_spawner;
 
-void gasnetc_bootstrapBarrier_gni(void);
 void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest);
 
 /* ------------------------------------------------------------------------------------ */

@@ -146,45 +146,6 @@ static gex_Rank_t *gasnetc_exchange_send = NULL;
 #if GASNET_PSHM
 static gex_Rank_t *gasnetc_exchange_permute = NULL;
 #endif
-static uint32_t gasnetc_sys_barrier_rcvd[2];
-
-static void gasnetc_sys_barrier_reqh(gex_Token_t token, uint32_t arg)
-{
-    gasnetc_sys_barrier_rcvd[arg&1] |= arg;
-}
-
-GASNETI_NEVER_INLINE(gasnetc_bootstrapBarrier_gni,
-void gasnetc_bootstrapBarrier_gni(void))
-{
-    GASNET_BEGIN_FUNCTION();
-    static int phase = 0;
-    int i;
-
-#if GASNET_PSHM
-    gasneti_pshmnet_bootstrapBarrier();
-#endif
- 
-    for (i = 0; i < gasnetc_dissem_peers; ++i) { /* EMPTY for all but first per supernode */
-      const uint32_t mask = 2 << i; /* (distance << 1) */
-
-      gex_AM_RequestShort1(gasnetc_bootstrap_tm, gasnetc_dissem_peer[i],
-                               gasneti_handleridx(gasnetc_sys_barrier_reqh),
-                               0, phase | mask);
-
-      /* wait for completion of the proper receive, which might arrive out of order */
-      while (!(gasnetc_sys_barrier_rcvd[phase] & mask)) {
-         gasnetc_poll(GASNETI_THREAD_PASS_ALONE);  /* No PSHM progress required here */
-      }
-    }
-
-#if GASNET_PSHM
-    gasneti_pshmnet_bootstrapBarrier();
-#endif
-
-    /* reset for next barrier */
-    gasnetc_sys_barrier_rcvd[phase] = 0;
-    phase ^= 1;
-}
 
 #define GASNETC_SYS_EXCHANGE_MAX GASNETC_MAX_MEDIUM(2)
 static unsigned int gasnetc_sys_exchange_rcvd[2][GASNETC_LOG2_MAXNODES];
@@ -749,7 +710,7 @@ extern int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
-  gasnetc_bootstrapBarrier_gni();
+  gasneti_bootstrapBarrier_am();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete"));
 
@@ -758,7 +719,7 @@ extern int gasnetc_attach_primary(void) {
   gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
-  gasnetc_bootstrapBarrier_gni();
+  gasneti_bootstrapBarrier_am();
 
   // tear down conduit-specific bootstrap collectives (not used after attach)
   gasnetc_sys_coll_fini();
@@ -1889,7 +1850,6 @@ static gex_AM_Entry_t const gasnetc_handlers[] = {
 
   /* ptr-width independent handlers */
     gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,REQUEST,SHORT,0),
-    gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,REQUEST,SHORT,0),
     gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0),
 
   /* ptr-width dependent handlers */

@@ -3931,7 +3931,7 @@ void gasnete_init_ce(void) {
   gasnete_ce_available = 1;
   GASNETI_TRACE_PRINTF(I,("Aries CE: available, inter-host radix = %d", radix));
 
-  gasnetc_bootstrapBarrier_gni();
+  gasneti_bootstrapBarrier_am();
 
 #if GASNET_DEBUG && !GASNET_PSHM // TODO: remove or update for PSHM?
   for (int i = 0; i < 4; ++i) {

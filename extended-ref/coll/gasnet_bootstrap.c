@@ -210,4 +210,95 @@ uint64_t gasneti_host_sumu64(uint64_t operand)
 
   return result;
 }
+
+/* ------------------------------------------------------------------------------------ */
+// Bootstrap collectives using AM Requests
+// These require Short and/or Medium Requests, plus GASNET_BLOCKUNTIL.
+// No use is currently made of Reply or Long.
+//
+// Currently Barrier is the only operation implemented.
+// TODO: more operations
+//
+// Note that the only thread-safety provisions are those needed to allow for
+// concurrent handler execution, and only if GASNETI_CONDUIT_THREADS is
+// asserted.  This is under the assumption that the only callers are serial
+// initialization code.
+
+//
+// BARRIER
+//
+
+static int gasneti_am_barrier_phase = 0;
+
+static uint32_t gasneti_am_barrier_rcvd[2] = {0, 0};
+#if GASNETI_CONDUIT_THREADS
+  // MUTEX
+  static gasneti_mutex_t gasneti_am_barrier_lock = GASNETI_MUTEX_INITIALIZER;
+  static void gasneti_am_barrier_arrival(int phase, uint32_t bit) {
+    gasneti_mutex_lock(&gasneti_am_barrier_lock);
+    gasneti_am_barrier_rcvd[phase] |= bit;
+    gasneti_mutex_unlock(&gasneti_am_barrier_lock);
+  }
+  static uint32_t gasneti_am_barrier_read(int phase) {
+    gasneti_mutex_lock(&gasneti_am_barrier_lock);
+    uint32_t result = gasneti_am_barrier_rcvd[phase];
+    gasneti_mutex_unlock(&gasneti_am_barrier_lock);
+    return result;
+  }
+  static void gasneti_am_barrier_reset(int phase) {
+    gasneti_mutex_lock(&gasneti_am_barrier_lock);
+    gasneti_am_barrier_rcvd[phase] = 0;
+    gasneti_mutex_unlock(&gasneti_am_barrier_lock);
+  }
+#else
+  // SERIAL
+  #define gasneti_am_barrier_arrival(phase,bit) \
+    ((void)(gasneti_am_barrier_rcvd[phase] |= (bit)))
+  #define gasneti_am_barrier_read(phase) \
+    (gasneti_am_barrier_rcvd[phase])
+  #define gasneti_am_barrier_reset(phase) \
+    ((void)(gasneti_am_barrier_rcvd[phase] = 0))
+#endif
+
+extern void gasnetc_am_barrier_reqh(gex_Token_t token, gex_AM_Arg_t arg)
+{
+  uint32_t phase = arg & 1;
+  uint32_t bit = arg ^ phase;
+  gasneti_assert(GASNETI_POWEROFTWO(bit));
+  gasneti_am_barrier_arrival(phase,bit);
+}
+
+extern void gasneti_bootstrapBarrier_am(void)
+{
+    gex_Rank_t *peer;
+#if GASNET_PSHM
+    gasneti_pshmnet_bootstrapBarrier();
+    gex_Rank_t size = gasneti_nodemap_local_rank
+                    ? 0 // not leader -> no network comms
+                    : gasneti_get_dissem_peers_pshm(&peer);
+#else
+    gex_Rank_t size = gasneti_get_dissem_peers(&peer);
+#endif
+
+    int phase = gasneti_am_barrier_phase;
+    for (gex_Rank_t i = 0; i < size; ++i) { // empty for PSHM/non-leader
+      const uint32_t bit = 2 << i; // (distance << 1), since phase is low bit
+
+      (void) gex_AM_RequestShort1(gasneti_THUNK_TM, peer[i],
+                                  gasneti_handleridx(gasnetc_am_barrier_reqh),
+                                  0, phase | bit);
+
+      // wait for completion of the proper receive, which might arrive out of order
+      GASNET_BLOCKUNTIL(gasneti_am_barrier_read(phase) & bit);
+    }
+
+#if GASNET_PSHM
+    gasneti_pshmnet_bootstrapBarrier();
+#endif
+
+    // reset for next barrier
+    gasneti_am_barrier_reset(phase);
+    gasneti_am_barrier_phase = !phase;
+}
+
 /* ------------------------------------------------------------------------------------ */

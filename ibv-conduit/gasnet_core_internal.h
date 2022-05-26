@@ -93,7 +93,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define _hidx_gasnetc_exit_role_reph          (GASNETC_HANDLER_BASE+2)
 #define _hidx_gasnetc_exit_reqh               (GASNETC_HANDLER_BASE+3)
 #define _hidx_gasnetc_exit_reph               (GASNETC_HANDLER_BASE+4)
-#define _hidx_gasnetc_sys_barrier_reqh        (GASNETC_HANDLER_BASE+5)
+//#define UNUSED                              (GASNETC_HANDLER_BASE+5)
 #define _hidx_gasnetc_sys_exchange_reqh       (GASNETC_HANDLER_BASE+6)
 #define _hidx_gasnetc_sys_flush_reph          (GASNETC_HANDLER_BASE+7)
 #define _hidx_gasnetc_sys_close_reqh          (GASNETC_HANDLER_BASE+8)

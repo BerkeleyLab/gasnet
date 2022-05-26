@@ -231,7 +231,6 @@ static const enum ibv_access_flags
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 static int gasneti_bootstrap_native_coll = 0;
-static int gasnetc_bootstrapBarrier_phase = 0;
 static int gasnetc_bootstrapExchange_phase = 0;
 static gex_Rank_t gasnetc_dissem_peers = 0;
 static gex_Rank_t *gasnetc_dissem_peer = NULL;
@@ -263,7 +262,6 @@ static void gasnetc_sys_coll_init(void)
     goto done;
   }
 
-  gasnetc_bootstrapBarrier_phase = 0;
   gasnetc_bootstrapExchange_phase = 0;
 
   // Construct vector of the dissemination peers
@@ -375,82 +373,13 @@ static void gasnetc_sys_coll_fini(void)
   gasneti_bootstrap_native_coll = 0;
 }
 
-#if GASNETC_USE_RCV_THREAD
-  static gasneti_atomic_t gasnetc_sys_barrier_rcvd[2] =
-                            {gasneti_atomic_init(0), gasneti_atomic_init(0)};
-  #define gasnetc_sys_barrier_read(_phase) \
-    gasneti_atomic_read(&gasnetc_sys_barrier_rcvd[_phase], 0)
-  #define gasnetc_sys_barrier_reset(_phase) \
-    gasneti_atomic_set(&gasnetc_sys_barrier_rcvd[_phase], 0, GASNETI_ATOMIC_WMB_POST)
-#else
-  static uint32_t gasnetc_sys_barrier_rcvd[2] = {0, 0};
-  #define gasnetc_sys_barrier_read(_phase) \
-    (gasnetc_sys_barrier_rcvd[_phase])
-  #define gasnetc_sys_barrier_reset(_phase) \
-    ((void)(gasnetc_sys_barrier_rcvd[_phase] = 0))
-#endif
-
-static void gasnetc_sys_barrier_reqh(gex_Token_t token, uint32_t arg)
-{
-    const int phase = arg & 1;
-#if GASNETC_USE_RCV_THREAD
-    gasneti_atomic_t *p = &gasnetc_sys_barrier_rcvd[phase];
-  #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
-    /* atomic OR via ADD since no bit will be set more than once */
-    const int flag = arg & ~1;
-    gasneti_assert(GASNETI_POWEROFTWO(flag));
-    gasneti_atomic_add(p, flag, 0);
-  #elif defined(GASNETI_HAVE_ATOMIC_CAS)
-    /* atomic OR via C-A-S */
-    uint32_t old_val;
-    do {
-      old_val = gasneti_atomic32_read(p, 0);
-    } while (!gasneti_atomic_compare_and_swap(p, old_val, old_val|arg, 0));
-  #else
-    #error "required atomic compare-and-swap is not yet implemented for your CPU/OS/compiler"
-  #endif
-#else
-    gasnetc_sys_barrier_rcvd[phase] |= arg;
-#endif
-}
-
-static void gasnetc_bootstrapBarrier_ib(void)
-{
-    int phase = gasnetc_bootstrapBarrier_phase;
-    int i;
-
-#if GASNET_PSHM
-    gasneti_pshmnet_bootstrapBarrier();
-#endif
-    for (i = 0; i < gasnetc_dissem_peers; ++i) {
-      const uint32_t mask = 2 << i; /* (distance << 1) */
-
-      (void) gasnetc_RequestSysShort(gasnetc_dissem_peer[i], NULL,
-                                     gasneti_handleridx(gasnetc_sys_barrier_reqh),
-                                     1, phase | mask);
-
-      /* wait for completion of the proper receive, which might arrive out of order */
-      while (!(gasnetc_sys_barrier_read(phase) & mask)) {
-         gasnetc_sndrcv_poll(0);
-      }
-    }
-#if GASNET_PSHM
-    gasneti_pshmnet_bootstrapBarrier();
-#endif
-
-    /* reset for next barrier */
-    gasnetc_sys_barrier_reset(phase);
-    gasnetc_bootstrapBarrier_phase ^= 1;
-}
-
 extern void gasneti_bootstrapBarrier(void)
 {
-  if (gasneti_bootstrap_native_coll) {
+  if (gasneti_attach_done) {
   #if GASNET_DEBUG
-    gasneti_console0_message("DEVWARN","Indirect native Barrier");
-    // gasnett_print_backtrace(2);
+    gasneti_console0_message("DEVWARN","Indirect AM Barrier");
   #endif
-    gasnetc_bootstrapBarrier_ib();
+    gasneti_bootstrapBarrier_am();
   } else {
     gasneti_spawner->Barrier();
   }
@@ -1093,7 +1022,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
       /* Extra mmap traffic to ensure compatible VM spaces */
       gasnetc_fakepin(all_info[first_local].memory, step);
     }
-    gasnetc_bootstrapBarrier_ib(); /* Ensure fakepin completes unmap before continuing */
+    gasneti_bootstrapBarrier_am(); // Ensure fakepin completes unmap before continuing
 #endif
   } else {
     /* Note that README says PHYSMEM_NOPROBE must be equal on all nodes */
@@ -2709,7 +2638,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     /* Done earlier to allow tracing */
     gasneti_init_done = 1;  
   #endif
-  gasnetc_bootstrapBarrier_ib();
+  gasneti_bootstrapBarrier_am();
 
   return GASNET_OK;
 }
@@ -2829,7 +2758,7 @@ extern int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
-  gasnetc_bootstrapBarrier_ib();
+  gasneti_bootstrapBarrier_am();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete"));
 
@@ -2838,7 +2767,7 @@ extern int gasnetc_attach_primary(void) {
   gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
-  gasnetc_bootstrapBarrier_ib();
+  gasneti_bootstrapBarrier_am();
 
 #if GASNETC_USE_RCV_THREAD
   /* Start AM receive thread, if applicable */
@@ -2851,7 +2780,7 @@ extern int gasnetc_attach_primary(void) {
   /* Ensure fini-init-fini works (required for checkpoint/restart) */
   gasnetc_sys_coll_init();
   gasneti_spawner->Barrier();
-  gasnetc_bootstrapBarrier_ib();
+  gasneti_bootstrapBarrier_am();
   gasnetc_sys_coll_fini();
 #endif
 
@@ -5881,7 +5810,6 @@ static gex_AM_Entry_t const gasnetc_handlers[] = {
   gasneti_handler_tableentry_no_bits(gasnetc_exit_role_reph,1,REPLY,SHORT,0),
   gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,REQUEST,SHORT,0),
   gasneti_handler_tableentry_no_bits(gasnetc_exit_reph,0,REPLY,SHORT,0),
-  gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,REQUEST,SHORT,0),
   gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0),
   #if GASNETC_IBV_SHUTDOWN
     gasneti_handler_tableentry_no_bits(gasnetc_sys_flush_reph,1,REPLY,SHORT,0),
