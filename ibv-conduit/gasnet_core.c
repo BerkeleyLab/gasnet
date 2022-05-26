@@ -223,35 +223,12 @@ static const enum ibv_access_flags
                                  IBV_ACCESS_REMOTE_READ  |
                                  IBV_ACCESS_REMOTE_ATOMIC);
 
-/* ------------------------------------------------------------------------------------ */
-/*
-  Bootstrap collectives
-*/
-
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
-static int gasneti_bootstrap_native_coll = 0;
-static gex_Rank_t gasnetc_dissem_peers = 0;
-static gex_Rank_t *gasnetc_dissem_peer = NULL;
-
-static void gasnetc_sys_coll_init(void)
-{
-  // Construct vector of the dissemination peers
-  #if GASNET_PSHM
-    gasnetc_dissem_peers = gasneti_get_dissem_peers_pshm(&gasnetc_dissem_peer);
-  #else
-    gasnetc_dissem_peers = gasneti_get_dissem_peers(&gasnetc_dissem_peer);
-  #endif
-
-  gasneti_assert(! gasneti_bootstrap_native_coll);
-  gasneti_bootstrap_native_coll = 1;
-  gasneti_spawner->Cleanup(); // No use of ssh/mpi/pmi collectives until possible shutdown
-}
-
-static void gasnetc_sys_coll_fini(void)
-{
-  gasneti_bootstrap_native_coll = 0;
-}
+/* ------------------------------------------------------------------------------------ */
+/*
+  Bootstrap collective wrappers
+*/
 
 extern void gasneti_bootstrapBarrier(void)
 {
@@ -2255,7 +2232,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
    * via AMs or "raw" IB if desired for efficiency (but no segment for RDMA).
    * Currently only Exchange (aka GatherAll) and Barrier are used beyond this point.
    */
-  gasnetc_sys_coll_init();
   gasneti_attach_done = 1; // Ready to use AM Short and Medium for bootstrap comms
 
   // Determine largest allowable single memory registration supported by the HCA(s)
@@ -2484,16 +2460,6 @@ extern int gasnetc_attach_primary(void) {
 #if GASNETC_USE_RCV_THREAD
   /* Start AM receive thread, if applicable */
   gasnetc_sndrcv_start_thread();
-#endif
-
-  // tear down conduit-specific bootstrap collectives (not used after attach)
-  gasnetc_sys_coll_fini();
-#if GASNET_DEBUG
-  /* Ensure fini-init-fini works (required for checkpoint/restart) */
-  gasnetc_sys_coll_init();
-  gasneti_spawner->Barrier();
-  gasneti_bootstrapBarrier_am();
-  gasnetc_sys_coll_fini();
 #endif
 
   return GASNET_OK;
@@ -2895,6 +2861,9 @@ static gasneti_atomic_t gasnetc_exit_role = gasneti_atomic_init(GASNETC_EXIT_ROL
 
 static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 
+static gex_Rank_t gasnetc_exit_peers = 0;
+static gex_Rank_t *gasnetc_exit_peer = NULL;
+
 // NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
 // volume of garbage that might get printed in the event of memory corruption.
 #define GASNETC_EXIT_STATE_MAXLEN 50
@@ -2968,9 +2937,9 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 #endif
 
   GASNETC_EXIT_STATE("exitcode reduction: dissemination");
-  for (i = 0; i < gasnetc_dissem_peers; ++i) {
+  for (i = 0; i < gasnetc_exit_peers; ++i) {
     const uint32_t distance = 1 << i;
-    rc = gasnetc_RequestSysShort(gasnetc_dissem_peer[i], NULL,
+    rc = gasnetc_RequestSysShort(gasnetc_exit_peer[i], NULL,
                                  gasneti_handleridx(gasnetc_exit_reduce_reqh),
                                  2, exitcode, distance);
     if (rc != GASNET_OK) return -1;
@@ -3632,6 +3601,13 @@ static void gasnetc_atexit(int exitcode) {
 }
 
 static void gasnetc_exit_init(void) {
+  // Construct vector of the dissemination peers
+#if GASNET_PSHM
+  gasnetc_exit_peers = gasneti_get_dissem_peers_pshm(&gasnetc_exit_peer);
+#else
+  gasnetc_exit_peers = gasneti_get_dissem_peers(&gasnetc_exit_peer);
+#endif
+
   // register an exit-time callback for ODP (needed for GASNET_CATCH_EXIT=0 case)
 #if GASNETC_IBV_ODP
   if (gasnetc_use_odp) {
