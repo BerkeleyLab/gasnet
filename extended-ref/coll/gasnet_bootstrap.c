@@ -216,8 +216,8 @@ uint64_t gasneti_host_sumu64(uint64_t operand)
 // These require Short and/or Medium Requests, plus GASNET_BLOCKUNTIL.
 // No use is currently made of Reply or Long.
 //
-// Currently Barrier is the only operation implemented.
-// TODO: more operations
+// Currently Barrier and Exchange are provided.
+// TODO: more operations as needed
 //
 // Note that the only thread-safety provisions are those needed to allow for
 // concurrent handler execution, and only if GASNETI_CONDUIT_THREADS is
@@ -299,6 +299,301 @@ extern void gasneti_bootstrapBarrier_am(void)
     // reset for next barrier
     gasneti_am_barrier_reset(phase);
     gasneti_am_barrier_phase = !phase;
+}
+
+//
+// EXCHANGE
+//
+
+static int gasneti_am_exchange_phase = 0;
+
+static gex_Rank_t *gasneti_am_exchange_rcvd = NULL;
+static gex_Rank_t *gasneti_am_exchange_send = NULL;
+#if GASNET_PSHM
+static gex_Rank_t *gasneti_am_exchange_permute = NULL;
+#endif
+static uint8_t *gasneti_am_exchange_buf[2] = { NULL, NULL };
+
+#if GASNETI_CONDUIT_THREADS
+  static gasneti_atomic_t gasneti_am_exchange_cntr[2][32] =
+  { { gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0) },
+    { gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0), gasneti_atomic_init(0) } };
+  #define gasneti_am_exchange_inc(_phase, _step) \
+    gasneti_atomic_increment(&gasneti_am_exchange_cntr[_phase][_step], GASNETI_ATOMIC_REL)
+  #define gasneti_am_exchange_read(_phase, _step) \
+    gasneti_atomic_read(&gasneti_am_exchange_cntr[_phase][_step], GASNETI_ATOMIC_NONE)
+  #define gasneti_am_exchange_reset(_phase, _step) \
+    gasneti_atomic_set(&gasneti_am_exchange_cntr[_phase][_step], 0, GASNETI_ATOMIC_ACQ)
+#else
+  static gasneti_atomic_val_t gasneti_am_exchange_cntr[2][32] =
+  { { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
+  #define gasneti_am_exchange_inc(_phase, _step) \
+    ((void)(++gasneti_am_exchange_cntr[_phase][_step]))
+  #define gasneti_am_exchange_read(_phase, _step) \
+    (gasneti_am_exchange_cntr[_phase][_step])
+  #define gasneti_am_exchange_reset(_phase, _step) \
+    ((void)(gasneti_am_exchange_cntr[_phase][_step] = 0))
+#endif
+
+GASNETI_NEVER_INLINE(gasneti_am_exchange_init,
+static void gasneti_am_exchange_init(void))
+{
+#if GASNETI_CONDUIT_THREADS
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_lock(&lock);
+#endif
+
+  static int is_init = 0;
+  if (is_init) goto done;
+  is_init = 1;
+
+#if GASNET_PSHM
+  const gex_Rank_t size = gasneti_nodemap_global_count;
+  const gex_Rank_t rank = gasneti_nodemap_global_rank;
+
+  if (gasneti_nodemap_local_rank || size == 1) goto done; // No network comms
+#else
+  const gex_Rank_t size = gasneti_nodes;
+  const gex_Rank_t rank = gasneti_mynode;
+
+  if (size == 1) goto done; // No network comms
+#endif
+
+  // Fetch vector of the dissemination peers (only need length)
+  gex_Rank_t *peers;
+  gex_Rank_t num_peers;
+  #if GASNET_PSHM
+    num_peers = gasneti_get_dissem_peers_pshm(&peers);
+  #else
+    num_peers = gasneti_get_dissem_peers(&peers);
+  #endif
+
+  // Compute the recv offset and send count for each step of exchange
+  gasneti_am_exchange_rcvd = gasneti_malloc((num_peers+1) * sizeof(gex_Rank_t));
+  gasneti_am_exchange_send = gasneti_malloc(num_peers * sizeof(gex_Rank_t));
+  { gex_Rank_t i, step;
+  #if GASNET_PSHM
+    gex_Rank_t *width;
+    gex_Rank_t sum1 = 0;
+    gex_Rank_t sum2 = 0;
+    gex_Rank_t distance, last;
+
+    distance = 1 << (num_peers-1);
+    last = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
+
+    // Step 1: determine the "width" of each nbrhd
+    width = gasneti_calloc(size, sizeof(gex_Rank_t));
+    for (i = 0; i < gasneti_nodes; ++i) {
+      width[gasneti_nodeinfo[i].supernode] += 1;
+    }
+    // Step 2: form the necessary partial sums
+    for (step = i = 0; step < num_peers; ++step) {
+      distance = 1 << step;
+      for (/*empty*/; i < distance; ++i) {
+        sum1 += width[ (rank + i) % size ];
+        sum2 += width[ (last + i) % size ];
+      }
+      gasneti_am_exchange_rcvd[step] = gasneti_am_exchange_send[step] = sum1;
+    }
+    gasneti_am_exchange_send[step-1] = gasneti_nodes - sum2;
+    gasneti_am_exchange_rcvd[step] = gasneti_nodes;
+    // Step 3: construct the permutation vector, if necessary
+    {
+      // Step 3a. determine if we even need a permutation vector
+      int sorted = 1;
+      gasneti_assert(0 == gasneti_nodeinfo[0].supernode);
+      gex_Rank_t n = 0;
+      for (i = 1; i < gasneti_nodes; ++i) {
+        if (n > gasneti_nodeinfo[i].supernode) {
+          sorted = 0;
+          break;
+        }
+        n = gasneti_nodeinfo[i].supernode;
+      }
+
+      // Step 3b. contstruct the vector if needed
+      if (!sorted) {
+        gex_Rank_t *offset = gasneti_malloc(size * sizeof(gex_Rank_t));
+
+        // Form a sort of shifted prefix-reduction on width
+        sum1 = 0;
+        n = rank;
+        for (i = 0; i < size; ++i) {
+          offset[n] = sum1;
+          sum1 += width[n];
+          n = (n == size-1) ? 0 : (n+1);
+        }
+        gasneti_assert(sum1 == gasneti_nodes);
+
+        // Scan nodeinfo to collect all the nodes in each nbrhd (in their order)
+        gasneti_am_exchange_permute = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
+        for (i = 0; i < gasneti_nodes; ++i) {
+          int index = offset[ gasneti_nodeinfo[i].supernode ]++;
+          gasneti_am_exchange_permute[index] = i;
+        }
+
+        gasneti_free(offset);
+      }
+    }
+    gasneti_free(width);
+  #else
+    for (step = 0; step < num_peers; ++step) {
+      gasneti_am_exchange_rcvd[step] = gasneti_am_exchange_send[step] = 1 << step;
+    }
+    gasneti_am_exchange_send[step-1] = gasneti_nodes - gasneti_am_exchange_send[step-1];
+    gasneti_am_exchange_rcvd[step] = gasneti_nodes;
+  #endif
+  }
+
+done:
+#if GASNETI_CONDUIT_THREADS
+  gasneti_mutex_unlock(&lock);
+#else
+  return; // avoids warnings about label not followed by a statement
+#endif
+}
+
+static uint8_t *gasneti_am_exchange_addr(int phase, size_t elemsz)
+{
+#if GASNETI_CONDUIT_THREADS
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_lock(&lock);
+#endif
+
+  if (gasneti_am_exchange_buf[phase] == NULL) {
+    gasneti_am_exchange_buf[phase] = gasneti_malloc(elemsz * gasneti_nodes);
+  }
+
+#if GASNETI_CONDUIT_THREADS
+  gasneti_mutex_unlock(&lock);
+#endif
+
+  return gasneti_am_exchange_buf[phase];
+}
+
+#ifndef GASNETI_AM_EXCHANGE_CHUNK
+#define GASNETI_AM_EXCHANGE_CHUNK \
+        gex_AM_MaxRequestMedium(gasneti_THUNK_TM,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2)
+#endif
+
+extern void gasnetc_am_exchange_reqh(gex_Token_t token, void *buf,
+                                     size_t nbytes, uint32_t arg0,
+                                     uint32_t elemsz)
+{
+  gasneti_am_exchange_init();
+
+  const int phase = arg0 & 1;
+  const int step = (arg0 >> 1) & 0x0f;
+  const int seq = (arg0 >> 5);
+  const size_t offset = elemsz * gasneti_am_exchange_rcvd[step];
+  uint8_t *dest = gasneti_am_exchange_addr(phase, elemsz)
+                  + offset + (seq * GASNETI_AM_EXCHANGE_CHUNK);
+
+  GASNETI_MEMCPY(dest, buf, nbytes);
+  gasneti_am_exchange_inc(phase, step);
+}
+
+extern void gasneti_bootstrapExchange_am(void *src, size_t len, void *dest)
+{
+  gasneti_am_exchange_init();
+
+  int phase = gasneti_am_exchange_phase;
+  uint8_t *temp = gasneti_am_exchange_addr(phase, len);
+
+  gex_Rank_t *peer;
+#if GASNET_PSHM
+  // Construct nbrhd-local contribution
+  gasneti_pshmnet_bootstrapGather(gasneti_request_pshmnet, src, len, temp, 0);
+
+  if (gasneti_nodemap_local_rank) goto end_network_comms; // nbrhd non-leader case
+
+  gex_Rank_t size = gasneti_get_dissem_peers_pshm(&peer);
+#else
+  // Copy in local contribution
+  GASNETI_MEMCPY(temp, src, len);
+
+  gex_Rank_t size = gasneti_get_dissem_peers(&peer);
+#endif
+
+  // Bruck's concatenation algorithm:
+  gasneti_assert_uint(size ,<=, 32);
+  size_t chunk_size = GASNETI_AM_EXCHANGE_CHUNK;
+  for (gex_Rank_t step = 0; step < size; ++step) {
+    size_t nbytes = len * gasneti_am_exchange_send[step];
+    size_t offset = 0;
+    uint32_t seq = 0;
+
+    // Send payload using AMMedium(s)
+    do {
+      const size_t to_xfer = MIN(nbytes, chunk_size);
+
+      (void) gex_AM_RequestMedium2(gasneti_THUNK_TM, peer[step],
+                                   gasneti_handleridx(gasnetc_am_exchange_reqh),
+                                   temp + offset, to_xfer,
+                                   GEX_EVENT_NOW, 0,
+                                   phase | (step << 1) | (seq << 5), len);
+
+      ++seq;
+      offset += to_xfer;
+      nbytes -= to_xfer;
+      gasneti_assert(seq < (1<<(32-5)));
+    } while (nbytes);
+
+    // poll until correct number of messages have been received
+    nbytes = len * (gasneti_am_exchange_rcvd[step+1] - gasneti_am_exchange_rcvd[step]);
+    seq = (nbytes + chunk_size - 1) / chunk_size;
+    GASNET_BLOCKUNTIL(gasneti_am_exchange_read(phase, step) == seq);
+    gasneti_am_exchange_reset(phase, step); // Includes the RMB, if any, for the data
+  }
+
+  // Copy to destination while performing the rotation or permutation
+#if GASNET_PSHM
+  if (gasneti_am_exchange_permute) {
+    for (gex_Rank_t n = 0; n < gasneti_nodes; ++n) {
+      const gex_Rank_t peer = gasneti_am_exchange_permute[n];
+      GASNETI_MEMCPY((uint8_t*) dest + len * peer, temp + len * n, len);
+    }
+  } else
+#endif
+  {
+    GASNETI_MEMCPY_SAFE_EMPTY(dest, temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
+    GASNETI_MEMCPY((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
+  }
+
+#if GASNET_PSHM
+end_network_comms:
+  gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, dest, len*gasneti_nodes, dest, 0);
+#endif
+
+  // Prepare for next */
+  gasneti_free(temp);
+  gasneti_am_exchange_buf[phase] = NULL;
+  gasneti_sync_writes();
+  gasneti_am_exchange_phase = !phase;
+
+#if GASNET_DEBUG
+  // verify own data as a sanity check */
+  if (memcmp(src, (void *) ((uintptr_t ) dest + (gasneti_mynode * len)), len) != 0) {
+    gasneti_fatalerror("exchange failed: self data on node %d is incorrect", gasneti_mynode);
+  }
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */

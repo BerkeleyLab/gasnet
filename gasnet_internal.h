@@ -943,14 +943,19 @@ extern void gasnetc_hsumu64_reqh(gex_Token_t token, gex_AM_Arg_t arg0, gex_AM_Ar
 // AM-based bootstrap (job-scoped) collectives
 extern void gasneti_bootstrapBarrier_am(void);
 extern void gasnetc_am_barrier_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
+extern void gasneti_bootstrapExchange_am(void *src, size_t len, void *dest);
+extern void gasnetc_am_exchange_reqh(gex_Token_t token, void *buf, size_t nbytes,
+                                     uint32_t arg0, uint32_t arg1);
 
 #define GASNETC_COMMON_HANDLERS() \
+    gasneti_handler_tableentry_no_bits(gasnetc_am_exchange_reqh,2,REQUEST,MEDIUM,0), \
     gasneti_handler_tableentry_no_bits(gasnetc_am_barrier_reqh,1,REQUEST,SHORT,0), \
     gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0), \
     gasneti_handler_tableentry_no_bits(gasnetc_hsumu64_reqh,2,REQUEST,SHORT,0)
 #define _hidx_gasnetc_hbarr_reqh              (GASNETE_HANDLER_BASE-1)
 #define _hidx_gasnetc_hsumu64_reqh            (GASNETE_HANDLER_BASE-2)
 #define _hidx_gasnetc_am_barrier_reqh         (GASNETE_HANDLER_BASE-3)
+#define _hidx_gasnetc_am_exchange_reqh        (GASNETE_HANDLER_BASE-4)
 
 extern gex_Rank_t gasneti_get_dissem_peers(gex_Rank_t **out_p);
 #if GASNET_PSHM

@@ -231,39 +231,11 @@ static const enum ibv_access_flags
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 static int gasneti_bootstrap_native_coll = 0;
-static int gasnetc_bootstrapExchange_phase = 0;
 static gex_Rank_t gasnetc_dissem_peers = 0;
 static gex_Rank_t *gasnetc_dissem_peer = NULL;
-static gex_Rank_t *gasnetc_exchange_rcvd = NULL;
-static gex_Rank_t *gasnetc_exchange_send = NULL;
-#if GASNET_PSHM
-static gex_Rank_t *gasnetc_exchange_permute = NULL;
-#endif
 
 static void gasnetc_sys_coll_init(void)
 {
-  int i;
-
-#if GASNET_PSHM
-  const gex_Rank_t size = gasneti_nodemap_global_count;
-  const gex_Rank_t rank = gasneti_nodemap_global_rank;
-
-  if (gasneti_nodemap_local_rank) {
-    /* No network comms */
-    goto done;
-  }
-#else
-  const gex_Rank_t size = gasneti_nodes;
-  const gex_Rank_t rank = gasneti_mynode;
-#endif
-
-  if (size == 1) {
-    /* No network comms */
-    goto done;
-  }
-
-  gasnetc_bootstrapExchange_phase = 0;
-
   // Construct vector of the dissemination peers
   #if GASNET_PSHM
     gasnetc_dissem_peers = gasneti_get_dissem_peers_pshm(&gasnetc_dissem_peer);
@@ -271,84 +243,6 @@ static void gasnetc_sys_coll_init(void)
     gasnetc_dissem_peers = gasneti_get_dissem_peers(&gasnetc_dissem_peer);
   #endif
 
-  /* Compute the recv offset and send count for each step of exchange */
-  gasnetc_exchange_rcvd = gasneti_malloc((gasnetc_dissem_peers+1) * sizeof(gex_Rank_t));
-  gasnetc_exchange_send = gasneti_malloc(gasnetc_dissem_peers * sizeof(gex_Rank_t));
-  { int step;
-  #if GASNET_PSHM
-    gex_Rank_t *width;
-    gex_Rank_t sum1 = 0;
-    gex_Rank_t sum2 = 0;
-    gex_Rank_t distance, last;
-
-    distance = 1 << (gasnetc_dissem_peers-1);
-    last = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
-
-    /* Step 1: determine the "width" of each supernode */
-    width = gasneti_calloc(size, sizeof(gex_Rank_t));
-    for (i = 0; i < gasneti_nodes; ++i) {
-      width[gasneti_nodeinfo[i].supernode] += 1;
-    }
-    /* Step 2: form the necessary partial sums */
-    for (step = i = 0; step < gasnetc_dissem_peers; ++step) {
-      distance = 1 << step;
-      for (/*empty*/; i < distance; ++i) {
-        sum1 += width[ (rank + i) % size ];
-        sum2 += width[ (last + i) % size ];
-      }
-      gasnetc_exchange_rcvd[step] = gasnetc_exchange_send[step] = sum1;
-    }
-    gasnetc_exchange_send[step-1] = gasneti_nodes - sum2;
-    gasnetc_exchange_rcvd[step] = gasneti_nodes;
-    /* Step 3: construct the permutation vector, if necessary */
-    {
-      gex_Rank_t n;
-    
-      /* Step 3a. determine if we even need a permutation vector */
-      int sorted = 1;
-      gasneti_assert(0 == gasneti_nodeinfo[0].supernode);
-      n = 0;
-      for (i = 1; i < gasneti_nodes; ++i) {
-        if (n > gasneti_nodeinfo[i].supernode) {
-          sorted = 0;
-          break;
-        }
-        n = gasneti_nodeinfo[i].supernode;
-      }
-
-      /* Step 3b. contstruct the vector if needed */
-      if (!sorted) {
-        gex_Rank_t *offset = gasneti_malloc(size * sizeof(gex_Rank_t));
-        
-        /* Form a sort of shifted prefix-reduction on width */
-        sum1 = 0;
-        n = rank;
-        for (i = 0; i < size; ++i) {
-          offset[n] = sum1;
-          sum1 += width[n];
-          n = (n == size-1) ? 0 : (n+1);
-        }
-        gasneti_assert(sum1 == gasneti_nodes);
-
-        /* Scan nodeinfo to collect all the nodes in each supernode (in their order) */
-        gasnetc_exchange_permute = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
-        for (i = 0; i < gasneti_nodes; ++i) {
-          int index = offset[ gasneti_nodeinfo[i].supernode ]++;
-          gasnetc_exchange_permute[index] = i;
-        }
-      }
-    }
-    gasneti_free(width);
-  #else
-    for (step = 0; step < gasnetc_dissem_peers; ++step) {
-      gasnetc_exchange_rcvd[step] = gasnetc_exchange_send[step] = 1 << step;
-    }
-    gasnetc_exchange_send[step-1] = gasneti_nodes - gasnetc_exchange_send[step-1];
-    gasnetc_exchange_rcvd[step] = gasneti_nodes;
-  #endif
-  }
-
-done:
   gasneti_assert(! gasneti_bootstrap_native_coll);
   gasneti_bootstrap_native_coll = 1;
   gasneti_spawner->Cleanup(); // No use of ssh/mpi/pmi collectives until possible shutdown
@@ -356,20 +250,6 @@ done:
 
 static void gasnetc_sys_coll_fini(void)
 {
-  gasneti_free(gasnetc_exchange_rcvd);
-  gasneti_free(gasnetc_exchange_send);
-#if GASNET_PSHM
-  gasneti_free(gasnetc_exchange_permute);
-#endif
-
-#if GASNET_DEBUG
-  gasnetc_exchange_rcvd = NULL;
-  gasnetc_exchange_send = NULL;
- #if GASNET_PSHM
-  gasnetc_exchange_permute = NULL;
- #endif
-#endif
-
   gasneti_bootstrap_native_coll = 0;
 }
 
@@ -385,181 +265,13 @@ extern void gasneti_bootstrapBarrier(void)
   }
 }
 
-#if GASNET_MAXNODES > 65535
-#error "Update gasneti_bootstrapExchange for > 16-bit node count"
-#endif
-
-#if GASNETC_USE_RCV_THREAD
-  static gasneti_atomic_t gasnetc_sys_exchange_rcvd[2][16] =
-  { { gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0) },
-    { gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0),
-      gasneti_atomic_init(0), gasneti_atomic_init(0) } };
-  #define gasnetc_sys_exchange_inc(_phase, _step) \
-    gasneti_atomic_increment(&gasnetc_sys_exchange_rcvd[_phase][_step], GASNETI_ATOMIC_REL)
-  #define gasnetc_sys_exchange_read(_phase, _step) \
-    gasneti_atomic_read(&gasnetc_sys_exchange_rcvd[_phase][_step], GASNETI_ATOMIC_NONE)
-  #define gasnetc_sys_exchange_reset(_phase, _step) \
-    gasneti_atomic_set(&gasnetc_sys_exchange_rcvd[_phase][_step], 0, GASNETI_ATOMIC_ACQ)
-#else
-  static gasneti_atomic_val_t gasnetc_sys_exchange_rcvd[2][16] =
-  { { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
-  #define gasnetc_sys_exchange_inc(_phase, _step) \
-    ((void)(++gasnetc_sys_exchange_rcvd[_phase][_step]))
-  #define gasnetc_sys_exchange_read(_phase, _step) \
-    (gasnetc_sys_exchange_rcvd[_phase][_step])
-  #define gasnetc_sys_exchange_reset(_phase, _step) \
-    ((void)(gasnetc_sys_exchange_rcvd[_phase][_step] = 0))
-#endif
-
-static uint8_t *gasnetc_sys_exchange_buf[2] = { NULL, NULL };
-#if GASNET_DEBUG
-static size_t gasnetc_sys_exchange_elemsz[2];
-#endif
-
-static uint8_t *gasnetc_sys_exchange_addr(int phase, size_t elemsz)
-{
-#if GASNETC_USE_RCV_THREAD
-  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-  gasneti_mutex_lock(&lock);
-#endif
-
-  if (gasnetc_sys_exchange_buf[phase] == NULL) {
-    gasnetc_sys_exchange_buf[phase] = gasneti_malloc(elemsz * gasneti_nodes);
-  #if GASNET_DEBUG
-    gasnetc_sys_exchange_elemsz[phase] = elemsz;
-  } else {
-    gasneti_assert(gasnetc_sys_exchange_elemsz[phase] == elemsz);
-  #endif
-  }
-
-#if GASNETC_USE_RCV_THREAD
-  gasneti_mutex_unlock(&lock);
-#endif
-
-  return gasnetc_sys_exchange_buf[phase];
-}
-
-#define GASNETC_SYS_EXCHANGE_MAX GASNETC_MAX_MEDIUM
-
-static void gasnetc_sys_exchange_reqh(gex_Token_t token, void *buf,
-                                 size_t nbytes, uint32_t arg0,
-                                 uint32_t elemsz)
-{
-  const int phase = arg0 & 1;
-  const int step = (arg0 >> 1) & 0x0f;
-  const int seq = (arg0 >> 5);
-  const size_t offset = elemsz * gasnetc_exchange_rcvd[step];
-  uint8_t *dest = gasnetc_sys_exchange_addr(phase, elemsz)
-                  + offset + (seq * GASNETC_SYS_EXCHANGE_MAX);
-
-  GASNETI_MEMCPY(dest, buf, nbytes);
-  gasnetc_sys_exchange_inc(phase, step);
-}
-
-static void gasnetc_bootstrapExchange_ib(void *src, size_t len, void *dest)
-{
-    int phase = gasnetc_bootstrapExchange_phase;
-
-    uint8_t *temp = gasnetc_sys_exchange_addr(phase, len);
-    int step;
-
-#if GASNET_PSHM
-    /* Construct supernode-local contribution */
-    gasneti_pshmnet_bootstrapGather(gasneti_request_pshmnet, src, len, temp, 0);
-    if (gasneti_nodemap_local_rank) goto end_network_comms;
-#else
-    /* Copy in local contribution */
-    GASNETI_MEMCPY(temp, src, len);
-#endif
-
-    /* Bruck's concatenation algorithm: */
-    for (step = 0; step < gasnetc_dissem_peers; ++step) {
-      size_t nbytes = len * gasnetc_exchange_send[step];
-      size_t offset = 0;
-      uint32_t seq = 0;
-
-      gasneti_assert(step < 16);
-
-      /* Send payload using AMMedium(s) */
-      do {
-        const size_t to_xfer = MIN(nbytes, GASNETC_SYS_EXCHANGE_MAX);
-
-        (void) gasnetc_RequestSysMedium(gasnetc_dissem_peer[step], NULL,
-                                        gasneti_handleridx(gasnetc_sys_exchange_reqh),
-                                        temp + offset, to_xfer,
-                                        2, phase | (step << 1) | (seq << 5), len);
-
-        ++seq;
-        offset += to_xfer;
-        nbytes -= to_xfer;
-        gasneti_assert(seq < (1<<(32-5)));
-      } while (nbytes);
-
-      /* poll until correct number of messages have been received */
-      nbytes = len * (gasnetc_exchange_rcvd[step+1] - gasnetc_exchange_rcvd[step]);
-      seq = (nbytes + GASNETC_SYS_EXCHANGE_MAX - 1) / GASNETC_SYS_EXCHANGE_MAX;
-      while (gasnetc_sys_exchange_read(phase, step) != seq) {
-        gasnetc_sndrcv_poll(0);
-      }
-      gasnetc_sys_exchange_reset(phase, step); /* Includes the RMB, if any, for the data */
-    }
-
-    /* Copy to destination while performing the rotation or permutation */
-#if GASNET_PSHM
-    if (gasnetc_exchange_permute) {
-      gex_Rank_t n;
-      for (n = 0; n < gasneti_nodes; ++n) {
-        const gex_Rank_t peer = gasnetc_exchange_permute[n];
-        GASNETI_MEMCPY((uint8_t*) dest + len * peer, temp + len * n, len);
-      }
-    } else
-#endif
-    {
-      GASNETI_MEMCPY_SAFE_EMPTY(dest, temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
-      GASNETI_MEMCPY((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
-    }
-
-#if GASNET_PSHM
-end_network_comms:
-    gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, dest, len*gasneti_nodes, dest, 0);
-#endif
-
-    /* Prepare for next */
-    gasneti_free(temp);
-    gasnetc_sys_exchange_buf[phase] = NULL;
-    gasneti_sync_writes();
-    gasnetc_bootstrapExchange_phase ^= 1;
-
-#if GASNET_DEBUG
-  /* verify own data as a sanity check */
-  if (memcmp(src, (void *) ((uintptr_t ) dest + (gasneti_mynode * len)), len) != 0) {
-    gasneti_fatalerror("exchange failed: self data on node %d is incorrect", gasneti_mynode);
-  }
-#endif
-}
-
 extern void gasneti_bootstrapExchange(void *src, size_t len, void *dest)
 {
-  if (gasneti_bootstrap_native_coll) {
+  if (gasneti_attach_done) {
   #if GASNET_DEBUG
-    gasneti_console0_message("DEVWARN","Indirect native Exchange");
-    // gasnett_print_backtrace(2);
+    gasneti_console0_message("DEVWARN","Indirect AM Exchange");
   #endif
-    gasnetc_bootstrapExchange_ib(src, len, dest);
+    gasneti_bootstrapExchange_am(src, len, dest);
   } else {
     gasneti_spawner->Exchange(src, len, dest);
   }
@@ -844,7 +556,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   // We document that the behavior is undefined unless
   // GASNET_PHYSMEM_{PROBE,WARN} are single-valued.  However, as noted in bug
   // 3769, the case of non-equal values can lead to non-collective calls to
-  // gasnetc_bootstrapExchange_ib() (not a clean failure mode).
+  // gasneti_bootstrapExchange_am() (not a clean failure mode).
   // So, we do some extra work here to ensure single-valued behavior.
   // However, we do are not documenting this specific behavior to reserve
   // the right to silently change it in the future.
@@ -853,7 +565,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     int8_t quiet;
   } *all_knobs, my_knobs = { do_probe, quiet };
   all_knobs = gasneti_malloc(gasneti_nodes * sizeof(my_knobs));
-  gasnetc_bootstrapExchange_ib(&my_knobs, sizeof(my_knobs), all_knobs);
+  gasneti_bootstrapExchange_am(&my_knobs, sizeof(my_knobs), all_knobs);
 #if 1
   // Option 1: fatal error on mismatch
   if (!gasneti_mynode) {
@@ -975,7 +687,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     // Warn if any node has more than 2G (unless QUIET)
     if (! quiet) {
       uint64_t *all_limits = gasneti_malloc(gasneti_nodes * sizeof(uint64_t));
-      gasnetc_bootstrapExchange_ib(&limit, sizeof(uint64_t), all_limits);
+      gasneti_bootstrapExchange_am(&limit, sizeof(uint64_t), all_limits);
       if (!gasneti_mynode) {
         uint64_t max_limit = all_limits[0];
         for (gex_Rank_t i = 1; i < gasneti_nodes; ++i) {
@@ -1006,7 +718,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
       }
       gasnetc_pin_info.memory = size;
     }
-    gasnetc_bootstrapExchange_ib(&gasnetc_pin_info, sizeof(gasnetc_pin_info_t), all_info);
+    gasneti_bootstrapExchange_am(&gasnetc_pin_info, sizeof(gasnetc_pin_info_t), all_info);
     if (! quiet && ! gasneti_mynode) {
       // If warned above, or too slow, print the results and what to do with them.
       // We define "too slow" as 10s + log2(nodes) * 5s.
@@ -1027,7 +739,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   } else {
     /* Note that README says PHYSMEM_NOPROBE must be equal on all nodes */
     gasnetc_pin_info.memory = limit;
-    gasnetc_bootstrapExchange_ib(&gasnetc_pin_info, sizeof(gasnetc_pin_info_t), all_info);
+    gasneti_bootstrapExchange_am(&gasnetc_pin_info, sizeof(gasnetc_pin_info_t), all_info);
   }
 
   /* Determine the global values (min of maxes) from the local values */
@@ -2608,7 +2320,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
 
   /* allocate and attach an aux segment */
 
-  gasnet_seginfo_t auxseg = gasneti_auxsegAttach(gasnetc_pin_maxsz, &gasnetc_bootstrapExchange_ib);
+  gasnet_seginfo_t auxseg = gasneti_auxsegAttach(gasnetc_pin_maxsz, &gasneti_bootstrapExchange_am);
 
   void *auxbase = auxseg.addr;
   uintptr_t auxsize = auxseg.size;
@@ -2622,7 +2334,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     }
     // TODO_EX: need scalable and/or lazy storage of aux segments and their rkeys
     hca->aux_rkeys = gasneti_malloc(gasneti_nodes*sizeof(uint32_t));
-    gasnetc_bootstrapExchange_ib(&hca->aux_reg.handle->rkey, sizeof(uint32_t), hca->aux_rkeys);
+    gasneti_bootstrapExchange_am(&hca->aux_reg.handle->rkey, sizeof(uint32_t), hca->aux_rkeys);
   }
   gasneti_assert(gasnetc_pin_info.memory > auxsize);
   gasneti_assert(gasnetc_pin_info.regions > 1);
@@ -2630,7 +2342,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   gasnetc_pin_info.regions -= 1;
 
   /* determine Max{Local,GLobal}SegmentSize */
-  gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange_ib, flags);
+  gasneti_segmentInit(mmap_limit, &gasneti_bootstrapExchange_am, flags);
 
   gasnetc_exit_init();
 
@@ -5810,7 +5522,6 @@ static gex_AM_Entry_t const gasnetc_handlers[] = {
   gasneti_handler_tableentry_no_bits(gasnetc_exit_role_reph,1,REPLY,SHORT,0),
   gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,REQUEST,SHORT,0),
   gasneti_handler_tableentry_no_bits(gasnetc_exit_reph,0,REPLY,SHORT,0),
-  gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0),
   #if GASNETC_IBV_SHUTDOWN
     gasneti_handler_tableentry_no_bits(gasnetc_sys_flush_reph,1,REPLY,SHORT,0),
     gasneti_handler_tableentry_no_bits(gasnetc_sys_close_reqh,0,REQUEST,SHORT,0),
