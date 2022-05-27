@@ -1910,56 +1910,141 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gather_all_nb() */
 
-/* gall Gath: Implement gather_all in terms of simultaneous gathers */
-/* This is meant mostly as an example and a short-term solution */
-/* Valid wherever the underlying gather is valid */
-static int gasnete_coll_pf_gall_Gath(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
+// gall GathBcast: Implement gather_all in terms of gather + broadcast
+// Naturally OUT_MYSYNC due to tree-based broadcast
+// Valid for all flags, segment dispositions and sizes
+static int gasnete_coll_pf_gall_GathBcast(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
   int result = 0;
+  gasnete_coll_p2p_t *p2p = data->p2p;
+
+  gasneti_assert(p2p != NULL);
+  gasneti_assert(p2p->state != NULL);
+  gasneti_assert(p2p->data != NULL);
+
+  struct pdata {
+    size_t      offset;
+    size_t      remain;
+    size_t      chunk_len;
+    gex_Rank_t  width;
+    gex_Rank_t  self;
+    gex_Rank_t  child_cnt;
+    gex_Rank_t  parent;
+    gex_Rank_t  age;
+    int         phase;
+    int         last;
+  } *pdata = data->private_data;
 
   switch (data->state) {
-  case 0:	/* Optional IN barrier */
+  case 0: {     // Allocate and initialize pdata used by the broadcast
+    gex_TM_t const tm = op->e_tm;
+    pdata = gasneti_calloc(1, sizeof(struct pdata));
+    pdata->remain    = args->nbytes * gex_TM_QuerySize(tm);
+    pdata->chunk_len = MIN(op->team->p2p_eager_buffersz, gex_AM_LUBRequestMedium());
+    pdata->self      = gex_TM_QueryRank(tm);
+    pdata->child_cnt = gasnete_tm_binom_children(tm, pdata->self);
+    pdata->parent    = gasnete_tm_binom_parent(tm, pdata->self);
+    pdata->age       = gasnete_tm_binom_age(tm, pdata->self);
+    pdata->width     = 1 + gasnete_coll_log2_rank(gex_TM_QuerySize(tm) - 1);
+    pdata->phase     = 1;
+
+    gasneti_assert(!data->private_data);
+    data->private_data = pdata;
+    data->state = 1; GASNETI_FALLTHROUGH
+  }
+
+  case 1:       // Optional IN barrier
     if (!gasnete_coll_generic_all_threads(data) ||
         !gasnete_coll_generic_insync(op->team, data)) {
       break;
     }
-    data->state = 1; GASNETI_FALLTHROUGH
-
-  case 1:	/* Initiate data movement */
-    {
-      gex_Event_t *h;
-      int flags = GASNETE_COLL_FORWARD_FLAGS(op->flags);
-      gasnet_team_handle_t team = op->team;
-      void *dst = args->dst;
-      void *src = args->src;
-      size_t nbytes = args->nbytes;
-      gasnet_image_t i;
-
-      /* XXX: freelist ? */
-      h = gasneti_malloc(op->team->total_ranks * sizeof(gex_Event_t));
-      data->private_data = h;
-
-      for (i = 0; i < op->team->total_ranks; ++i, ++h) {
-        *h = gasnete_coll_gather_nb(team, i, dst, src, nbytes,
-                                    flags|GASNETE_COLL_NONROOT_SUBORDINATE|GASNET_COLL_DISABLE_AUTOTUNE, op->sequence+i+1 GASNETI_THREAD_PASS);
-        gasnete_coll_save_event(h);
-      }
-    }
     data->state = 2; GASNETI_FALLTHROUGH
 
-  case 2:	/* Sync data movement */
-    if (!gasnete_coll_generic_coll_sync(data->private_data, op->team->total_ranks GASNETI_THREAD_PASS)) {
+  case 2: {     // Initiate data #1: gather to rank 0
+    int flags = GASNETE_COLL_FORWARD_FLAGS(op->flags)|GASNETE_COLL_NONROOT_SUBORDINATE|GASNET_COLL_DISABLE_AUTOTUNE;
+    data->handle = gasnete_coll_gather_nb(op->team, 0, args->dst, args->src, args->nbytes,
+                                          flags, op->sequence+1 GASNETI_THREAD_PASS);
+    gasnete_coll_save_event(&data->handle);
+    data->state = 3; GASNETI_FALLTHROUGH
+  }
+
+  case 3:       // Sync gather
+    if (data->handle != GEX_EVENT_INVALID) {
       break;
     }
-    data->state = 3; GASNETI_FALLTHROUGH
+    data->state = 4; GASNETI_FALLTHROUGH
 
-  case 3:	/* Optional OUT barrier */
+  case 4: {     // Initiate one round of binomial broadcast
+    // TODO: use of IMM and maybe lc_opt
+    gex_TM_t const tm = op->e_tm;
+    void *dst = (void *)(pdata->offset + (uintptr_t)args->dst);
+    const int ready = pdata->phase;
+    pdata->last = (pdata->remain <= pdata->chunk_len);
+    if (pdata->last) {
+      pdata->chunk_len = pdata->remain;
+    }
+    if (pdata->self) {
+      // Wait for arrival of data from parent (if any)
+      if (p2p->state[pdata->width] != ready) break;
+      gasneti_sync_reads();
+      GASNETI_MEMCPY(dst, p2p->data, pdata->chunk_len);
+      // Acknowledge parent (CTS) if there is a next round
+      if (! pdata->last) {
+        gasnete_tm_p2p_change_state(op, pdata->parent, /*flags*/0,
+                                    pdata->age, ready GASNETI_THREAD_PASS);
+      }
+    }
+    if (pdata->child_cnt) {
+      // Send to children (if any)
+      const gex_Rank_t size = gex_TM_QuerySize(tm);
+      const gex_Rank_t child_cnt = pdata->child_cnt;
+      const gex_Rank_t self      = pdata->self;
+      for (int idx = child_cnt - 1; idx >= 0; --idx) { // Reverse order for deepest subtree first
+          gex_Rank_t distance = 1 << idx;
+          gex_Rank_t peer = (distance >= size - self) ? self - (size - distance) : self + distance;
+          // Deliver to p2p->data space W/O an offset, but set a state[i] for non-zero i:
+          //   count=1, offset=i, elem_size=0
+          gasneti_assert_zeroret(
+             gex_AM_RequestMedium6(tm, peer, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+                                   dst, pdata->chunk_len, GEX_EVENT_NOW, /*flags*/0,
+                                   op->team->team_id, op->sequence,
+                                   /*count*/1, /*offset*/pdata->width,
+                                   /*state*/ready, /*elem_size*/0));
+        }
+      }
+      if (pdata->last) goto bcast_done;
+      data->state = 5; GASNETI_FALLTHROUGH
+    }
+
+    case 5:
+      if (pdata->child_cnt) { // Stall for CTS
+        const int ready = pdata->phase;
+        for (gex_Rank_t r = 0; r < pdata->child_cnt; ++r) {
+          if (p2p->state[r] != ready) return 0; // At least one child has not acknowledged
+        }
+      }
+
+      // Advance phase, offset and remain for next iter
+      pdata->phase ^= 1;
+      pdata->offset += pdata->chunk_len;
+      pdata->remain -= pdata->chunk_len;
+      gasneti_assert(pdata->remain);
+
+      // Yield.  Control will resume at next iteration.
+      gasneti_assert(! result);
+      data->state = 4;
+      break;
+
+    bcast_done:
+      data->state = 6; GASNETI_FALLTHROUGH
+
+  case 6:       // Optional OUT barrier
     if (!gasnete_coll_generic_outsync(op->team, data)) {
       break;
     }
 
-    gasneti_free(data->private_data);
+    gasneti_free(pdata);
     gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
@@ -1967,7 +2052,8 @@ static int gasnete_coll_pf_gall_Gath(gasnete_coll_op_t *op GASNETI_THREAD_FARG) 
   return result;
 }
 extern gex_Event_t
-gasnete_coll_gall_Gath(gasnet_team_handle_t team,
+gasnete_coll_gall_GathBcast(
+                       gasnet_team_handle_t team,
                        void *dst, void *src,
                        size_t nbytes, int flags, 
                        gasnete_coll_implementation_t coll_params,
@@ -1975,18 +2061,19 @@ gasnete_coll_gall_Gath(gasnet_team_handle_t team,
                        GASNETI_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
-		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+                GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
+                GASNETE_COLL_GENERIC_OPT_P2P;
 
   if(flags & GASNETE_COLL_SUBORDINATE) 
     return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
-                                              &gasnete_coll_pf_gall_Gath, options,
+                                              &gasnete_coll_pf_gall_GathBcast, options,
                                               NULL, sequence,
                                               coll_params->num_params, coll_params->param_list 
                                               GASNETI_THREAD_PASS); 
   else {
     return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
-                                              &gasnete_coll_pf_gall_Gath, options,
-                                              NULL, team->total_ranks,
+                                              &gasnete_coll_pf_gall_GathBcast, options,
+                                              NULL, 1, // single non-root subordinate gather
                                               coll_params->num_params, coll_params->param_list
                                               GASNETI_THREAD_PASS); 
   }
@@ -2275,6 +2362,7 @@ gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
                                 size_t nbytes, gex_Flags_t flags,
                                 uint32_t sequence GASNETI_THREAD_FARG)
 {
+  GASNETI_TRACE_TM_BROADCAST(COLL_BROADCAST_NB,e_tm,root,dst,src,nbytes,flags);
   gasnet_team_handle_t team = gasneti_import_tm_nonpair(e_tm)->_coll_team;
   int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
   coll_flags |= (flags & GASNETI_FLAG_COLL_SUBORDINATE) ? GASNETE_COLL_SUBORDINATE : 0;

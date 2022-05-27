@@ -871,6 +871,8 @@ extern int gasneti_VerboseErrors;
 /* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */
 
+extern const char *gasneti_format_host_detect(void);
+
 extern uint64_t gasneti_hosthash(void);
 extern uint32_t gasneti_gethostid(void);
 

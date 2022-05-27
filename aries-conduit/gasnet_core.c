@@ -546,9 +546,13 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
   }
   pm_limit -= overheads;
 
-  limit = gasneti_segmentLimit((uintptr_t)-1, pm_limit,
+  if (gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_PROBE", 1)) {
+    limit = gasneti_segmentLimit((uintptr_t)-1, pm_limit,
                             &gasnetc_bootstrapExchange_gni,
                             &gasnetc_bootstrapBarrier_gni);
+  } else {
+    limit = pm_limit;
+  }
 
   if (limit < segsize_floor) {
     gasnetc_GNIT_Abort("Unable to alloc and pin minimal memory of size %d bytes",(int)segsize_floor);

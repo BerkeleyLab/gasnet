@@ -1260,7 +1260,7 @@ GASNETE_COLL_DECLARE_GATHER_ALG(RVous);
                                uint32_t sequence                        \
                                GASNETI_THREAD_FARG)
 
-GASNETE_COLL_DECLARE_GATHER_ALL_ALG(Gath);
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(GathBcast);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(EagerDissem);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(Dissem);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatEagerPut);
