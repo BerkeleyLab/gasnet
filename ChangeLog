@@ -26,6 +26,7 @@ GASNet-EX ChangeLog
     information about job creation and teardown operations.
   - gasnetrun*/amudprun now accept `-v` multiple times to increase verbosity
   - envvar `GASNET_VERBOSEENV` now recognizes 'N|n|NO|no|0' to mean false
+  - Scaling improvements to startup costs (memory and time) in all conduits
 
 * Libfabric [EXPERIMENTAL] (details in ofi-conduit README)
   - A new environment variable `GASNET_OFI_MAX_MEDIUM` enables setting the
@@ -44,6 +45,7 @@ GASNet-EX ChangeLog
   - bug4447: GASNET_VERBOSEENV doesn't have an explicit false setting
   - bug4448: smp-conduit incorrectly duplicates GASNET_VERBOSEENV output
   - Bug4453: gex_Coll_* should trace more information
+  - Bug4454: Scaling issues in gasneti_segmentLimit()
 
 ----------------------------------------------------------------------
 2022-03-31: GASNet-EX 2022.3.0 Release
