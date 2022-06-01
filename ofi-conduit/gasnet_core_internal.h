@@ -159,8 +159,8 @@ extern struct gasnetc_ofi_locks_ gasnetc_ofi_locks;
 
 extern gasneti_spawnerfn_t const *gasneti_spawner;
 
-#define gasneti_bootstrapBarrier        (*(gasneti_spawner->Barrier))
-#define gasneti_bootstrapExchange       (*(gasneti_spawner->Exchange))
+extern void gasneti_bootstrapBarrier(void);
+extern void gasneti_bootstrapExchange(void *src, size_t len, void *dest);
 #define gasneti_bootstrapBroadcast      (*(gasneti_spawner->Broadcast))
 #define gasneti_bootstrapSNodeBroadcast (*(gasneti_spawner->SNodeBroadcast))
 #define gasneti_bootstrapAlltoall       (*(gasneti_spawner->Alltoall))

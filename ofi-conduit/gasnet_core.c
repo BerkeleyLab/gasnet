@@ -43,6 +43,29 @@ size_t gasnetc_sizeof_segment_t(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Bootstrap collectives dispatch
+*/
+
+void gasneti_bootstrapBarrier(void)
+{
+  if (gasneti_attach_done) {
+    gasneti_bootstrapBarrier_am();
+  } else {
+    gasneti_spawner->Barrier();
+  }
+}
+
+void gasneti_bootstrapExchange(void *src, size_t len, void *dest)
+{
+  if (gasneti_attach_done) {
+    gasneti_bootstrapExchange_am(src, len, dest);
+  } else {
+    gasneti_spawner->Exchange(src, len, dest);
+  }
+}
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Initialization
   ==============
 */
@@ -150,11 +173,11 @@ static int gasnetc_init( gex_Client_t            *client_p,
   #endif
 
   /* allocate and attach an aux segment */
-  gasnet_seginfo_t auxseg = gasneti_auxsegAttach((uintptr_t)-1, gasneti_spawner->Exchange);
+  gasnet_seginfo_t auxseg = gasneti_auxsegAttach((uintptr_t)-1, &gasneti_bootstrapExchange);
   gasnetc_auxseg_register(auxseg);
 
   /* determine Max{Local,GLobal}SegmentSize */
-  gasneti_segmentInit(mmap_limit, gasneti_spawner->Exchange, flags);
+  gasneti_segmentInit(mmap_limit, &gasneti_bootstrapExchange, flags);
 
   gasneti_init_done = 1;  
 
@@ -175,7 +198,7 @@ extern int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
-  gasneti_spawner->Barrier();
+  gasneti_bootstrapBarrier();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete"));
 
@@ -188,12 +211,12 @@ extern int gasnetc_attach_primary(void) {
       "    WARNING: Please see `ofi-conduit/README` for more details.");
 
   /* ensure extended API is initialized across nodes */
-  gasneti_spawner->Barrier();
+  gasneti_bootstrapBarrier();
 
   /* (###) Optionally (but recommended) free spawner's idle resources.
    * Safe even if spawner collectives are used after attach
    */
-  gasneti_spawner->Cleanup();
+  gasneti_bootstrapCleanup();
 
 #if GASNET_SEGMENT_EVERYTHING
   GASNETI_SAFE_PROPAGATE( gasnetc_segment_register(NULL) );
