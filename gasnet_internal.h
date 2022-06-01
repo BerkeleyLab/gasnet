@@ -957,9 +957,9 @@ extern void gasnetc_am_exchange_reqh(gex_Token_t token, void *buf, size_t nbytes
 #define _hidx_gasnetc_am_barrier_reqh         (GASNETE_HANDLER_BASE-3)
 #define _hidx_gasnetc_am_exchange_reqh        (GASNETE_HANDLER_BASE-4)
 
-extern gex_Rank_t gasneti_get_dissem_peers(gex_Rank_t **out_p);
+extern gex_Rank_t gasneti_get_dissem_peers(const gex_Rank_t **out_p);
 #if GASNET_PSHM
-extern gex_Rank_t gasneti_get_dissem_peers_pshm(gex_Rank_t **out_p);
+extern gex_Rank_t gasneti_get_dissem_peers_pshm(const gex_Rank_t **out_p);
 #endif
 
 /* ------------------------------------------------------------------------------------ */

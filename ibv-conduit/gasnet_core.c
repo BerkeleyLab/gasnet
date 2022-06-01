@@ -2862,7 +2862,7 @@ static gasneti_atomic_t gasnetc_exit_role = gasneti_atomic_init(GASNETC_EXIT_ROL
 static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 
 static gex_Rank_t gasnetc_exit_peers = 0;
-static gex_Rank_t *gasnetc_exit_peer = NULL;
+static const gex_Rank_t *gasnetc_exit_peer = NULL;
 
 // NOTE: Please keep GASNETC_EXIT_STATE_MAXLEN fairly "tight" to bound the
 // volume of garbage that might get printed in the event of memory corruption.

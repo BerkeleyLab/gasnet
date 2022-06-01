@@ -894,7 +894,7 @@ int gasnetc_ep_init_hook(gasneti_EP_t i_ep)
 // Exit handling logic
 
 static gex_Rank_t gasnetc_dissem_peers = 0;
-static gex_Rank_t *gasnetc_dissem_peer = NULL;
+static const gex_Rank_t *gasnetc_dissem_peer = NULL;
 
 static void gasnetc_exit_init(void) {
   gasnetc_dissem_peers = gasneti_get_dissem_peers(&gasnetc_dissem_peer);

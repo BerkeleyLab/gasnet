@@ -12,11 +12,14 @@
 // returns length, writes pointer to *out_p
 // when length is 0, *out_p will be NULL
 //
+// Note that the result returned in *out_p remains owned by this function.
+// Callers must not free or write to it.
+//
 // Note that the only thread-safety provisions are guards against concurrent
 // handler execution if GASNETI_CONDUIT_THREADS is asserted.  This is under
 // the assumption that the only callers are serial initialization code and
 // AM handlers such as those in this file.
-gex_Rank_t gasneti_get_dissem_peers(gex_Rank_t **out_p)
+gex_Rank_t gasneti_get_dissem_peers(const gex_Rank_t **out_p)
 {
   static gex_Rank_t result_len = 0;
   static gex_Rank_t *result_vec = NULL;
@@ -56,7 +59,7 @@ gex_Rank_t gasneti_get_dissem_peers(gex_Rank_t **out_p)
 
 #if GASNET_PSHM
 // As above but consisting of just one "leader" per nbrhd
-gex_Rank_t gasneti_get_dissem_peers_pshm(gex_Rank_t **out_p)
+gex_Rank_t gasneti_get_dissem_peers_pshm(const gex_Rank_t **out_p)
 {
   static gex_Rank_t result_len = 0;
   static gex_Rank_t *result_vec = NULL;
@@ -270,7 +273,7 @@ extern void gasnetc_am_barrier_reqh(gex_Token_t token, gex_AM_Arg_t arg)
 
 extern void gasneti_bootstrapBarrier_am(void)
 {
-    gex_Rank_t *peer;
+    const gex_Rank_t *peer;
 #if GASNET_PSHM
     gasneti_pshmnet_bootstrapBarrier();
     gex_Rank_t size = gasneti_nodemap_local_rank
@@ -377,7 +380,7 @@ static void gasneti_am_exchange_init(void))
 #endif
 
   // Fetch vector of the dissemination peers (only need length)
-  gex_Rank_t *peers;
+  const gex_Rank_t *peers;
   gex_Rank_t num_peers;
   #if GASNET_PSHM
     num_peers = gasneti_get_dissem_peers_pshm(&peers);
@@ -517,7 +520,7 @@ extern void gasneti_bootstrapExchange_am(void *src, size_t len, void *dest)
   int phase = gasneti_am_exchange_phase;
   uint8_t *temp = gasneti_am_exchange_addr(phase, len);
 
-  gex_Rank_t *peer;
+  const gex_Rank_t *peer;
 #if GASNET_PSHM
   // Construct nbrhd-local contribution
   gasneti_pshmnet_bootstrapGather(gasneti_request_pshmnet, src, len, temp, 0);
