@@ -1343,7 +1343,17 @@ uint64_t gasneti_sharedLimit(void) {
    for exchangefn and barrierfn: the implementations are only required to
     perform their functions with respect the peers on a host
     (though exchangefn does require a "full" third argument).
-    however, global implementations are acceptible
+    however, global implementations are acceptable
+
+   If exchangefn is NULL, then gasneti_host_sumu64() is used, which required
+   that gex_AM_RequestShort() be usable.
+
+   If barrierfn is NULL, then gasneti_host_barrier() is used, which requires
+   that gex_AM_RequestShort() be usable.
+
+   So a conduit only needs to provide an exchangefn or barrierfn when
+   gex_AM_RequestShort() is not usable, or when it can provide a more
+   efficient alternative.
  */
 uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
@@ -1358,8 +1368,8 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
   // This is assumed implictly
   gasneti_assert_uint(gasneti_mmap_pagesize() ,>=, GASNETI_PAGESIZE);
 
-  gasneti_assert(exchangefn);
-  gasneti_assert(barrierfn); /* No longer optional */
+  if (! barrierfn) barrierfn = &gasneti_host_barrier;
+
   gasneti_assert(gasneti_nodemap);
 
   /* Apply intial limits, even if not sharing nodes */
@@ -1371,7 +1381,6 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
 
   /* Coordinate the search IFF there are any shared nodes. */
   if (gasneti_myhost.grp_count != gasneti_nodes) {
-    uintptr_t *sz_exchg = gasneti_calloc(gasneti_nodes, sizeof(uintptr_t));
     gasnet_seginfo_t se = {0,0};
 
     /* Ensure our probe will not collectively exceed the shareLimit, if any. */
@@ -1392,7 +1401,6 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
         }
         /* Bcast because we can use "declining expectations" to potentially speed later probes */
         gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, &maxsz, sizeof(uintptr_t), &maxsz, i);
-        sz_exchg[gasneti_nodemap_local[i]] = maxsz;
         if (!maxsz) break;
       }
     } else
@@ -1419,13 +1427,21 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
         (*barrierfn)();
       }
     }
-    (*exchangefn)(&se.size, sizeof(uintptr_t), sz_exchg);
 
-    /* Compute the host-local mean */
-    { uint64_t sum = 0;
+    // Compute the host-local mean
+    uint64_t sum = 0;
+    if (exchangefn) {
+      uintptr_t *sz_exchg = gasneti_calloc(gasneti_nodes, sizeof(uintptr_t));
+      (*exchangefn)(&se.size, sizeof(uintptr_t), sz_exchg);
       for (i = 0; i < local_count; ++i) {
         sum += sz_exchg[gasneti_myhost.nodes[i]];
       }
+      gasneti_free(sz_exchg);
+    } else {
+      sum = gasneti_host_sumu64(se.size);
+    }
+
+    {
       maxsz = gasneti_mmap_aligndown(sum / local_count);
 
 #if GASNET_PSHM
@@ -1485,7 +1501,6 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
     }
 
     /* Free held resources */
-    gasneti_free(sz_exchg);
     if (se.size) gasneti_do_munmap(se.addr, se.size);
     (*barrierfn)(); /* Ensures munmap()s complete on-node before return */
   }
@@ -2660,46 +2675,3 @@ gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchangefn)
   gasneti_assert_uint(gasneti_seginfo_aux[gasneti_mynode].size ,==, auxsize);
   return local_segment;
 }
-
-/* ------------------------------------------------------------------------------------ */
-// Host-scoped (potentially superset of supernode) barrier
-
-static gasneti_weakatomic32_t gasneti_hbarr_rcvd[2][32]; // Implicitly zero-initialized
-
-extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0)
-{
-  const int phase = arg0 & 1;
-  const int step = (arg0 >> 1) & 0x1f; // Max 2^5 steps => 2^32 proc/host!
-  const int distance = (1 << step);
-  gasneti_assert_uint(distance ,<, gasneti_myhost.node_count);
-  gasneti_weakatomic32_increment(&gasneti_hbarr_rcvd[phase][step], GASNETI_ATOMIC_REL);
-}
-
-void gasneti_host_barrier(void)
-{
-  // Simple dissemination barrier with two phase
-  static int phase = 0;
-  const gex_Rank_t rank = gasneti_myhost.node_rank;
-  const gex_Rank_t size = gasneti_myhost.node_count;
-  for (unsigned int step = 0, distance = 1; distance < size; ++step, distance *= 2) {
-    gex_Rank_t peer = (distance <= rank) ? rank - distance : rank + (size - distance);
-    gex_AM_Arg_t arg0 = phase | (step << 1);
-
-    gex_AM_RequestShort(gasneti_THUNK_TM, gasneti_myhost.nodes[peer],
-                        gasneti_handleridx(gasnetc_hbarr_reqh), 0, arg0);
-
-    // Poll until we have received the same phase we've just sent
-    GASNET_BLOCKUNTIL((int)gasneti_weakatomic32_read(&gasneti_hbarr_rcvd[phase][step], 0));
-    gasneti_assert_int((int)gasneti_weakatomic32_read(&gasneti_hbarr_rcvd[phase][step], 0) ,==, 1);
-    gasneti_weakatomic32_set(&gasneti_hbarr_rcvd[phase][step], 0, 0);
-  }
-
-#if GASNET_PSHM
-  // Cannot use AMPSHM and pshm bootstrap collectives in same pshmnet barrier phase
-  gasneti_pshmnet_bootstrapBarrierPoll();
-#endif
-
-  phase ^= 1;
-}
-
-/* ------------------------------------------------------------------------------------ */
