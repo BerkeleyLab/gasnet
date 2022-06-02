@@ -2001,7 +2001,7 @@ int get_bounce_bufs(int n, gasnetc_ofi_bounce_buf_t ** arr) {
  */
 gex_Event_t
 gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
-        size_t nbytes, gasnetc_ofi_nb_op_ctxt_t* ctxt_ptr GASNETI_THREAD_FARG)
+        size_t nbytes, gasnetc_ofi_nb_op_ctxt_t* ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
 
     int i;
@@ -2039,8 +2039,9 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
         msg.rma_iov = &rma_iov;
         msg.rma_iov_count = 1;
         
-        OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
-             ret = fi_writemsg(gasnetc_ofi_rdma_epfd, &msg, FI_INJECT | FI_DELIVERY_COMPLETE ), OFI_POLL_ALL);
+        OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
+                             ret = fi_writemsg(gasnetc_ofi_rdma_epfd, &msg, FI_INJECT | FI_DELIVERY_COMPLETE),
+                             OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm_inject);
         GASNETC_OFI_CHECK_RET(ret, "fi_writemsg with FI_INJECT failed");
 
 #if GASNET_DEBUG
@@ -2048,6 +2049,9 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
 #endif
         GASNETC_STAT_EVENT(NB_PUT_INJECT);
         return GEX_EVENT_INVALID;
+
+out_imm_inject:
+        return GEX_EVENT_NO_OP;
     } 
     /* Bounce buffers are needed */
     else if (nbytes <= gasnetc_ofi_bbuf_threshold) {
@@ -2069,6 +2073,8 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
         i = 0;
         gasnetc_ofi_bounce_buf_t* buf_container;
 
+        gex_Flags_t imm = flags & GEX_FLAG_IMMEDIATE;
+
         while (num_bufs_needed > 0) {
             bytes_to_copy = num_bufs_needed != 1 ? ofi_bbuf_size : nbytes;
             gasneti_assert(bytes_to_copy <= ofi_bbuf_size);
@@ -2076,9 +2082,11 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
             gasneti_lifo_push(&bbuf_ctxt->bbuf_list, buf_container);
             memcpy(buf_container->buf, (void*)src_ptr, bytes_to_copy);
 
-            OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
-                OFI_WRITE(gasnetc_ofi_rdma_epfd, buf_container->buf, bytes_to_copy, 
-                    dest, dest_ptr, bbuf_ctxt, 0), OFI_POLL_ALL);
+            OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
+                                 OFI_WRITE(gasnetc_ofi_rdma_epfd, buf_container->buf,
+                                           bytes_to_copy, dest, dest_ptr, bbuf_ctxt, 0),
+                                 OFI_POLL_ALL, imm, out_imm_bounce);
+            imm = 0; // no going back once first buffer has been written
 
             GASNETC_OFI_CHECK_RET(ret, "fi_write for bounce buffered data failed");
 
@@ -2096,6 +2104,15 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
 
         GASNETC_STAT_EVENT(NB_PUT_BOUNCE);
         return GEX_EVENT_INVALID;
+
+out_imm_bounce:
+        gasneti_assume(i == 0);
+        for (/*empty*/; i < num_bufs_needed; ++i) {
+            gasneti_lifo_push(&ofi_bbuf_pool, buffs[i]);
+        }
+        gasneti_lifo_init(&bbuf_ctxt->bbuf_list);
+        gasneti_lifo_push(&ofi_bbuf_ctxt_pool, bbuf_ctxt);
+        return GEX_EVENT_NO_OP;
     }
     /* We tried our best to optimize this. Just wait for remote completion */
     else {
@@ -2103,14 +2120,19 @@ block_anyways:
       GASNETC_STAT_EVENT(NB_PUT_BLOCK);
       gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
       eop->ofi.type = OFI_TYPE_EPUT;
-      gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, &eop->ofi, 0 GASNETI_THREAD_PASS);
+      if (gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, &eop->ofi, 0, flags GASNETI_THREAD_PASS)) {
+          gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
+          GASNETE_EOP_MARKDONE(eop);
+          gasnete_eop_free(eop GASNETI_THREAD_PASS);
+          return GEX_EVENT_NO_OP;
+      }
       return (gex_Event_t)eop;
     }
 }
 
-void
+int
 gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes,
-        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc GASNETI_THREAD_FARG)
+                 gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
     int ret = FI_SUCCESS;
 
@@ -2118,17 +2140,23 @@ gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes
     gasneti_assert((alc == 0) || (alc == 1));
 
     PERIODIC_RMA_POLL();
-    OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
-        OFI_WRITE(gasnetc_ofi_rdma_epfd, src_addr, nbytes, dest, dest_addr, ctxt_ptr, alc), OFI_POLL_ALL);
+    OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
+                         OFI_WRITE(gasnetc_ofi_rdma_epfd, src_addr, nbytes, dest, dest_addr, ctxt_ptr, alc),
+                         OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
     GASNETC_OFI_CHECK_RET(ret, "fi_write failed");
 #if GASNET_DEBUG
     gasnetc_paratomic_increment(&pending_rdma,0);
 #endif
+
+    return 0;
+
+out_imm:
+    return 1;
 }
 
-void
+int
 gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbytes,
-        gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG)
+                 gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
     int ret = FI_SUCCESS;
 
@@ -2136,11 +2164,17 @@ gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbyte
 
     PERIODIC_RMA_POLL();
 
-    OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
-        OFI_READ(gasnetc_ofi_rdma_epfd, dest_addr, nbytes, dest, src_addr, ctxt_ptr, 0), OFI_POLL_ALL);
+    OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
+                         OFI_READ(gasnetc_ofi_rdma_epfd, dest_addr, nbytes, dest, src_addr, ctxt_ptr, 0),
+                         OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
 
     GASNETC_OFI_CHECK_RET(ret, "fi_read failed");
 #if GASNET_DEBUG
     gasnetc_paratomic_increment(&pending_rdma,0);
 #endif
+
+    return 0;
+
+out_imm:
+    return 1;
 }
