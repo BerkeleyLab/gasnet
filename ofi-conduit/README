@@ -482,6 +482,14 @@ Known problems:
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4179
 
+* Bug 4267
+  Multi-threaded applications in which one or more threads are using GASNet
+  concurrent with another thread calling gasnet_exit() may experience "random
+  crashes" as the exiting thread destroys resources in use by the others.
+  This includes otherwise benign calls to gasnet_AMPoll().
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4267
+
 * Bug 4413
   At least cxi provider is known to crash at initialization if the environment
   variable "FI_UNIVERSE_SIZE" is set.  However, this is a supported variable in
@@ -582,16 +590,24 @@ The OFI community is working on increasing the number of providers that can supp
 
 * Implement AMLong via target-side reassembly using fi_writedata()
 
-* Provide non-trivial lc_opt support similar to that in ibv-conduit (which, like
-  OFI, has no distinct event for local completion)
+* Implement asynchronous LC support for Long, most likely as part of the
+  work to implement target-side reassembly.
 
-* Implement non-trivial support for `GEX_FLAG_IMMEDIATE` to the extent possible
-  given the opaque nature of resource management in OFI
+* Improve non-trivial support for `GEX_FLAG_IMMEDIATE` with AM Long, once
+  target-side reassembly removes the "sync" of "put-sync-send".
+
+* Improve asynchronous LC support for Put.  Like libibverbs, libfabric
+  does not provide distinct events for local versus remote completion.
+  Therefore, the current support for `GEX_EVENT_{DEFER,GROUP}` signals local
+  completion immediately before remote/operation completion. However, use of
+  `FI_INJECT` could be used to achieve synchronous completion of small Puts
+  in the same manner that ibv-conduit utilizes inline sends.
 
 * Implement native support for Negotiated-Payload Active Message (NPAM)
 
 * Eliminate a buffer copy for AM Medium (and AM Long below the RMA threshold)
-  by using (iov_count > 1) on providers which support it
+  by using (iov_count > 1) on providers which support it, along with the
+  corresponding asynchronous LC support for AM Medium.
 
 * Implement native atomics via FI_ATOMIC
 
