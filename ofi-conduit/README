@@ -112,10 +112,10 @@ The following configure options are also available:
       If this option is not present, the configure script will attempt to detect
       an available provider using the fi_info utility, if available.
       If fi_info is not available, or no supported provider is listed by fi_info,
-      or if the argument to this option is "default", then provider features
+      or if the argument to this option is "generic", then provider features
       will be detected at runtime. While this is flexible as to which providers
       it supports, it will add branches in critical paths that may increase
-      software overheads.  This case is referred to as "unknown provider" below.
+      software overheads.  This case is referred to as "generic provider" below.
 
       Note that some providers, such as "verbs;ofi_rxm" include a semi-colon in
       their name.  To avoid issues with shell quoting, the configure script will
@@ -145,7 +145,7 @@ recommended to be used as tuning options.
       This is the default for psm2 provider.
     * --disable-ofi-thread-domain
       Forces the use of FI_THREAD_SAFE in GASNET_PAR mode.
-      This is the default for most providers and for the unknown provider case.
+      This is the default for most providers and for the generic provider case.
 
       In GASNET_SEQ and GASNET_PARSYNC modes, the two options above have no
       effect.
@@ -160,7 +160,7 @@ recommended to be used as tuning options.
       Currently only the "verbs;ofi_rxm" provider defaults to use of
       FI_MR_BASIC.
 
-      For the unknown provider case, both FI_MR_SCALABLE and FI_MR_BASIC
+      For the generic provider case, both FI_MR_SCALABLE and FI_MR_BASIC
       memory registration support are compiled and the selection is made at
       runtime.
 
@@ -173,7 +173,7 @@ recommended to be used as tuning options.
       queue for the transmit completions of multiple endpoints.
       This is the default (and recommended) option for most providers.
 
-      For the unknown provider case, the logic for Cq creation and polling
+      For the generic provider case, the logic for Cq creation and polling
       adapts at runtime to use a single completion queue if possible, and uses
       multiple Cqs only if necessary.
 
@@ -181,7 +181,7 @@ recommended to be used as tuning options.
       Enables logic in ofi-conduit to handle the provider returning `-FI_EAGAIN`
       from `fi_recvmsg()`.
       This is the default option for the cxi and udp;ofi_rxd providers and for
-      the unknown provider case.
+      the generic provider case.
     * --disable-ofi-retry-recvmsg
       Disable logic to handle `-FI_EAGAIN` returns from `fi_recvmsg()`.
       This is the default (and recommended) option for most providers.
@@ -365,7 +365,7 @@ Recognized environment variables:
   this family are unset.
 
 * FI_PROVIDER - set to a provider name to override the default OFI provider selection
-  Note that only in the "unknown provider" case (described with the configure
+  Note that only in the "generic provider" case (described with the configure
   options) can this actually be used to change the provider to one different
   than selected at configure time.
 
