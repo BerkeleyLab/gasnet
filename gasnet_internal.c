@@ -1735,7 +1735,7 @@ static void gasneti_check_architecture(void) { // check for bad build configurat
       "    WARNING: This often has a MAJOR impact on performance. Please re-build with module craype-mic-knl!"
       : 0;
     #endif
-    if (warning) gasneti_console0_message("WARNING", warning);
+    if (warning) gasneti_console0_message("WARNING", "%s", warning);
   }
   #endif
 }
