@@ -618,25 +618,24 @@ extern gex_TI_t gasnetc_Token_Info(
 
   gex_TI_t result = 0;
 
-  info->gex_srcrank = ((gasnetc_ofi_am_send_buf_t*)token)->sourceid;
+  gasnetc_ofi_am_send_buf_t *real_token = (gasnetc_ofi_am_send_buf_t*)token;
+  gex_EP_t ep = gasneti_THUNK_EP;
+
+  info->gex_srcrank = real_token->sourceid;
   result |= GEX_TI_SRCRANK;
 
-  info->gex_ep = gasneti_THUNK_EP;
+  info->gex_ep = ep;
   result |= GEX_TI_EP;
 
-#if 0 // TODO-EX: implement these
-  /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
-  info->gex_entry = ###;
+  info->gex_entry = gasneti_import_ep(ep)->_amtbl + real_token->handler;
   result |= GEX_TI_ENTRY;
 
-  /* (###) add code here to set boolean "is a request" field info->gex_is_req (optional) */
-  info->gex_is_req = real_token->u.generic.is_req;
+  info->gex_is_req = real_token->isreq;
   result |= GEX_TI_IS_REQ;
 
-  /* (###) add code here to set boolean "is a long" field info->gex_is_long (optional) */
-  info->gex_is_long = real_token->is_long;
+  info->gex_is_long = (real_token->type == OFI_AM_LONG) ||
+                      (real_token->type == OFI_AM_LONG_MEDIUM);
   result |= GEX_TI_IS_LONG;
-#endif
 
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }

@@ -1203,6 +1203,7 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
     int data_offset;
     gex_Token_t token = (gex_Token_t)header;
     size_t nbytes;
+    gasneti_assert_uint(isreq ,==, header->isreq);
     switch(header->type) {
         case OFI_AM_SHORT:
             args = (gex_AM_Arg_t *)header->buf.short_buf.data;
@@ -1768,6 +1769,7 @@ int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler,
     sendbuf->sourceid = gasneti_mynode;
     sendbuf->type = OFI_AM_SHORT;
     sendbuf->argnum = numargs;
+    sendbuf->isreq = isreq;
     gex_AM_Arg_t *arglist = (gex_AM_Arg_t*) sendbuf->buf.short_buf.data;
     for (int i = 0 ; i < numargs ; ++i) {
         arglist[i] = va_arg(argptr, gex_AM_Arg_t);
@@ -1834,6 +1836,7 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
     sendbuf->sourceid = gasneti_mynode;
     sendbuf->type = OFI_AM_MEDIUM;
     sendbuf->argnum = numargs;
+    sendbuf->isreq = isreq;
     gex_AM_Arg_t *arglist = (gex_AM_Arg_t*) sendbuf->buf.medium_buf.data;
     for (int i = 0 ; i < numargs ; ++i) {
         arglist[i] = va_arg(argptr, gex_AM_Arg_t);
@@ -1941,6 +1944,7 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
     sendbuf->handler = (uint8_t) handler;
     sendbuf->sourceid = gasneti_mynode;
     sendbuf->argnum = numargs;
+    sendbuf->isreq = isreq;
     sendbuf->buf.long_buf.dest_ptr = dest_addr;
     gex_AM_Arg_t *arglist = (gex_AM_Arg_t*) sendbuf->buf.long_buf.data;
     for (int i = 0 ; i < numargs ; ++i) {

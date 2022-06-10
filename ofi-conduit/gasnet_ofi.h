@@ -102,10 +102,12 @@ typedef struct gasnetc_ofi_am_long_buf {
 } gasnetc_ofi_am_long_buf_t;
 
 typedef struct gasnetc_ofi_am_send_buf {
-    gasnetc_ofi_am_type type:2;
-    uint8_t argnum:6;
+    gasnetc_ofi_am_type type:2;  // actual range: 4-valued enum
+    uint8_t argnum:5;            // actual range: 0...16, inclusive
+    uint8_t isreq:1;             // actual range: Boolean
     uint8_t overhead;
     uint8_t handler;
+    uint8_t reserved;            // unused padding
     gex_Rank_t sourceid;
     union {
         gasnetc_ofi_am_short_buf_t short_buf;
