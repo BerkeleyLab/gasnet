@@ -388,6 +388,9 @@ static void gasneti_am_exchange_init(void))
     num_peers = gasneti_get_dissem_peers(&peers);
   #endif
 
+  // Without the following hint, some gcc versions warn about massive malloc sizes below
+  gasneti_assume(num_peers <= 8*sizeof(gex_Rank_t));
+
   // Compute the recv offset and send count for each step of exchange
   gasneti_am_exchange_rcvd = gasneti_malloc((num_peers+1) * sizeof(gex_Rank_t));
   gasneti_am_exchange_send = gasneti_malloc(num_peers * sizeof(gex_Rank_t));
