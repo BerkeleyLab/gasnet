@@ -1735,7 +1735,7 @@ static void gasneti_check_architecture(void) { // check for bad build configurat
       "    WARNING: This often has a MAJOR impact on performance. Please re-build with module craype-mic-knl!"
       : 0;
     #endif
-    if (warning) gasneti_console0_message("WARNING", warning);
+    if (warning) gasneti_console0_message("WARNING", "%s", warning);
   }
   #endif
 }
@@ -1908,11 +1908,13 @@ extern uint32_t gasneti_gethostid(void) {
           || (myid == 0x0000017f)
           || (myid == 0x0001007f)
           || (myid == 0x0100007f)) {
+      #if HAVE_GETHOSTID && !PLATFORM_OS_CYGWIN
         gasneti_console_message("WARNING", "Invalid return 0x%08x from gethostid().  "
                                 "Please see documentation on GASNET_HOST_DETECT in README and "
                                 "consider setting its value to 'hostname' or reconfiguring using "
                                 "'--with-host-detect=hostname' to make that the default value.",
                                 (unsigned int)myid);
+      #endif
         uint64_t csum = gasneti_hosthash();
         myid = GASNETI_HIWORD(csum) ^ GASNETI_LOWORD(csum);
       }

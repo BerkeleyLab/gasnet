@@ -778,7 +778,7 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
 
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
-    gasnetc_bootstrapExchange_gni(&my_aux_handle, sizeof(gni_mem_handle_t), all_mem_handle);
+    gasneti_bootstrapExchange_am(&my_aux_handle, sizeof(gni_mem_handle_t), all_mem_handle);
     for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
       peer_data[i].aux_handle = all_mem_handle[i];
     }
@@ -3724,7 +3724,7 @@ static int jobrank_leads_nbrhd(const gex_Rank_t jobrank) {
 // TODO: generalize to other than TEAM_ALL??
 static uint32_t *gather_ce_ids(uint32_t my_ce_id) {
   uint32_t *result = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
-  gasnetc_bootstrapExchange_gni(&my_ce_id, sizeof(my_ce_id), result);
+  gasneti_bootstrapExchange_am(&my_ce_id, sizeof(my_ce_id), result);
 
   // Scan result for failure (-1 value) from any host-leader
   // TODO: there must be a better way to iterate over the leaders
@@ -3931,7 +3931,7 @@ void gasnete_init_ce(void) {
   gasnete_ce_available = 1;
   GASNETI_TRACE_PRINTF(I,("Aries CE: available, inter-host radix = %d", radix));
 
-  gasnetc_bootstrapBarrier_gni();
+  gasneti_bootstrapBarrier_am();
 
 #if GASNET_DEBUG && !GASNET_PSHM // TODO: remove or update for PSHM?
   for (int i = 0; i < 4; ++i) {

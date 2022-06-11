@@ -4223,9 +4223,9 @@ if test "$enabled_ofi" = yes; then
         sockets)
             ofi_define_mr_scalable=1
         ;;
-        default|"")
+        default|generic|"")  # NOTE: "default" is deprecated and can be removed when Spack packaging drops 2022.3.0
             if test -n "$ofi_provider"; then
-                why='as requested via --with-ofi-provider=default'
+                why="as requested via --with-ofi-provider=$ofi_provider"
             else
                 why='because no OFI provider was specified via the --with-ofi-provider option and no known provider could be auto-detected'
             fi

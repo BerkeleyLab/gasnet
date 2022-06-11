@@ -51,7 +51,14 @@ static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
 }
 
-static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
+static int gasnetc_init( gex_Client_t            *client_p,
+                         gex_EP_t                *ep_p,
+                         gex_TM_t                *tm_p,
+                         const char              *clientName,
+                         int                     *argc,
+                         char                    ***argv,
+                         gex_Flags_t             flags)
+{
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -66,7 +73,18 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     gasneti_console_message("gasnetc_init","about to spawn..."); 
   #endif
 
-  gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
+  const char *force_spawner = NULL;
+#if HAVE_PMI_CRAY_H
+  // On a system with Cray PMI, we want to avoid initializing the MPI library
+  // by default despite `srun` being the launch utility for both MPI and PMI.
+  // So, a little extra logic here overrides the normal precedence of MPI over
+  // PMI in gasneti_spawnerInit().
+  const char *spawn_control = gasneti_getenv("GASNET_SPAWN_CONTROL"); // not a user knob.  thus not logged
+  if (!spawn_control || !spawn_control[0]) {
+    force_spawner = "PMI";
+  }
+#endif
+  gasneti_spawner = gasneti_spawnerInit(argc, argv, force_spawner, &gasneti_nodes, &gasneti_mynode);
   if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
   /* Must init timers after global env, and preferably before tracing */
@@ -93,6 +111,25 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasneti_pshm_init(gasneti_bootstrapSNodeBroadcast, 0);
   #endif
 
+  //  Create first Client, EP and TM *here*, for use in subsequent bootstrap communication
+  {
+    //  allocate the client object
+    gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
+    *client_p = gasneti_export_client(client);
+
+    //  create the initial endpoint with internal handlers
+    if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
+      GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
+    gasneti_EP_t ep = gasneti_import_ep(*ep_p);
+    gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
+
+    //  create the tm
+    gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
+    *tm_p = gasneti_export_tm(tm);
+  }
+
+  gasneti_attach_done = 1; // Ready to use AM Short and Medium for bootstrap comms
+
   uintptr_t mmap_limit;
   #if HAVE_MMAP
     // Bound per-host (sharedLimit) argument to gasneti_segmentLimit()
@@ -106,9 +143,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     }
     sharedLimit -= hostAuxSegs;
 
-    mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit,
-                                gasneti_spawner->Exchange,
-                                gasneti_spawner->Barrier);
+    mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit, NULL, NULL);
   #else
     // TODO-EX: we can at least look at rlimits but such logic belongs in conduit-indep code
     mmap_limit = (intptr_t)-1;
@@ -230,32 +265,21 @@ extern int gasnetc_Client_Init(
 
   //  main init
   // TODO-EX: must split off per-client and per-endpoint portions
-  if (!gasneti_init_done) {
-    int retval = gasnetc_init(argc, argv, flags);
+  if (!gasneti_init_done) { // First client
+    // NOTE: gasnetc_init() creates the first Client, EP and TM for use in bootstrap comms
+    int retval = gasnetc_init(client_p, ep_p, tm_p, clientName, argc, argv, flags);
     if (retval != GASNET_OK) GASNETI_RETURN(retval);
   #if 0
     /* called within gasnetc_init to allow init tracing */
     gasneti_trace_init(argc, argv);
   #endif
+  } else {
+    gasneti_fatalerror("No multi-client support");
   }
 
   // Do NOT move this prior to the gasneti_trace_init() call
   GASNETI_TRACE_PRINTF(O,("gex_Client_Init: name='%s' argc_p=%p argv_p=%p flags=%d",
                           clientName, (void *)argc, (void *)argv, flags));
-
-  //  allocate the client object
-  gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
-  *client_p = gasneti_export_client(client);
-
-  //  create the initial endpoint with internal handlers
-  if (gex_EP_Create(ep_p, *client_p, GEX_EP_CAPABILITY_ALL, flags))
-    GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
-  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
-  gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
-
-  // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
-  *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
@@ -264,6 +288,8 @@ extern int gasnetc_Client_Init(
 
     /* ensure everything is initialized across all nodes */
     gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
+  } else {
+    gasneti_attach_done = 0; // Pending client call to gasnet_attach()
   }
 
   return GASNET_OK;

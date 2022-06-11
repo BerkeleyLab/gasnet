@@ -617,10 +617,11 @@ int gasnetc_ofi_init(void)
   // CXI provider:
   // To handle bursty AM traffic, enable hybrid receive mode with reasonable default parameters.
   // If FI_CXI_RX_MATCH_MODE is already set, we make NO changes (or risk an inconsistent mess).
-  if (gasnetc_setenv_string("FI_CXI_RX_MATCH_MODE", "hybrid", 0)) {
+  int set_cxi_match_mode = gasnetc_setenv_string("FI_CXI_RX_MATCH_MODE", "hybrid", 0);
+  if (set_cxi_match_mode) {
     gasnetc_setenv_string("FI_CXI_RDZV_THRESHOLD", "256", 1);
     gasnetc_setenv_string("FI_CXI_RDZV_GET_MIN", "256", 1);
-  }
+  } // else: warning deferred until provider selection confirms use of CXI
 
   info = gasnetc_ofi_getinfo(hints);
   if (!info) {
@@ -664,6 +665,14 @@ int gasnetc_ofi_init(void)
        * unlikely case that another library in the current application will
        * use ofi/psm2 */
       unsetenv("FI_PSM2_LAZY_CONN");
+  }
+
+  if (!strcmp(info->fabric_attr->prov_name, "cxi") && !set_cxi_match_mode) {
+    gasneti_console0_message("WARNING", "ofi-conduit failed to configure FI_CXI_* envvars.  "
+                             "This may lead to unstable behavior and is most often the "
+                             "result of initializing MPI prior to initialization of GASNet.  "
+                             "Please see \"Limits to MPI interoperability\" in the "
+                             "ofi-conduit README for more information.");
   }
 
   int quiet = gasneti_getenv_yesno_withdefault("GASNET_QUIET", 0);
