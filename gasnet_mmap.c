@@ -2048,7 +2048,10 @@ extern int gex_EP_PublishBoundSegment(
   } *local, *global, *p;
 
   size_t elem_sz = sizeof(struct exchg_data);
-  local = gasneti_malloc(num_eps * elem_sz);
+  // NOTE: explicit NULL case for !num_eps prevents (at least) GCC 12 LTO from
+  // incorrectly warning that gasneti_blockingRotatedExchangeV() reads from a
+  // zero-byte allocation.
+  local = num_eps ? gasneti_malloc(num_eps * elem_sz) : NULL;
 
   // Pack
   p = local;
