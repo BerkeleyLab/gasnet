@@ -1528,10 +1528,8 @@ void gasnetc_auxseg_register(gasnet_seginfo_t si)
 // TX progress function: Handles either AM or RDMA outgoing operations
 // Returns the number of completions processed
 GASNETI_INLINE(gasnetc_ofi_tx_poll_one)
-void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
+int gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
 {
-    int ret = 0;
-    int i;
     struct fi_cq_data_entry re[GASNETC_OFI_NUM_COMPLETIONS];
     struct fi_cq_err_entry e;
 
@@ -1544,9 +1542,9 @@ void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
 #else
     /* If another thread already has the queue lock, return as it is already
      * processing the queue */
-    if(EBUSY == GASNETC_OFI_TRYLOCK(&gasnetc_ofi_locks.tx_cq)) return;
+    if(EBUSY == GASNETC_OFI_TRYLOCK(&gasnetc_ofi_locks.tx_cq)) return 0;
 #endif
-    ret = fi_cq_read(cqfd, (void *)&re, GASNETC_OFI_NUM_COMPLETIONS);
+    int ret = fi_cq_read(cqfd, (void *)&re, GASNETC_OFI_NUM_COMPLETIONS);
     GASNETC_OFI_UNLOCK(&gasnetc_ofi_locks.tx_cq);
     if (ret != -FI_EAGAIN)
     {
@@ -1554,14 +1552,14 @@ void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
             if (-FI_EAVAIL == ret) {
                 GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.tx_cq,
                    gasnetc_fi_cq_readerr(cqfd, &e ,0));
-                if_pf (gasnetc_is_exit_error(e)) return;
+                if_pf (gasnetc_is_exit_error(e)) return 0;
                 gasnetc_ofi_fatalerror("fi_cq_read for tx_poll failed with error", -e.err);
             } 
             else
                 gasnetc_ofi_fatalerror("fi_cq_read for tx_poll returned unexpected error", ret);
         } 
         else {
-            for (i = 0; i < ret; i++) {
+            for (int i = 0; i < ret; i++) {
                 if (re[i].flags & FI_SEND) {
 #if GASNET_DEBUG
                     gasnetc_paratomic_decrement(&pending_am, 0);
@@ -1580,19 +1578,27 @@ void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
                 }
             }
         }
+        return ret;
     }
+
+    gasneti_assert(ret == -FI_EAGAIN);
+    return 0;
 }
 
 void gasnetc_ofi_tx_poll(void)
 {
-  gasnetc_ofi_tx_poll_one(gasnetc_ofi_tx_cqfd);
+  int rc = gasnetc_ofi_tx_poll_one(gasnetc_ofi_tx_cqfd);
+  GASNETI_TRACE_EVENT_VAL(X, CQ_READ_TX, rc);
+
 #if GASNETC_OFI_USE_MULTI_CQ
   // TODO: use poll sets for providers/platforms which support them
   if (gasnetc_ofi_reqtx_cqfd) {
-    gasnetc_ofi_tx_poll_one(gasnetc_ofi_reqtx_cqfd);
+    rc = gasnetc_ofi_tx_poll_one(gasnetc_ofi_reqtx_cqfd);
+    GASNETI_TRACE_EVENT_VAL(X, CQ_READ_REQTX, rc);
   }
   if (gasnetc_ofi_reptx_cqfd) {
-    gasnetc_ofi_tx_poll_one(gasnetc_ofi_reptx_cqfd);
+    rc = gasnetc_ofi_tx_poll_one(gasnetc_ofi_reptx_cqfd);
+    GASNETI_TRACE_EVENT_VAL(X, CQ_READ_REPTX, rc);
   }
 #endif
 }
@@ -1621,8 +1627,9 @@ void gasnetc_ofi_am_recv_poll(int is_request)
 #endif
     }
 
-    for (int count = 0; count < GASNETC_OFI_EVENTS_PER_POLL; ++count) {
-        if(EBUSY == GASNETC_OFI_PAR_TRYLOCK(lock_p)) return;
+    int count;
+    for (count = 0; count < GASNETC_OFI_EVENTS_PER_POLL; ++count) {
+        if(EBUSY == GASNETC_OFI_PAR_TRYLOCK(lock_p)) goto out;
 
         /* Read from Completion Queue */
         struct fi_cq_data_entry re = {0};
@@ -1630,19 +1637,35 @@ void gasnetc_ofi_am_recv_poll(int is_request)
 
         if (ret == -FI_EAGAIN) {
             GASNETC_OFI_PAR_UNLOCK(lock_p);
-            return;
+            goto out;
         } 
         if_pf (ret < 0) {
             struct fi_cq_err_entry e = {0};
             gasnetc_fi_cq_readerr(cq, &e ,0);
             GASNETC_OFI_PAR_UNLOCK(lock_p);
-            if_pf (gasnetc_is_exit_error(e)) return;
+            if_pf (gasnetc_is_exit_error(e)) goto out;
             gasnetc_ofi_fatalerror("fi_cq_read for am_recv_poll failed with error", -e.err);
         }
 
         gasnetc_ofi_recv_ctxt_t *header = gasnetc_op_ctxt_to_recv_ctxt(re.op_context);
         /* Count number of completions read for this posted buffer */
         header->event_cntr++;
+
+#if GASNET_TRACE
+        {
+          gasnetc_ofi_recv_metadata_t* metadata =
+                  gasneti_container_of(header, gasnetc_ofi_recv_metadata_t, am_buff_ctxt);
+          int buffer_num = metadata - metadata_array;
+          uint64_t event_num = header->event_cntr - 1;
+          uintptr_t offset = (uintptr_t)re.buf - (uintptr_t)metadata->iov.iov_base;
+          GASNETI_TRACE_PRINTF(D,("fi_cq_read(%s) %d:%"PRIu64"%s%s",
+                                   is_request?"req":"rep", buffer_num, event_num,
+                                   (re.flags & FI_RECV)?gasneti_dynsprintf(" RECV@%"PRIuPTR"+%"PRIuSZ,
+                                                                           offset, re.len)
+                                                       :"",
+                                   (re.flags & FI_MULTI_RECV)?" UNLINK":""));
+        }
+#endif
 
         /* Record the total number of completions read */
         if_pf (re.flags & FI_MULTI_RECV) {
@@ -1721,6 +1744,13 @@ void gasnetc_ofi_am_recv_poll(int is_request)
         GASNETC_OFI_PAR_UNLOCK(lock_p);
     }
 #endif
+
+out:
+    if (is_request) {
+        GASNETI_TRACE_EVENT_VAL(X, CQ_READ_REQ, count);
+    } else {
+        GASNETI_TRACE_EVENT_VAL(X, CQ_READ_REP, count);
+    }
 }
 
 /* General progress function */

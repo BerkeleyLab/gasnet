@@ -159,6 +159,11 @@
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)  \
     VAL(C, ALLOC_REQ_BUFF, buffers)          \
     VAL(C, ALLOC_REP_BUFF, buffers)          \
+    VAL(C, CQ_READ_TX, events)               \
+    VAL(C, CQ_READ_REQTX, events)            \
+    VAL(C, CQ_READ_REPTX, events)            \
+    VAL(C, CQ_READ_REP, events)              \
+    VAL(C, CQ_READ_REQ, events)              \
     CNT(C, RECVMSG_REQ, cnt)                 \
     CNT(C, RECVMSG_REP, cnt)                 \
     CNT(C, RECVMSG_REQ_EAGAIN, cnt)          \
