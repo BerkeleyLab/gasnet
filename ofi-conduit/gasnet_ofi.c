@@ -1524,7 +1524,8 @@ void gasnetc_auxseg_register(gasnet_seginfo_t si)
  * OFI conduit network poll function
  * ----------------------------------------------*/
 
-/* TX progress function: Handles both AM and RDMA outgoing operations */
+// TX progress function: Handles either AM or RDMA outgoing operations
+// Returns the number of completions processed
 GASNETI_INLINE(gasnetc_ofi_tx_poll_one)
 void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
 {
@@ -1553,7 +1554,7 @@ void gasnetc_ofi_tx_poll_one(struct fid_cq* cqfd)
                 GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.tx_cq,
                    gasnetc_fi_cq_readerr(cqfd, &e ,0));
                 if_pf (gasnetc_is_exit_error(e)) return;
-                gasnetc_ofi_fatalerror("fi_cq_read for tx_poll failed with error", e.err);
+                gasnetc_ofi_fatalerror("fi_cq_read for tx_poll failed with error", -e.err);
             } 
             else
                 gasnetc_ofi_fatalerror("fi_cq_read for tx_poll returned unexpected error", ret);
@@ -1635,7 +1636,7 @@ void gasnetc_ofi_am_recv_poll(int is_request)
             gasnetc_fi_cq_readerr(cq, &e ,0);
             GASNETC_OFI_PAR_UNLOCK(lock_p);
             if_pf (gasnetc_is_exit_error(e)) return;
-            gasnetc_ofi_fatalerror("fi_cq_read for am_recv_poll failed with error", e.err);
+            gasnetc_ofi_fatalerror("fi_cq_read for am_recv_poll failed with error", -e.err);
         }
 
         gasnetc_ofi_recv_ctxt_t *header = gasnetc_op_ctxt_to_recv_ctxt(re.op_context);
