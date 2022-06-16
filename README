@@ -1126,14 +1126,6 @@ experimental support for mmap()ed files on hugetlbfs, which can be
 enabled with:
     HUGETLBFS: --disable-pshm-posix --enable-pshm-hugetlbfs
 
-PSHM includes an environment variable for controlling use of memory for
-intra-memory AM traffic:
-
-  GASNET_PSHMNET_QUEUE_DEPTH
-     Minimum number of PSHM-AMs a process must be capable of sending before
-     it may stall (default 32).  The shared memory allocated on a compute
-     node with P processes is roughly (2 * P * Depth * MaxMsgSz).
-
 System Settings for POSIX Shared Memory:
 ---------------------------------------
 On most systems (all but Solaris and some cross-compiled platforms), the
