@@ -192,9 +192,6 @@ extern int gasnetc_attach_primary(void) {
   /* catch fatal signals and convert to SIGQUIT */
   gasneti_registerSignalHandlers(gasneti_defaultSignalHandler);
 
-  // register process exit-time hook
-  gasneti_registerExitHandler(gasnetc_exit);
-
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
@@ -352,7 +349,7 @@ static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
           gasneti_console_message("EXIT STATE", "%s", gasnetc_exit_state); \
   } while (0)
 
-// TODO-EX: is this really necessary?
+// Avoid recursion, such as via gasneti_bootstrapAbort()
 extern void gasnetc_exit_cautious(int exitcode) {
   if (!gasnetc_exit_in_progress) gasnetc_exit(exitcode);
 }
@@ -367,18 +364,6 @@ static int gasnetc_exit_init(void) {
 
   return GASNET_OK;
 }
-
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
-  if (!gasnetc_exit_in_progress)
-    gasnetc_exit(exitcode);
-}
-#else
-static void gasnetc_atexit(void) {
-  if (!gasnetc_exit_in_progress)
-    gasnetc_exit(0);
-}
-#endif
 
 /* This signal handler is for a last-ditch exit when a signal arrives while
  * attempting the graceful exit.  That includes SIGALRM if we get wedged.
