@@ -27,6 +27,7 @@ GASNet-EX ChangeLog
   - gasnetrun*/amudprun now accept `-v` multiple times to increase verbosity
   - envvar `GASNET_VERBOSEENV` now recognizes 'N|n|NO|no|0' to mean false
   - Scaling improvements to startup costs (memory and time) in all conduits
+  - New options (and changed defaults) for `testalltoall`
 
 * Libfabric [EXPERIMENTAL] (details in ofi-conduit README)
   - A new environment variable `GASNET_OFI_MAX_MEDIUM` enables setting the
