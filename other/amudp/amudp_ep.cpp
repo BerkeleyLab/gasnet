@@ -359,7 +359,7 @@ static int AMUDP_FreeEndpointBuffers(ep_t ep) {
 extern int AM_Init() {
   if (AMX_Init()) { /* first call */
     AMX_assert(sizeof(amudp_msg_t) % 4 == 0); // may be required for correct argument alignment
-    #if PLATFORM_OS_LINUX /* && !PLATFORM_OS_WSL */
+    #if PLATFORM_OS_LINUX && !PLATFORM_OS_SUBFAMILY_WSL
       FILE *fp = fopen("/proc/sys/kernel/osrelease", "r");
       if (fp) {
         char line[255];

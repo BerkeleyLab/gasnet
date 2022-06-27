@@ -793,7 +793,7 @@ void gasneti_leaf_finish(gex_Event_t *_opt_val) {
   #elif defined GASNETI_HAVE_TLS_SUPPORT
     /* Default to OFF on some common ABIs with good TLS support */
     #if (PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC) && \
-        (PLATFORM_OS_DARWIN || PLATFORM_OS_SOLARIS || PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
+        (PLATFORM_OS_DARWIN || PLATFORM_OS_SOLARIS || PLATFORM_OS_LINUX)
       #define GASNETI_THREADINFO_OPT    0
     #elif PLATFORM_ARCH_POWERPC && \
           PLATFORM_OS_LINUX
