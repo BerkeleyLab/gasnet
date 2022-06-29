@@ -277,6 +277,7 @@ Recognized environment variables:
   increasing these may improve AM throughput or have no impact.  On some
   providers, reducing these may severely reduce AM throughput or even lead to
   crashes.  Defaults: 8 and 1M
+  See also: Bug 4179 and Bug 4461 under "Known problems"
 
 * GASNET_OFI_INJECT_LIMIT - limit on size of fi_inject() payload.
   GASNet Active Messages of total size (at the ofi level) no larger than this
@@ -427,6 +428,27 @@ The following environment variables may be used to tune this behavior:
 Known problems:
 ---------------
 
+* Bug 4179
+  In libfabric 1.11 and earlier, the verbs;ofi_rxm" provider (used, for
+  instance, on the Slingshot-10 network of some HPE Cray EX systems) has been
+  observed to experience corruption of AMs, is at least sometimes diagnosed
+  with a fatal error message like the following:
+    GASNet node [...] received an AM message from node [...] for a handler
+    index with no associated AM handler function registered
+  At the time of this writing, the best known work-around is to update
+  libfabric to version 1.12 or newer.  However, if that is not possible, then
+  an alternative is to set
+    GASNET_OFI_RECEIVE_BUFF_SIZE=single
+  in your environment.  This setting automatically uses a receive buffer size
+  that ensures only a single AM will be received per "multi-receive" buffer,
+  and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is adjusted to compensate.
+  Empirical evidence shows this prevents the failures in applications which
+  exhibit them (which is *not* every application).  However, this measurably
+  increases the latency of small AM operations.  So, this should only be used
+  if it is suspected that bug 4179 is impacting your application.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4179
+
 * Bug 4413
   At least cxi provider is known to crash at initialization if the environment
   variable "FI_UNIVERSE_SIZE" is set.  However, this is a supported variable in
@@ -455,6 +477,22 @@ Known problems:
   in ofi-conduit, *independent* of provider.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4427
+
+* Bug 4461
+  Under certain AM traffic patterns, the cxi provider (for the Slingshot-11
+  network on some HPE Cray EX systems) has been observed to fail in various
+  ways, including crashes and dropped messages.
+  At the time of this writing, the best known work-around is to set
+    GASNET_OFI_RECEIVE_BUFF_SIZE=single
+  in your environment.  This setting automatically uses a receive buffer size
+  that ensures only a single AM will be received per "multi-receive" buffer,
+  and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is adjusted to compensate.
+  Empirical evidence shows this prevents the failures in applications which
+  exhibit them (which is *not* every application).  However, this measurably
+  increases the latency of small AM operations.  So, this should only be used
+  if it is suspected that bug 4461 is impacting your application.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4461
 
 * See the GASNet Bugzilla server for details on additional known bugs:
   https://gasnet-bugs.lbl.gov/
