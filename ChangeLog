@@ -36,6 +36,9 @@ GASNet-EX ChangeLog
     In the absence of these settings, default buffer size remains unchanged.
   - Improvements to `--with-ofi-provider` argument handling, as documented
     in the conduit README.
+  - Opt-in work-around for bugs 4179 (verbs provider) and 4461 (cxi provider)
+    in which certain AM traffic patterns may lead to various failures.
+    See "Bug 4179" and "Bug 4461" in the conduit README.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4083: incorrect GatherAll algorithm selection at large scale

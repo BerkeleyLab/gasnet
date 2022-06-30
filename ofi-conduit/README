@@ -429,9 +429,9 @@ Known problems:
 ---------------
 
 * Bug 4179
-  In libfabric 1.11 and earlier, the verbs;ofi_rxm" provider (used, for
+  In libfabric 1.11 and earlier, the verbs;ofi_rxm provider (used, for
   instance, on the Slingshot-10 network of some HPE Cray EX systems) has been
-  observed to experience corruption of AMs, is at least sometimes diagnosed
+  observed to experience corruption of AMs, as at least sometimes diagnosed
   with a fatal error message like the following:
     GASNet node [...] received an AM message from node [...] for a handler
     index with no associated AM handler function registered
@@ -445,7 +445,8 @@ Known problems:
   Empirical evidence shows this prevents the failures in applications which
   exhibit them (which is *not* every application).  However, this measurably
   increases the latency of small AM operations.  So, this should only be used
-  if it is suspected that bug 4179 is impacting your application.
+  if it is suspected that bug 4179 is impacting your application and you cannot
+  update libfabric to 1.12 or newer.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4179
 
