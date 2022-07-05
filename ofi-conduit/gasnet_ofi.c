@@ -353,19 +353,36 @@ static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) 
                 "gasnet_ofi.c and recompile.\n", OFI_MAX_NUM_BOUNCE_BUFFERS, OFI_MAX_NUM_BOUNCE_BUFFERS);
     }
 
+    // What is the largest ofi-level message we can receive?
+    min_multi_recv = MAX(offsetof(gasnetc_ofi_am_send_buf_t, buf.long_buf.data),
+                         offsetof(gasnetc_ofi_am_send_buf_t, buf.medium_buf.data))
+                     + OFI_AM_MAX_DATA_LENGTH;
+    min_multi_recv = GASNETI_ALIGNUP(min_multi_recv, GASNETI_MEDBUF_ALIGNMENT);
+
     const char* num_multirecv_buffs_env = "GASNET_OFI_NUM_RECEIVE_BUFFS";
     const char* multirecv_size_env = "GASNET_OFI_RECEIVE_BUFF_SIZE";
-    num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 8, 0);
+    char *env_val = gasneti_strdup(gasnet_getenv(multirecv_size_env));
+    for (size_t i = 0; i < strlen(env_val); ++i) env_val[i] = toupper(env_val[i]);
+    if (! strcmp("SINGLE", env_val)) {
+        const char *value = gasneti_dynsprintf("SINGLE => %d", (int)min_multi_recv);
+        gasneti_envstr_display(multirecv_size_env, value, 0);
+        multirecv_buff_size = min_multi_recv;
+        num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 512, 0);
+    } else {
+        multirecv_buff_size = gasneti_getenv_int_withdefault(multirecv_size_env, 1024*1024, 1);
+        num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 8, 0);
+    }
+    gasneti_free(env_val);
 
-    multirecv_buff_size = gasneti_getenv_int_withdefault(multirecv_size_env, 1024*1024, 1);
     if (num_multirecv_buffs < 2)
         gasneti_fatalerror("%s must be at least 2.\n", num_multirecv_buffs_env);
 
-    if (multirecv_buff_size < GASNETC_SIZEOF_AM_BUF_T) {
+    if (multirecv_buff_size < min_multi_recv) {
         gasneti_fatalerror("%s must be at least %d bytes on this build.\n"
-                "This is the size of the largest AM Medium plus the message header.\n", \
-                multirecv_size_env, (int)GASNETC_SIZEOF_AM_BUF_T);
+                "This is the size of the largest AM, including its message header.\n", \
+                multirecv_size_env, (int)min_multi_recv);
     }
+
     const char* long_rma_threshold_env = "GASNET_OFI_LONG_AM_RMA_THRESH";
     long_rma_threshold = gasneti_getenv_int_withdefault(long_rma_threshold_env, OFI_AM_MAX_DATA_LENGTH, 1);
     if (long_rma_threshold > OFI_AM_MAX_DATA_LENGTH) {
@@ -825,8 +842,6 @@ int gasnetc_ofi_init(void)
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for am reply cq to am_reply_epfd failed");
 
   /* Low-water mark for shared receive buffer */
-  min_multi_recv = OFI_AM_MAX_DATA_LENGTH + offsetof(gasnetc_ofi_am_send_buf_t,buf.long_buf)
-                    + offsetof(gasnetc_ofi_am_long_buf_t, data);
   GASNETI_TRACE_PRINTF(I, ("Setting multi-recv low-water mark to %"PRIuSZ, min_multi_recv));
   optval = min_multi_recv;
   ret	 = fi_setopt(&gasnetc_ofi_request_epfd->fid, FI_OPT_ENDPOINT, FI_OPT_MIN_MULTI_RECV,
