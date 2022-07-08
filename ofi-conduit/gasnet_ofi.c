@@ -70,22 +70,6 @@ static addr_table_t  *addr_table;
 #define GET_RDMA_DEST(dest) (fi_addr_t)((dest)*NUM_OFI_ENDPOINTS+2)
 #endif
 
-// TODO: multi-EP/multi-segment will require generalizing this (and callers)
-// CAUTION: macro arguments may be evaluated multiple times (or zero)
-#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-#define GASNETC_OFI_IS_AUX(_addr,jobrank) \
-        ((uintptr_t)(_addr) - (uintptr_t)gasneti_seginfo_aux[jobrank].addr < gasneti_seginfo_aux[jobrank].size)
-#define GET_REMOTEADDR_AUX(remote_addr, jobrank, is_auxseg) \
-        ((uintptr_t)remote_addr - \
-         (uintptr_t)((is_auxseg) ? gasneti_seginfo_aux[jobrank].addr : gasneti_seginfo[jobrank].addr))
-#define GET_REMOTEADDR(remote_addr, jobrank) \
-        GET_REMOTEADDR_AUX(remote_addr, jobrank, GASNETC_OFI_IS_AUX(remote_addr, jobrank))
-#else
-#define GASNETC_OFI_IS_AUX(addr,jobrank) 0
-#define GET_REMOTEADDR_AUX(remote_addr, jobrank, is_auxseg) ((uintptr_t)remote_addr)
-#define GET_REMOTEADDR(remote_addr, jobrank) ((uintptr_t)remote_addr)
-#endif
-
 
 #define SCALABLE_NOT_AUTO_DETECTED (-1)
 
@@ -101,51 +85,84 @@ static uint64_t* gasnetc_ofi_target_aux_keys;
 
 // Alias unless/until the properties are split
 #define GASNETC_OFI_HAS_MR_PROV_KEY (!GASNETC_OFI_HAS_MR_SCALABLE)
+#define GASNETC_OFI_HAS_MR_VIRT_ADDR (!GASNETC_OFI_HAS_MR_SCALABLE)
 
 static size_t tx_cq_size = 0;
 static size_t rx_cq_size = 0;
 
-/* FI_MR_BASIC requires addressing by full virtual address */
-#define GET_REMOTEADDR_PER_MR_MODE(dest_addr, dest)\
-    GASNETC_OFI_HAS_MR_SCALABLE ? GET_REMOTEADDR(dest_addr, dest) : (uintptr_t)dest_addr
-
-// TODO: multi-EP will require replacing this
+// Determine if (jobrank,addr) is in the aux segment registration
+// TODO: multi-EP/multi-segment will require generalizing this and/or its callers
+GASNETI_INLINE(gasnetc_in_auxseg) GASNETI_PURE
+int gasnetc_in_auxseg(gex_Rank_t jobrank, void *addr)
+{
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-  #define GASNETC_OFI_GET_MR_KEY_EPIDX(jobrank,epidx) \
-          (GASNETC_OFI_HAS_MR_PROV_KEY                            \
-            ? (((epidx)<0) ? gasnetc_ofi_target_aux_keys[jobrank] \
-                           : gasnetc_ofi_target_keys[jobrank])    \
-            : GASNETC_EPIDX_TO_KEY(epidx))
+    // Reminder that with unsigned types, a negative offset is a very large positive value
+    uintptr_t offset = (uintptr_t)addr - (uintptr_t)gasneti_seginfo_aux[jobrank].addr;
+    return offset < gasneti_seginfo_aux[jobrank].size;
 #else
-  // Currently, for SEGMENT_EVERYTHING there is only ever a single memory registration.
-  #define GASNETC_OFI_GET_MR_KEY_EPIDX(jobrank,epidx) GASNETC_EPIDX_TO_KEY(0)
+    // For SEGMENT_EVERYTHING there is only ever a single memory registration.
+    // So the addrres is NEVER "in the aux segment registration".
+    return 0;
 #endif
+}
+GASNETI_PUREP(gasnetc_in_auxseg)
 
-#define OFI_WRITE(ep, src_addr, nbytes, dest, dest_addr, ctxt_ptr, aux)\
-    do {\
-        void *_op_ctxt = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr, aux);\
-        int _is_auxseg = GASNETC_OFI_IS_AUX(dest_addr, dest); \
-        gasneti_assert_uint(_is_auxseg ,==, !!_is_auxseg); \
-        int _rem_epidx = -_is_auxseg; /* 0 for client, -1 for aux */ \
-        uint64_t _key = GASNETC_OFI_GET_MR_KEY_EPIDX(dest,_rem_epidx);\
-        uintptr_t _rem_addr = GASNETC_OFI_HAS_MR_SCALABLE \
-                            ? GET_REMOTEADDR_AUX(dest_addr,dest,_is_auxseg) \
-                            : (uintptr_t)dest_addr; \
-        ret = fi_write(ep, src_addr, nbytes, NULL, GET_RDMA_DEST(dest), _rem_addr, _key, _op_ctxt);\
-    } while(0)
+// Lookup or compute correct key for RDMA
+GASNETI_INLINE(gasnetc_remote_key) GASNETI_PURE
+uint64_t gasnetc_remote_key(gex_Rank_t jobrank, int in_auxseg)
+{
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    if (GASNETC_OFI_HAS_MR_PROV_KEY) {
+        // TODO: multi-ep needs table per EP index
+        return in_auxseg ? gasnetc_ofi_target_aux_keys[jobrank] // aux seg
+                         : gasnetc_ofi_target_keys[jobrank];    // client seg
+    } else {
+        gex_EP_Index_t rem_epidx = 0; // TODO: multi-ep needs actual EP index
+        return GASNETC_EPIDX_TO_KEY(rem_epidx);
+    }
+#else
+    // For SEGMENT_EVERYTHING there is a single host memory registration
+    return GASNETC_EPIDX_TO_KEY(0);
+#endif
+}
+GASNETI_PUREP(gasnetc_remote_key)
 
-#define OFI_READ(ep, dest_buf, nbytes, src, src_addr, ctxt_ptr, aux)\
-    do {\
-        void *_op_ctxt = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr, aux);\
-        int _is_auxseg = GASNETC_OFI_IS_AUX(src_addr, src); \
-        gasneti_assert_uint(_is_auxseg ,==, !!_is_auxseg); \
-        int _rem_epidx = -_is_auxseg; /* 0 for client, -1 for aux */ \
-        uint64_t _key =  GASNETC_OFI_GET_MR_KEY_EPIDX(src, _rem_epidx);\
-        uintptr_t _rem_addr = GASNETC_OFI_HAS_MR_SCALABLE \
-                            ? GET_REMOTEADDR_AUX(src_addr,src,_is_auxseg) \
-                            : (uintptr_t)src_addr; \
-        ret = fi_read(ep, dest_buf, nbytes, NULL, GET_RDMA_DEST(src), _rem_addr, _key, _op_ctxt);\
+// Lookup correct "address" (which may be an offset) for RDMA
+GASNETI_INLINE(gasnetc_remote_addr) GASNETI_PURE
+uintptr_t gasnetc_remote_addr(gex_Rank_t jobrank, void *addr, int in_auxseg)
+{
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    if (GASNETC_OFI_HAS_MR_VIRT_ADDR) {
+        // BASIC uses the virtual address
+        return (uintptr_t)addr;
+    } else {
+        // SCALABLE uses an offset rather than virtual address
+        // TODO: multi-ep will use the published segment table
+        void *base = in_auxseg ? gasneti_seginfo_aux[jobrank].addr
+                               : gasneti_seginfo[jobrank].addr;
+        return (uintptr_t)addr - (uintptr_t)base;
+    }
+#else
+    // SCALABLE uses an offset, but base address is zero for EVERYTHING
+    return (uintptr_t)addr;
+#endif
+}
+GASNETI_PUREP(gasnetc_remote_addr)
+
+// Statements with launch a fi_write or fi_read, setting "ret"
+#define OFI_RMA(rw, ep, loc_addr, nbytes, jobrank, rem_addr, ctxt_ptr, aux) \
+    do { \
+        int _in_auxseg = gasnetc_in_auxseg(jobrank, rem_addr); \
+        fi_addr_t _peer = GET_RDMA_DEST(jobrank); \
+        uintptr_t _addr = gasnetc_remote_addr(jobrank, rem_addr, _in_auxseg); \
+        uint64_t _key   = gasnetc_remote_key(jobrank, _in_auxseg); \
+        void *_op_ctxt  = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr, aux); \
+        ret = fi_##rw(ep, loc_addr, nbytes, NULL, _peer, _addr, _key, _op_ctxt); \
     } while(0)
+#define OFI_WRITE(ep, src_addr, nbytes, jobrank, dest_addr, ctxt_ptr, aux) \
+        OFI_RMA(write, ep, src_addr, nbytes, jobrank, dest_addr, ctxt_ptr, aux)
+#define OFI_READ(ep, dest_addr, nbytes, jobrank, src_addr, ctxt_ptr, aux) \
+        OFI_RMA(read, ep, dest_addr, nbytes, jobrank, src_addr, ctxt_ptr, aux)
 
 /* Poll periodically on RMA injection to ensure efficient progress.
  * This is a data race, but it is safe as polling here is unnecessary, it
@@ -313,7 +330,7 @@ gasnetc_ofi_recv_ctxt_t *gasnetc_op_ctxt_to_recv_ctxt(void *p)
 // This is for use with gasnetc_ofi_{nb,bounce,blocking}_op_ctxt_t,
 // where we use the callback function as the operation context.
 // The callbacks perform the reverse using gasneti_container_of().
-GASNETI_INLINE(gasnetc_rdma_ctxt_to_op_ctxt_inner)
+GASNETI_INLINE(gasnetc_rdma_ctxt_to_op_ctxt_inner) GASNETT_PURE
 void *gasnetc_rdma_ctxt_to_op_ctxt_inner(void *p, unsigned int aux)
 {
   uintptr_t raw = (uintptr_t)p;
@@ -321,6 +338,7 @@ void *gasnetc_rdma_ctxt_to_op_ctxt_inner(void *p, unsigned int aux)
   gasneti_assert(0 == (aux &  GASNETC_RDMA_CTXT_MASK));
   return (void *)(raw | aux);
 }
+GASNETT_PUREP(gasnetc_rdma_ctxt_to_op_ctxt_inner)
 #define gasnetc_rdma_ctxt_to_op_ctxt(p,aux) \
         gasnetc_rdma_ctxt_to_op_ctxt_inner(&(p)->callback,aux)
 
@@ -2054,7 +2072,6 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
     int i;
     int ret = FI_SUCCESS;
     uintptr_t src_ptr = (uintptr_t)src_addr;
-    uintptr_t dest_ptr = GET_REMOTEADDR(dest_addr, dest);
 
     gasnetc_assert_callback_eq(ctxt_ptr, gasnetc_ofi_handle_rdma);
 
@@ -2062,7 +2079,6 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
 
     /* The payload can be injected without need for a bounce buffer */
     if (nbytes <= max_buffered_write) {
-        uintptr_t dest_ptr = GET_REMOTEADDR_PER_MR_MODE(dest_addr, dest);
         struct fi_msg_rma msg;
         msg.desc = 0;
         msg.addr = GET_RDMA_DEST(dest);
@@ -2070,12 +2086,11 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
         struct fi_rma_iov rma_iov;
         iovec.iov_base = src_addr;
         iovec.iov_len = nbytes;
-        rma_iov.addr = dest_ptr;
-        rma_iov.len = nbytes;
 
-        int is_auxseg = GASNETC_OFI_IS_AUX(dest_addr, dest);
-        int rem_epidx = -is_auxseg; // TODO: real multi-EP support
-        rma_iov.key = GASNETC_OFI_GET_MR_KEY_EPIDX(dest, rem_epidx);
+        int in_auxseg = gasnetc_in_auxseg(dest, dest_addr);
+        rma_iov.addr = gasnetc_remote_addr(dest, dest_addr, in_auxseg);
+        rma_iov.key = gasnetc_remote_key(dest, in_auxseg);
+        rma_iov.len = nbytes;
 
         msg.context = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr,0);
         msg.msg_iov = &iovec;
@@ -2128,7 +2143,7 @@ out_imm_inject:
 
             OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
                                  OFI_WRITE(gasnetc_ofi_rdma_epfd, buf_container->buf,
-                                           bytes_to_copy, dest, dest_ptr, bbuf_ctxt, 0),
+                                           bytes_to_copy, dest, (void *)dest_ptr, bbuf_ctxt, 0),
                                  OFI_POLL_ALL, imm, out_imm_bounce);
             imm = 0; // no going back once first buffer has been written
 
