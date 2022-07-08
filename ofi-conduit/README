@@ -370,6 +370,17 @@ Recognized environment variables:
   options) can this actually be used to change the provider to one different
   than selected at configure time.
 
+* FI_UNIVERSE_SIZE - This libfabric variable conveys the number of ranks /
+  peers a given process endpoint expects to communicate with (default: 256).
+  This setting is not directly consumed by GASNet ofi-conduit, but affects the
+  behavior of the underlying providers it relies upon.  Libfabric documentation
+  encourages users to set this high enough to prevent internal CQ overruns for
+  non-scalable communication patterns, but not so high as to waste
+  provider-internal memory.  Unfortunately at the time of this writing the
+  effect appears to be highly provider-specific, ranging from no apparent
+  effect on some providers (sockets), to the intended scaling effect on others
+  (verbs), and even outright crashes on other providers (cxi).
+
 * FI_PSM2_LOCK_LEVEL - This variable only applies to the psm2 provider and only
   is available in libfabric v1.5.0. This environment variable controls the
   internal locking state of the provider and can be set to the following three
