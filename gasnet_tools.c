@@ -1280,7 +1280,7 @@ extern void gasneti_freezeForDebuggerErr(void) {
 /* ------------------------------------------------------------------------------------ */
 // command-line retrieval support
 
-#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL || PLATFORM_OS_CYGWIN || \
+#if PLATFORM_OS_LINUX || PLATFORM_OS_CYGWIN || \
     PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
 #define GASNETI_HAVE_ARGV_FROM_PROC 1
 /* Try to get substitute argv from /proc, if available.
@@ -1290,7 +1290,7 @@ static void gasneti_argv_from_proc(int **ppargc, char ****ppargv) {
   static int argc = 0;
   static char **argv = NULL;
 
-#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL || PLATFORM_OS_CYGWIN
+#if PLATFORM_OS_LINUX || PLATFORM_OS_CYGWIN
   const char *filename = "/proc/self/cmdline";
 #elif PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
   const char *filename = "/proc/curproc/cmdline";
@@ -2250,7 +2250,7 @@ extern int gasneti_print_backtrace(int fd) {
           gasneti_rc_unused = ftruncate(tmpfd, 0); // in case failed backtrace wrote any output
 
           // detect and report system configuration issues that may be responsible for backtrace failure
-          #if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL) && !defined(YAMA_PTRACE_SCOPE)
+          #if PLATFORM_OS_LINUX && !defined(YAMA_PTRACE_SCOPE)
             #define YAMA_PTRACE_SCOPE "/proc/sys/kernel/yama/ptrace_scope"
           #endif
           #ifdef YAMA_PTRACE_SCOPE
@@ -3102,7 +3102,7 @@ extern int gasneti_cpu_count(void) {
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
   uint64_t retval = _gasneti_getPhysMemSysconf();
   if (retval) return retval;
-  #if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX || PLATFORM_OS_WSL
+  #if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX
     #define _BUFSZ        120
     { FILE *fp;
       char line[_BUFSZ+1];
@@ -3176,7 +3176,7 @@ static int gasneti_set_affinity_cpus(void) {
     }
     return cpus;
 }
-#if PLATFORM_OS_LINUX || PLATFORM_OS_WSL
+#if PLATFORM_OS_LINUX
 // return non-zero iff this Linux system is actually Microsoft Windows Subsystem for Linux
 extern int gasneti_platform_isWSL(void) {
     // Ideally we would use uname(2) here, but direct experimentation on the 4/16/17 version
@@ -3217,7 +3217,7 @@ int gasneti_set_affinity_default(int rank) {
 
     // Dynamically handle binaries built on native Ubuntu and ported to Microsoft's WSL kernel
     // emulator, which currently fail inside plpa_sched_setaffinity with EINVAL.
-  #if PLATFORM_OS_LINUX || PLATFORM_OS_WSL
+  #if PLATFORM_OS_LINUX
     if (gasneti_platform_isWSL()) {
         /* NO-OP on WSL */
         fails = 1;
@@ -3985,7 +3985,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     gasneti_assert_int(MHz ,>, 1);
     gasneti_assert_int(MHz ,<, 100000); 
     Tick = 1000. / MHz;
-  #else /* (X86 || X86_64 || MIC) && (Linux || CNL || WSL) */
+  #else // Linux && (X86 || X86_64 || MIC)
   FILE *fp = NULL;
   char input[512]; /* 256 is too small for "flags" line in /proc/cpuino */
   double MHz = 0.0;
@@ -4074,9 +4074,9 @@ extern double gasneti_calibrate_tsc(void) {
   //   and will run when it is safe.
   if_pf (firstTime) {
   #if !(PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC) || \
-      !(PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL)
+      !PLATFORM_OS_LINUX
     Tick = gasneti_calibrate_tsc_from_kernel();
-  #else /* (X86 || X86_64 || MIC) && (Linux || CNL || WSL) */
+  #else // Linux && (X86 || X86_64 || MIC)
     #ifndef GASNETI_DEFAULT_TSC_RATE
     // TODO: need logic to default to "cpuinfo" when we can determine CPU model is trustworthy
     #define GASNETI_DEFAULT_TSC_RATE "wallclock"

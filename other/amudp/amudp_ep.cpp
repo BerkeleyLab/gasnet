@@ -359,7 +359,13 @@ static int AMUDP_FreeEndpointBuffers(ep_t ep) {
 extern int AM_Init() {
   if (AMX_Init()) { /* first call */
     AMX_assert(sizeof(amudp_msg_t) % 4 == 0); // may be required for correct argument alignment
-    #if PLATFORM_OS_LINUX /* && !PLATFORM_OS_WSL */
+    // We currently rely on two Linux-specific behaviors when compiled for Linux:
+    //   (1) working ioctl (IOCTL_WORKS) and (2) working AIO (USE_ASYNC_TCP_CONTROL)
+    // At last test both of these features are broken by the kernel emulation layer in WSL1,
+    // so we issue a warning if we were compiled for Linux but then run on WSL.
+    // TODO: Verify behavior on WSL2 and consider re-enabling the Linux optimizations there
+    //       if we can reliably detect use of WSL2
+    #if PLATFORM_OS_LINUX && !PLATFORM_OS_SUBFAMILY_WSL
       FILE *fp = fopen("/proc/sys/kernel/osrelease", "r");
       if (fp) {
         char line[255];

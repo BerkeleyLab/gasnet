@@ -40,6 +40,11 @@ GASNet-EX ChangeLog
     in which certain AM traffic patterns may lead to various failures.
     See "Bug 4179" and "Bug 4461" in the conduit README.
 
+* Platform support/portability
+  - `PLATFORM_OS_CNL` and `PLATFORM_OS_WSL` macros have been renamed to
+    `PLATFORM_OS_SUBFAMILY_CNL` and `PLATFORM_OS_SUBFAMILY_WSL`.
+     These platforms now ALSO define `PLATFORM_OS_LINUX`.
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4083: incorrect GatherAll algorithm selection at large scale
   - bug4379: HIP support using deprecated context functionality

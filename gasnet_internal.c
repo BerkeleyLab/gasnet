@@ -1583,7 +1583,7 @@ static int gasneti_lowQualityVerbs(void) {
 // verbs provider on those platforms.
 static int gasneti_nativeOfiProvider(void) {
   static int nativeOfiProvider = 0;
-#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL
+#if PLATFORM_OS_LINUX
   static int is_init = 0;
   if (!is_init) {
     gasneti_device_probe_t dev_list[] = {
@@ -1613,7 +1613,7 @@ static int gasneti_nativeOfiProvider(void) {
 // TODO: more platforms than just Linux?
 static int gasneti_nativeUcxSupport(void) {
   static int nativeUcxSupport = 0;
-#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL
+#if PLATFORM_OS_LINUX
   static int is_init = 0;
   if (!is_init) {
     gasneti_device_probe_t dev_list[] = { GASNETI_IBV_DEVICES };
@@ -1716,7 +1716,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 }
 
 static void gasneti_check_architecture(void) { // check for bad build configurations
-  #if PLATFORM_OS_CNL && PLATFORM_ARCH_X86_64 // bug 3743, verify correct processor tuning
+  #if PLATFORM_OS_SUBFAMILY_CNL && PLATFORM_ARCH_X86_64 // bug 3743, verify correct processor tuning
   { FILE *fp = fopen("/proc/cpuinfo","r");
     char model[255];
     if (!fp) gasneti_fatalerror("Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));

@@ -748,7 +748,7 @@ static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which,
   const char *hint2 = "";
 #if !GASNETI_PSHM_POSIX
   // N/A
-#elif PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL
+#elif PLATFORM_OS_LINUX
   #define GASNETC_PSHM_FS "/dev/shm"
 #elif PLATFORM_OS_NETBSD
   #define GASNETC_PSHM_FS "/var/shm"

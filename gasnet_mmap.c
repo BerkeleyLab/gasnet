@@ -16,7 +16,7 @@
   #include <sys/statvfs.h>
 #endif
 
-#if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && !GASNETI_BUG3480_WORKAROUND // Suspect bug 3480
+#if PLATFORM_OS_LINUX && !GASNETI_BUG3480_WORKAROUND // Suspect bug 3480
 #define GASNETI_BUG3480_MSG "\nYour system is suspected to be impacted by bug 3480"
 #else
 #define GASNETI_BUG3480_MSG
