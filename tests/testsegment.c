@@ -16,10 +16,6 @@
 #include <gasnetex.h>
 #include <gasnet_coll.h>
 
-#if GASNET_CONDUIT_OFI
-#define MISSING_MULTI_SEGMENT_SUPPORT 1
-#endif
-
 // Unused
 #ifndef TEST_SEGSZ
 #define TEST_SEGSZ PAGESZ

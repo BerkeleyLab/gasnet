@@ -176,7 +176,7 @@ typedef struct gasnetc_Segment_t_ {
 } *gasnetc_Segment_t;
 
 void gasnetc_auxseg_register(gasnet_seginfo_t si);
-int gasnetc_segment_register(gasnetc_Segment_t segment);
+int gasnetc_segment_register(gasnetc_Segment_t segment, uint64_t key);
 int gasnetc_segment_deregister(gasnetc_Segment_t segment);
 void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps);
 
@@ -219,5 +219,11 @@ extern int gasnetc_exit_in_progress;
 #ifndef GASNETC_OFI_EVENTS_PER_POLL
 #define GASNETC_OFI_EVENTS_PER_POLL 16
 #endif
+
+// Conversion of EP index to memory registration key,
+// where -1 is used for the aux seg
+#define _GASNETC_CLIENT_KEY_BASE     1
+#define GASNETC_EPIDX_TO_KEY(epidx)  ((epidx)+_GASNETC_CLIENT_KEY_BASE)
+#define GASNETC_AUX_KEY              GASNETC_EPIDX_TO_KEY(-1)
 
 #endif /*_GASNET_OFI_H*/
