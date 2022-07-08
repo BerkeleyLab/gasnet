@@ -56,19 +56,35 @@ typedef struct gasnetc_ofi_recv_metadata {
     gasnetc_ofi_recv_ctxt_t am_buff_ctxt;
 } gasnetc_ofi_recv_metadata_t;
 
-#define NUM_OFI_ENDPOINTS 3
-
 #define USE_AV_MAP 0
-static addr_table_t  *addr_table;
+
+// Must match order of fi_getname() calls in ofi_exchange_addresses(),
+// where this is enforced via static assertions.
+enum {
+    GASNETC_FADDR_IDX_REQ = 0,
+    GASNETC_FADDR_IDX_REP,
+    GASNETC_FADDR_IDX_RDMA,
+    NUM_OFI_ENDPOINTS
+};
+#define GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank) \
+    ((idx) + (jobrank)*NUM_OFI_ENDPOINTS)
+
 #if USE_AV_MAP
-#define GET_AM_REQUEST_DEST(dest) (fi_addr_t)(addr_table->table[(dest)*NUM_OFI_ENDPOINTS])
-#define GET_AM_REPLY_DEST(dest) (fi_addr_t)(addr_table->table[(dest)*NUM_OFI_ENDPOINTS+1])
-#define GET_RDMA_DEST(dest) (fi_addr_t)(addr_table->table[(dest)*NUM_OFI_ENDPOINTS+2])
-#else
-#define GET_AM_REQUEST_DEST(dest) (fi_addr_t)((dest)*NUM_OFI_ENDPOINTS)
-#define GET_AM_REPLY_DEST(dest) (fi_addr_t)((dest)*NUM_OFI_ENDPOINTS+1)
-#define GET_RDMA_DEST(dest) (fi_addr_t)((dest)*NUM_OFI_ENDPOINTS+2)
+    static addr_table_t  *addr_table;
 #endif
+
+// TODO: multi-ep with independent resources will require rewriting this
+GASNETI_INLINE(gasnetc_fabric_addr_inner) GASNETI_PURE
+fi_addr_t gasnetc_fabric_addr_inner(int idx, gex_Rank_t jobrank) {
+#if USE_AV_MAP
+    return (fi_addr_t)(addr_table->table[GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank)]);
+#else
+    return (fi_addr_t)GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank);
+#endif
+}
+GASNETI_PUREP(gasnetc_fabric_addr_inner)
+#define gasnetc_fabric_addr(type, jobrank) \
+        gasnetc_fabric_addr_inner(GASNETC_FADDR_IDX_##type, jobrank)
 
 
 #define SCALABLE_NOT_AUTO_DETECTED (-1)
@@ -152,8 +168,8 @@ GASNETI_PUREP(gasnetc_remote_addr)
 // Statements with launch a fi_write or fi_read, setting "ret"
 #define OFI_RMA(rw, ep, loc_addr, nbytes, jobrank, rem_addr, ctxt_ptr, aux) \
     do { \
-        int _in_auxseg = gasnetc_in_auxseg(jobrank, rem_addr); \
-        fi_addr_t _peer = GET_RDMA_DEST(jobrank); \
+        int _in_auxseg  = gasnetc_in_auxseg(jobrank, rem_addr); \
+        fi_addr_t _peer = gasnetc_fabric_addr(RDMA, jobrank); \
         uintptr_t _addr = gasnetc_remote_addr(jobrank, rem_addr, _in_auxseg); \
         uint64_t _key   = gasnetc_remote_key(jobrank, _in_auxseg); \
         void *_op_ctxt  = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr, aux); \
@@ -543,13 +559,24 @@ static void ofi_exchange_addresses() {
   on_node_addresses = gasneti_malloc(total_len);
 
   char* alladdrs = gasneti_malloc(gasneti_nodes*total_len);
+  char* p = on_node_addresses;
 
-  ret = fi_getname(&gasnetc_ofi_request_epfd->fid, on_node_addresses, &reqnamelen);
+  gasneti_static_assert(GASNETC_FADDR_IDX_REQ == 0);
+  ret = fi_getname(&gasnetc_ofi_request_epfd->fid, p, &reqnamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the AM request endpoint");
-  ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, on_node_addresses+reqnamelen, &repnamelen);
+  p += reqnamelen;
+
+  gasneti_static_assert(GASNETC_FADDR_IDX_REP == 1);
+  ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, p, &repnamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the AM reply endpoint");
-  ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, on_node_addresses+reqnamelen+repnamelen, &rdmanamelen);
+  p += repnamelen;
+
+  gasneti_static_assert(GASNETC_FADDR_IDX_RDMA == 2);
+  ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, p, &rdmanamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the RDMA endpoint");
+  p += rdmanamelen;
+
+  gasneti_assert_ptr(p ,==, on_node_addresses + total_len);
 
   gasneti_bootstrapExchange(on_node_addresses, total_len, alladdrs);
   /* NOTE: If AV_MAP is ever to be supported, the NULL in the below call needs to be
@@ -1817,12 +1844,12 @@ int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler,
     int poll_type;
     if (isreq) {
         ep = gasnetc_ofi_request_epfd;
-        am_dest = GET_AM_REQUEST_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REQ, dest);
         poll_type = OFI_POLL_ALL;
     } 
     else {
         ep = gasnetc_ofi_reply_epfd;
-        am_dest = GET_AM_REPLY_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REP, dest);
         poll_type = OFI_POLL_REPLY;
     }
 
@@ -1882,12 +1909,12 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
     int poll_type;
     if (isreq) {
         ep = gasnetc_ofi_request_epfd;
-        am_dest = GET_AM_REQUEST_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REQ, dest);
         poll_type = OFI_POLL_ALL;
     } 
     else {
         ep = gasnetc_ofi_reply_epfd;
-        am_dest = GET_AM_REPLY_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REP, dest);
         poll_type = OFI_POLL_REPLY;
     }
 
@@ -1957,12 +1984,12 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
     int poll_type;
     if (isreq) {
         ep = gasnetc_ofi_request_epfd;
-        am_dest = GET_AM_REQUEST_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REQ, dest);
         poll_type = OFI_POLL_ALL;
     } 
     else {
         ep = gasnetc_ofi_reply_epfd;
-        am_dest = GET_AM_REPLY_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REP, dest);
         poll_type = OFI_POLL_REPLY;
     }
 
@@ -2081,7 +2108,7 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
     if (nbytes <= max_buffered_write) {
         struct fi_msg_rma msg;
         msg.desc = 0;
-        msg.addr = GET_RDMA_DEST(dest);
+        msg.addr = gasnetc_fabric_addr(RDMA, dest);
         struct iovec iovec;
         struct fi_rma_iov rma_iov;
         iovec.iov_base = src_addr;
