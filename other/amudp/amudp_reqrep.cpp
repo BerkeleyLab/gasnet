@@ -293,8 +293,8 @@ static int AMUDP_DrainNetwork(ep_t ep) {
            */
           int newsize = 2 * ep->socketRecvBufferSize;
 
-          if (newsize > AMUDP_SOCKETBUFFER_MAX) { /* create a semi-sane upper bound */
-            newsize = AMUDP_SOCKETBUFFER_MAX;
+          if (newsize <= 0 || newsize > (int)AMUDP_SocketBuffer_max) { /* create a semi-sane upper bound */
+            newsize = AMUDP_SocketBuffer_max;
             ep->socketRecvBufferMaxedOut = 1;
           }
           ep->socketRecvBufferMaxedOut += AMUDP_growSocketBufferSize(ep, newsize, SO_RCVBUF, "SO_RCVBUF");
