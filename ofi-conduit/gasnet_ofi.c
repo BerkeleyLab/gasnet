@@ -1282,7 +1282,8 @@ void gasnetc_ofi_handle_rdma(void *op_context, unsigned int aux)
             }
             break;
         default:
-            gasneti_fatalerror("receive undefined OP type in gasnetc_ofi_rdma_poll: %d\n", ptr->type);
+            gasneti_unreachable_error(("undefined OP type in gasnetc_ofi_rdma_poll: %d",
+                                       ptr->type));
 
     }
 }
