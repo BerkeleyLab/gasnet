@@ -37,12 +37,6 @@
   #endif
 #endif
 
-  /* define to 1 if conduit allows internal GASNet fns to issue put/get for remote
-     addrs out of segment - not true when PSHM is used */
-#if !GASNET_PSHM
-#define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
-#endif
-
   // If this conduit is considered a "portable conduit" only *conditionally*,
   // uncomment to enable calls to gasnetc_check_portable_conduit(void) as
   // described in gasnet_internal.c.
