@@ -279,7 +279,7 @@ Recognized environment variables:
   crashes.  Defaults: 8 and 1M
   See also: Bug 4179 and Bug 4461 under "Known problems"
 
-* GASNET_OFI_INJECT_LIMIT - limit on size of fi_inject() payload.
+* GASNET_OFI_AM_INJECT_LIMIT - limit on size of fi_inject() payload.
   GASNet Active Messages of total size (at the ofi level) no larger than this
   parameter value will be sent using fi_inject(), and larger messages are sent
   using fi_send().  Use of fi_inject() reduces the overall complexity of the
@@ -288,6 +288,18 @@ Recognized environment variables:
   eliminating the extra copy at the expense of signaling an asynchronous local
   completion.  This setting does not affect payload local completion semantics
   at the GASNet API level.
+  It too large a value is requested, it will be reduced to the maximum which
+  the OFI provider can support.
+  Default: largest size supported by the provider.
+  NOTE: If this parameter is not set, then "GASNET_OFI_INJECT_LIMIT" is
+  accepted as an alias.
+
+* GASNET_OFI_RMA_INJECT_LIMIT - limit on size of RMA with FI_INJECT
+  GASNet RMA put operations no larger than this size may be issued using the
+  `FI_INJECT` flag to ensure the data is consumed synchronously.  This can
+  reduce the overal complexity of operations using `GEX_EVENT_NOW`, typically
+  at cost of an extra copy.  This setting does not affect local completion
+  semantics at the GASNet API level.
   It too large a value is requested, it will be reduced to the maximum which
   the OFI provider can support.
   Default: largest size supported by the provider.

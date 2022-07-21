@@ -207,6 +207,7 @@ static size_t num_init_am_reply_buffs = 0;
 static size_t long_rma_threshold = 0;
 
 static uint64_t                 max_buffered_send;
+static uint64_t                 max_buffered_write;
 static uint64_t                 min_multi_recv;
 
 static int using_psm_provider = 0;
@@ -217,6 +218,9 @@ static const char *supported_providers = GASNETC_OFI_PROVIDER_LIST;
 static int gasnetc_high_perf_prov = 0;
 static char *gasnetc_ofi_provider = NULL;
 static char *gasnetc_ofi_domain = NULL;
+
+static struct fi_info *gasnetc_rma_info;
+static struct fi_info *gasnetc_msg_info;
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
@@ -777,31 +781,68 @@ int gasnetc_ofi_init(void)
    * and the first match is not the one we want. */
   hints->fabric_attr->prov_name = gasnetc_ofi_provider;
   hints->domain_attr->name = gasnetc_ofi_domain;
+  fi_freeinfo(info);
 
   /* Allocate a new active endpoint for RDMA operations */
   hints->caps = FI_RMA;
 
-  ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
+  ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_rma_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for RMA endpoint");
 
-  ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_rdma_epfd, NULL);
+  ret = fi_endpoint(gasnetc_ofi_domainfd, gasnetc_rma_info, &gasnetc_ofi_rdma_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for rdma failed");
+
+  // Maximum size to use for RMA with FI_INJECT
+  {
+    const char *env_var = "GASNET_OFI_RMA_INJECT_LIMIT";
+    uint64_t dflt = gasnetc_rma_info->tx_attr->inject_size;
+    uint64_t value = gasneti_getenv_int_withdefault(env_var, dflt, 1);
+    if (value > dflt) { // enforce dflt as the maximum
+      if (!gasneti_mynode)  {
+        gasneti_console_message("WARNING",
+                                "%s reduced from the requested value %"PRIu64
+                                " to the maximum supported value %"PRIu64,
+                                env_var, value, dflt);
+      }
+      value = dflt;
+    }
+    max_buffered_write = value;
+  }
+  GASNETI_TRACE_PRINTF(I, ("Max buffered write size is %"PRIu64, max_buffered_write));
 
   /* Allocate a new active endpoint for AM operations buffer */
   hints->caps     = FI_MSG | FI_MULTI_RECV;
 
-  ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
+  ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_msg_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for MSG endpoints");
 
-  // Don't allow libfabric to free() our strings
-  hints->domain_attr->name = NULL;
-  hints->fabric_attr->prov_name = NULL;
-
-  ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_request_epfd, NULL);
+  ret = fi_endpoint(gasnetc_ofi_domainfd, gasnetc_msg_info, &gasnetc_ofi_request_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for am request endpoint failed");
 
-  ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_reply_epfd, NULL);
+  ret = fi_endpoint(gasnetc_ofi_domainfd, gasnetc_msg_info, &gasnetc_ofi_reply_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for am reply endpoint failed");
+
+  // Maximum size to use for fi_inject
+  {
+    const char *new_env_var = "GASNET_OFI_AM_INJECT_LIMIT";
+    const char *old_env_var = "GASNET_OFI_INJECT_LIMIT";
+    // Perfer the new variable name unless only the legacy one is set
+    const char *env_var = (gasneti_getenv(new_env_var) || !gasneti_getenv(old_env_var))
+                        ? new_env_var : old_env_var;
+    uint64_t dflt = gasnetc_msg_info->tx_attr->inject_size;
+    uint64_t value = gasneti_getenv_int_withdefault(env_var, dflt, 1);
+    if (value > dflt) { // enforce dflt as the maximum
+      if (!gasneti_mynode)  {
+        gasneti_console_message("WARNING",
+                                "%s reduced from the requested value %"PRIu64
+                                " to the maximum supported value %"PRIu64,
+                                env_var, value, dflt);
+      }
+      value = dflt;
+    }
+    max_buffered_send = value;
+  }
+  GASNETI_TRACE_PRINTF(I, ("Max buffered send size is %"PRIu64, max_buffered_send));
 
   // Allocate a CQ that will ideally be shared for both RDMA and AM tx ops
   memset(&tx_cq_attr, 0, sizeof(tx_cq_attr));
@@ -866,23 +907,6 @@ int gasnetc_ofi_init(void)
   GASNETC_OFI_CHECK_RET(ret, "fi_setopt for am reply epfd failed");
   gasneti_assert_uint(optval ,==, min_multi_recv); // documented as IN
 
-  // Maximum size to use with fi_inject
-  { uint64_t dflt = info->tx_attr->inject_size;
-    const char* max_buffered_send_env = "GASNET_OFI_INJECT_LIMIT";
-    max_buffered_send = gasneti_getenv_int_withdefault(max_buffered_send_env, dflt, 1);
-    if (max_buffered_send > dflt) { // enforce dflt as the maximum
-      if (!gasneti_mynode)  {
-        gasneti_console_message("WARNING",
-                                "%s reduced from the requested value %"PRIu64
-                                " to the maximum supported value %"PRIu64,
-                                max_buffered_send_env, max_buffered_send, dflt);
-
-      }
-      max_buffered_send = dflt;
-    }
-  }
-  GASNETI_TRACE_PRINTF(I, ("Max buffered send size is %"PRIu64, max_buffered_send));
-
   ofi_setup_address_vector();
 
   /* Enable endpoints */
@@ -894,6 +918,10 @@ int gasnetc_ofi_init(void)
   GASNETC_OFI_CHECK_RET(ret, "fi_enable for am reply ep failed");
 
   ofi_exchange_addresses();
+
+  // Don't allow libfabric to free() our strings
+  hints->domain_attr->name = NULL;
+  hints->fabric_attr->prov_name = NULL;
 
   fi_freeinfo(hints);
 
@@ -1910,7 +1938,7 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
     PERIODIC_RMA_POLL();
 
     /* The payload can be injected without need for a bounce buffer */
-    if (nbytes <= max_buffered_send) {
+    if (nbytes <= max_buffered_write) {
         uintptr_t dest_ptr = GET_REMOTEADDR_PER_MR_MODE(dest_addr, dest);
         struct fi_msg_rma msg;
         msg.desc = 0;
