@@ -1948,13 +1948,9 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         lam_ctxt.complete = 0;
         lam_ctxt.callback = gasnetc_ofi_handle_blocking;
 
-        GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.rdma_tx, 
-            OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt, 0));
-        while (ret == -FI_EAGAIN) {
-            GASNETC_OFI_POLL_SELECTIVE(poll_type);
-            GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.rdma_tx, 
-                OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt, 0));
-        }
+        OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
+                         OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt, 0),
+                         poll_type);
         GASNETC_OFI_CHECK_RET(ret, "fi_write failed for AM long");
 #if GASNET_DEBUG
         gasnetc_paratomic_increment(&pending_rdma,0);
@@ -1963,9 +1959,8 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         /* Because the order is not guaranteed between different ep, */
         /* we send the am part after confirming the large rdma operation */
         /* is successful. */
-        while(!lam_ctxt.complete) {
-            GASNETC_OFI_POLL_SELECTIVE(poll_type);
-        }
+        GASNETI_SPIN_WHILE(!lam_ctxt.complete,
+                           GASNETC_OFI_POLL_SELECTIVE(poll_type));
         sendbuf->type = OFI_AM_LONG;
     }
     len += offsetof(gasnetc_ofi_am_send_buf_t, buf.long_buf.data);
