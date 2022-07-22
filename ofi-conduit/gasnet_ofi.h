@@ -205,11 +205,6 @@ int gasnetc_rdma_get(void *dest, gex_Rank_t node, void * src, size_t nbytes,
                      gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, gex_Flags_t flags
                      GASNETI_THREAD_FARG);
 
-GASNETI_INLINE(gasnetc_rdma_put_will_block)
-int gasnetc_rdma_put_will_block (size_t nbytes) {
-    return nbytes > gasnetc_ofi_bbuf_threshold ? 1 : 0;
-} 
-
 gex_Event_t gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
         size_t nbytes, gasnetc_ofi_nb_op_ctxt_t* ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG);
 
