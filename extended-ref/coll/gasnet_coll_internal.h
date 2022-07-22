@@ -810,18 +810,6 @@ GASNETI_COLD extern void gasnete_count_no_scratch(gasnet_team_handle_t team);
 /*---------------------------------------------------------------------------------*/
 /* In-segment checks */
 
-/*
-* For a purely AM based conduit internal in-segment checks might always be true and other
-* conduits may also override this to allow for regions outside the normal
-* segment.  Note that this override relies on the fact that the gasnete_ calls
-* don't perform bounds checking on their own 
-*/
-#if defined(GASNET_SEGMENT_EVERYTHING) || defined(GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET)
-#define GASNETE_COLL_ALWAYS_IN_SEGMENT 1
-#else
-#define GASNETE_COLL_ALWAYS_IN_SEGMENT 0
-#endif
-
 /* The flags GASNET_COLL_SRC_IN_SEGMENT and GASNET_COLL_DST_IN_SEGMENT are just
 * assertions from the caller.  If they are NOT set, we will try to determine (when
 * possible) if the addresses are in-segment to allow a one-sided implementation
@@ -829,23 +817,18 @@ GASNETI_COLD extern void gasnete_count_no_scratch(gasnet_team_handle_t team);
 * gasnete_coll_segment_check returns a new set of flags.
 */
 #ifndef gasnete_coll_segment_check
-#if GASNETE_COLL_ALWAYS_IN_SEGMENT
 GASNETI_INLINE(gasnete_coll_segment_check)
 int gasnete_coll_segment_check(gasnete_coll_team_t team, int flags, 
                                int dstrooted, gasnet_image_t dstimage, const void *dst, size_t dstlen,
                                int srcrooted, gasnet_image_t srcimage, const void *src, size_t srclen) {
-  /* Everything is reachable via get/put, regardless of segment */
-  return (flags | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_SRC_IN_SEGMENT);
+  #if GASNET_SEGMENT_EVERYTHING
+    // Everything is reachable via get/put, regardless of segment
+    return (flags | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_SRC_IN_SEGMENT);
+  #else
+    // Only (removed) single-valued addresing would have enough info to upgrade the flags
+    return flags;
+  #endif
 }
-#else
-GASNETI_INLINE(gasnete_coll_segment_check)
-int gasnete_coll_segment_check(gasnete_coll_team_t team, int flags, 
-                               int dstrooted, gasnet_image_t dstimage, const void *dst, size_t dstlen,
-                               int srcrooted, gasnet_image_t srcimage, const void *src, size_t srclen) {
-  /* Only (removed) single-valued addresing benefited here */
-  return flags;
-}
-#endif
 #endif
 
 /*---------------------------------------------------------------------------------*/
