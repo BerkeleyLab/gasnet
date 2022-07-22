@@ -74,8 +74,8 @@ extern size_t gasnetc_ofi_bbuf_threshold;
 typedef void*                     conn_entry_t;
 typedef struct
 {
-  int               	size;
-  conn_entry_t 			table[];
+  int                   size;
+  conn_entry_t          table[];
 }addr_table_t;
 
 typedef enum GASNETC_OFI_AM_TYPE {
@@ -84,9 +84,6 @@ typedef enum GASNETC_OFI_AM_TYPE {
   OFI_AM_LONG,
   OFI_AM_LONG_MEDIUM
 } gasnetc_ofi_am_type;
-
-typedef  void (*event_callback_fn) (struct fi_cq_data_entry *re, void *buf);
-
 
 typedef struct gasnetc_ofi_am_short_buf {
     gex_AM_Arg_t     data[gex_AM_MaxArgs()];
@@ -105,9 +102,12 @@ typedef struct gasnetc_ofi_am_long_buf {
 } gasnetc_ofi_am_long_buf_t;
 
 typedef struct gasnetc_ofi_am_send_buf {
-    gasnetc_ofi_am_type type:2;
-    uint8_t argnum:6;
+    gasnetc_ofi_am_type type:2;  // actual range: 4-valued enum
+    uint8_t argnum:5;            // actual range: 0...16, inclusive
+    uint8_t isreq:1;             // actual range: Boolean
+    uint8_t overhead;
     uint8_t handler;
+    uint8_t reserved;            // unused padding
     gex_Rank_t sourceid;
     union {
         gasnetc_ofi_am_short_buf_t short_buf;
@@ -116,31 +116,29 @@ typedef struct gasnetc_ofi_am_send_buf {
     } buf;
 } gasnetc_ofi_am_send_buf_t;
 
-typedef struct gasnetc_ofi_am_buf {
-  // Conduit code assumes ctxt is the first field
-  struct fi_context 	ctxt;
-  event_callback_fn 	callback;
-  gasnetc_ofi_am_send_buf_t 	sendbuf;
-} gasnetc_ofi_am_buf_t;
+// NOTE: first sizeof(void*) is overwritten when on freelist
+typedef struct gasnetc_ofi_send_ctxt {
+  struct fi_context             ctxt;
+  gasneti_lifo_head_t           *pool;
+  gasnetc_ofi_am_send_buf_t     sendbuf;
+} gasnetc_ofi_send_ctxt_t;
 #define GASNETC_SIZEOF_AM_BUF_T \
-        (offsetof(gasnetc_ofi_am_buf_t, sendbuf.buf.long_buf.data) + OFI_AM_MAX_DATA_LENGTH)
+        (offsetof(gasnetc_ofi_send_ctxt_t, sendbuf.buf.long_buf.data) + OFI_AM_MAX_DATA_LENGTH)
 
-typedef struct gasnetc_ofi_ctxt {
-  // Conduit code assumes ctxt is the first field
+typedef struct gasnetc_ofi_recv_ctxt {
   struct fi_context ctxt; // An opaque array of an even number of void*
   uint64_t event_cntr;
-  void * metadata;
 #if GASNETC_OFI_RETRY_RECVMSG
-  struct gasnetc_ofi_ctxt *next;
-  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t) + 2*sizeof(void*))];
+  struct gasnetc_ofi_recv_ctxt *next;
+  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t) + sizeof(void*))];
 #else
-  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t) +   sizeof(void*))];
+  char _pad0[GASNETI_CACHE_PAD(sizeof(struct fi_context) + sizeof(uint64_t))];
 #endif
 
   // accessed as a pair except when recycling the multi-recv buffer
   uint64_t final_cntr;
   gasnetc_paratomic_t   consumed_cntr;
-} gasnetc_ofi_ctxt_t;
+} gasnetc_ofi_recv_ctxt_t;
 
 
 /* The following struct is for storing certain dynamically allocated
@@ -152,17 +150,22 @@ typedef struct gasnetc_ofi_bounce_buf {
     void* buf;
 } gasnetc_ofi_bounce_buf_t;
 
+// NOTE: first sizeof(void*) is overwritten when on freelist
 typedef struct gasnetc_ofi_bounce_op_ctxt {
-    // Conduit code assumes ctxt is the first field
-    struct fi_context 	ctxt;
-    rdma_callback_fn		callback;
-    /* bounce buffers to return to the pool */
-    gasneti_lifo_head_t bbuf_list;
     /* Pointer to the original context for the "big" request */
-    gasnetc_ofi_op_ctxt_t*      orig_op;
+    gasnetc_ofi_nb_op_ctxt_t*      orig_op;
+    /* bounce buffers to return to the pool */
+    gasneti_lifo_head_t bbuf_list; // persistent - should not be first
+    // Callback to run upon completion
+    gasnetc_rdma_callback_fn callback; // persistent - should not be first
     /* Counter to determine when the bbuf transfers are done */
     gasnetc_paratomic_t cntr;
 } gasnetc_ofi_bounce_op_ctxt_t;
+
+typedef struct gasnetc_ofi_blocking_op_ctxt {
+    gasnetc_rdma_callback_fn callback;
+    volatile int          complete;
+} gasnetc_ofi_blocking_op_ctxt_t;
 
 // Conduit-specific Segment type
 typedef struct gasnetc_Segment_t_ {
@@ -183,20 +186,24 @@ void gasnetc_ofi_exit(void);
 
 /* Active Messages Send Functions */
 int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler, 
-		int numargs, va_list argptr, int isreq GASNETI_THREAD_FARG);
+        int numargs, va_list argptr, int isreq, gex_Flags_t flags
+        GASNETI_THREAD_FARG);
 int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler, 
-		void *source_addr, size_t nbytes,
-		int numargs, va_list argptr, int isreq GASNETI_THREAD_FARG);
+        void *source_addr, size_t nbytes,
+        int numargs, va_list argptr, int isreq, gex_Flags_t flags
+        GASNETI_THREAD_FARG);
 int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
-		void *source_addr, size_t nbytes,
-		void *dest_addr, int numargs, va_list argptr, int isReq, int isAsync
-                GASNETI_THREAD_FARG);
+        void *source_addr, size_t nbytes, void *dest_addr,
+        int numargs, va_list argptr, int isreq, gex_Flags_t flags
+        GASNETI_THREAD_FARG);
 
-/* One-siede PUT/GET Functions */
-void gasnetc_rdma_put(gex_Rank_t node, void *dest, void * src, size_t nbytes,
-		gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
-void gasnetc_rdma_get(void *dest, gex_Rank_t node, void * src, size_t nbytes,
-		gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
+// One-sided PUT/GET Functions
+int gasnetc_rdma_put(gex_Rank_t node, void *dest, void * src, size_t nbytes,
+                     gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc, gex_Flags_t flags
+                     GASNETI_THREAD_FARG);
+int gasnetc_rdma_get(void *dest, gex_Rank_t node, void * src, size_t nbytes,
+                     gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, gex_Flags_t flags
+                     GASNETI_THREAD_FARG);
 
 GASNETI_INLINE(gasnetc_rdma_put_will_block)
 int gasnetc_rdma_put_will_block (size_t nbytes) {
@@ -204,7 +211,7 @@ int gasnetc_rdma_put_will_block (size_t nbytes) {
 } 
 
 gex_Event_t gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
-        size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr GASNETI_THREAD_FARG);
+        size_t nbytes, gasnetc_ofi_nb_op_ctxt_t* ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG);
 
 extern int gasnetc_exit_in_progress;
 
