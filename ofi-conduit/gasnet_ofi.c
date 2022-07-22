@@ -2092,10 +2092,10 @@ int get_bounce_bufs(int n, gasnetc_ofi_bounce_buf_t ** arr) {
  * Otherwise returns GEX_EVENT_INVALID
  */
 gex_Event_t
-gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
+gasnetc_rdma_put_non_bulk(gex_TM_t tm, gex_Rank_t rank, void* dest_addr, void* src_addr, 
         size_t nbytes, gasnetc_ofi_nb_op_ctxt_t* ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-
+    const gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm,rank);
     int i;
     int ret = FI_SUCCESS;
     uintptr_t src_ptr = (uintptr_t)src_addr;
@@ -2108,15 +2108,15 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
     if (nbytes <= max_buffered_write) {
         struct fi_msg_rma msg;
         msg.desc = 0;
-        msg.addr = gasnetc_fabric_addr(RDMA, dest);
+        msg.addr = gasnetc_fabric_addr(RDMA, jobrank);
         struct iovec iovec;
         struct fi_rma_iov rma_iov;
         iovec.iov_base = src_addr;
         iovec.iov_len = nbytes;
 
-        int in_auxseg = gasnetc_in_auxseg(dest, dest_addr);
-        rma_iov.addr = gasnetc_remote_addr(dest, dest_addr, in_auxseg);
-        rma_iov.key = gasnetc_remote_key(dest, in_auxseg);
+        int in_auxseg = gasnetc_in_auxseg(jobrank, dest_addr);
+        rma_iov.addr = gasnetc_remote_addr(jobrank, dest_addr, in_auxseg);
+        rma_iov.key = gasnetc_remote_key(jobrank, in_auxseg);
         rma_iov.len = nbytes;
 
         msg.context = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr,0);
@@ -2170,7 +2170,7 @@ out_imm_inject:
 
             OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
                                  OFI_WRITE(gasnetc_ofi_rdma_epfd, buf_container->buf,
-                                           bytes_to_copy, dest, (void *)dest_ptr, bbuf_ctxt, 0),
+                                           bytes_to_copy, jobrank, (void *)dest_ptr, bbuf_ctxt, 0),
                                  OFI_POLL_ALL, imm, out_imm_bounce);
             imm = 0; // no going back once first buffer has been written
 
@@ -2206,7 +2206,7 @@ block_anyways:
       GASNETC_STAT_EVENT(NB_PUT_BLOCK);
       gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
       eop->ofi.type = OFI_TYPE_EPUT;
-      if (gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, &eop->ofi, 0, flags GASNETI_THREAD_PASS)) {
+      if (gasnetc_rdma_put(tm, rank, dest_addr, src_addr, nbytes, &eop->ofi, 0, flags GASNETI_THREAD_PASS)) {
           gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
           GASNETE_EOP_MARKDONE(eop);
           gasnete_eop_free(eop GASNETI_THREAD_PASS);
@@ -2217,9 +2217,10 @@ block_anyways:
 }
 
 int
-gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes,
+gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest_addr, void *src_addr, size_t nbytes,
                  gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
+    const gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm,rank);
     int ret = FI_SUCCESS;
 
     gasnetc_assert_callback_eq(ctxt_ptr, gasnetc_ofi_handle_rdma);
@@ -2227,7 +2228,7 @@ gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes
 
     PERIODIC_RMA_POLL();
     OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
-                         OFI_WRITE(gasnetc_ofi_rdma_epfd, src_addr, nbytes, dest, dest_addr, ctxt_ptr, alc),
+                         OFI_WRITE(gasnetc_ofi_rdma_epfd, src_addr, nbytes, jobrank, dest_addr, ctxt_ptr, alc),
                          OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
     GASNETC_OFI_CHECK_RET(ret, "fi_write failed");
 #if GASNET_DEBUG
@@ -2241,9 +2242,10 @@ out_imm:
 }
 
 int
-gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbytes,
+gasnetc_rdma_get(void *dest_addr, gex_TM_t tm, gex_Rank_t rank, void * src_addr, size_t nbytes,
                  gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
+    const gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm,rank);
     int ret = FI_SUCCESS;
 
     gasnetc_assert_callback_eq(ctxt_ptr, gasnetc_ofi_handle_rdma);
@@ -2251,7 +2253,7 @@ gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbyte
     PERIODIC_RMA_POLL();
 
     OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
-                         OFI_READ(gasnetc_ofi_rdma_epfd, dest_addr, nbytes, dest, src_addr, ctxt_ptr, 0),
+                         OFI_READ(gasnetc_ofi_rdma_epfd, dest_addr, nbytes, jobrank, src_addr, ctxt_ptr, 0),
                          OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
 
     GASNETC_OFI_CHECK_RET(ret, "fi_read failed");

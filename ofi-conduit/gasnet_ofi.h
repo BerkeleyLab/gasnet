@@ -198,14 +198,14 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         GASNETI_THREAD_FARG);
 
 // One-sided PUT/GET Functions
-int gasnetc_rdma_put(gex_Rank_t node, void *dest, void * src, size_t nbytes,
+int gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest, void * src, size_t nbytes,
                      gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc, gex_Flags_t flags
                      GASNETI_THREAD_FARG);
-int gasnetc_rdma_get(void *dest, gex_Rank_t node, void * src, size_t nbytes,
+int gasnetc_rdma_get(void *dest, gex_TM_t tm, gex_Rank_t rank, void * src, size_t nbytes,
                      gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, gex_Flags_t flags
                      GASNETI_THREAD_FARG);
 
-gex_Event_t gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
+gex_Event_t gasnetc_rdma_put_non_bulk(gex_TM_t tm, gex_Rank_t rank, void* dest_addr, void* src_addr,
         size_t nbytes, gasnetc_ofi_nb_op_ctxt_t* ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG);
 
 extern int gasnetc_exit_in_progress;
