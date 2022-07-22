@@ -39,6 +39,11 @@ GASNet-EX ChangeLog
   - Opt-in work-around for bugs 4179 (verbs provider) and 4461 (cxi provider)
     in which certain AM traffic patterns may lead to various failures.
     See "Bug 4179" and "Bug 4461" in the conduit README.
+  - New support for immediate operations (GEX_FLAG_IMMEDIATE) for most AM and
+    RMA operations
+  - New support for asynchronous local completion for RMA puts
+  - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+  - Numerous maintainability improvements
 
 * Platform support/portability
   - `PLATFORM_OS_CNL` and `PLATFORM_OS_WSL` macros have been renamed to
