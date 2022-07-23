@@ -193,8 +193,9 @@ int main(int argc, char **argv)
       ERR("FAILED EARLY SEGMENT PUBLISH TEST");
     }
 
-    // Pick a segment to test and destroy the other
-    gex_Segment_t seg;
+    // Pick a segment for the main tests
+    // The other is used in one later test and then destroyed
+    gex_Segment_t seg, other_seg;
     void *    seg_addr;
     uintptr_t seg_size;
     if (client_segment) {
@@ -202,18 +203,36 @@ int main(int argc, char **argv)
       seg      = c_segment;
       seg_addr = c_segment_addr;
       seg_size = c_segment_size;
-    #if !MISSING_MULTI_SEGMENT_SUPPORT
-      gex_Segment_Destroy(g_segment, 0);
-    #endif
+      other_seg = g_segment;
     } else {
       assert(have_gseg);
       seg      = g_segment;
       seg_addr = gex_Segment_QueryAddr(g_segment);
       seg_size = gex_Segment_QuerySize(g_segment);
-    #if !MISSING_MULTI_SEGMENT_SUPPORT
-      gex_Segment_Destroy(c_segment, 0);
-    #endif
+      other_seg = c_segment;
     }
+
+    // Verify desired behavior for erroneous arguments to gex_EP_BindSegment(),
+    // taking care to provide valid values for two of the three arguments.
+    // NOTE: specification does not require diagnosis of these errors, nor
+    // specify the error code to be used if one does diagnose them.
+    gex_System_SetVerboseErrors(0);
+      // invalid ep
+      if (GASNET_ERR_BAD_ARG != gex_EP_BindSegment(GEX_EP_INVALID, seg, 0)) {
+          ERR("FAILED GEX_EP_INVALID BIND TEST");
+      }
+
+      // invalid segment
+      if (GASNET_ERR_BAD_ARG != gex_EP_BindSegment(myep, GEX_SEGMENT_INVALID, 0)) {
+          ERR("FAILED GEX_SEGMENT_INVALID BIND TEST");
+      }
+
+      // invalid flags
+      // NOTE: currently, all non-zero flags values are invalid, but that may change
+      if (GASNET_ERR_BAD_ARG != gex_EP_BindSegment(myep, seg, 1)) {
+          ERR("FAILED INVALID FLAGS BIND TEST");
+      }
+    gex_System_SetVerboseErrors(1);
 
     // Bind the chosen segment and validate
     if (gex_EP_BindSegment(myep, seg, 0)) {
@@ -229,6 +248,18 @@ int main(int argc, char **argv)
         ERR("FAILED SEGMENT EP BIND TEST");
       }
     }
+
+  #if !MISSING_MULTI_SEGMENT_SUPPORT
+    gex_System_SetVerboseErrors(0);
+      // Verify desired behavior for erroneous double-bind
+      // NOTE: specification does not require diagnosis nor specify the error code
+      if (GASNET_ERR_BAD_ARG != gex_EP_BindSegment(myep, other_seg, 0)) {
+          ERR("FAILED DOUBLE-BIND TEST");
+      }
+    gex_System_SetVerboseErrors(1);
+
+    gex_Segment_Destroy(other_seg, 0);
+  #endif
 
     // Publish the segment over a permuted temporary team,
     // consisting all odds in reverse order followed by evens in reverse order.

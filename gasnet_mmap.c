@@ -2001,21 +2001,25 @@ extern int gex_EP_BindSegment(
 {
   gasneti_Segment_t i_segment = gasneti_import_segment(segment);
   gasneti_EP_t      i_ep      = gasneti_import_ep(ep);
+  gex_EP_Index_t    safe_idx  =  i_ep ? i_ep->_index : -1;
 
   // TODO: macros for formatting when naming segments in tracing?
   // TODO: macros for formatting when naming endpoints in tracing?
   GASNETI_TRACE_PRINTF(O,("gex_EP_BindSegment: segment=%p, EP index=%d, flags=%d",
-                          (void *)segment, i_ep->_index, flags));
+                          (void *)segment, safe_idx, flags));
   GASNETI_CHECK_INJECT();
 
+  if (ep == GEX_EP_INVALID) {
+    GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() with GEX_EP_INVALID");
+  }
   if (segment == GEX_SEGMENT_INVALID) {
-    gasneti_fatalerror("Invalid call to gex_EP_BindSegment() with GEX_SEGMENT_INVALID");
+    GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() with GEX_SEGMENT_INVALID");
   }
   if (flags) {
-    gasneti_fatalerror("Invalid call to gex_EP_BindSegment() with non-zero flags");
+    GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() with non-zero flags");
   }
   if (i_ep->_segment) {
-    gasneti_fatalerror("Invalid call to gex_EP_BindSegment() on EP with a bound segment");
+    GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() on EP with a bound segment");
   }
 
   i_ep->_segment = i_segment;
