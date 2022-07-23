@@ -2022,6 +2022,10 @@ extern int gex_EP_BindSegment(
     GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() on EP with a bound segment");
   }
 
+#if GASNETC_EP_BINDSEGMENT_HOOK
+  GASNETI_SAFE_PROPAGATE( gasnetc_ep_bindsegment_hook(i_ep, i_segment, flags) );
+#endif
+
   i_ep->_segment = i_segment;
   gasneti_record_seginfo(gasneti_mynode, i_ep->_index, i_segment->_addr, i_segment->_size);
 
@@ -2149,6 +2153,13 @@ int gasneti_segmentAttach(
   // EP_BindSegment:
   i_ep->_segment = i_segment;
   gasneti_legacy_segment_attach_hook(i_ep);
+#if GASNETC_EP_BINDSEGMENT_HOOK
+  if (gasnetc_ep_bindsegment_hook(i_ep, i_segment, flags)) {
+    gasneti_fatalerror("Failed to bind segment to endpoint in %s",
+                       (flags & GASNETI_FLAG_INIT_LEGACY) ? "gasnet_attach"
+                                                          : "gex_Segment_Attach");
+  }
+#endif
   
   // After local segment is attached, call optional client-provided hook
   if (gasnet_client_attach_hook) {
