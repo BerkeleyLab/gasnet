@@ -215,8 +215,10 @@ int main(int argc, char **argv)
     #endif
     }
 
-    // Bind the chosen segments and validate
-    gex_EP_BindSegment(myep, seg, 0);
+    // Bind the chosen segment and validate
+    if (gex_EP_BindSegment(myep, seg, 0)) {
+        ERR("FAILED CALL TO gex_EP_BindSegment");
+    }
     {
       void *tmp_addr;
       size_t tmp_size;

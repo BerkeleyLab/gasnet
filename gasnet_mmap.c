@@ -1994,7 +1994,7 @@ static void gasneti_record_seginfo(
   si->size = size;
 }
 
-extern void gex_EP_BindSegment(
+extern int gex_EP_BindSegment(
                 gex_EP_t            ep,
                 gex_Segment_t       segment,
                 gex_Flags_t         flags)
@@ -2022,6 +2022,8 @@ extern void gex_EP_BindSegment(
   gasneti_record_seginfo(gasneti_mynode, i_ep->_index, i_segment->_addr, i_segment->_size);
 
   gasneti_legacy_segment_attach_hook(i_ep);
+
+  return GASNET_OK;
 }
 
 /* ------------------------------------------------------------------------------------ */

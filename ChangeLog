@@ -51,6 +51,10 @@ GASNet-EX ChangeLog
     `PLATFORM_OS_SUBFAMILY_CNL` and `PLATFORM_OS_SUBFAMILY_WSL`.
      These platforms now ALSO define `PLATFORM_OS_LINUX`.
 
+* GASNet-EX Spec v0.16: (details in docs/GASNet-EX.txt)
+  - The return type of `gex_EP_BindSegment()` has changed from `void` to `int`
+    and this function is now permitted to return non-zero on failure.
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4083: incorrect GatherAll algorithm selection at large scale
   - bug4379: HIP support using deprecated context functionality
