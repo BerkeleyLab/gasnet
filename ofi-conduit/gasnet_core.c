@@ -318,6 +318,22 @@ extern int gasnetc_ep_publishboundsegment_hook(
   return GASNET_OK;
 }
 
+// Conduit-specific hook to run at end of gex_EP_Create()
+int gasnetc_ep_init_hook(gasneti_EP_t i_ep)
+{
+  // Current non-primordial EP support is RMA-only
+  if (i_ep->_index && (i_ep->_caps & ~GEX_EP_CAPABILITY_RMA)) {
+    // Unsupported capability/ies requested
+    GASNETI_RETURN_ERRR(BAD_ARG,
+                        "ofi-conduit supports only GEX_EP_CAPABILITY_RMA for non-primordial endpoints");
+  }
+
+  gasnetc_EP_t c_ep = (gasnetc_EP_t)i_ep;
+  c_ep->mrfd = NULL;
+
+  return GASNET_OK;
+}
+
 // To leverage the client-provided key capability of MR_SCALABLE, we defer
 // segment registration until here in order to have the keys be computable from
 // the endpoint index.
