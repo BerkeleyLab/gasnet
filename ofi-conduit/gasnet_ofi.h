@@ -167,17 +167,17 @@ typedef struct gasnetc_ofi_blocking_op_ctxt {
     volatile int          complete;
 } gasnetc_ofi_blocking_op_ctxt_t;
 
-// Conduit-specific Segment type
-typedef struct gasnetc_Segment_t_ {
-  GASNETI_SEGMENT_COMMON // conduit-indep part as prefix
+// Conduit-specific Endpoint type
+typedef struct gasnetc_EP_t_ {
+  GASNETI_EP_COMMON // conduit-indep part as prefix
 
   // conduit-specific fields
   struct fid_mr*        mrfd;
-} *gasnetc_Segment_t;
+} *gasnetc_EP_t;
 
 void gasnetc_auxseg_register(gasnet_seginfo_t si);
-int gasnetc_segment_register(gasnetc_Segment_t segment, uint64_t key);
-int gasnetc_segment_deregister(gasnetc_Segment_t segment);
+int gasnetc_ep_bindsegment(gasneti_EP_t ep, gasneti_Segment_t segment);
+int gasnetc_ep_unbindsegment(gasneti_EP_t ep);
 void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps);
 
 int gasnetc_ofi_init(void);

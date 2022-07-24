@@ -109,22 +109,22 @@
 //#define GASNETC_CLIENT_FINI_HOOK(i_client) (###)
 //#define GASNETC_SIZEOF_CLIENT_T() (###)
 
-#define GASNETC_SEGMENT_EXTRA_DECLS \
-  extern size_t gasnetc_sizeof_segment_t(void);
+//#define GASNETC_SEGMENT_EXTRA_DECLS (###)
 //#define GASNETC_SEGMENT_INIT_HOOK(i_segment) (###)
 //#define GASNETC_SEGMENT_FINI_HOOK(i_segment) (###)
-#define GASNETC_SIZEOF_SEGMENT_T() \
-  gasnetc_sizeof_segment_t()
+//#define GASNETC_SIZEOF_SEGMENT_T() (###)
 
 //#define GASNETC_TM_EXTRA_DECLS (###)
 //#define GASNETC_TM_INIT_HOOK(i_tm) (###)
 //#define GASNETC_TM_FINI_HOOK(i_tm) (###)
 //#define GASNETC_SIZEOF_TM_T() (###)
 
-//#define GASNETC_EP_EXTRA_DECLS (###)
+#define GASNETC_EP_EXTRA_DECLS \
+  extern size_t gasnetc_sizeof_ep_t(void);
 //#define GASNETC_EP_INIT_HOOK(i_ep) (###)
 //#define GASNETC_EP_FINI_HOOK(i_ep) (###)
-//#define GASNETC_SIZEOF_EP_T() (###)
+#define GASNETC_SIZEOF_EP_T() \
+  gasnetc_sizeof_ep_t()
 
   // Uncomment the following defines if conduit provides the corresponding hook.
   // See gasnet_internal.h for prototypes and brief descriptions.

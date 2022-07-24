@@ -36,9 +36,9 @@ static int gasnetc_exit_init(void);
 struct gasnetc_ofi_locks_ gasnetc_ofi_locks;
 #endif
 
-size_t gasnetc_sizeof_segment_t(void) {
-  gasnetc_Segment_t segment;
-  return sizeof(*segment);
+size_t gasnetc_sizeof_ep_t(void) {
+  gasnetc_EP_t ep;
+  return sizeof(*ep);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -218,7 +218,8 @@ extern int gasnetc_attach_primary(void) {
   gasneti_bootstrapCleanup();
 
 #if GASNET_SEGMENT_EVERYTHING
-  GASNETI_SAFE_PROPAGATE( gasnetc_segment_register(NULL, 1) );
+  gasneti_EP_t i_ep0 = gasneti_import_ep(gasneti_THUNK_EP);
+  GASNETI_SAFE_PROPAGATE( gasnetc_ep_bindsegment(i_ep0, NULL) );
 #endif
 
   return GASNET_OK;
@@ -227,7 +228,17 @@ extern int gasnetc_attach_primary(void) {
 
 void gasnetc_segment_destroy_hook(gasneti_Segment_t i_segment)
 {
-  gasneti_assert_zeroret( gasnetc_segment_deregister((gasnetc_Segment_t) i_segment) );
+  // Pending introduction of gex_EP_UnbindSegment() we are permitting clients
+  // to destroy an idle bound segment.  This hook prevents a resource leak in
+  // such usage.  TODO: remove once clients are required to unbind.
+
+  gasneti_Client_t i_client = i_segment->_client;
+  for (gex_EP_Index_t ep_idx = 0; ep_idx < GASNET_MAXEPS; ++ep_idx) {
+     gasneti_EP_t i_ep = i_client->_ep_tbl[ep_idx];
+     if (i_ep && i_ep->_segment == i_segment) {
+         gasneti_assert_zeroret( gasnetc_ep_unbindsegment(i_ep) );
+     }
+  }
 }
 
 int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm)
@@ -315,9 +326,7 @@ extern int gasnetc_ep_bindsegment_hook(
                 gasneti_Segment_t   i_segment,
                 gex_Flags_t         flags)
 {
-  gasnetc_Segment_t c_segment = (gasnetc_Segment_t) i_segment;
-  uint64_t key = GASNETC_EPIDX_TO_KEY(i_ep->_index);
-  return gasnetc_segment_register(c_segment, key);
+  return gasnetc_ep_bindsegment(i_ep, i_segment);
 }
 
 /* ------------------------------------------------------------------------------------ */

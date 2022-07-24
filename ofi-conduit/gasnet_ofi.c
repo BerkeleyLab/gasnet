@@ -1177,12 +1177,13 @@ void gasnetc_ofi_exit(void)
   }
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-  GASNETI_SEGTBL_LOCK();
-    gasneti_Segment_t seg;
-    GASNETI_SEGTBL_FOR_EACH(seg) {
-      gasnetc_segment_deregister((gasnetc_Segment_t) seg);
-    }
-  GASNETI_SEGTBL_UNLOCK();
+   { // TODO: loop over clients
+     gasneti_Client_t i_client = gasneti_import_client(gasneti_THUNK_CLIENT);
+     for (gex_EP_Index_t ep_idx = 0; ep_idx < GASNET_MAXEPS; ++ep_idx) {
+       gasneti_EP_t i_ep = i_client->_ep_tbl[ep_idx];
+       if (i_ep) gasnetc_ep_unbindsegment(i_ep);
+     }
+   }
 #else
   if(gasnetc_segment_mrfd && (fi_close(&gasnetc_segment_mrfd->fid)!=FI_SUCCESS)) {
     gasneti_fatalerror("close mrfd failed\n");
@@ -1436,21 +1437,22 @@ gasnetc_ofi_bounce_op_ctxt_t* gasnetc_ofi_get_bounce_ctxt(void)
  * ----------------------------------------------*/
 
 // Local registration of segment memory
-// TODO: handle multiple registrations of same segment
-int gasnetc_segment_register(gasnetc_Segment_t segment, uint64_t key)
+int gasnetc_ep_bindsegment(gasneti_EP_t i_ep, gasneti_Segment_t segment)
 {
-    GASNETI_TRACE_PRINTF(C,("Registering segment [%p, %p) with requested key%"PRIu64,
-                            segment->_addr, segment->_ub, key));
+    GASNETI_TRACE_PRINTF(C,("Binding segment [%p, %p) to EP %d",
+                            segment->_addr, segment->_ub, i_ep->_index));
 
     void *segbase;
     uintptr_t segsize;
     struct fid_mr** mrfd_p;
+    gasnetc_EP_t c_ep = (gasnetc_EP_t)i_ep;
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     gasneti_assert(segment);
     segbase = segment->_addr;
     segsize = segment->_size;
-    mrfd_p = &segment->mrfd;
+    gasneti_assert(c_ep);
+    mrfd_p = &c_ep->mrfd;
 #else
     if (!GASNETC_OFI_HAS_MR_SCALABLE) {
         gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING is not supported when using FI_MR_BASIC.\n"
@@ -1469,10 +1471,7 @@ int gasnetc_segment_register(gasnetc_Segment_t segment, uint64_t key)
     }
 #endif
 
-    if (*mrfd_p) {
-        gasneti_fatalerror("ofi-conduit does not yet support binding one segment to multiple endpoints");
-    }
-
+    uint64_t key = GASNETC_EPIDX_TO_KEY(c_ep->_index);
     int ret = fi_mr_reg(gasnetc_ofi_domainfd, segbase, segsize,
                         FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, key, 0ULL,
                         mrfd_p, NULL);
@@ -1493,16 +1492,18 @@ int gasnetc_segment_register(gasnetc_Segment_t segment, uint64_t key)
     return GASNET_OK;
 }
 
-// TODO: handle multiple registrations of same segment
-int gasnetc_segment_deregister(gasnetc_Segment_t segment)
+int gasnetc_ep_unbindsegment(gasneti_EP_t i_ep)
 {
-    GASNETI_TRACE_PRINTF(C,("Deregistering segment [%p, %p)", segment->_addr, segment->_ub));
+    gasneti_assert(i_ep);
+    GASNETI_TRACE_PRINTF(C,("Unbinding segment from EP %d", i_ep->_index));
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    gasneti_assert(segment);
-    if (segment->mrfd) {
-      int ret = fi_close(&segment->mrfd->fid);
-      GASNETC_OFI_CHECK_RET(ret, "fi_close(segment) failed");
+    gasnetc_EP_t c_ep = (gasnetc_EP_t)i_ep;
+    if (c_ep->mrfd) {
+      int ret = fi_close(&c_ep->mrfd->fid);
+      GASNETC_OFI_CHECK_RET(ret, "fi_close(ep->mrfd) failed");
+      c_ep->mrfd = NULL;
+      c_ep->_segment = NULL;
     }
 #endif
     return GASNET_OK;
@@ -1525,13 +1526,12 @@ void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   // Pack
   p = local;
   for (gex_Rank_t i = 0; i < num_eps; ++i) {
-    gex_EP_t ep = eps[i];
-    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep(ep)->_segment;
-    if (! segment) continue;
+    gasnetc_EP_t c_ep = (gasnetc_EP_t) gasneti_import_ep(eps[i]);
+    if (! c_ep->_segment) continue;
     p->loc.gex_rank = gasneti_mynode;
-    p->loc.gex_ep_index = gex_EP_QueryIndex(ep);
-    gasneti_assert(segment->mrfd);
-    p->mr_key = fi_mr_key(segment->mrfd);
+    p->loc.gex_ep_index = c_ep->_index;
+    gasneti_assert(c_ep->mrfd);
+    p->mr_key = fi_mr_key(c_ep->mrfd);
     ++p;
   }
 
