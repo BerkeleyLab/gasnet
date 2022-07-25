@@ -2486,6 +2486,8 @@ extern void gex_System_QueryHostInfo(
 // build will be defined in a later release.
 //
 // Information returned by this query is guaranteed to be self consistent:
+// (where the value received into the variable referenced by "PROPERTY_p"
+//  is referred to below as "PROPERTY")
 //   + All callers receive identical nbrhd_set_size.
 //   + Callers in the same neighborhood receive identical nbrhd_set_rank.
 //   + Callers in distinct neighborhoods receive distinct nbrhd_set_rank.
@@ -2496,10 +2498,10 @@ extern void gex_System_QueryHostInfo(
 // guarantees as to how the ranks are assigned.
 
 extern void gex_System_QueryMyPosition(
-            gex_Rank_t *nbrhd_set_size,
-            gex_Rank_t *nbrhd_set_rank,
-            gex_Rank_t *host_set_size,
-            gex_Rank_t *host_set_rank);
+            gex_Rank_t *nbrhd_set_size_p,
+            gex_Rank_t *nbrhd_set_rank_p,
+            gex_Rank_t *host_set_size_p,
+            gex_Rank_t *host_set_rank_p);
 
 //
 // Handler-safe locks (HSLs)
