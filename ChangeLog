@@ -28,6 +28,7 @@ GASNet-EX ChangeLog
   - envvar `GASNET_VERBOSEENV` now recognizes 'N|n|NO|no|0' to mean false
   - Scaling improvements to startup costs (memory and time) in all conduits
   - New options (and changed defaults) for `testalltoall`
+  - More detailed reporting for certain job spawning failure scenarios
 
 * Libfabric [EXPERIMENTAL] (details in ofi-conduit README)
   - A new environment variable `GASNET_OFI_MAX_MEDIUM` enables setting the

@@ -2333,6 +2333,9 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
   const char *not_set = "(not set)";
   const char *spawner;
   char *tmp = NULL;
+  int enabled = 0;  // non-zero if an enabled spawner is selected explicitly
+  int disabled = 0; // non-zero if a known spawner is selected explicitly but is not enabled
+  int match;
   if (force_spawner) spawner = force_spawner;
   else { 
     // Purposely hide this variable from verbose output, since it's only for use as an internal hand-off
@@ -2347,38 +2350,59 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
     spawner = tmp;
   }
 
+  match = !strcmp(spawner, "MPI");
 #if HAVE_MPI_SPAWNER
   /* bug 3406: Try MPI-based spawn first, EVEN if the var is not set.
    * This is a requirement for spawning using bare mpirun
    */
-  if (!res && (spawner == not_set || !strcmp(spawner, "MPI"))) {
+  if (!res && (spawner == not_set || match)) {
     res = gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p);
   }
+  enabled += match;
+#else
+  disabled += match;
 #endif
 
+  match = !strcmp(spawner, "SSH");
 #if HAVE_SSH_SPAWNER
   /* GASNET_SPAWN_CONTROL=ssh is set by gasnetrun for the ssh spawn master,
    * and by the ssh command line for other processes (ie all normal uses).
    * We no longer claim to support ssh-based launch without gasnetrun.
    * TODO: should we remove the "spawner == not_set" case?
    */
-  if (!res && (spawner == not_set || !strcmp(spawner, "SSH"))) {
+  if (!res && (spawner == not_set || match)) {
     res = gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p);
   }
+  enabled += match;
+#else
+  disabled += match;
 #endif
 
+  match = !strcmp(spawner, "PMI");
 #if HAVE_PMI_SPAWNER
   /* GASNET_SPAWN_CONTROL=pmi is set by gasnetrun for the pmi spawn case.
    * We no longer claim to support direct launch with srun, yod, etc.
    * TODO: should we remove the "spawner == not_set" case?
    */
-  if (!res && (spawner == not_set || !strcmp(spawner, "PMI"))) {
+  if (!res && (spawner == not_set || match)) {
     res = gasneti_bootstrapInit_pmi(argc_p, argv_p, nodes_p, mynode_p);
   }
+  enabled += match;
+#else
+  disabled += match;
 #endif
 
   if (!res) {
-    gasneti_fatalerror("Requested spawner \"%s\" is unknown or not supported in this build", spawner);
+    if (enabled) {
+      gasneti_fatalerror("Requested spawner \"%s\" failed to initialize", spawner);
+    } else if (disabled) {
+      gasneti_fatalerror("Requested spawner \"%s\" is known, but not enabled in this build", spawner);
+    } else if (spawner != not_set) {
+      gasneti_fatalerror("Requested spawner \"%s\" is unknown", spawner);
+    } else {
+      // TODO: enumerate the supported spawners
+      gasneti_fatalerror("No supported spawner was able to initialize the job");
+    }
   }
 
   gasneti_free(tmp);
