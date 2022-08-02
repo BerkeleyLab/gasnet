@@ -465,7 +465,7 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_MK_Create(&kind, myclient, &args, 0) );
       GASNET_Safe( gex_Segment_Create(&d_segment, myclient, NULL, TEST_SEGSZ_REQUEST, kind, 0) );
       GASNET_Safe( gex_EP_Create(&gpu_ep, myclient, GEX_EP_CAPABILITY_RMA, 0) );
-      gex_EP_BindSegment(gpu_ep, d_segment, 0);
+      GASNET_Safe( gex_EP_BindSegment(gpu_ep, d_segment, 0) );
       gex_EP_PublishBoundSegment(myteam, &gpu_ep, 1, 0);
 
       // The "trick" to diverting RMA operation to the remote GPU memory

@@ -654,7 +654,7 @@ extern int gex_EP_RegisterHandlers(
             gex_AM_Entry_t *_table,
             size_t         _numentries);
 
-extern void gex_EP_BindSegment(
+extern int gex_EP_BindSegment(
             gex_EP_t       _ep,
             gex_Segment_t  _segment,
             gex_Flags_t    _flags);

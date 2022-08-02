@@ -142,6 +142,7 @@
 #define GASNETC_SEGMENT_ATTACH_HOOK 1
 #define GASNETC_SEGMENT_CREATE_HOOK 1
 #define GASNETC_SEGMENT_DESTROY_HOOK 1
+//#define GASNETC_EP_BINDSEGMENT_HOOK 1
 #define GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK 1
 
   // Uncomment the following defines if conduit provides the corresponding hook.

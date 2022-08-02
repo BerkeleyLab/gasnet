@@ -3787,7 +3787,7 @@ void gex_Segment_Destroy(
       // Valid flags:
       //   NONE - zero is currently required
 
-void gex_EP_BindSegment(
+int gex_EP_BindSegment(
             gex_EP_t        ep,
             gex_Segment_t   segment,
             gex_Flags_t     flags);
