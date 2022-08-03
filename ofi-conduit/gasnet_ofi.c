@@ -2056,7 +2056,7 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
     uintptr_t src_ptr = (uintptr_t)src_addr;
     uintptr_t dest_ptr = GET_REMOTEADDR(dest_addr, dest);
 
-    gasneti_assert_ptr(ctxt_ptr->callback ,==, gasnetc_ofi_handle_rdma);
+    gasnetc_assert_callback_eq(ctxt_ptr, gasnetc_ofi_handle_rdma);
 
     PERIODIC_RMA_POLL();
 
@@ -2110,7 +2110,7 @@ out_imm_inject:
         if (!ret) goto block_anyways;
 
         gasnetc_ofi_bounce_op_ctxt_t * bbuf_ctxt = gasnetc_ofi_get_bounce_ctxt();
-        gasneti_assert_ptr(bbuf_ctxt->callback ,==, gasnetc_ofi_handle_bounce_rdma);
+        gasnetc_assert_callback_eq(bbuf_ctxt, gasnetc_ofi_handle_bounce_rdma);
         bbuf_ctxt->orig_op = ctxt_ptr;
         gasnetc_paratomic_set(&bbuf_ctxt->cntr, num_bufs_needed, 0);
 
@@ -2180,7 +2180,7 @@ gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes
 {
     int ret = FI_SUCCESS;
 
-    gasneti_assert_ptr(ctxt_ptr->callback ,==, gasnetc_ofi_handle_rdma);
+    gasnetc_assert_callback_eq(ctxt_ptr, gasnetc_ofi_handle_rdma);
     gasneti_assert((alc == 0) || (alc == 1));
 
     PERIODIC_RMA_POLL();
@@ -2204,7 +2204,7 @@ gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbyte
 {
     int ret = FI_SUCCESS;
 
-    gasneti_assert_ptr(ctxt_ptr->callback ,==, gasnetc_ofi_handle_rdma);
+    gasnetc_assert_callback_eq(ctxt_ptr, gasnetc_ofi_handle_rdma);
 
     PERIODIC_RMA_POLL();
 

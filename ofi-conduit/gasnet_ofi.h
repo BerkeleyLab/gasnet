@@ -215,6 +215,11 @@ gex_Event_t gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* sr
 
 extern int gasnetc_exit_in_progress;
 
+// Multi-step conversion between function pointer and void* is needed to avoid
+// pedantic warnings from some compilers which don't understand the C spec.
+#define gasnetc_assert_callback_eq(p,f) \
+        gasneti_assert_ptr((void *)(uintptr_t)(p)->callback ,==, (void *)(uintptr_t)(f))
+
 // Maxium number of events (AMs and multi-recv recycles) per poll
 #ifndef GASNETC_OFI_EVENTS_PER_POLL
 #define GASNETC_OFI_EVENTS_PER_POLL 16
