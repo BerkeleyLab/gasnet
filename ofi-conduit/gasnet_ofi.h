@@ -173,6 +173,9 @@ typedef struct gasnetc_EP_t_ {
 
   // conduit-specific fields
   struct fid_mr*        mrfd;
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+  int                   device_only_segment; // non-zero iff the bound segment is INaccessible to host load/store
+#endif
 } *gasnetc_EP_t;
 
 void gasnetc_auxseg_register(gasnet_seginfo_t si);
