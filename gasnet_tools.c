@@ -2523,6 +2523,18 @@ extern int gasneti_parse_dbl(const char *str, double *result_p) {
   *result_p = result;
   return 0;
 }
+
+// Parses a string indicating a boolean yes/no value.
+// Returns 1 for a valid YES, 0 for a valid NO and -1 for no conforming value
+extern int gasneti_parse_yesno(const char *str) {
+  if (!str) return -1;
+  char s[10];
+  strncpy(s, str, sizeof(s)-1); s[sizeof(s)-1] = '\0';
+  for (int i = 0; i < sizeof(s); i++) s[i] = toupper(s[i]);
+  if (!strcmp(s, "N") || !strcmp(s, "NO") || !strcmp(s, "0")) return 0;
+  else if (!strcmp(s, "Y") || !strcmp(s, "YES") || !strcmp(s, "1")) return 1;
+  else return -1;
+}
 /* ------------------------------------------------------------------------------------ */
 /* environment support */
 #if HAVE_SETENV && !HAVE_SETENV_DECL
@@ -2641,10 +2653,7 @@ extern char *gasneti_getenv(const char *keyname) {
 extern int gasneti_verboseenv_parse(const char *v) {
   if (!v) return 0; // default is off
   else {
-    char s[10];
-    strncpy(s, v, sizeof(s)-1); s[sizeof(s)-1] = '\0';
-    for (size_t i = 0; i < sizeof(s) && s[i]; i++) s[i] = toupper(s[i]);
-    if (!strcmp(s, "N") || !strcmp(s, "NO") || !strcmp(s, "0")) return 0;
+    if (gasneti_parse_yesno(v) == 0) return 0;
     else return 1; // for legacy reasons accept anything else including empty as yes
   }
 }
@@ -2765,12 +2774,9 @@ static char *_gasneti_getenv_withdefault(const char *keyname, const char *defaul
     /* just a string value */
     gasneti_envstr_display(keyname, retval, is_dflt);
   } else if (valmode == 1) { /* yes/no value */
-    char s[10];
-    int i;
-    strncpy(s, retval, sizeof(s)-1); s[sizeof(s)-1] = '\0';
-    for (i = 0; i < sizeof(s); i++) s[i] = toupper(s[i]);
-    if (!strcmp(s, "N") || !strcmp(s, "NO") || !strcmp(s, "0")) retval = "NO";
-    else if (!strcmp(s, "Y") || !strcmp(s, "YES") || !strcmp(s, "1")) retval = "YES";
+    int r = gasneti_parse_yesno(retval);
+    if (r == 1) retval = "YES";
+    else if (r == 0) retval = "NO";
     else gasneti_fatalerror("If used, environment variable '%s' must be set to 'Y|YES|y|yes|1' or 'N|n|NO|no|0'", keyname);
     gasneti_envstr_display(keyname, retval, is_dflt);
   } else if (valmode == 2 || valmode == 3) { /* int value, regular or memsize */
