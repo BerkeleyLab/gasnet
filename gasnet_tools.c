@@ -3778,7 +3778,7 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
   #define GASNETI_TICKS_WC_MIN_REF_TICKS 1000
   #endif
   #ifndef GASNETI_TICKS_WC_MAX_RETRY
-  #define GASNETI_TICKS_WC_MAX_RETRY 1
+  #define GASNETI_TICKS_WC_MAX_RETRY 2
   #endif
 
   // Collected start and end times:
@@ -3896,7 +3896,8 @@ retry_calibration:;
   // with a process migration across cores with sufficiently de-synchronized time bases.
   if (lo > hi || 
       max_err_tick > 0 || max_err_wcns > 0) {  // also report monotonicity violations
-    gasneti_console_message("WARNING","GASNet timer calibration on %s detected non-linear timer behavior: "
+    if (gasneti_tsc_verbose || (trycnt == GASNETI_TICKS_WC_MAX_RETRY))
+      gasneti_console_message("WARNING","GASNet timer calibration on %s detected non-linear timer behavior: "
                     "max_err_tick=%"PRIu64" max_err_wcns=%"PRIu64" ticks_res=%"PRIu64" ref_res=%"PRIu64" lo=%"PRIu64" hi=%"PRIu64". See docs for GASNET_TSC_RATE."
                     "%s\n",
                     gasneti_gethostname(),
@@ -3905,19 +3906,20 @@ retry_calibration:;
                     (uint64_t)(1e9 * lo), (uint64_t)(1e9 * hi), 
                     (trycnt < GASNETI_TICKS_WC_MAX_RETRY?" Retrying...":""));
 
-    char sample_msg[GASNETI_TICKS_WC_ITERS*400];
-    char *p = sample_msg;
-    for (int n0 = 0; n0 < count; ++n0) {
-      if (p < &sample_msg[sizeof(sample_msg)]) {
-        int n1 = count-1-n0;
-        uint64_t wc0_n0 = gasneti_clock_to_ns(wc0[n0]);
-        uint64_t wc1_n1 = gasneti_clock_to_ns(wc1[n1]);
-        const double wc_delta  = (double)(int64_t)(wc1_n1 - wc0_n0);
-        const double lo_delta  = (double)(int64_t)(lo1[n1] - lo0[n0]);
-        const double hi_delta  = (double)(uint64_t)(hi1[n1] - hi0[n0]);
-        double new_lo = (lo_delta - ticks_res) / (wc_delta + ref_res);
-        double new_hi = (hi_delta + ticks_res) / (wc_delta - ref_res);
-        p += snprintf(p, sizeof(sample_msg) - (p - sample_msg),
+    if (gasneti_tsc_verbose) {
+      char sample_msg[GASNETI_TICKS_WC_ITERS*400];
+      char *p = sample_msg;
+      for (int n0 = 0; n0 < count; ++n0) {
+        if (p < &sample_msg[sizeof(sample_msg)]) {
+          int n1 = count-1-n0;
+          uint64_t wc0_n0 = gasneti_clock_to_ns(wc0[n0]);
+          uint64_t wc1_n1 = gasneti_clock_to_ns(wc1[n1]);
+          const double wc_delta  = (double)(int64_t)(wc1_n1 - wc0_n0);
+          const double lo_delta  = (double)(int64_t)(lo1[n1] - lo0[n0]);
+          const double hi_delta  = (double)(uint64_t)(hi1[n1] - hi0[n0]);
+          double new_lo = (lo_delta - ticks_res) / (wc_delta + ref_res);
+          double new_hi = (hi_delta + ticks_res) / (wc_delta - ref_res);
+          p += snprintf(p, sizeof(sample_msg) - (p - sample_msg),
              " wc1[%i]=%-10"PRIu64" wc0[%i]=%-10"PRIu64" delta=%-10.0f"
              " lo1[%i]=%-10"PRIu64" lo0[%i]=%-10"PRIu64" delta=%-10.0f"
              " hi1[%i]=%-10"PRIu64" hi0[%i]=%-10"PRIu64" delta=%-10.0f"
@@ -3926,9 +3928,10 @@ retry_calibration:;
              n1, lo1[n1], n0, lo0[n0], lo_delta,
              n1, hi1[n1], n0, hi0[n0], hi_delta,
              new_lo, new_hi);
+        }
       }
+      gasneti_console_message("TICKS: Debugging information:","\n%s",sample_msg);
     }
-    gasneti_console_message("TICKS: Debugging information:","\n%s",sample_msg);
 
     if (++trycnt <= GASNETI_TICKS_WC_MAX_RETRY) goto retry_calibration;
 
