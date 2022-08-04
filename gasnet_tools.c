@@ -3677,6 +3677,7 @@ gasneti_count0s(const void * src, size_t bytes) {
   #define gasneti_clock_to_ns(x) ((x).tv_sec*((uint64_t)1E9)+1000*(x).tv_usec)
 #endif
 static int gasneti_clock_is_init = 0;
+static int gasneti_tsc_verbose = 0;
 static void gasneti_clock_init(void) {
   if (gasneti_clock_is_init) return;
   gasneti_clock_is_init = 1;
@@ -3686,20 +3687,16 @@ static void gasneti_clock_init(void) {
     if (!clock_gettime(CLOCK_MONOTONIC, &tm)) {
       // Monotonic but subject to rate adjustment by NTP
       gasneti_clockid = CLOCK_MONOTONIC;
-      #if GASNET_DEBUG_VERBOSE
-      gasneti_console_message("TICKS","using clock_gettime(CLOCK_MONOTONIC)");
-      #endif
+      if (gasneti_tsc_verbose) gasneti_console_message("TICKS","using clock_gettime(CLOCK_MONOTONIC)");
     } else
     #endif
     {
       // May be adjusted by both ntp and by clock_settime()
       gasneti_assert(gasneti_clockid == CLOCK_REALTIME);
-      #if GASNET_DEBUG_VERBOSE
-      gasneti_console_message("TICKS","using clock_gettime(CLOCK_REALTIME)");
-      #endif
+      if (gasneti_tsc_verbose) gasneti_console_message("TICKS","using clock_gettime(CLOCK_REALTIME)");
     }
-  #elif GASNET_DEBUG_VERBOSE
-    gasneti_console_message("TICKS","using gettimeofday()");
+  #else
+   if (gasneti_tsc_verbose) gasneti_console_message("TICKS","using gettimeofday()");
   #endif
 }
 GASNETI_INLINE(gasneti_clock_gettime)
@@ -3813,10 +3810,9 @@ retry_calibration:;
     ref_res = MIN(ref_res, tmp2);
   }
 
-  #if GASNET_DEBUG_VERBOSE
-  gasneti_console_message("TICKS","ticks and wallclock resolutions are %d and %d ns (or better)",
+  if (gasneti_tsc_verbose) 
+    gasneti_console_message("TICKS","ticks and wallclock resolutions are %d and %d ns (or better)",
           (int)ticks_res, (int)ref_res);
-  #endif
 
   // Delay, with a default interval of MAX(100ms, 1000 ref ticks)
   const uint64_t interval_ns = MAX(GASNETI_TICKS_WC_MIN_INTERVAL,
@@ -3949,19 +3945,19 @@ retry_calibration:;
   double err = half_width / hi;
   if (err_p) *err_p = err;
 
-  #if GASNET_DEBUG_VERBOSE
-  double sum = 0;
-  for (int i = 0; i < count; ++i) {
-    const double delta  = gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[i]);
-    sum += (hi1[i] - lo0[i]) / delta;
-    sum += (lo1[i] - hi0[i]) / delta;
+  if (gasneti_tsc_verbose) {
+    double sum = 0;
+    for (int i = 0; i < count; ++i) {
+      const double delta  = gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[i]);
+      sum += (hi1[i] - lo0[i]) / delta;
+      sum += (lo1[i] - hi0[i]) / delta;
+    }
+    double mean = sum / (2 * count);
+    gasneti_console_message("TICKS","range: %"PRIu64" +/- %"PRIu64"  mean: %"PRIu64"  offset: %"PRId64,
+            (uint64_t)(1e9 * mid),  (uint64_t)(1e9 * half_width),
+            (uint64_t)(1e9 * mean), (int64_t)(1e9 * (mean-mid)));
+    gasneti_console_message("TICKS","calibrated to err of %g in %d iters\n", err, GASNETI_TICKS_WC_ITERS);
   }
-  double mean = sum / (2 * count);
-  gasneti_console_message("TICKS","range: %"PRIu64" +/- %"PRIu64"  mean: %"PRIu64"  offset: %"PRId64,
-          (uint64_t)(1e9 * mid),  (uint64_t)(1e9 * half_width),
-          (uint64_t)(1e9 * mean), (int64_t)(1e9 * (mean-mid)));
-  gasneti_console_message("TICKS","calibrated to err of %g in %d iters\n", err, GASNETI_TICKS_WC_ITERS);
-  #endif
 
   return mid;
 }
@@ -4083,6 +4079,13 @@ extern double gasneti_calibrate_tsc(void) {
       !PLATFORM_OS_LINUX
     Tick = gasneti_calibrate_tsc_from_kernel();
   #else // Linux && (X86 || X86_64 || MIC)
+    int tsc_verbose_dflt = 1;
+    { const char *s = gasneti_getenv_early("GASNET_TSC_VERBOSE");
+      if (s) {
+        gasneti_tsc_verbose = gasneti_parse_yesno(s);
+        tsc_verbose_dflt = 0;
+      }
+    }
     #ifndef GASNETI_DEFAULT_TSC_RATE
     // TODO: need logic to default to "cpuinfo" when we can determine CPU model is trustworthy
     #define GASNETI_DEFAULT_TSC_RATE "wallclock"
@@ -4157,6 +4160,7 @@ extern double gasneti_calibrate_tsc(void) {
     }
 
     #define GASNETI_TSC_TRACE_OUTPUT()  do { \
+      gasneti_envstr_display("GASNET_TSC_VERBOSE", (gasneti_tsc_verbose?"YES":"NO"), tsc_verbose_dflt); \
       gasneti_envstr_display("GASNET_TSC_RATE", tsc_rate, tsc_rate_dflt); \
       gasneti_envdbl_display("GASNET_TSC_RATE_TOLERANCE", soft_tolerance, soft_tol_dflt); \
       gasneti_envdbl_display("GASNET_TSC_RATE_HARD_TOLERANCE", hard_tolerance, hard_tol_dflt); \
@@ -4165,9 +4169,7 @@ extern double gasneti_calibrate_tsc(void) {
     // Determine/initialize the best available wallclock timer
     gasneti_clock_init();
 
-    #if GASNET_DEBUG_VERBOSE
     uint64_t begin_tsc_calibration = gasneti_clock_getns();
-    #endif
 
     // Approximate the resolution of the reference clock in ns (if needed)
     uint64_t ref_res = (uint64_t)1E9;
@@ -4184,10 +4186,9 @@ extern double gasneti_calibrate_tsc(void) {
         ref_res = MIN(ref_res, delta);
         sum += delta;
       }
-      #if GASNET_DEBUG_VERBOSE
-      gasneti_console_message("TICKS","reference resolution is %d ns or better (in %d iters, %lu ns)\n",
-                      (int)ref_res, i, (unsigned long)sum);
-      #endif
+      if (gasneti_tsc_verbose) 
+        gasneti_console_message("TICKS","reference resolution is %d ns or better (in %d iters, %lu ns)\n",
+                        (int)ref_res, i, (unsigned long)sum);
       if_pf (ref_res > max_res) {
         gasneti_fatalerror("Reference timer resolution of %lu ns on %s is not acceptable for calibration of the TSC.\n"
                            "Please reconfigure with --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
@@ -4250,15 +4251,12 @@ extern double gasneti_calibrate_tsc(void) {
                 gasneti_gethostname(), best);
         }
       }
-      #if GASNET_DEBUG_VERBOSE
-      gasneti_console_message("TICKS","relative to wallclock = %g", best);
-      #endif
+      if (gasneti_tsc_verbose) gasneti_console_message("TICKS","relative to wallclock = %g", best);
     }
 
-    #if GASNET_DEBUG_VERBOSE
-    gasneti_console_message("TICKS","rate calibrated to %g MHz in %g sec",
-            1e3/Tick, 1e-9*(gasneti_clock_getns()-begin_tsc_calibration));
-    #endif
+    if (gasneti_tsc_verbose) 
+      gasneti_console_message("TICKS","rate calibrated to %g MHz in %g sec",
+              1e3/Tick, 1e-9*(gasneti_clock_getns()-begin_tsc_calibration));
   #endif
 
     gasneti_sync_writes();
