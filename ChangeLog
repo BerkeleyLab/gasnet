@@ -50,6 +50,7 @@ GASNet-EX ChangeLog
   - `PLATFORM_OS_CNL` and `PLATFORM_OS_WSL` macros have been renamed to
     `PLATFORM_OS_SUBFAMILY_CNL` and `PLATFORM_OS_SUBFAMILY_WSL`.
      These platforms now ALSO define `PLATFORM_OS_LINUX`.
+  - Timer calibration output is now controlled by envvar `GASNET_TSC_VERBOSE`
 
 * GASNet-EX Spec v0.16: (details in docs/GASNet-EX.txt)
   - The return type of `gex_EP_BindSegment()` has changed from `void` to `int`
