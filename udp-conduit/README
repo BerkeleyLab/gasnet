@@ -284,10 +284,13 @@ Recognized environment variables:
   the default, even if configured using '--with-host-detect=...' to specify
   a different one.  However, an explicit value of GASNET_HOST_DETECT in the
   environment is always honored.
-  If the list of servers (such as from SSH_SERVERS or CSPAWN_SERVERS) may
-  contain multiple entries which resolve to distinct IP address for the same
-  host, one should set GASNET_HOST_DETECT="gethostid". Otherwise, the default
-  of "conduit" would mistakenly identify such entries as distinct hosts, and
+  This default generally works well for the common case where all worker nodes
+  have a single IP interface on the worker subnet (see `GASNET_WORKERIP` above).
+  However if the worker nodes include a system with multiple distinct active IP
+  addresses on the worker subnet, then it's recommended to set GASNET_HOST_DETECT
+  to "hostid" or "hostname" (whichever is guaranteed to return a value that
+  uniquely identifies each actual worker). Otherwise, the default of "conduit"
+  could mistakenly identify such multi-IP worker nodes as distinct hosts, and
   thus ineligible for shared-memory communication.  
 
 * GASNET_USE_GETHOSTID
