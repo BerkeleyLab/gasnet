@@ -39,6 +39,7 @@ use of these providers in general.
 
   + TCP, via the "sockets" provider
   + UDP, via "udp;ofi_rxd", under libfabric 1.7 and higher
+  + Cray Aries, via the "gni" provider, under libfabric 1.14 and higher
 
 The following providers have not met our expectations (with respect to
 performance or stability) when tested on the listed networks and therefore are
@@ -52,7 +53,6 @@ as of libfabric v1.14.0. If these providers are important to you, please
 contact us at gasnet-staff@lbl.gov .
 
   + "psm1" provider for the (end-of-life) TrueScale products
-  + "gni" provider for the Cray XC series Aries network
   + "opx" provider, an alternative to "psm2" for the Omni-Path fabric
 
 The fi_info command installed with libfabric can be used to query the available
@@ -68,8 +68,11 @@ as an alternative to ofi-conduit with the sockets or udp;ofi_rxd providers, as
 the former may provide more favorable performance.
 
 Users with Cray XC hardware are encouraged to consider the GASNet aries-conduit
-as an alternative to ofi-conduit with the GNI provider, as the former may
-provide better performance.
+as an alternative to ofi-conduit with the gni provider, since the former may
+provide better performance.  Additionally, while the GASNet maintainers have
+seen good results from preliminary testing of this provider with GASNet's
+ofi-conduit, nobody has thoroughly validated it.  Therefore, use of the gni
+provider with ofi-conduit should be considered experimental.
 
 OFI provider requirements to run this conduit:
 -------------------------------------
@@ -572,12 +575,20 @@ Known problems:
   The most up-to-date information on this issue is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4455
 
+  With the gni provider, when Cray MPI is initialized prior to GASNet (including
+  via use of MPI for job launch), a fatal error is seen at startup which
+  includes the following text:
+    fi_domain failed: -16(Device or resource busy)
+  Meanwhile, hybrid applications which initialize GASNet before MPI have been
+  observed to run correctly.
+  The same recommendations given above for cxi provider apply to gni provider.
+
   As noted above, the specific issue with the cxi provider also represents a
   more general concern that an MPI implementation may configure libfabric in
   a way which is incompatible with GASNet's ofi-conduit OR that GASNet's
   settings could cause problems for the MPI implementation.  However, there are
   currently no known cases of either such interaction other than with the cxi
-  provider as described above.
+  and gni providers as described above.
 
 Future work:
 ------------
