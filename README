@@ -871,8 +871,8 @@ these aliases.
  a unique identifier for each host.  This string-valued setting selects the
  identifier used.
  The following are implemented for most conduits:
-   "hostid" - the 32-bit value retuned by gethostid()
-   "hostname" - a 64-bit hash of the hostname
+   "gethostid" - the 32-bit value returned by POSIX gethostid()
+   "hostname" - a 64-bit hash of the hostname (as reported by POSIX gethostname())
  Some conduits support:
    "conduit" - a network-specific identifier (such as a MAC address)
  On networks providing the "conduit" option, conduit-specific documentation will
