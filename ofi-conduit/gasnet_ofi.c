@@ -489,7 +489,9 @@ static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) 
         const char *value = gasneti_dynsprintf("SINGLE => %d", (int)min_multi_recv);
         gasneti_envstr_display(multirecv_size_env, value, 0);
         multirecv_buff_size = min_multi_recv;
-        num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 512, 0);
+        // See Bug 4478 for information leading to the selection of 450 as a default.
+        // TODO: at least consider scaling this with PPN
+        num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 450, 0);
     } else {
         multirecv_buff_size = gasneti_getenv_int_withdefault(multirecv_size_env, 1024*1024, 1);
         num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 8, 0);
