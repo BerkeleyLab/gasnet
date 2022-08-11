@@ -624,6 +624,4 @@ The OFI community is working on increasing the number of providers that can supp
 
 * Implement native collectives via FI_COLLECTIVE
 
-* Implement multi-EP/multi-segment support
-
 * Implement Memory Kinds support using the FI_HMEM capability

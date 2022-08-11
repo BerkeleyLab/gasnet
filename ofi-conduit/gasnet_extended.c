@@ -113,7 +113,7 @@ gex_Event_t gasnete_get_nb(
 {
   gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
   op->ofi.type = OFI_TYPE_EGET;
-  if (gasnetc_rdma_get(dest, gasneti_e_tm_rank_to_jobrank(tm,rank), src, nbytes,
+  if (gasnetc_rdma_get(dest, tm, rank, src, nbytes,
                        &op->ofi, flags GASNETI_THREAD_PASS)) {
     gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
     GASNETE_EOP_MARKDONE(op);
@@ -134,7 +134,6 @@ gex_Event_t gasnete_put_nb(
                     size_t nbytes, gex_Event_t *lc_opt,
                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  const gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm,rank);
   gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
   op->ofi.type = OFI_TYPE_EPUT;
 
@@ -147,7 +146,7 @@ gex_Event_t gasnete_put_nb(
   if (lc_opt == GEX_EVENT_NOW) {
     // Try to submit for synchronous LC.
     // If we can't, then we must block for RC.
-    gex_Event_t ev = gasnetc_rdma_put_non_bulk(jobrank, dest, src, nbytes, &op->ofi, flags GASNETI_THREAD_PASS);
+    gex_Event_t ev = gasnetc_rdma_put_non_bulk(tm, rank, dest, src, nbytes, &op->ofi, flags GASNETI_THREAD_PASS);
     if (ev) {
       GASNETE_EOP_MARKDONE(op);
       gasnete_eop_free(op GASNETI_THREAD_PASS);
@@ -163,7 +162,7 @@ gex_Event_t gasnete_put_nb(
       GASNETE_EOP_LC_START(op);
       *lc_opt = gasneti_op_event(op, gasnete_eop_event_alc);
     }
-    if (gasnetc_rdma_put(jobrank, dest, src, nbytes,
+    if (gasnetc_rdma_put(tm, rank, dest, src, nbytes,
                          &op->ofi, alc, flags GASNETI_THREAD_PASS)) {
       gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
       if (alc) GASNETE_EOP_LC_FINISH(op);
@@ -204,7 +203,7 @@ int gasnete_get_nbi(
   gasnete_iop_t *op = mythread->current_iop;
   gasneti_assert(op->get_ofi.type == OFI_TYPE_IGET);
   op->initiated_get_cnt++;
-  if (gasnetc_rdma_get(dest, gasneti_e_tm_rank_to_jobrank(tm,rank), src, nbytes,
+  if (gasnetc_rdma_get(dest, tm, rank, src, nbytes,
                        &op->get_ofi, flags GASNETI_THREAD_PASS)) {
     gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
     GASNETE_IOP_CNT_FINISH(op, get, 1, GASNETI_ATOMIC_NONE); // NONE only because no xfer
@@ -224,7 +223,6 @@ int gasnete_put_nbi(
                     size_t nbytes, gex_Event_t *lc_opt,
                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  const gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm,rank);
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
   gasneti_assert(op->put_ofi.type == OFI_TYPE_IPUT);
@@ -239,7 +237,7 @@ int gasnete_put_nbi(
   if (lc_opt == GEX_EVENT_NOW) {
     // Try to submit for synchronous LC.
     // If we can't, then we must block for RC.
-    gex_Event_t ev = gasnetc_rdma_put_non_bulk(jobrank, dest, src, nbytes, &op->put_ofi, flags GASNETI_THREAD_PASS);
+    gex_Event_t ev = gasnetc_rdma_put_non_bulk(tm, rank, dest, src, nbytes, &op->put_ofi, flags GASNETI_THREAD_PASS);
     if (ev) {
       GASNETE_IOP_CNT_FINISH(op, put, 1, GASNETI_ATOMIC_NONE);
       if (ev == GEX_EVENT_NO_OP) return 1;
@@ -252,7 +250,7 @@ int gasnete_put_nbi(
       // TODO: should attempt inject-based synchronous LC, unless GEX_FLAG_LC_COPY_NO
       GASNETE_IOP_LC_START(op);
     }
-    if (gasnetc_rdma_put(jobrank, dest, src, nbytes,
+    if (gasnetc_rdma_put(tm, rank, dest, src, nbytes,
                          &op->put_ofi, alc, flags GASNETI_THREAD_PASS)) {
       gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
       if (alc) GASNETE_IOP_LC_FINISH(op);

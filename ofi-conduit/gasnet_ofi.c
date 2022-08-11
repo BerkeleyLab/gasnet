@@ -56,42 +56,40 @@ typedef struct gasnetc_ofi_recv_metadata {
     gasnetc_ofi_recv_ctxt_t am_buff_ctxt;
 } gasnetc_ofi_recv_metadata_t;
 
-#define NUM_OFI_ENDPOINTS 3
-
 #define USE_AV_MAP 0
-static addr_table_t  *addr_table;
+
+// Must match order of fi_getname() calls in ofi_exchange_addresses(),
+// where this is enforced via static assertions.
+enum {
+    GASNETC_FADDR_IDX_REQ = 0,
+    GASNETC_FADDR_IDX_REP,
+    GASNETC_FADDR_IDX_RDMA,
+    NUM_OFI_ENDPOINTS
+};
+#define GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank) \
+    ((idx) + (jobrank)*NUM_OFI_ENDPOINTS)
+
 #if USE_AV_MAP
-#define GET_AM_REQUEST_DEST(dest) (fi_addr_t)(addr_table->table[(dest)*NUM_OFI_ENDPOINTS])
-#define GET_AM_REPLY_DEST(dest) (fi_addr_t)(addr_table->table[(dest)*NUM_OFI_ENDPOINTS+1])
-#define GET_RDMA_DEST(dest) (fi_addr_t)(addr_table->table[(dest)*NUM_OFI_ENDPOINTS+2])
-#else
-#define GET_AM_REQUEST_DEST(dest) (fi_addr_t)((dest)*NUM_OFI_ENDPOINTS)
-#define GET_AM_REPLY_DEST(dest) (fi_addr_t)((dest)*NUM_OFI_ENDPOINTS+1)
-#define GET_RDMA_DEST(dest) (fi_addr_t)((dest)*NUM_OFI_ENDPOINTS+2)
+    static addr_table_t  *addr_table;
 #endif
 
-// TODO: multi-EP/multi-segment will require generalizing this (and callers)
-// CAUTION: macro arguments may be evaluated multiple times (or zero)
-#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-#define GASNETC_OFI_IS_AUX(_addr,jobrank) \
-        ((uintptr_t)(_addr) - (uintptr_t)gasneti_seginfo_aux[jobrank].addr < gasneti_seginfo_aux[jobrank].size)
-#define GET_REMOTEADDR_AUX(remote_addr, jobrank, is_auxseg) \
-        ((uintptr_t)remote_addr - \
-         (uintptr_t)((is_auxseg) ? gasneti_seginfo_aux[jobrank].addr : gasneti_seginfo[jobrank].addr))
-#define GET_REMOTEADDR(remote_addr, jobrank) \
-        GET_REMOTEADDR_AUX(remote_addr, jobrank, GASNETC_OFI_IS_AUX(remote_addr, jobrank))
+// TODO: multi-ep with independent resources will require rewriting this
+GASNETI_INLINE(gasnetc_fabric_addr_inner) GASNETI_PURE
+fi_addr_t gasnetc_fabric_addr_inner(int idx, gex_Rank_t jobrank) {
+#if USE_AV_MAP
+    return (fi_addr_t)(addr_table->table[GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank)]);
 #else
-#define GASNETC_OFI_IS_AUX(addr,jobrank) 0
-#define GET_REMOTEADDR_AUX(remote_addr, jobrank, is_auxseg) ((uintptr_t)remote_addr)
-#define GET_REMOTEADDR(remote_addr, jobrank) ((uintptr_t)remote_addr)
+    return (fi_addr_t)GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank);
 #endif
+}
+GASNETI_PUREP(gasnetc_fabric_addr_inner)
+#define gasnetc_fabric_addr(type, jobrank) \
+        gasnetc_fabric_addr_inner(GASNETC_FADDR_IDX_##type, jobrank)
 
 
 #define SCALABLE_NOT_AUTO_DETECTED (-1)
 
 static short has_mr_scalable = SCALABLE_NOT_AUTO_DETECTED;
-static uint64_t* gasnetc_ofi_target_keys;
-static uint64_t* gasnetc_ofi_target_aux_keys;
 #ifdef GASNETC_OFI_HAS_MR_SCALABLE
   #define GASNETC_OFI_HAS_MR_SCALABLE_STATIC 1
 #else
@@ -101,51 +99,100 @@ static uint64_t* gasnetc_ofi_target_aux_keys;
 
 // Alias unless/until the properties are split
 #define GASNETC_OFI_HAS_MR_PROV_KEY (!GASNETC_OFI_HAS_MR_SCALABLE)
+#define GASNETC_OFI_HAS_MR_VIRT_ADDR (!GASNETC_OFI_HAS_MR_SCALABLE)
+
+// Table of remote registration keys, used only when GASNETC_OFI_HAS_MR_PROV_KEY
+// (e.g. FI_MR_BASIC).  Otherwise NULL.
+// The leading dimension is EP index, with indices in [-1, GASNET_MAXEPS) to
+// place the aux segment keys as index -1, and the second dimension is jobrank.
+// The leading dimension is allocated at startup, and the rest is allocated
+// lazily when the first entry for a given EP index is received.
+// TODO: scalable storage
+static uint64_t** gasnetc_remote_key_tbl;
 
 static size_t tx_cq_size = 0;
 static size_t rx_cq_size = 0;
 
-/* FI_MR_BASIC requires addressing by full virtual address */
-#define GET_REMOTEADDR_PER_MR_MODE(dest_addr, dest)\
-    GASNETC_OFI_HAS_MR_SCALABLE ? GET_REMOTEADDR(dest_addr, dest) : (uintptr_t)dest_addr
-
-// TODO: multi-EP will require replacing this
+// Determine if (jobrank,addr) is in the aux segment registration
+GASNETI_INLINE(gasnetc_in_auxseg) GASNETI_PURE
+int gasnetc_in_auxseg(gex_Rank_t jobrank, void *addr)
+{
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-  #define GASNETC_OFI_GET_MR_KEY_EPIDX(jobrank,epidx) \
-          (GASNETC_OFI_HAS_MR_PROV_KEY                            \
-            ? (((epidx)<0) ? gasnetc_ofi_target_aux_keys[jobrank] \
-                           : gasnetc_ofi_target_keys[jobrank])    \
-            : GASNETC_EPIDX_TO_KEY(epidx))
+    // Reminder that with unsigned types, a negative offset is a very large positive value
+    uintptr_t offset = (uintptr_t)addr - (uintptr_t)gasneti_seginfo_aux[jobrank].addr;
+    return offset < gasneti_seginfo_aux[jobrank].size;
 #else
-  // Currently, for SEGMENT_EVERYTHING there is only ever a single memory registration.
-  #define GASNETC_OFI_GET_MR_KEY_EPIDX(jobrank,epidx) GASNETC_EPIDX_TO_KEY(0)
+    // For SEGMENT_EVERYTHING there is only ever a single memory registration.
+    // So the addrres is NEVER "in the aux segment registration".
+    return 0;
 #endif
+}
+GASNETI_PUREP(gasnetc_in_auxseg)
 
-#define OFI_WRITE(ep, src_addr, nbytes, dest, dest_addr, ctxt_ptr, aux)\
-    do {\
-        void *_op_ctxt = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr, aux);\
-        int _is_auxseg = GASNETC_OFI_IS_AUX(dest_addr, dest); \
-        gasneti_assert_uint(_is_auxseg ,==, !!_is_auxseg); \
-        int _rem_epidx = -_is_auxseg; /* 0 for client, -1 for aux */ \
-        uint64_t _key = GASNETC_OFI_GET_MR_KEY_EPIDX(dest,_rem_epidx);\
-        uintptr_t _rem_addr = GASNETC_OFI_HAS_MR_SCALABLE \
-                            ? GET_REMOTEADDR_AUX(dest_addr,dest,_is_auxseg) \
-                            : (uintptr_t)dest_addr; \
-        ret = fi_write(ep, src_addr, nbytes, NULL, GET_RDMA_DEST(dest), _rem_addr, _key, _op_ctxt);\
-    } while(0)
+// Lookup or compute correct key for RDMA
+// NOTE: rem_epidx has type int (not gex_EP_Index_t) to allow -1 to name the aux seg
+GASNETI_INLINE(gasnetc_remote_key) GASNETI_PURE
+uint64_t gasnetc_remote_key(gex_Rank_t jobrank, int rem_epidx)
+{
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    gasneti_assert_int(rem_epidx ,>=, -1);
+    gasneti_assert_int(rem_epidx ,<, GASNET_MAXEPS);
+    if (GASNETC_OFI_HAS_MR_PROV_KEY) {
+        gasneti_assert(gasnetc_remote_key_tbl[rem_epidx]);
+        return gasnetc_remote_key_tbl[rem_epidx][jobrank];
+    } else {
+        return GASNETC_EPIDX_TO_KEY(rem_epidx);
+    }
+#else
+    // For SEGMENT_EVERYTHING there is a single host memory registration
+    gasneti_assert_int(rem_epidx ,>=, 0);
+    gasneti_assert_int(rem_epidx ,<, GASNET_MAXEPS);
+    return GASNETC_EPIDX_TO_KEY(0);
+#endif
+}
+GASNETI_PUREP(gasnetc_remote_key)
 
-#define OFI_READ(ep, dest_buf, nbytes, src, src_addr, ctxt_ptr, aux)\
-    do {\
-        void *_op_ctxt = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr, aux);\
-        int _is_auxseg = GASNETC_OFI_IS_AUX(src_addr, src); \
-        gasneti_assert_uint(_is_auxseg ,==, !!_is_auxseg); \
-        int _rem_epidx = -_is_auxseg; /* 0 for client, -1 for aux */ \
-        uint64_t _key =  GASNETC_OFI_GET_MR_KEY_EPIDX(src, _rem_epidx);\
-        uintptr_t _rem_addr = GASNETC_OFI_HAS_MR_SCALABLE \
-                            ? GET_REMOTEADDR_AUX(src_addr,src,_is_auxseg) \
-                            : (uintptr_t)src_addr; \
-        ret = fi_read(ep, dest_buf, nbytes, NULL, GET_RDMA_DEST(src), _rem_addr, _key, _op_ctxt);\
+// Lookup correct "address" (which may be an offset) for RDMA
+// NOTE: rem_epidx has type int (not gex_EP_Index_t) to allow -1 to name the aux seg
+GASNETI_INLINE(gasnetc_remote_addr) GASNETI_PURE
+uintptr_t gasnetc_remote_addr(gex_Rank_t jobrank, void *addr, int rem_epidx)
+{
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    gasneti_assert_int(rem_epidx ,>=, -1);
+    gasneti_assert_int(rem_epidx ,<, GASNET_MAXEPS);
+    if (GASNETC_OFI_HAS_MR_VIRT_ADDR) {
+        // BASIC uses the virtual address
+        return (uintptr_t)addr;
+    } else {
+        // SCALABLE uses an offset rather than virtual address
+        int in_auxseg = (rem_epidx < 0);
+        gasnet_seginfo_t *si = in_auxseg ? gasneti_seginfo_aux
+                                         : gasneti_seginfo_tbl[rem_epidx];
+        gasneti_assert(si);
+        return (uintptr_t)addr - (uintptr_t)si[jobrank].addr;
+    }
+#else
+    gasneti_assert_int(rem_epidx ,>=, 0);
+    gasneti_assert_int(rem_epidx ,<, GASNET_MAXEPS);
+    // SCALABLE uses an offset, but base address is zero for EVERYTHING
+    return (uintptr_t)addr;
+#endif
+}
+GASNETI_PUREP(gasnetc_remote_addr)
+
+// Statements with launch a fi_write or fi_read, setting "ret"
+#define OFI_RMA(rw, ep, loc_addr, nbytes, jobrank, rem_epidx, rem_addr, ctxt_ptr, aux) \
+    do { \
+        fi_addr_t _peer = gasnetc_fabric_addr(RDMA, jobrank); \
+        uintptr_t _addr = gasnetc_remote_addr(jobrank, rem_addr, rem_epidx); \
+        uint64_t _key   = gasnetc_remote_key(jobrank, rem_epidx); \
+        void *_op_ctxt  = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr, aux); \
+        ret = fi_##rw(ep, loc_addr, nbytes, NULL, _peer, _addr, _key, _op_ctxt); \
     } while(0)
+#define OFI_WRITE(ep, src_addr, nbytes, jobrank, rem_epidx, dest_addr, ctxt_ptr, aux) \
+        OFI_RMA(write, ep, src_addr, nbytes, jobrank, rem_epidx, dest_addr, ctxt_ptr, aux)
+#define OFI_READ(ep, dest_addr, nbytes, jobrank, rem_epidx, src_addr, ctxt_ptr, aux) \
+        OFI_RMA(read, ep, dest_addr, nbytes, jobrank, rem_epidx, src_addr, ctxt_ptr, aux)
 
 /* Poll periodically on RMA injection to ensure efficient progress.
  * This is a data race, but it is safe as polling here is unnecessary, it
@@ -313,7 +360,7 @@ gasnetc_ofi_recv_ctxt_t *gasnetc_op_ctxt_to_recv_ctxt(void *p)
 // This is for use with gasnetc_ofi_{nb,bounce,blocking}_op_ctxt_t,
 // where we use the callback function as the operation context.
 // The callbacks perform the reverse using gasneti_container_of().
-GASNETI_INLINE(gasnetc_rdma_ctxt_to_op_ctxt_inner)
+GASNETI_INLINE(gasnetc_rdma_ctxt_to_op_ctxt_inner) GASNETT_PURE
 void *gasnetc_rdma_ctxt_to_op_ctxt_inner(void *p, unsigned int aux)
 {
   uintptr_t raw = (uintptr_t)p;
@@ -321,6 +368,7 @@ void *gasnetc_rdma_ctxt_to_op_ctxt_inner(void *p, unsigned int aux)
   gasneti_assert(0 == (aux &  GASNETC_RDMA_CTXT_MASK));
   return (void *)(raw | aux);
 }
+GASNETT_PUREP(gasnetc_rdma_ctxt_to_op_ctxt_inner)
 #define gasnetc_rdma_ctxt_to_op_ctxt(p,aux) \
         gasnetc_rdma_ctxt_to_op_ctxt_inner(&(p)->callback,aux)
 
@@ -525,13 +573,24 @@ static void ofi_exchange_addresses() {
   on_node_addresses = gasneti_malloc(total_len);
 
   char* alladdrs = gasneti_malloc(gasneti_nodes*total_len);
+  char* p = on_node_addresses;
 
-  ret = fi_getname(&gasnetc_ofi_request_epfd->fid, on_node_addresses, &reqnamelen);
+  gasneti_static_assert(GASNETC_FADDR_IDX_REQ == 0);
+  ret = fi_getname(&gasnetc_ofi_request_epfd->fid, p, &reqnamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the AM request endpoint");
-  ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, on_node_addresses+reqnamelen, &repnamelen);
+  p += reqnamelen;
+
+  gasneti_static_assert(GASNETC_FADDR_IDX_REP == 1);
+  ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, p, &repnamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the AM reply endpoint");
-  ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, on_node_addresses+reqnamelen+repnamelen, &rdmanamelen);
+  p += repnamelen;
+
+  gasneti_static_assert(GASNETC_FADDR_IDX_RDMA == 2);
+  ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, p, &rdmanamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the RDMA endpoint");
+  p += rdmanamelen;
+
+  gasneti_assert_ptr(p ,==, on_node_addresses + total_len);
 
   gasneti_bootstrapExchange(on_node_addresses, total_len, alladdrs);
   /* NOTE: If AV_MAP is ever to be supported, the NULL in the below call needs to be
@@ -996,8 +1055,10 @@ int gasnetc_ofi_init(void)
   fi_freeinfo(hints);
 
   if (GASNETC_OFI_HAS_MR_PROV_KEY) {
-      gasnetc_ofi_target_keys = gasneti_calloc(2*gasneti_nodes, sizeof(uint64_t));
-      gasnetc_ofi_target_aux_keys = gasnetc_ofi_target_keys + gasneti_nodes;
+    // 'static' ensures valgrind does not consider this allocation "possibly lost"
+    static uint64_t **tmp;
+    tmp = gasneti_calloc(1+GASNET_MAXEPS, sizeof(uint64_t*));
+    gasnetc_remote_key_tbl = tmp + 1; // places aux seg keys at gasnetc_remote_key_tbl[-1]
   }
 
   receive_region_size = multirecv_buff_size*num_multirecv_buffs;
@@ -1132,12 +1193,13 @@ void gasnetc_ofi_exit(void)
   }
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-  GASNETI_SEGTBL_LOCK();
-    gasneti_Segment_t seg;
-    GASNETI_SEGTBL_FOR_EACH(seg) {
-      gasnetc_segment_deregister((gasnetc_Segment_t) seg);
-    }
-  GASNETI_SEGTBL_UNLOCK();
+   { // TODO: loop over clients
+     gasneti_Client_t i_client = gasneti_import_client(gasneti_THUNK_CLIENT);
+     for (gex_EP_Index_t ep_idx = 0; ep_idx < GASNET_MAXEPS; ++ep_idx) {
+       gasneti_EP_t i_ep = i_client->_ep_tbl[ep_idx];
+       if (i_ep) gasnetc_ep_unbindsegment(i_ep);
+     }
+   }
 #else
   if(gasnetc_segment_mrfd && (fi_close(&gasnetc_segment_mrfd->fid)!=FI_SUCCESS)) {
     gasneti_fatalerror("close mrfd failed\n");
@@ -1183,7 +1245,13 @@ void gasnetc_ofi_exit(void)
     gasneti_fatalerror("close fabricfd failed\n");
   }
 
-  gasneti_free(gasnetc_ofi_target_keys);
+  if (GASNETC_OFI_HAS_MR_PROV_KEY) {
+    // table indices run [-1, GASNET_MAXEPS)
+    for (int epidx = -1; epidx < GASNET_MAXEPS; ++epidx) {
+      gasneti_free(gasnetc_remote_key_tbl[epidx]);
+    }
+    gasneti_free(gasnetc_remote_key_tbl - 1);
+  }
 
 #if USE_AV_MAP
   gasneti_free(addr_table);
@@ -1391,21 +1459,22 @@ gasnetc_ofi_bounce_op_ctxt_t* gasnetc_ofi_get_bounce_ctxt(void)
  * ----------------------------------------------*/
 
 // Local registration of segment memory
-// TODO: handle multiple registrations of same segment
-int gasnetc_segment_register(gasnetc_Segment_t segment, uint64_t key)
+int gasnetc_ep_bindsegment(gasneti_EP_t i_ep, gasneti_Segment_t segment)
 {
-    GASNETI_TRACE_PRINTF(C,("Registering segment [%p, %p) with requested key%"PRIu64,
-                            segment->_addr, segment->_ub, key));
+    GASNETI_TRACE_PRINTF(C,("Binding segment [%p, %p) to EP %d",
+                            segment->_addr, segment->_ub, i_ep->_index));
 
     void *segbase;
     uintptr_t segsize;
     struct fid_mr** mrfd_p;
+    gasnetc_EP_t c_ep = (gasnetc_EP_t)i_ep;
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     gasneti_assert(segment);
     segbase = segment->_addr;
     segsize = segment->_size;
-    mrfd_p = &segment->mrfd;
+    gasneti_assert(c_ep);
+    mrfd_p = &c_ep->mrfd;
 #else
     if (!GASNETC_OFI_HAS_MR_SCALABLE) {
         gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING is not supported when using FI_MR_BASIC.\n"
@@ -1424,10 +1493,7 @@ int gasnetc_segment_register(gasnetc_Segment_t segment, uint64_t key)
     }
 #endif
 
-    if (*mrfd_p) {
-        gasneti_fatalerror("ofi-conduit does not yet support binding one segment to multiple endpoints");
-    }
-
+    uint64_t key = GASNETC_EPIDX_TO_KEY(c_ep->_index);
     int ret = fi_mr_reg(gasnetc_ofi_domainfd, segbase, segsize,
                         FI_REMOTE_READ | FI_REMOTE_WRITE, 0ULL, key, 0ULL,
                         mrfd_p, NULL);
@@ -1448,16 +1514,18 @@ int gasnetc_segment_register(gasnetc_Segment_t segment, uint64_t key)
     return GASNET_OK;
 }
 
-// TODO: handle multiple registrations of same segment
-int gasnetc_segment_deregister(gasnetc_Segment_t segment)
+int gasnetc_ep_unbindsegment(gasneti_EP_t i_ep)
 {
-    GASNETI_TRACE_PRINTF(C,("Deregistering segment [%p, %p)", segment->_addr, segment->_ub));
+    gasneti_assert(i_ep);
+    GASNETI_TRACE_PRINTF(C,("Unbinding segment from EP %d", i_ep->_index));
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    gasneti_assert(segment);
-    if (segment->mrfd) {
-      int ret = fi_close(&segment->mrfd->fid);
-      GASNETC_OFI_CHECK_RET(ret, "fi_close(segment) failed");
+    gasnetc_EP_t c_ep = (gasnetc_EP_t)i_ep;
+    if (c_ep->mrfd) {
+      int ret = fi_close(&c_ep->mrfd->fid);
+      GASNETC_OFI_CHECK_RET(ret, "fi_close(ep->mrfd) failed");
+      c_ep->mrfd = NULL;
+      c_ep->_segment = NULL;
     }
 #endif
     return GASNET_OK;
@@ -1480,13 +1548,12 @@ void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   // Pack
   p = local;
   for (gex_Rank_t i = 0; i < num_eps; ++i) {
-    gex_EP_t ep = eps[i];
-    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep(ep)->_segment;
-    if (! segment) continue;
+    gasnetc_EP_t c_ep = (gasnetc_EP_t) gasneti_import_ep(eps[i]);
+    if (! c_ep->_segment) continue;
     p->loc.gex_rank = gasneti_mynode;
-    p->loc.gex_ep_index = gex_EP_QueryIndex(ep);
-    gasneti_assert(segment->mrfd);
-    p->mr_key = fi_mr_key(segment->mrfd);
+    p->loc.gex_ep_index = c_ep->_index;
+    gasneti_assert(c_ep->mrfd);
+    p->mr_key = fi_mr_key(c_ep->mrfd);
     ++p;
   }
 
@@ -1498,15 +1565,25 @@ void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   // Unpack
   p = global;
   for (size_t i = 0; i < total_eps; ++i, ++p) {
-    gex_Rank_t jobrank = p->loc.gex_rank;
-    if (! p->loc.gex_ep_index ) { // Primordial EP (includes loopback)
-      gasneti_assert(!gasnetc_ofi_target_keys[jobrank] ||
-                     gasnetc_ofi_target_keys[jobrank] == p->mr_key);
-      gasnetc_ofi_target_keys[jobrank] = p->mr_key;
+    gex_EP_Index_t idx = p->loc.gex_ep_index;
+    uint64_t *key_array = gasnetc_remote_key_tbl[idx];
+    if_pf (!key_array) {
+      static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+      gasneti_mutex_lock(&lock);
+      key_array = gasnetc_remote_key_tbl[idx];
+      if (!key_array) {
+        key_array = gasneti_calloc(gasneti_nodes, sizeof(uint64_t));
+        gasneti_local_wmb();
+        gasnetc_remote_key_tbl[idx] = key_array;
+      }
+      gasneti_mutex_unlock(&lock);
     } else {
-      // Non-primordial
-      gasneti_unreachable_error(("gex_EP_PublishBoundSegment does not yet handle non-primordial EPs"));
+      gasneti_local_rmb();
     }
+    gex_Rank_t jobrank = p->loc.gex_rank;
+    uint64_t key = p->mr_key;
+    gasneti_assert(key_array[jobrank] == 0 || key_array[jobrank] == p->mr_key);
+    key_array[jobrank] = p->mr_key;
   }
   gasneti_free(global);
 }
@@ -1530,9 +1607,11 @@ void gasnetc_auxseg_register(gasnet_seginfo_t si)
 
   if (GASNETC_OFI_HAS_MR_PROV_KEY) {
     // Provider was not required to honor our key, so we exchange them
-    gasneti_assert(gasnetc_ofi_target_aux_keys);
     uint64_t mr_key = fi_mr_key(gasnetc_auxseg_mrfd);
-    gasneti_bootstrapExchange(&mr_key, sizeof(mr_key), gasnetc_ofi_target_aux_keys);
+    uint64_t *aux_keys = gasneti_malloc(gasneti_nodes * sizeof(uint64_t));
+    gasneti_bootstrapExchange(&mr_key, sizeof(mr_key), aux_keys);
+    gasneti_assert(! gasnetc_remote_key_tbl[-1]);
+    gasnetc_remote_key_tbl[-1] = aux_keys;
   } else {
     gasneti_assert_uint(GASNETC_AUX_KEY ,==, fi_mr_key(gasnetc_auxseg_mrfd));
   }
@@ -1799,12 +1878,12 @@ int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler,
     int poll_type;
     if (isreq) {
         ep = gasnetc_ofi_request_epfd;
-        am_dest = GET_AM_REQUEST_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REQ, dest);
         poll_type = OFI_POLL_ALL;
     } 
     else {
         ep = gasnetc_ofi_reply_epfd;
-        am_dest = GET_AM_REPLY_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REP, dest);
         poll_type = OFI_POLL_REPLY;
     }
 
@@ -1864,12 +1943,12 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
     int poll_type;
     if (isreq) {
         ep = gasnetc_ofi_request_epfd;
-        am_dest = GET_AM_REQUEST_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REQ, dest);
         poll_type = OFI_POLL_ALL;
     } 
     else {
         ep = gasnetc_ofi_reply_epfd;
-        am_dest = GET_AM_REPLY_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REP, dest);
         poll_type = OFI_POLL_REPLY;
     }
 
@@ -1939,12 +2018,12 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
     int poll_type;
     if (isreq) {
         ep = gasnetc_ofi_request_epfd;
-        am_dest = GET_AM_REQUEST_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REQ, dest);
         poll_type = OFI_POLL_ALL;
     } 
     else {
         ep = gasnetc_ofi_reply_epfd;
-        am_dest = GET_AM_REPLY_DEST(dest);
+        am_dest = gasnetc_fabric_addr(REP, dest);
         poll_type = OFI_POLL_REPLY;
     }
 
@@ -1964,8 +2043,11 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
         lam_ctxt.complete = 0;
         lam_ctxt.callback = gasnetc_ofi_handle_blocking;
 
+        // TODO: following line is only correct until AM supported on non-primordial EP
+        const int rem_epidx = gasnetc_in_auxseg(dest, dest_addr) ? -1 : 0;
         OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
-                         OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes, dest, dest_addr, &lam_ctxt, 0),
+                         OFI_WRITE(gasnetc_ofi_rdma_epfd, source_addr, nbytes,
+                                   dest, rem_epidx, dest_addr, &lam_ctxt, 0),
                          poll_type);
         GASNETC_OFI_CHECK_RET(ret, "fi_write failed for AM long");
 #if GASNET_DEBUG
@@ -2047,14 +2129,15 @@ int get_bounce_bufs(int n, gasnetc_ofi_bounce_buf_t ** arr) {
  * Otherwise returns GEX_EVENT_INVALID
  */
 gex_Event_t
-gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
+gasnetc_rdma_put_non_bulk(gex_TM_t tm, gex_Rank_t rank, void* dest_addr, void* src_addr, 
         size_t nbytes, gasnetc_ofi_nb_op_ctxt_t* ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-
+    const gex_EP_Location_t loc = gasneti_e_tm_rank_to_location(tm, rank, 0);
+    const gex_Rank_t jobrank = loc.gex_rank;
+    const int rem_epidx = gasnetc_in_auxseg(jobrank, dest_addr) ? -1 : loc.gex_ep_index;
     int i;
     int ret = FI_SUCCESS;
     uintptr_t src_ptr = (uintptr_t)src_addr;
-    uintptr_t dest_ptr = GET_REMOTEADDR(dest_addr, dest);
 
     gasnetc_assert_callback_eq(ctxt_ptr, gasnetc_ofi_handle_rdma);
 
@@ -2062,20 +2145,17 @@ gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
 
     /* The payload can be injected without need for a bounce buffer */
     if (nbytes <= max_buffered_write) {
-        uintptr_t dest_ptr = GET_REMOTEADDR_PER_MR_MODE(dest_addr, dest);
         struct fi_msg_rma msg;
         msg.desc = 0;
-        msg.addr = GET_RDMA_DEST(dest);
+        msg.addr = gasnetc_fabric_addr(RDMA, jobrank);
         struct iovec iovec;
         struct fi_rma_iov rma_iov;
         iovec.iov_base = src_addr;
         iovec.iov_len = nbytes;
-        rma_iov.addr = dest_ptr;
-        rma_iov.len = nbytes;
 
-        int is_auxseg = GASNETC_OFI_IS_AUX(dest_addr, dest);
-        int rem_epidx = -is_auxseg; // TODO: real multi-EP support
-        rma_iov.key = GASNETC_OFI_GET_MR_KEY_EPIDX(dest, rem_epidx);
+        rma_iov.addr = gasnetc_remote_addr(jobrank, dest_addr, rem_epidx);
+        rma_iov.key = gasnetc_remote_key(jobrank, rem_epidx);
+        rma_iov.len = nbytes;
 
         msg.context = gasnetc_rdma_ctxt_to_op_ctxt(ctxt_ptr,0);
         msg.msg_iov = &iovec;
@@ -2127,8 +2207,8 @@ out_imm_inject:
             memcpy(buf_container->buf, (void*)src_ptr, bytes_to_copy);
 
             OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
-                                 OFI_WRITE(gasnetc_ofi_rdma_epfd, buf_container->buf,
-                                           bytes_to_copy, dest, dest_ptr, bbuf_ctxt, 0),
+                                 OFI_WRITE(gasnetc_ofi_rdma_epfd, buf_container->buf, bytes_to_copy,
+                                           jobrank, rem_epidx, (void *)dest_ptr, bbuf_ctxt, 0),
                                  OFI_POLL_ALL, imm, out_imm_bounce);
             imm = 0; // no going back once first buffer has been written
 
@@ -2164,7 +2244,7 @@ block_anyways:
       GASNETC_STAT_EVENT(NB_PUT_BLOCK);
       gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
       eop->ofi.type = OFI_TYPE_EPUT;
-      if (gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, &eop->ofi, 0, flags GASNETI_THREAD_PASS)) {
+      if (gasnetc_rdma_put(tm, rank, dest_addr, src_addr, nbytes, &eop->ofi, 0, flags GASNETI_THREAD_PASS)) {
           gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
           GASNETE_EOP_MARKDONE(eop);
           gasnete_eop_free(eop GASNETI_THREAD_PASS);
@@ -2175,9 +2255,12 @@ block_anyways:
 }
 
 int
-gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes,
+gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest_addr, void *src_addr, size_t nbytes,
                  gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
+    const gex_EP_Location_t loc = gasneti_e_tm_rank_to_location(tm, rank, 0);
+    const gex_Rank_t jobrank = loc.gex_rank;
+    const int rem_epidx = gasnetc_in_auxseg(jobrank, dest_addr) ? -1 : loc.gex_ep_index;
     int ret = FI_SUCCESS;
 
     gasnetc_assert_callback_eq(ctxt_ptr, gasnetc_ofi_handle_rdma);
@@ -2185,7 +2268,8 @@ gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes
 
     PERIODIC_RMA_POLL();
     OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
-                         OFI_WRITE(gasnetc_ofi_rdma_epfd, src_addr, nbytes, dest, dest_addr, ctxt_ptr, alc),
+                         OFI_WRITE(gasnetc_ofi_rdma_epfd, src_addr, nbytes,
+                                   jobrank, rem_epidx, dest_addr, ctxt_ptr, alc),
                          OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
     GASNETC_OFI_CHECK_RET(ret, "fi_write failed");
 #if GASNET_DEBUG
@@ -2199,9 +2283,12 @@ out_imm:
 }
 
 int
-gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbytes,
+gasnetc_rdma_get(void *dest_addr, gex_TM_t tm, gex_Rank_t rank, void * src_addr, size_t nbytes,
                  gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
+    const gex_EP_Location_t loc = gasneti_e_tm_rank_to_location(tm, rank, 0);
+    const gex_Rank_t jobrank = loc.gex_rank;
+    const int rem_epidx = gasnetc_in_auxseg(jobrank, src_addr) ? -1 : loc.gex_ep_index;
     int ret = FI_SUCCESS;
 
     gasnetc_assert_callback_eq(ctxt_ptr, gasnetc_ofi_handle_rdma);
@@ -2209,7 +2296,8 @@ gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbyte
     PERIODIC_RMA_POLL();
 
     OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
-                         OFI_READ(gasnetc_ofi_rdma_epfd, dest_addr, nbytes, dest, src_addr, ctxt_ptr, 0),
+                         OFI_READ(gasnetc_ofi_rdma_epfd, dest_addr, nbytes,
+                                  jobrank, rem_epidx, src_addr, ctxt_ptr, 0),
                          OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
 
     GASNETC_OFI_CHECK_RET(ret, "fi_read failed");

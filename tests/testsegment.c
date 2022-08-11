@@ -274,6 +274,17 @@ int main(int argc, char **argv)
       GASNET_Safe(gex_TM_Destroy(tmp_tm, NULL, 0));
     }
 
+  #if GASNET_MAXEPS > 1
+    // Test binding same segment to a second endpoint
+    gex_EP_t ep2;
+    if ((GASNET_OK != gex_EP_Create(&ep2, myclient, GEX_EP_CAPABILITY_RMA, 0)) ||
+        (GASNET_OK != gex_EP_BindSegment(ep2, seg, 0)) ||
+        (GASNET_OK != gex_EP_PublishBoundSegment(myteam, &ep2, 1, 0))) {
+        ERR("FAILED MULTI-BOUND SEGMENT TEST");
+    }
+    // TODO: Unpublish, Unbind and Destroy
+  #endif
+
     // Prepare for comms
     gex_Rank_t peer = (myrank + 1) % nranks;
     void *loc_base, *rem_base;

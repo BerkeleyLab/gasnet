@@ -45,6 +45,7 @@ GASNet-EX ChangeLog
   - New support for asynchronous local completion for RMA puts
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
   - Numerous maintainability improvements
+  - Support for multiple endpoints
 
 * Platform support/portability
   - `PLATFORM_OS_CNL` and `PLATFORM_OS_WSL` macros have been renamed to

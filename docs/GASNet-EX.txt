@@ -3799,8 +3799,8 @@ typedef [some integer type] gex_EP_Capabilities_t;
 
 #define GEX_FLAG_HINT_ACCEL_{AD,COLL,ALL} ???
 
-// NOTE: implemented only by ibv-conduit and ucx-conduit, and
-// only for capabilities == GEX_EP_CAPABILITY_RMA
+// NOTE: implemented only by ibv, ofi and ucx conduits,
+// and only for capabilities == GEX_EP_CAPABILITY_RMA
 int gex_EP_Create(
             gex_EP_t               *ep_p,        // OUT
             gex_Client_t           client,
