@@ -476,7 +476,8 @@ Known problems:
     GASNET_OFI_RECEIVE_BUFF_SIZE=single
   in your environment.  This setting automatically uses a receive buffer size
   that ensures only a single AM will be received per "multi-receive" buffer,
-  and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is adjusted to compensate.
+  and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is adjusted to some
+  unspecified larger value to compensate.
   Empirical evidence shows this prevents the failures in applications which
   exhibit them (which is *not* every application).  However, this measurably
   increases the latency of small AM operations.  So, this should only be used
