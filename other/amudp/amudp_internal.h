@@ -31,11 +31,14 @@ AMUDP_BEGIN_EXTERNC
 #define USE_SOCKET_SENDBUFFER_GROW  1   /* grow SNDBUF on UDP sockets */
 #endif
 #ifndef AMUDP_SOCKETBUFFER_MAX
-#define AMUDP_SOCKETBUFFER_MAX  4194304   /* socket *BUF max to never exceed: 4 MB (huge) */
+#define AMUDP_SOCKETBUFFER_MAX  4194304   /* default socket *BUF max to never exceed */
 #endif
 #ifndef AMUDP_EXTRA_CHECKSUM
 #define AMUDP_EXTRA_CHECKSUM 0 /* add extra checksums to each message to detect buggy IP */
 #endif
+
+extern uint32_t AMUDP_SocketBuffer_initial;
+extern uint32_t AMUDP_SocketBuffer_max;
 
 #define AMUDP_PROCID_NEXT -1  /* Use next unallocated procid */
 

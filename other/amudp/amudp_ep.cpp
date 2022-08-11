@@ -18,6 +18,9 @@ uint32_t AMUDP_RequestTimeoutBackoff = AMUDP_REQUESTTIMEOUT_BACKOFF_MULTIPLIER;
 uint32_t AMUDP_MaxRequestTimeout_us = AMUDP_MAX_REQUESTTIMEOUT_MICROSEC;
 uint32_t AMUDP_InitialRequestTimeout_us = AMUDP_INITIAL_REQUESTTIMEOUT_MICROSEC;
 
+uint32_t AMUDP_SocketBuffer_initial = 0;
+uint32_t AMUDP_SocketBuffer_max = AMUDP_SOCKETBUFFER_MAX;
+
 AMX_IDENT(AMUDP_IdentString_Version, "$AMUDPLibraryVersion: " AMUDP_LIBRARY_VERSION_STR " $");
 
 double AMUDP_FaultInjectionRate = 0.0;
@@ -183,13 +186,22 @@ extern int AMUDP_SetUDPInterface(uint32_t IPAddress) {
 #if USE_SOCKET_RECVBUFFER_GROW
 extern int AMUDP_growSocketBufferSize(ep_t ep, int targetsize, 
                                        int szparam, const char *paramname) {
+  #if PLATFORM_OS_LINUX
+    // Linux internally doubles the requested setsockopt() size (to accomodate overhead) 
+    // and getsockopt() reports the *doubled* size (see `man 7 socket`)
+    // Adjust the latter return value to ensure we use consistent non-doubled "units" everywhere.
+    #define ADJUST_GET_SIZE(sz) ((sz)/2)
+  #else
+    #define ADJUST_GET_SIZE(sz) (sz)
+  #endif
   int initialsize; /* original socket recv size */
-  int maxedout = 0;
   GETSOCKOPT_LENGTH_T junk = sizeof(int);
   if (SOCK_getsockopt(ep->s, SOL_SOCKET, szparam, (char *)&initialsize, &junk) == SOCKET_ERROR) {
     AMX_DEBUG_WARN(("getsockopt(SOL_SOCKET, %s) on UDP socket failed: %s",paramname,strerror(errno)));
     initialsize = 65535;
   } 
+  initialsize = ADJUST_GET_SIZE(initialsize);
+  AMX_VERBOSE_INFO(("getsockopt(SOL_SOCKET, %s) on UDP socket returned: %i", paramname, initialsize));
   if (szparam == SO_RCVBUF)
     ep->socketRecvBufferSize = initialsize; /* ensure ep->socketRecvBufferSize is always initialized */
 
@@ -213,27 +225,43 @@ extern int AMUDP_growSocketBufferSize(ep_t ep, int targetsize,
     #endif
   }
   #endif
-  /* now set it to the largest value it will take */
-  while (targetsize > initialsize) {
-    int sz = targetsize; /* prevent OS from tampering */
-    if (setsockopt(ep->s, SOL_SOCKET, szparam, (char *)&sz, sizeof(int)) == SOCKET_ERROR) {
-      AMX_VERBOSE_INFO(("setsockopt(SOL_SOCKET, %s, %i) on UDP socket failed: %s", paramname, targetsize, strerror(errno)));
-    } else {
-      int temp = targetsize;
-      junk = sizeof(int);
-      if (SOCK_getsockopt(ep->s, SOL_SOCKET, szparam, (char *)&temp, &junk) == SOCKET_ERROR) {
-        AMX_DEBUG_WARN(("getsockopt(SOL_SOCKET, %s) on UDP socket failed: %s", paramname, strerror(errno)));
-      }
-      if (temp >= targetsize) {
-        if (!AMX_SilentMode) AMX_Info("UDP %s buffer successfully set to %i bytes", paramname, targetsize);
-        if (szparam == SO_RCVBUF) ep->socketRecvBufferSize = temp;
-        break; /* success */
-      }
-    }
-    targetsize = (int)(0.9 * targetsize);
+  #define SET_SIZE(request,result) do { \
+    int sz = request; /* prevent OS from tampering */ \
+    if (setsockopt(ep->s, SOL_SOCKET, szparam, (char *)&sz, sizeof(int)) == SOCKET_ERROR) \
+      AMX_VERBOSE_INFO(("setsockopt(SOL_SOCKET, %s, %i) on UDP socket failed: %s", paramname, request, strerror(errno))); \
+    junk = sizeof(int); \
+    if (SOCK_getsockopt(ep->s, SOL_SOCKET, szparam, (char *)&sz, &junk) == SOCKET_ERROR) { \
+      AMX_DEBUG_WARN(("getsockopt(SOL_SOCKET, %s) on UDP socket failed: %s", paramname, strerror(errno))); \
+      result = request;/* unknowable size, assume it worked */ \
+    } else { \
+      result = ADJUST_GET_SIZE(sz); \
+      if (szparam == SO_RCVBUF) ep->socketRecvBufferSize = result; \
+    } \
+  } while (0)
+  // try setting it to targetsize
+  int result;
+  int maxedout = 0;
+  SET_SIZE(targetsize, result);
+  if (result >= targetsize) {
+    // success, not known to encounter a limit
+  } else {
+    // we hit a kernel buffer size limit, so search for the largest value it will take 
     maxedout = 1;
+    int lo = result;
+    int hi = targetsize;
+    while (lo < hi) {
+      int request = lo + (hi-lo+1)/2;
+      SET_SIZE(request,result);
+      AMX_VERBOSE_INFO(("AMUDP_growSocketBufferSize(%s) lo=%i \thi=%i \treq=%i \tres=%i",
+                        paramname,lo,hi,request,result));
+      if (result > lo) lo = result; // grow succeeded, kernel will accept at least this size
+      else hi = request-1; // got less than request, limit must be less than request
+    }
   }
-  return maxedout;
+  if (!AMX_SilentMode) AMX_Info("UDP %s buffer successfully set to %i bytes", paramname, result);
+  return maxedout; // encountered kernel limit
+  #undef ADJUST_GET_SIZE
+  #undef SET_SIZE
 }
 #endif
 /* ------------------------------------------------------------------------------------ */
@@ -291,7 +319,10 @@ static int AMUDP_AllocateEndpointBuffers(ep_t ep) {
 
   // setup initial socket OS buffer size
   { /* theoretical max required by HPAM is 2*PD*AMUDP_MAX_MSG, but that scales poorly */
-    int sz = MIN(ep->recvDepth*AMUDP_MAX_MSG, AMUDP_SOCKETBUFFER_MAX);
+    int sz = AMUDP_SocketBuffer_initial;
+    if (!sz) {
+      sz = MIN(ep->recvDepth*AMUDP_MAX_MSG, AMUDP_SocketBuffer_max);
+    }
      
     #if USE_SOCKET_RECVBUFFER_GROW
         ep->socketRecvBufferMaxedOut = AMUDP_growSocketBufferSize(ep, sz, SO_RCVBUF, "SO_RCVBUF");
@@ -711,7 +742,8 @@ static void AMUDP_InitParameters(ep_t ep) {
            if (end == valstr) {                                  \
             AMX_Warn(name" may not be empty! Using default.");   \
             val = (long)var;                                     \
-           } else if ((int64_t)val != (int64_t)(int32_t)val) {   \
+           } else if (sizeof(var) < 8 &&                         \
+                   (uint64_t)val != (uint64_t)(uint32_t)val) {   \
             AMX_Warn(name" too large! Using default.");          \
             val = (long)var;                                     \
            } else var = (uint32_t)val;                           \
@@ -738,6 +770,20 @@ static void AMUDP_InitParameters(ep_t ep) {
        AMUDP_MaxRequestTimeout_us = MAX(AMUDP_InitialRequestTimeout_us, AMUDP_InitialRequestTimeout_us*AMUDP_RequestTimeoutBackoff);
     }
     AMUDP_InitRetryCache();
+
+    ENVINT_WITH_DEFAULT(AMUDP_SocketBuffer_initial, "SOCKETBUFFER_INITIAL", { 
+                          /* 0 = default */ 
+                          if (val > 0x7FFFFFFF)  // not currently 64-bit clean
+                            AMX_FatalErr("SOCKETBUFFER_INITIAL too large");
+                        });
+    AMUDP_SocketBuffer_max = MAX(AMUDP_SocketBuffer_initial,AMUDP_SocketBuffer_max);
+    ENVINT_WITH_DEFAULT(AMUDP_SocketBuffer_max, "SOCKETBUFFER_MAX", {
+                          if (val > 0x7FFFFFFF)  // not currently 64-bit clean
+                            AMX_FatalErr("SOCKETBUFFER_INITIAL too large");
+                          if (!val || val < AMUDP_SocketBuffer_initial) 
+                          AMX_FatalErr("SOCKETBUFFER_MAX must be >= SOCKETBUFFER_INITIAL"); 
+                        });
+
     firsttime = 0;
   }
 
