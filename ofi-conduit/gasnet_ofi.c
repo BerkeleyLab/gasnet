@@ -685,9 +685,14 @@ int gasnetc_ofi_init(void)
   int num_locks; 
   int i;
   
-  /* Ensure uniform FI_* env vars */
-  /* TODO: what about provider-specific env vars? */
+  // Ensure uniform FI_* env vars
   gasneti_propagate_env("FI_", GASNETI_PROPAGATE_ENV_PREFIX);
+
+  // Ensure uniform MLX5_* env vars for verbs provider
+  // Especially important for work-arounds like MLX5_SCATTER_TO_CQE
+  gasneti_propagate_env("MLX5_", GASNETI_PROPAGATE_ENV_PREFIX);
+
+  // TODO: other providers?
 
 #if GASNETC_OFI_USE_THREAD_DOMAIN && GASNET_PAR
   gasneti_spinlock_init(&gasnetc_ofi_locks.big_lock);
