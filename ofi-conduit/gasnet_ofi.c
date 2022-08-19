@@ -885,6 +885,13 @@ int gasnetc_ofi_init(void)
                          (has_mr_scalable ? "enable" : "disable"));
   }
 #endif
+#if GASNET_SEGMENT_EVERYTHING
+  if (!GASNETC_OFI_HAS_MR_SCALABLE) {
+      gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING is not supported when using FI_MR_BASIC.\n"
+                         "Pick an OFI provider that supports FI_MR_SCALABLE if EVERYTHING\n"
+                         "is needed.\n");
+  }
+#endif
 
   /* Open the fabric provider */
   ret = fi_fabric(info->fabric_attr, &gasnetc_ofi_fabricfd, NULL);
@@ -1478,11 +1485,6 @@ int gasnetc_ep_bindsegment(gasneti_EP_t i_ep, gasneti_Segment_t segment)
     gasneti_assert(c_ep);
     mrfd_p = &c_ep->mrfd;
 #else
-    if (!GASNETC_OFI_HAS_MR_SCALABLE) {
-        gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING is not supported when using FI_MR_BASIC.\n"
-                           "Pick an OFI provider that supports FI_MR_SCALABLE if EVERYTHING\n"
-                           "is needed.\n");
-    }
     if (!segment) {
         segbase = (void *)0;
         segsize = UINT64_MAX;
