@@ -170,6 +170,7 @@
 #undef PLATFORM_ARCH_AARCH64
 #undef PLATFORM_ARCH_TILE
 #undef PLATFORM_ARCH_S390
+#undef PLATFORM_ARCH_RISCV
 #undef PLATFORM_ARCH_UNKNOWN
 
 /* prevent known old/broken versions of this header from loading */
@@ -1036,6 +1037,16 @@
     #define _PLATFORM_ARCH_64 1
   #else
     #define _PLATFORM_ARCH_32 1
+  #endif
+
+#elif defined(__riscv)
+  #define PLATFORM_ARCH_RISCV 1
+  #define PLATFORM_ARCH_FAMILYNAME RISCV
+  #define _PLATFORM_ARCH_LITTLE_ENDIAN 1
+  #if __riscv_xlen == 32
+    #define _PLATFORM_ARCH_32 1
+  #else  // (__riscv_xlen == 64) || (__riscv_xlen == 128)
+    #define _PLATFORM_ARCH_64 1
   #endif
 
 #else /* unknown CPU */
