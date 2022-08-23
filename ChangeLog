@@ -53,6 +53,7 @@ GASNet-EX ChangeLog
      These platforms now ALSO define `PLATFORM_OS_LINUX`.
   - Additional variables from *.mak fragments now appear in pkg-config *.pc files
   - Timer calibration output is now controlled by envvar `GASNET_TSC_VERBOSE`
+  - Added initial/experimental support for RISC-V architecture
 
 * GASNet-EX Spec v0.16: (details in docs/GASNet-EX.txt)
   - The return type of `gex_EP_BindSegment()` has changed from `void` to `int`
