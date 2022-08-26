@@ -261,6 +261,16 @@ Additional environment variables:
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4393
 
+* Bug 4474
+  When using hugepages together with Mellanox InfiniBand and RoCE devices,
+  it may be necessary to set `RDMAV_HUGEPAGES_SAFE=1` in the environment.
+  Failure to do so may result in a self-explanatory error message:
+    UCX  ERROR ibv_reg_mr(address=0x7f49c5a02800, length=2048, access=0xf) failed:
+    Invalid argument. Application is using HUGE pages. Please set environment
+    variable RDMAV_HUGEPAGES_SAFE=1
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4474
+
 + See the GASNet Bugzilla server for details on other known bugs:
   https://gasnet-bugs.lbl.gov/
 
