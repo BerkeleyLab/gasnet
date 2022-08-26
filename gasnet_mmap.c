@@ -1019,7 +1019,7 @@ static void *gasneti_mmap_fixed_with_retry(void *segbase, uintptr_t segsize, int
 static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t highsz) {
   gasnet_seginfo_t si;
 
-  if (highsz - lowsz <= GASNETI_MMAP_GRANULARITY) {
+  if (highsz - lowsz <= MAX(GASNETI_MMAP_GRANULARITY,gasneti_mmap_pagesize())) {
     si.size = 0;
     si.addr = NULL;
     return si;
