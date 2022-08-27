@@ -1183,7 +1183,6 @@ gasnete_coll_bcast_##FUNC_EXT(gasnet_team_handle_t team,\
                        uint32_t sequence\
                        GASNETI_THREAD_FARG)
 
-GASNETE_COLL_DECLARE_BCAST_ALG(Eager);
 GASNETE_COLL_DECLARE_BCAST_ALG(RVGet);
 GASNETE_COLL_DECLARE_BCAST_ALG(TreeRVGet);
 GASNETE_COLL_DECLARE_BCAST_ALG(RVous);

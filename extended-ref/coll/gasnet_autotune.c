@@ -192,13 +192,6 @@ void gasnete_coll_register_broadcast_collectives(gasnete_coll_autotune_info_t* i
     
   }
   
-  info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_EAGER] = 
-  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
-                                           0, /*works for all flags as long as size is small enough*/ 0,
-                                           gasnete_coll_p2p_eager_min, 0, 0,
-                                           0,NULL,gasnete_coll_bcast_Eager, "BROADCAST_EAGER");
-  
-  
   info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_EAGER] = 
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP, 
                                            GASNETE_COLL_EVERY_SYNC_FLAG,

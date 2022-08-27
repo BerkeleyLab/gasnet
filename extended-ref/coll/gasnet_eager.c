@@ -16,68 +16,6 @@
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_broadcast_nb() */
 
-
-/* bcast Eager: root node performs carefully ordered eager puts */
-/* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
-static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
-  gasnete_coll_generic_data_t *data = op->data;
-  const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
-  int result = 0;
-  
-  switch (data->state) {
-    case 0:	/* Optional IN barrier */
-      if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(op->team, data)) {
-        break;
-      }
-      data->state = 1; GASNETI_FALLTHROUGH
-      
-      case 1:	/* Data movement */
-      if (op->team->myrank == args->srcrank) {
-        int i;
-        for (i = op->team->myrank + 1; i < op->team->total_ranks; ++i) {
-          gasnete_tm_p2p_eager_put(op, i, args->src, args->nbytes, GEX_EVENT_NOW, 0, 0, 1 GASNETI_THREAD_PASS);
-        }
-        /* Send to nodes to the "left" of ourself */
-        for (i = 0; i < op->team->myrank; ++i) {
-          gasnete_tm_p2p_eager_put(op, i, args->src, args->nbytes, GEX_EVENT_NOW, 0, 0, 1 GASNETI_THREAD_PASS);
-        }
-        
-        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
-      } else if (data->p2p->state[0]) {
-        gasneti_sync_reads();
-        GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->data, args->nbytes);
-      } else {
-        break;	/* Stalled until data arrives */
-      }
-      data->state = 2; GASNETI_FALLTHROUGH
-      
-      case 2:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(op->team, data)) {
-        break;
-      }
-      
-      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
-      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
-  }
-  
-  return result;
-}
-
-GASNETE_COLL_DECLARE_BCAST_ALG(Eager)
-{
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
-  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
-  GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(team, srcimage));
-  
-  gasneti_assert(nbytes <= gasnete_coll_p2p_eager_min);
-
-  return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
-                                           &gasnete_coll_pf_bcast_Eager, options,
-                                           NULL, sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
-}
-
-
 /* bcast TreeEager */
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
 /* Naturally IN_MYSYNC, OUT_MYSYNC */
