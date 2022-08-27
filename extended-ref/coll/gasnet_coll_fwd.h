@@ -35,7 +35,7 @@
         VAL(W, COLL_EXCHANGE_NB, sz)          \
         VAL(W, COLL_REDUCE_NB, bytes)         \
         VAL(W, COLL_REDUCE_ALL_NB, bytes)     \
-        VAL(W, COLL_P2P_ALLOC, bytes)         \
+        CNT(W, COLL_P2P_ALLOC, cnt)           \
      /* VAL(W, COLL_P2P_FREE, bytes) unused */\
         VAL(W, COLL_OP_ALLOC, bytes)          \
         VAL(W, COLL_OP_FREE, bytes)           \

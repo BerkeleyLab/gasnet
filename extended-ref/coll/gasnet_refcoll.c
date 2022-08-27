@@ -772,11 +772,17 @@ extern int gasnete_coll_consensus_barrier(gasnete_coll_team_t team GASNETI_THREA
 	 (gasneti_assert(GASNETI_POWEROFTWO(GASNETE_COLL_P2P_TABLE_SIZE)), \
           ((uint32_t)(S) & (GASNETE_COLL_P2P_TABLE_SIZE-1)))
 
-gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
-  gasnete_coll_team_t team = gasnete_coll_team_lookup(team_id);
+// If finalize is zero, returns with the lock held
+// If finalize is non-zero, returns without the lock held and additionally
+// in GASNET_DEBUG build will ensure future attempts at growth are fatal
+gasnete_coll_p2p_t *gasnete_coll_p2p_get_inner(
+                        gasnete_coll_team_t team, uint32_t sequence,
+                        size_t nstates, size_t ncounters, size_t ndata,
+                        int finalize)
+{
   unsigned int slot_nr = GASNETE_COLL_P2P_TABLE_SLOT(sequence);
   gasnete_coll_p2p_t *p2p, **prev_p;
-  int i;
+
   
   gex_HSL_Lock(&team->p2p_lock);
 
@@ -788,54 +794,24 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
     p2p = p2p->p2p_next;
   }
 
-  /* If not found, create it with all zeros */
+  // If not found, create it
   if_pf ((p2p == NULL) || (p2p->sequence != sequence)) {
-    size_t statesz = GASNETI_ALIGNUP(2*team->total_ranks * sizeof(uint32_t), 8);
-    size_t countersz = GASNETI_ALIGNUP(2*team->total_ranks * sizeof(gasneti_weakatomic_t), 8);
     gasnete_coll_p2p_t *next = p2p;
-        
     p2p = team->p2p_freelist;
-        
     if_pf (p2p == NULL) {
-      /* Round to 8-byte alignment of entry array */
-      size_t alloc_size = GASNETI_ALIGNUP(sizeof(gasnete_coll_p2p_t) + statesz + countersz,8)
-        + team->p2p_eager_buffersz;
-      void *alloc_ptr = gasneti_malloc(alloc_size);
-      gasneti_leak(alloc_ptr);
-      uintptr_t p = (uintptr_t)alloc_ptr;
-      GASNETI_STAT_EVENT_VAL(W, COLL_P2P_ALLOC, alloc_size);
-          
-      p2p = (gasnete_coll_p2p_t *)p;
-      p += sizeof(gasnete_coll_p2p_t);
-          
-      p2p->state = (uint32_t *)p;
-      p += statesz;
-          
-      p2p->counter = (gasneti_weakatomic_t *)p;
-      p += countersz;
-          
-      p = GASNETI_ALIGNUP(p,8);
-      p2p->data = (uint8_t *)p;
-          
-      p2p->p2p_next = NULL;
+      p2p = gasneti_calloc(1, sizeof(gasnete_coll_p2p_t));
+      gasneti_leak(p2p);
+      GASNETI_STAT_EVENT(W, COLL_P2P_ALLOC);
+    } else {
+      team->p2p_freelist = p2p->p2p_next;
     }
-        
-    memset((void *)p2p->state, 0, statesz);
-    memset(p2p->data, 0, team->p2p_eager_buffersz);
-    for(i=0; i<2*team->total_ranks; i++) {
-      gasneti_weakatomic_set(&p2p->counter[i], 0, 0);
-    }
-    gasneti_sync_writes();
-        
 #if GASNET_DEBUG
-    p2p->team_id = team_id;
+    p2p->team_id = team->team_id;
 #endif
     p2p->sequence = sequence;
     gex_HSL_Init(&p2p->lock);
-        
-    team->p2p_freelist = p2p->p2p_next;
-        
-    /* Insert in order before the last location searched */
+
+    // Insert in order before the last location searched
     gasneti_assert(prev_p != NULL);
     gasneti_assert(!next || (next->p2p_prev_p == prev_p));
     *prev_p = p2p;
@@ -848,12 +824,61 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
     GASNETE_P2P_EXTRA_INIT(p2p)
 #endif
   }
-      
-  gex_HSL_Unlock(&team->p2p_lock);
+
+  // TODO: it may make sense to drop team->p2p_lock here in favor of p2p->lock
+
+  if (p2p->finalized) {
+    gasneti_assert(!finalize); // may only finalize once
+    gasneti_assert_uint(p2p->nstates   ,>=, nstates);
+    gasneti_assert_uint(p2p->ncounters ,>=, ncounters);
+    gasneti_assert_uint(p2p->ndata     ,>=, ndata);
+  } else {
+    // Grow by at least double, subject to a limit
+    #define GASNETE_P2P_NEW_SZ(have,want,limit) \
+            (gasneti_assert((want) <= (limit)), MIN(limit, MAX(want, 2*(have))))
+
+    // Allocate or grow fields as needed
+    if (p2p->nstates < nstates) {
+      nstates = GASNETE_P2P_NEW_SZ(p2p->nstates, nstates, 2 * team->total_ranks);
+      uint32_t *tmp;
+      size_t allocsz = nstates * sizeof(*tmp);
+      tmp = gasneti_realloc((void*)p2p->state, allocsz); // cast discards `volatile` w/o a warning
+      size_t zerosz = (nstates - p2p->nstates) * sizeof(*tmp);
+      memset(tmp + p2p->nstates, 0, zerosz);
+      p2p->state = tmp;
+      p2p->nstates = nstates;
+    }
+    if (p2p->ncounters < ncounters) {
+      ncounters = GASNETE_P2P_NEW_SZ(p2p->ncounters, ncounters, 2 * team->total_ranks);
+      gasneti_weakatomic_t *tmp;
+      size_t allocsz = ncounters * sizeof(*tmp);
+      tmp = gasneti_realloc((void*)p2p->counter, allocsz); // cast discards `volatile` w/o a warning
+      for (int i = p2p->ncounters; i < ncounters; i++) {
+        gasneti_weakatomic_set(tmp + i, 0, 0);
+      }
+      p2p->counter = tmp;
+      p2p->ncounters = ncounters;
+    }
+    if (p2p->ndata < ndata) {
+      ndata = GASNETE_P2P_NEW_SZ(p2p->ndata, ndata, team->p2p_eager_buffersz);
+      uint8_t *tmp = gasneti_realloc(p2p->data, ndata);
+      memset(tmp + p2p->ndata, 0, ndata - p2p->ndata);
+      p2p->data = tmp;
+      p2p->ndata = ndata;
+    }
+
+    #undef GASNETE_P2P_NEW_SZ
+  }
+
+  gasnete_coll_p2p_check(p2p);
+
+  if (finalize) {
+    gasneti_assert(!p2p->finalized);
+    p2p->finalized = 1;
+    gex_HSL_Unlock(&team->p2p_lock);
+  }
       
   gasneti_assert(p2p != NULL);
-  gasneti_assert(p2p->state != NULL);
-  gasneti_assert(p2p->data != NULL);
   gasneti_assert(p2p->team_id == team->team_id);
       
   return p2p;
@@ -863,15 +888,29 @@ void gasnete_coll_p2p_free(gasnete_coll_team_t team, gasnete_coll_p2p_t *p2p) {
   gasneti_assert(p2p != NULL);
   gasneti_assert(p2p->team_id == team->team_id);
 
+  // Since "by construction" there is no longer any possible concurrent access
+  // to p2p, work not related to p2p and freelist linkage can be done outside
+  // the team->p2p_lock critical section
+
+  gasnete_coll_p2p_check(p2p);
+  gasneti_free(p2p->data);
+  p2p->data = NULL;     p2p->ndata = 0;
+  gasneti_free((void*)p2p->state); // cast discards `volatile` w/o a warning
+  p2p->state = NULL;    p2p->nstates = 0;
+  gasneti_free((void*)p2p->counter); // cast discards `volatile` w/o a warning
+  p2p->counter = NULL;  p2p->ncounters = 0;
+  p2p->finalized = 0;
+
+#ifdef GASNETE_P2P_EXTRA_FREE
+  GASNETE_P2P_EXTRA_FREE(p2p)
+#endif
+
   gex_HSL_Lock(&team->p2p_lock);
 
   *(p2p->p2p_prev_p) = p2p->p2p_next;
   if (p2p->p2p_next) {
     p2p->p2p_next->p2p_prev_p = p2p->p2p_prev_p;
   }
-#ifdef GASNETE_P2P_EXTRA_FREE
-  GASNETE_P2P_EXTRA_FREE(p2p)
-#endif
 
   p2p->p2p_next = team->p2p_freelist;
   team->p2p_freelist = p2p;
@@ -912,16 +951,19 @@ extern void gasnete_coll_p2p_long_reqh(gex_Token_t token, void *buf, size_t nbyt
                                        gex_AM_Arg_t count,
                                        gex_AM_Arg_t offset,
                                        gex_AM_Arg_t state) {
-  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
-  int i;
+  size_t nstates = count ? offset + count : 0;
+  gasnete_coll_team_t team = gasnete_coll_team_lookup(team_id);
+  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get_locked(team, sequence, nstates, 0, 0);
 
   if (nbytes) {
     gasneti_sync_writes();
   }
 
-  for (i = 0; i < count; ++i, ++offset) {
+  for (int i = 0; i < count; ++i, ++offset) {
     p2p->state[offset] = state;
   }
+
+  gasnete_coll_p2p_unlock(team, p2p);
 }
 
 /* Delivers a medium payload to the eager buffer space and updates 1 or more states
@@ -937,17 +979,21 @@ extern void gasnete_coll_p2p_med_reqh(gex_Token_t token, void *buf, size_t nbyte
                                       gex_AM_Arg_t offset,
                                       gex_AM_Arg_t state,
                                       gex_AM_Arg_t size) {
-  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
-  int i;
+  size_t nstates = count ? offset + count : 0;
+  size_t ndata = nbytes ? offset * size + nbytes : 0;
+  gasnete_coll_team_t team = gasnete_coll_team_lookup(team_id);
+  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get_locked(team, sequence, nstates, 0, ndata);
 
   if (nbytes) {
     GASNETE_FAST_UNALIGNED_MEMCPY(p2p->data + offset*size, buf, nbytes);
     gasneti_sync_writes();
   }
 
-  for (i = 0; i < count; ++i, ++offset) {
+  for (int i = 0; i < count; ++i, ++offset) {
     p2p->state[offset] = state;
   }
+
+  gasnete_coll_p2p_unlock(team, p2p);
 }
 
 extern void gasnete_coll_p2p_med_counting_reqh(gex_Token_t token, void *buf, size_t nbytes,
@@ -956,7 +1002,9 @@ extern void gasnete_coll_p2p_med_counting_reqh(gex_Token_t token, void *buf, siz
                                                gex_AM_Arg_t offset,
                                                gex_AM_Arg_t idx,
                                                gex_AM_Arg_t size) {
-  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
+  size_t ndata = nbytes ? offset * size + nbytes : 0;
+  gasnete_coll_team_t team = gasnete_coll_team_lookup(team_id);
+  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get_locked(team, sequence, 0, idx+1, ndata);
   
   if (nbytes) {
     GASNETE_FAST_UNALIGNED_MEMCPY(p2p->data + offset*size, buf, nbytes);
@@ -964,6 +1012,8 @@ extern void gasnete_coll_p2p_med_counting_reqh(gex_Token_t token, void *buf, siz
   }
   
   gasneti_weakatomic_increment(&p2p->counter[idx], 0);
+
+  gasnete_coll_p2p_unlock(team, p2p);
 }
 
 /* Delivers a medium payload to the eager buffer space and updates 1 state
@@ -972,13 +1022,15 @@ extern void gasnete_coll_p2p_med_counting_reqh(gex_Token_t token, void *buf, siz
 extern void gasnete_coll_p2p_med_tree_reqh(gex_Token_t token, void *buf, size_t nbytes,
                                            gex_AM_Arg_t team_id,
                                            gex_AM_Arg_t sequence) {
-  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
-      
+  gasnete_coll_team_t team = gasnete_coll_team_lookup(team_id);
+  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get_locked(team, sequence, 1, 0, nbytes);
+
   GASNETE_FAST_UNALIGNED_MEMCPY(p2p->data, buf, nbytes);
   gasneti_sync_writes();
       
   p2p->state[0] = 1;
-      
+
+  gasnete_coll_p2p_unlock(team, p2p);
 }
 
 /* No payload to deliver, just updates 1 or more states
@@ -992,12 +1044,15 @@ extern void gasnete_coll_p2p_short_reqh(gex_Token_t token,
                                         gex_AM_Arg_t count,
                                         gex_AM_Arg_t offset,
                                         gex_AM_Arg_t state) {
-  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
-  int i;
+  size_t nstates = count ? offset + count : 0;
+  gasnete_coll_team_t team = gasnete_coll_team_lookup(team_id);
+  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get_locked(team, sequence, nstates, 0, 0);
 
-  for (i = 0; i < count; ++i, ++offset) {
+  for (int i = 0; i < count; ++i, ++offset) {
     p2p->state[offset] = state;
   }
+
+  gasnete_coll_p2p_unlock(team, p2p);
 }
 
 /* Increment atomic counter */
@@ -1005,9 +1060,12 @@ extern void gasnete_coll_p2p_advance_reqh(gex_Token_t token,
                                           gex_AM_Arg_t team_id,
                                           gex_AM_Arg_t sequence,
                                           gex_AM_Arg_t idx) {
+  gasnete_coll_team_t team = gasnete_coll_team_lookup(team_id);
+  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get_locked(team, sequence, 0, idx+1, 0);
 
-  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
   gasneti_weakatomic_increment(&p2p->counter[idx], 0);
+
+  gasnete_coll_p2p_unlock(team, p2p);
 }
 
 /* Send the data and increment atomic counter */
@@ -1015,15 +1073,16 @@ extern void gasnete_coll_p2p_put_and_advance_reqh(gex_Token_t token, void *buf, 
                                                   gex_AM_Arg_t team_id,
                                                   gex_AM_Arg_t sequence,
                                                   gex_AM_Arg_t idx) {
-
-  gasnete_coll_p2p_t *p2p;
-
   if (nbytes) {
     gasneti_sync_writes();
   }
       
-  p2p = gasnete_coll_p2p_get(team_id, sequence);
+  gasnete_coll_team_t team = gasnete_coll_team_lookup(team_id);
+  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get_locked(team, sequence, 0, idx+1, 0);
+
   gasneti_weakatomic_increment(&p2p->counter[idx], 0);
+
+  gasnete_coll_p2p_unlock(team, p2p);
 }
 
 /* Memcopy payload and then decrement atomic counter if requested */
@@ -1033,12 +1092,15 @@ GASNETI_INLINE(gasnete_coll_p2p_memcpy_reqh_inner)
                                              gex_AM_Arg_t team_id,
                                              gex_AM_Arg_t sequence,
                                              gex_AM_Arg_t decrement) {
-  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
+  gasnete_coll_team_t team = gasnete_coll_team_lookup(team_id);
+  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get_locked(team, sequence, 0, !!decrement, 0);
 
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, buf, nbytes);
   if (decrement) {
     gasneti_weakatomic_decrement(&p2p->counter[0], GASNETI_ATOMIC_REL);
   }
+
+  gasnete_coll_p2p_unlock(team, p2p);
 }
 MEDIUM_HANDLER(gasnete_coll_p2p_memcpy_reqh,4,5,
                (token,addr,nbytes, UNPACK(a0),      a1, a2, a3),
@@ -1179,6 +1241,9 @@ int gasnete_tm_p2p_send_rtr(
 //   0: no data remains to be sent (done)
 //   1: unsent data remains OR xfer has not even started
 //   2: unsent data remains, but was not sent due to IMMEDIATE back-pressure
+// p2p usage:
+//   p2p->data holds an array of struct gasnete_tm_p2p_send_struct (void*,size_t)
+//   p2p->state[offset] holds state in [0..2]
 int gasnete_tm_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                              gex_Rank_t rank, uint32_t offset,
                              const void *src, size_t nbytes,
@@ -1299,7 +1364,12 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 
     /* Conditionally allocate data for point-to-point syncs */
     if (data->options & GASNETE_COLL_GENERIC_OPT_P2P) {
-      data->p2p = gasnete_coll_p2p_get(team->team_id, sequence);
+      // Historical (worst-case) array sizes
+      // TODO: eliminate use of this code path -- *no* algorithm uses all three worst case sizes
+      size_t nstates = 2 * team->total_ranks;
+      size_t ncounters = 2 * team->total_ranks;
+      size_t ndata = team->p2p_eager_buffersz;
+      data->p2p = gasnete_coll_p2p_get_final(team, sequence, nstates, ncounters, ndata);
     }
 
     /* Unconditionally allocate an eop */
