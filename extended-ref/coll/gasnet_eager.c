@@ -16,10 +16,10 @@
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_broadcast_nb() */
 
-/* bcast TreeEager */
-/* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
-/* Naturally IN_MYSYNC, OUT_MYSYNC */
-/* Max size is the eager limit */
+// bcast TreeEager
+// Uses GASNETE_COLL_GENERIC_OPT_P2P
+// Naturally IN_MYSYNC, OUT_MYSYNC
+// Max size is the eager limit
 static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_local_tree_geom_t *geom = data->tree_geom;
@@ -30,11 +30,19 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_
   int child;
   
   switch (data->state) {
-    case 0:	/* Thread barrier */
+    case 0:
+      // Thread barrier
       if (!gasnete_coll_generic_all_threads(data)) {
         break;
       }
-      
+      // Allocation of p2p structure
+      {
+        size_t nstates = 1;
+        size_t ncounters = (op->flags & GASNET_COLL_IN_ALLSYNC) ? 1 :0; // used for "upsync"
+        size_t ndata = args->nbytes;
+        data->p2p = gasnete_coll_p2p_get_final(op->team, op->sequence, nstates, ncounters, ndata);
+        data->options |= GASNETE_COLL_GENERIC_OPT_P2P;
+      }
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Optional IN barrier over the SAME tree */
@@ -63,7 +71,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_
       }
       data->state = 3; GASNETI_FALLTHROUGH
       
-      case 3: /*optional out barrier over the same tree*/
+      case 3: // Optional out barrier
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
@@ -82,8 +90,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_
 GASNETE_COLL_DECLARE_BCAST_ALG(TreeEager)
 {
   int options =
-  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
-  GASNETE_COLL_GENERIC_OPT_P2P;
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC);
   
   gasneti_assert(nbytes <= gasnete_coll_p2p_eager_min);
  
