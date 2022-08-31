@@ -1054,7 +1054,7 @@ int gasnete_coll_generic_upsync_acq(gasnete_coll_op_t *op, gex_Rank_t rootrank,
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
     if (op->team->myrank != rootrank) {
       gasneti_local_wmb();
-      gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom), 0, 0 GASNETI_THREAD_PASS);
+      gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom), 0, counter GASNETI_THREAD_PASS);
     } else {
       gasneti_local_rmb();
     }
