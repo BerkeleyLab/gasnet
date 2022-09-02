@@ -83,6 +83,8 @@ GASNet-EX ChangeLog
   - Bug4454: Scaling issues in gasneti_segmentLimit()
   = bug4475: configure --disable-full-path-expansion breaks default MPI_CC
   - bug4490: startup hang for large GASNET_MAX_SEGSIZE and huge pages > 4MB
+  - bug4496: SEGV in gasnete_coll_pf_tm_reduce_TreePutSeg for reduce-to-all
+  - bug4509: Non-scalable reduction temporaries
 
 ----------------------------------------------------------------------
 2022-03-31: GASNet-EX 2022.3.0 Release
