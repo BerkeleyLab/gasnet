@@ -27,6 +27,8 @@ GASNet-EX ChangeLog
   - gasnetrun*/amudprun now accept `-v` multiple times to increase verbosity
   - envvar `GASNET_VERBOSEENV` now recognizes 'N|n|NO|no|0' to mean false
   - Scaling improvements to startup costs (memory and time) in all conduits
+  - New options (and changed defaults) for `testalltoall`
+  - More detailed reporting for certain job spawning failure scenarios
 
 * Libfabric [EXPERIMENTAL] (details in ofi-conduit README)
   - A new environment variable `GASNET_OFI_MAX_MEDIUM` enables setting the
@@ -35,6 +37,27 @@ GASNet-EX ChangeLog
     In the absence of these settings, default buffer size remains unchanged.
   - Improvements to `--with-ofi-provider` argument handling, as documented
     in the conduit README.
+  - Opt-in work-around for bugs 4179 (verbs provider) and 4461 (cxi provider)
+    in which certain AM traffic patterns may lead to various failures.
+    See "Bug 4179" and "Bug 4461" in the conduit README.
+  - New support for immediate operations (GEX_FLAG_IMMEDIATE) for most AM and
+    RMA operations
+  - New support for asynchronous local completion for RMA puts
+  - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+  - Numerous maintainability improvements
+  - Support for multiple endpoints
+
+* Platform support/portability
+  - `PLATFORM_OS_CNL` and `PLATFORM_OS_WSL` macros have been renamed to
+    `PLATFORM_OS_SUBFAMILY_CNL` and `PLATFORM_OS_SUBFAMILY_WSL`.
+     These platforms now ALSO define `PLATFORM_OS_LINUX`.
+  - Additional variables from *.mak fragments now appear in pkg-config *.pc files
+  - Timer calibration output is now controlled by envvar `GASNET_TSC_VERBOSE`
+  - Added initial/experimental support for RISC-V architecture
+
+* GASNet-EX Spec v0.16: (details in docs/GASNet-EX.txt)
+  - The return type of `gex_EP_BindSegment()` has changed from `void` to `int`
+    and this function is now permitted to return non-zero on failure.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4083: incorrect GatherAll algorithm selection at large scale
@@ -46,6 +69,8 @@ GASNet-EX ChangeLog
   - bug4448: smp-conduit incorrectly duplicates GASNET_VERBOSEENV output
   - Bug4453: gex_Coll_* should trace more information
   - Bug4454: Scaling issues in gasneti_segmentLimit()
+  = bug4475: configure --disable-full-path-expansion breaks default MPI_CC
+  - bug4490: startup hang for large GASNET_MAX_SEGSIZE and huge pages > 4MB
 
 ----------------------------------------------------------------------
 2022-03-31: GASNet-EX 2022.3.0 Release

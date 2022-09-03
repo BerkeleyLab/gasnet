@@ -3359,7 +3359,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     mpi_reason="was disabled"
   else
     GASNET_GETFULLPATH(MPI_CC)
-    if expr "x$MPI_CC" : 'x/' >/dev/null; then
+    if command -v $MPI_CC > /dev/null 2>&1; then
       # figure out a reasonable fallback MPI_CFLAGS for this arch/OS and C99 support
       # this is complicated by the fact that $MPI_CC may be a different compiler than $CC
       GASNET_PUSHVAR(CC,"$MPI_CC")
@@ -4272,7 +4272,7 @@ configured for that provider. If that is not your desired provider, override thi
     fi
 
     if test "$ofi_define_mr_scalable" != "no"; then
-        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_SCALABLE, [$ofi_define_mr_scalable])
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_SCALABLE, [((int)$ofi_define_mr_scalable)])
     fi
 
     AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_THREAD_DOMAIN, [$ofi_use_thread_domain])

@@ -92,6 +92,29 @@ size_t gasnetc_sizeof_segment_t(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Bootstrap collective wrappers
+*/
+
+extern void gasneti_bootstrapBarrier(void)
+{
+  if (gasneti_attach_done) {
+    gasneti_bootstrapBarrier_am();
+  } else {
+    gasneti_spawner->Barrier();
+  }
+}
+
+extern void gasneti_bootstrapExchange(void *src, size_t len, void *dest)
+{
+  if (gasneti_attach_done) {
+    gasneti_bootstrapExchange_am(src, len, dest);
+  } else {
+    gasneti_spawner->Exchange(src, len, dest);
+  }
+}
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Initialization
   ==============
 */
@@ -659,7 +682,7 @@ static int gasnetc_init(
      If the conduit can build gasneti_nodemap[] w/o assistance, it should
      call gasneti_nodemapParse() after constructing it (instead of nodemapInit()).
   */
-  gasneti_nodemapInit(gasneti_spawner->Exchange, NULL, 0, 0);
+  gasneti_nodemapInit(&gasneti_bootstrapExchange, NULL, 0, 0);
 
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, you should initialize it here.
@@ -671,7 +694,7 @@ static int gasnetc_init(
    * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
    * or similar memory probes.
    */
-  (void) gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, 0);
+  (void) gasneti_pshm_init(&gasneti_bootstrapSNodeBroadcast, 0);
 #endif
 
   //  Create first Client, EP and TM *here*, for use in subsequent bootstrap communication
@@ -748,8 +771,9 @@ extern int gasnetc_attach_primary(void) {
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
+  // TODO: can we safely invert the next two lines to use an AM-based barrier here instead?
+  gasneti_bootstrapBarrier();
   gasneti_attach_done = 1;
-  gasneti_spawner->Barrier();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete"));
 
@@ -758,12 +782,12 @@ extern int gasnetc_attach_primary(void) {
   gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
-  gasneti_spawner->Barrier();
+  gasneti_bootstrapBarrier();
 
   /* (###) Optionally (but recommended) free spawner's idle resources.
    * Safe even if spawner collectives are used after attach
    */
-  gasneti_spawner->Cleanup();
+  gasneti_bootstrapCleanup();
 
   return GASNET_OK;
 }
@@ -1289,7 +1313,7 @@ static void gasnetc_exit_body(void) {
   if (graceful && !gasnetc_exit_in_signal) {
     GASNETC_EXIT_STATE("flushing ucx requests: waiting for sends completions");
     gasnetc_send_list_wait(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS);
-    gasneti_bootstrapBarrier();
+    gasneti_spawner->Barrier(); // Always spawner
     GASNETC_EXIT_STATE("flushing ucx requests: waiting for recvs completions");
     while(gasnetc_poll_sndrcv(GASNETC_LOCK_REGULAR GASNETI_THREAD_PASS));
   }

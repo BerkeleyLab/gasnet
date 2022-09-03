@@ -84,7 +84,7 @@ typedef struct {
   #define gex_HSL_Destroy(hsl)
   #define gex_HSL_Lock(hsl)
   #define gex_HSL_Unlock(hsl)
-  #define gex_HSL_Trylock(hsl)	GASNET_OK
+  #define gex_HSL_Trylock(hsl)  GASNET_OK
 #else
   extern void gasnetc_hsl_init   (gex_HSL_t *_hsl);
   extern void gasnetc_hsl_destroy(gex_HSL_t *_hsl);

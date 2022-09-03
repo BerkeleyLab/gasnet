@@ -37,12 +37,6 @@
   #endif
 #endif
 
-  /* define to 1 if conduit allows internal GASNet fns to issue put/get for remote
-     addrs out of segment - not true when PSHM is used */
-#if !GASNET_PSHM
-#define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
-#endif
-
 #define GASNET_MAXNODES AMUDP_MAX_NUMTRANSLATIONS
 
   // If this conduit is considered a "portable conduit" only *conditionally*,
@@ -148,6 +142,7 @@
 //#define GASNETC_SEGMENT_ATTACH_HOOK 1
 //#define GASNETC_SEGMENT_CREATE_HOOK 1
 //#define GASNETC_SEGMENT_DESTROY_HOOK 1
+//#define GASNETC_EP_BINDSEGMENT_HOOK 1
 //#define GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK 1
 
   // Uncomment the following defines if conduit provides the corresponding hook.

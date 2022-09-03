@@ -39,6 +39,7 @@ use of these providers in general.
 
   + TCP, via the "sockets" provider
   + UDP, via "udp;ofi_rxd", under libfabric 1.7 and higher
+  + Cray Aries, via the "gni" provider, under libfabric 1.14 and higher
 
 The following providers have not met our expectations (with respect to
 performance or stability) when tested on the listed networks and therefore are
@@ -52,7 +53,6 @@ as of libfabric v1.14.0. If these providers are important to you, please
 contact us at gasnet-staff@lbl.gov .
 
   + "psm1" provider for the (end-of-life) TrueScale products
-  + "gni" provider for the Cray XC series Aries network
   + "opx" provider, an alternative to "psm2" for the Omni-Path fabric
 
 The fi_info command installed with libfabric can be used to query the available
@@ -68,8 +68,11 @@ as an alternative to ofi-conduit with the sockets or udp;ofi_rxd providers, as
 the former may provide more favorable performance.
 
 Users with Cray XC hardware are encouraged to consider the GASNet aries-conduit
-as an alternative to ofi-conduit with the GNI provider, as the former may
-provide better performance.
+as an alternative to ofi-conduit with the gni provider, since the former may
+provide better performance.  Additionally, while the GASNet maintainers have
+seen good results from preliminary testing of this provider with GASNet's
+ofi-conduit, nobody has thoroughly validated it.  Therefore, use of the gni
+provider with ofi-conduit should be considered experimental.
 
 OFI provider requirements to run this conduit:
 -------------------------------------
@@ -80,6 +83,15 @@ Memory Registration Mode:
     * API 1.4 or earlier: FI_MR_SCALABLE (preferred) or FI_MR_BASIC
     * API 1.5 or newer: all or none (preferred) of FI_MR_{ALLOCATED,VIRT_ADDR,PROV_KEY}
     * There is currently no support for providers that require FI_LOCAL_MR / FI_MR_LOCAL
+Other Modes:
+    * Supports providers that require FI_MR_ENDPOINT for FI_RMA endpoints
+    * Supports providers that require FI_CONTEXT for FI_MSG endpoints
+    * There are currently no operations which would require supporting FI_RX_CQ_DATA
+    * There are currently no operations which would require supporting FI_ASYNC_IOV
+    * There is currently no support for providers that require FI_CONTEXT for FI_RMA endpoints
+    * There is currently no support for providers that require FI_CONTEXT2
+    * There is currently no support for providers that require FI_MSG_PREFIX
+    * There is currently no support for providers that require FI_RESTRICTED_COMP
 Threading mode: FI_THREAD_SAFE and/or FI_THREAD_DOMAIN
     * In GASNET_{SEQ,PARSYNC} mode, all providers use FI_THREAD_DOMAIN as only one thread makes
       calls into the GASNet library.
@@ -277,8 +289,9 @@ Recognized environment variables:
   increasing these may improve AM throughput or have no impact.  On some
   providers, reducing these may severely reduce AM throughput or even lead to
   crashes.  Defaults: 8 and 1M
+  See also: Bug 4179 and Bug 4461 under "Known problems"
 
-* GASNET_OFI_INJECT_LIMIT - limit on size of fi_inject() payload.
+* GASNET_OFI_AM_INJECT_LIMIT - limit on size of fi_inject() payload.
   GASNet Active Messages of total size (at the ofi level) no larger than this
   parameter value will be sent using fi_inject(), and larger messages are sent
   using fi_send().  Use of fi_inject() reduces the overall complexity of the
@@ -287,6 +300,18 @@ Recognized environment variables:
   eliminating the extra copy at the expense of signaling an asynchronous local
   completion.  This setting does not affect payload local completion semantics
   at the GASNet API level.
+  It too large a value is requested, it will be reduced to the maximum which
+  the OFI provider can support.
+  Default: largest size supported by the provider.
+  NOTE: If this parameter is not set, then "GASNET_OFI_INJECT_LIMIT" is
+  accepted as an alias.
+
+* GASNET_OFI_RMA_INJECT_LIMIT - limit on size of RMA with FI_INJECT
+  GASNet RMA put operations no larger than this size may be issued using the
+  `FI_INJECT` flag to ensure the data is consumed synchronously.  This can
+  reduce the overal complexity of operations using `GEX_EVENT_NOW`, typically
+  at cost of an extra copy.  This setting does not affect local completion
+  semantics at the GASNet API level.
   It too large a value is requested, it will be reduced to the maximum which
   the OFI provider can support.
   Default: largest size supported by the provider.
@@ -369,6 +394,17 @@ Recognized environment variables:
   options) can this actually be used to change the provider to one different
   than selected at configure time.
 
+* FI_UNIVERSE_SIZE - This libfabric variable conveys the number of ranks /
+  peers a given process endpoint expects to communicate with (default: 256).
+  This setting is not directly consumed by GASNet ofi-conduit, but affects the
+  behavior of the underlying providers it relies upon.  Libfabric documentation
+  encourages users to set this high enough to prevent internal CQ overruns for
+  non-scalable communication patterns, but not so high as to waste
+  provider-internal memory.  Unfortunately at the time of this writing the
+  effect appears to be highly provider-specific, ranging from no apparent
+  effect on some providers (sockets), to the intended scaling effect on others
+  (verbs), and even outright crashes on other providers (cxi).
+
 * FI_PSM2_LOCK_LEVEL - This variable only applies to the psm2 provider and only
   is available in libfabric v1.5.0. This environment variable controls the
   internal locking state of the provider and can be set to the following three
@@ -427,6 +463,37 @@ The following environment variables may be used to tune this behavior:
 Known problems:
 ---------------
 
+* Bug 4179
+  In libfabric 1.11 and earlier, the verbs;ofi_rxm provider (used, for
+  instance, on the Slingshot-10 network of some HPE Cray EX systems) has been
+  observed to experience corruption of AMs, as at least sometimes diagnosed
+  with a fatal error message like the following:
+    GASNet node [...] received an AM message from node [...] for a handler
+    index with no associated AM handler function registered
+  At the time of this writing, the best known work-around is to update
+  libfabric to version 1.12 or newer.  However, if that is not possible, then
+  an alternative is to set
+    GASNET_OFI_RECEIVE_BUFF_SIZE=single
+  in your environment.  This setting automatically uses a receive buffer size
+  that ensures only a single AM will be received per "multi-receive" buffer,
+  and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is adjusted to some
+  unspecified larger value to compensate.
+  Empirical evidence shows this prevents the failures in applications which
+  exhibit them (which is *not* every application).  However, this measurably
+  increases the latency of small AM operations.  So, this should only be used
+  if it is suspected that bug 4179 is impacting your application and you cannot
+  update libfabric to 1.12 or newer.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4179
+
+* Bug 4267
+  Multi-threaded applications in which one or more threads are using GASNet
+  concurrent with another thread calling gasnet_exit() may experience "random
+  crashes" as the exiting thread destroys resources in use by the others.
+  This includes otherwise benign calls to gasnet_AMPoll().
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4267
+
 * Bug 4413
   At least cxi provider is known to crash at initialization if the environment
   variable "FI_UNIVERSE_SIZE" is set.  However, this is a supported variable in
@@ -455,6 +522,22 @@ Known problems:
   in ofi-conduit, *independent* of provider.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4427
+
+* Bug 4461
+  Under certain AM traffic patterns, the cxi provider (for the Slingshot-11
+  network on some HPE Cray EX systems) has been observed to fail in various
+  ways, including crashes and dropped messages.
+  At the time of this writing, the best known work-around is to set
+    GASNET_OFI_RECEIVE_BUFF_SIZE=single
+  in your environment.  This setting automatically uses a receive buffer size
+  that ensures only a single AM will be received per "multi-receive" buffer,
+  and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is adjusted to compensate.
+  Empirical evidence shows this prevents the failures in applications which
+  exhibit them (which is *not* every application).  However, this measurably
+  increases the latency of small AM operations.  So, this should only be used
+  if it is suspected that bug 4461 is impacting your application.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4461
 
 * See the GASNet Bugzilla server for details on additional known bugs:
   https://gasnet-bugs.lbl.gov/
@@ -493,12 +576,20 @@ Known problems:
   The most up-to-date information on this issue is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4455
 
+  With the gni provider, when Cray MPI is initialized prior to GASNet (including
+  via use of MPI for job launch), a fatal error is seen at startup which
+  includes the following text:
+    fi_domain failed: -16(Device or resource busy)
+  Meanwhile, hybrid applications which initialize GASNet before MPI have been
+  observed to run correctly.
+  The same recommendations given above for cxi provider apply to gni provider.
+
   As noted above, the specific issue with the cxi provider also represents a
   more general concern that an MPI implementation may configure libfabric in
   a way which is incompatible with GASNet's ofi-conduit OR that GASNet's
   settings could cause problems for the MPI implementation.  However, there are
   currently no known cases of either such interaction other than with the cxi
-  provider as described above.
+  and gni providers as described above.
 
 Future work:
 ------------
@@ -511,21 +602,27 @@ The OFI community is working on increasing the number of providers that can supp
 
 * Implement AMLong via target-side reassembly using fi_writedata()
 
-* Provide non-trivial lc_opt support similar to that in ibv-conduit (which, like
-  OFI, has no distinct event for local completion)
+* Implement asynchronous LC support for Long, most likely as part of the
+  work to implement target-side reassembly.
 
-* Implement non-trivial support for `GEX_FLAG_IMMEDIATE` to the extent possible
-  given the opaque nature of resource management in OFI
+* Improve non-trivial support for `GEX_FLAG_IMMEDIATE` with AM Long, once
+  target-side reassembly removes the "sync" of "put-sync-send".
+
+* Improve asynchronous LC support for Put.  Like libibverbs, libfabric
+  does not provide distinct events for local versus remote completion.
+  Therefore, the current support for `GEX_EVENT_{DEFER,GROUP}` signals local
+  completion immediately before remote/operation completion. However, use of
+  `FI_INJECT` could be used to achieve synchronous completion of small Puts
+  in the same manner that ibv-conduit utilizes inline sends.
 
 * Implement native support for Negotiated-Payload Active Message (NPAM)
 
 * Eliminate a buffer copy for AM Medium (and AM Long below the RMA threshold)
-  by using (iov_count > 1) on providers which support it
+  by using (iov_count > 1) on providers which support it, along with the
+  corresponding asynchronous LC support for AM Medium.
 
 * Implement native atomics via FI_ATOMIC
 
 * Implement native collectives via FI_COLLECTIVE
-
-* Implement multi-EP/multi-segment support
 
 * Implement Memory Kinds support using the FI_HMEM capability

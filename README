@@ -871,8 +871,8 @@ these aliases.
  a unique identifier for each host.  This string-valued setting selects the
  identifier used.
  The following are implemented for most conduits:
-   "hostid" - the 32-bit value retuned by gethostid()
-   "hostname" - a 64-bit hash of the hostname
+   "gethostid" - the 32-bit value returned by POSIX gethostid()
+   "hostname" - a 64-bit hash of the hostname (as reported by POSIX gethostname())
  Some conduits support:
    "conduit" - a network-specific identifier (such as a MAC address)
  On networks providing the "conduit" option, conduit-specific documentation will
@@ -1125,14 +1125,6 @@ For Linux systems with libhugetlbfs and a hugetlbfs mount, there is also
 experimental support for mmap()ed files on hugetlbfs, which can be
 enabled with:
     HUGETLBFS: --disable-pshm-posix --enable-pshm-hugetlbfs
-
-PSHM includes an environment variable for controlling use of memory for
-intra-memory AM traffic:
-
-  GASNET_PSHMNET_QUEUE_DEPTH
-     Minimum number of PSHM-AMs a process must be capable of sending before
-     it may stall (default 32).  The shared memory allocated on a compute
-     node with P processes is roughly (2 * P * Depth * MaxMsgSz).
 
 System Settings for POSIX Shared Memory:
 ---------------------------------------

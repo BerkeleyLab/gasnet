@@ -34,14 +34,6 @@
   #define GASNET_ALIGNED_SEGMENTS   0
 #endif
 
-#if 0
-  /* define to 1 if conduit allows internal GASNet fns to issue put/get for remote
-     addrs out of segment - not true when PSHM is used */
-#if !GASNET_PSHM && ###
-#define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
-#endif
-#endif
-
   // If this conduit is considered a "portable conduit" only *conditionally*,
   // uncomment to enable calls to gasnetc_check_portable_conduit(void) as
   // described in gasnet_internal.c.
@@ -117,28 +109,31 @@
 //#define GASNETC_CLIENT_FINI_HOOK(i_client) (###)
 //#define GASNETC_SIZEOF_CLIENT_T() (###)
 
-#define GASNETC_SEGMENT_EXTRA_DECLS \
-  extern size_t gasnetc_sizeof_segment_t(void);
+//#define GASNETC_SEGMENT_EXTRA_DECLS (###)
 //#define GASNETC_SEGMENT_INIT_HOOK(i_segment) (###)
 //#define GASNETC_SEGMENT_FINI_HOOK(i_segment) (###)
-#define GASNETC_SIZEOF_SEGMENT_T() \
-  gasnetc_sizeof_segment_t()
+//#define GASNETC_SIZEOF_SEGMENT_T() (###)
 
 //#define GASNETC_TM_EXTRA_DECLS (###)
 //#define GASNETC_TM_INIT_HOOK(i_tm) (###)
 //#define GASNETC_TM_FINI_HOOK(i_tm) (###)
 //#define GASNETC_SIZEOF_TM_T() (###)
 
-//#define GASNETC_EP_EXTRA_DECLS (###)
-//#define GASNETC_EP_INIT_HOOK(i_ep) (###)
+#define GASNETC_EP_EXTRA_DECLS \
+  extern int gasnetc_ep_init_hook(gasneti_EP_t); \
+  extern size_t gasnetc_sizeof_ep_t(void);
+#define GASNETC_EP_INIT_HOOK(i_ep) \
+  gasnetc_ep_init_hook(i_ep)
 //#define GASNETC_EP_FINI_HOOK(i_ep) (###)
-//#define GASNETC_SIZEOF_EP_T() (###)
+#define GASNETC_SIZEOF_EP_T() \
+  gasnetc_sizeof_ep_t()
 
   // Uncomment the following defines if conduit provides the corresponding hook.
   // See gasnet_internal.h for prototypes and brief descriptions.
 #define GASNETC_SEGMENT_ATTACH_HOOK 1
-#define GASNETC_SEGMENT_CREATE_HOOK 1
+//#define GASNETC_SEGMENT_CREATE_HOOK 1
 #define GASNETC_SEGMENT_DESTROY_HOOK 1
+#define GASNETC_EP_BINDSEGMENT_HOOK 1
 #define GASNETC_EP_PUBLISHBOUNDSEGMENT_HOOK 1
 
   // Uncomment the following defines if conduit provides the corresponding hook.
@@ -151,7 +146,7 @@
 // of all other settings (appropriate for conduits without multi-ep support).
 // If set, GASNETC_MAXEPS_MAX it is used to limit a user's --with-maxeps (and a
 // global default limit is used otherwise).
-//#define GASNETC_MAXEPS_DFLT ### // default num endpoints this conduit supports, undef means no multi-ep support
+#define GASNETC_MAXEPS_DFLT 33 // Initial (limited) multi-EP support
 //#define GASNETC_MAXEPS_MAX ### // leave unset for default
 
   /* this can be used to add conduit-specific 
@@ -159,6 +154,11 @@
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)  \
     VAL(C, ALLOC_REQ_BUFF, buffers)          \
     VAL(C, ALLOC_REP_BUFF, buffers)          \
+    VAL(C, CQ_READ_TX, events)               \
+    VAL(C, CQ_READ_REQTX, events)            \
+    VAL(C, CQ_READ_REPTX, events)            \
+    VAL(C, CQ_READ_REP, events)              \
+    VAL(C, CQ_READ_REQ, events)              \
     CNT(C, RECVMSG_REQ, cnt)                 \
     CNT(C, RECVMSG_REP, cnt)                 \
     CNT(C, RECVMSG_REQ_EAGAIN, cnt)          \

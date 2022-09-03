@@ -16,7 +16,7 @@
   #include <sys/statvfs.h>
 #endif
 
-#if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && !GASNETI_BUG3480_WORKAROUND // Suspect bug 3480
+#if PLATFORM_OS_LINUX && !GASNETI_BUG3480_WORKAROUND // Suspect bug 3480
 #define GASNETI_BUG3480_MSG "\nYour system is suspected to be impacted by bug 3480"
 #else
 #define GASNETI_BUG3480_MSG
@@ -1019,7 +1019,7 @@ static void *gasneti_mmap_fixed_with_retry(void *segbase, uintptr_t segsize, int
 static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t highsz) {
   gasnet_seginfo_t si;
 
-  if (highsz - lowsz <= GASNETI_MMAP_GRANULARITY) {
+  if (highsz - lowsz <= MAX(GASNETI_MMAP_GRANULARITY,gasneti_mmap_pagesize())) {
     si.size = 0;
     si.addr = NULL;
     return si;
@@ -1994,34 +1994,44 @@ static void gasneti_record_seginfo(
   si->size = size;
 }
 
-extern void gex_EP_BindSegment(
+extern int gex_EP_BindSegment(
                 gex_EP_t            ep,
                 gex_Segment_t       segment,
                 gex_Flags_t         flags)
 {
   gasneti_Segment_t i_segment = gasneti_import_segment(segment);
   gasneti_EP_t      i_ep      = gasneti_import_ep(ep);
+  gex_EP_Index_t    safe_idx  =  i_ep ? i_ep->_index : -1;
 
   // TODO: macros for formatting when naming segments in tracing?
   // TODO: macros for formatting when naming endpoints in tracing?
   GASNETI_TRACE_PRINTF(O,("gex_EP_BindSegment: segment=%p, EP index=%d, flags=%d",
-                          (void *)segment, i_ep->_index, flags));
+                          (void *)segment, safe_idx, flags));
   GASNETI_CHECK_INJECT();
 
+  if (ep == GEX_EP_INVALID) {
+    GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() with GEX_EP_INVALID");
+  }
   if (segment == GEX_SEGMENT_INVALID) {
-    gasneti_fatalerror("Invalid call to gex_EP_BindSegment() with GEX_SEGMENT_INVALID");
+    GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() with GEX_SEGMENT_INVALID");
   }
   if (flags) {
-    gasneti_fatalerror("Invalid call to gex_EP_BindSegment() with non-zero flags");
+    GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() with non-zero flags");
   }
   if (i_ep->_segment) {
-    gasneti_fatalerror("Invalid call to gex_EP_BindSegment() on EP with a bound segment");
+    GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() on EP with a bound segment");
   }
+
+#if GASNETC_EP_BINDSEGMENT_HOOK
+  GASNETI_SAFE_PROPAGATE( gasnetc_ep_bindsegment_hook(i_ep, i_segment, flags) );
+#endif
 
   i_ep->_segment = i_segment;
   gasneti_record_seginfo(gasneti_mynode, i_ep->_index, i_segment->_addr, i_segment->_size);
 
   gasneti_legacy_segment_attach_hook(i_ep);
+
+  return GASNET_OK;
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -2048,7 +2058,10 @@ extern int gex_EP_PublishBoundSegment(
   } *local, *global, *p;
 
   size_t elem_sz = sizeof(struct exchg_data);
-  local = gasneti_malloc(num_eps * elem_sz);
+  // NOTE: explicit NULL case for !num_eps prevents (at least) GCC 12 LTO from
+  // incorrectly warning that gasneti_blockingRotatedExchangeV() reads from a
+  // zero-byte allocation.
+  local = num_eps ? gasneti_malloc(num_eps * elem_sz) : NULL;
 
   // Pack
   p = local;
@@ -2140,6 +2153,13 @@ int gasneti_segmentAttach(
   // EP_BindSegment:
   i_ep->_segment = i_segment;
   gasneti_legacy_segment_attach_hook(i_ep);
+#if GASNETC_EP_BINDSEGMENT_HOOK
+  if (gasnetc_ep_bindsegment_hook(i_ep, i_segment, flags)) {
+    gasneti_fatalerror("Failed to bind segment to endpoint in %s",
+                       (flags & GASNETI_FLAG_INIT_LEGACY) ? "gasnet_attach"
+                                                          : "gex_Segment_Attach");
+  }
+#endif
   
   // After local segment is attached, call optional client-provided hook
   if (gasnet_client_attach_hook) {

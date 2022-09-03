@@ -1583,7 +1583,7 @@ static int gasneti_lowQualityVerbs(void) {
 // verbs provider on those platforms.
 static int gasneti_nativeOfiProvider(void) {
   static int nativeOfiProvider = 0;
-#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL
+#if PLATFORM_OS_LINUX
   static int is_init = 0;
   if (!is_init) {
     gasneti_device_probe_t dev_list[] = {
@@ -1613,7 +1613,7 @@ static int gasneti_nativeOfiProvider(void) {
 // TODO: more platforms than just Linux?
 static int gasneti_nativeUcxSupport(void) {
   static int nativeUcxSupport = 0;
-#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL
+#if PLATFORM_OS_LINUX
   static int is_init = 0;
   if (!is_init) {
     gasneti_device_probe_t dev_list[] = { GASNETI_IBV_DEVICES };
@@ -1716,7 +1716,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 }
 
 static void gasneti_check_architecture(void) { // check for bad build configurations
-  #if PLATFORM_OS_CNL && PLATFORM_ARCH_X86_64 // bug 3743, verify correct processor tuning
+  #if PLATFORM_OS_SUBFAMILY_CNL && PLATFORM_ARCH_X86_64 // bug 3743, verify correct processor tuning
   { FILE *fp = fopen("/proc/cpuinfo","r");
     char model[255];
     if (!fp) gasneti_fatalerror("Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
@@ -1888,9 +1888,20 @@ extern uint32_t gasneti_gethostid(void) {
     static uint32_t myid = 0;
 
     if_pf (!myid) {
-    #if PLATFORM_OS_CYGWIN
-      /* gethostid() is known to be unreliable - we'll hash the hostname */
-    #elif HAVE_GETHOSTID
+    #if PLATFORM_OS_CYGWIN || !HAVE_GETHOSTID
+      // gethostid() is known to be either unreliable or unavailable
+      // always hash the hostname
+    #else
+      // gethostid() is available
+      // hash the hostname only if gethostid() looks unreliable after multiple retries.
+      // This allows us to tolerate transient misbehavior such as was reported in
+      // Bug 4483 - gethostid() on Perlmutter rarely returns 0, breaking PSHM detection
+      #ifndef GASNETI_GETHOSTID_RETRIES
+        #define GASNETI_GETHOSTID_RETRIES 24 // try to keep worst case delay under 0.1s
+      #endif
+      int retries = GASNETI_GETHOSTID_RETRIES;
+      uint64_t delay_ns = 1;
+    retry:
       myid = (uint32_t)gethostid();
     #endif
 
@@ -1909,6 +1920,12 @@ extern uint32_t gasneti_gethostid(void) {
           || (myid == 0x0001007f)
           || (myid == 0x0100007f)) {
       #if HAVE_GETHOSTID && !PLATFORM_OS_CYGWIN
+        if (retries-- > 0) {
+          GASNETI_TRACE_PRINTF(I,("Retrying after invalid return 0x%08x from gethostid()", (unsigned int)myid));
+          gasneti_nsleep(delay_ns);
+          delay_ns *= 2;
+          goto retry;
+        }
         gasneti_console_message("WARNING", "Invalid return 0x%08x from gethostid().  "
                                 "Please see documentation on GASNET_HOST_DETECT in README and "
                                 "consider setting its value to 'hostname' or reconfiguring using "
@@ -2333,6 +2350,9 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
   const char *not_set = "(not set)";
   const char *spawner;
   char *tmp = NULL;
+  int enabled = 0;  // non-zero if an enabled spawner is selected explicitly
+  int disabled = 0; // non-zero if a known spawner is selected explicitly but is not enabled
+  int match;
   if (force_spawner) spawner = force_spawner;
   else { 
     // Purposely hide this variable from verbose output, since it's only for use as an internal hand-off
@@ -2347,38 +2367,59 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
     spawner = tmp;
   }
 
+  match = !strcmp(spawner, "MPI");
 #if HAVE_MPI_SPAWNER
   /* bug 3406: Try MPI-based spawn first, EVEN if the var is not set.
    * This is a requirement for spawning using bare mpirun
    */
-  if (!res && (spawner == not_set || !strcmp(spawner, "MPI"))) {
+  if (!res && (spawner == not_set || match)) {
     res = gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p);
   }
+  enabled += match;
+#else
+  disabled += match;
 #endif
 
+  match = !strcmp(spawner, "SSH");
 #if HAVE_SSH_SPAWNER
   /* GASNET_SPAWN_CONTROL=ssh is set by gasnetrun for the ssh spawn master,
    * and by the ssh command line for other processes (ie all normal uses).
    * We no longer claim to support ssh-based launch without gasnetrun.
    * TODO: should we remove the "spawner == not_set" case?
    */
-  if (!res && (spawner == not_set || !strcmp(spawner, "SSH"))) {
+  if (!res && (spawner == not_set || match)) {
     res = gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p);
   }
+  enabled += match;
+#else
+  disabled += match;
 #endif
 
+  match = !strcmp(spawner, "PMI");
 #if HAVE_PMI_SPAWNER
   /* GASNET_SPAWN_CONTROL=pmi is set by gasnetrun for the pmi spawn case.
    * We no longer claim to support direct launch with srun, yod, etc.
    * TODO: should we remove the "spawner == not_set" case?
    */
-  if (!res && (spawner == not_set || !strcmp(spawner, "PMI"))) {
+  if (!res && (spawner == not_set || match)) {
     res = gasneti_bootstrapInit_pmi(argc_p, argv_p, nodes_p, mynode_p);
   }
+  enabled += match;
+#else
+  disabled += match;
 #endif
 
   if (!res) {
-    gasneti_fatalerror("Requested spawner \"%s\" is unknown or not supported in this build", spawner);
+    if (enabled) {
+      gasneti_fatalerror("Requested spawner \"%s\" failed to initialize", spawner);
+    } else if (disabled) {
+      gasneti_fatalerror("Requested spawner \"%s\" is known, but not enabled in this build", spawner);
+    } else if (spawner != not_set) {
+      gasneti_fatalerror("Requested spawner \"%s\" is unknown", spawner);
+    } else {
+      // TODO: enumerate the supported spawners
+      gasneti_fatalerror("No supported spawner was able to initialize the job");
+    }
   }
 
   gasneti_free(tmp);
