@@ -189,7 +189,8 @@ void do_test_add(gex_TM_t tm)
     gex_Event_t *ev = test_malloc(iters * sizeof(gex_Event_t));
 
     assert_always(size <= INT32_MAX - Nelem);
-    for (int i = 0; i < Nelem; ++i) {
+    // Note use of a wide i to prevent overflow in intermediate value(s)
+    for (uint64_t i = 0; i < Nelem; ++i) {
       correct[i] = ((size + i) * (size + i - 1) - i * (i - 1)) / 2;
     }
 
