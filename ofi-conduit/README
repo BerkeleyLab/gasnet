@@ -502,11 +502,12 @@ Known problems:
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4413
 
-* Bug 4420
-  At least verbs;ofi_rxm provider is known to fail when using read-only memory
-  as the source of an RMA Put or AM Long operation.
-  The most up-to-date information on this bug is maintained at:
-    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4420
+* Bugs 4420 and 4503
+  At least verbs;ofi_rxm and cxi providers are known to fail when using
+  read-only memory as the source of an RMA Put and/or AM Long operation.
+  The most up-to-date information on these bugs are maintained at the follow:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4420 (verbs)
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4503 (cxi)
 
 * Bug 4422
   Multi-threaded applications run on a single core when using psm2 provider,
