@@ -4246,9 +4246,12 @@ Runtime provider feature detection and conservative defaults will be used except
     esac
     if test "$ofi_single_provider" = "yes"; then
         AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$ofi_provider"])
+        ofi_provider_ident=`echo "$ofi_provider" | cut '-d;' -f1`
     else
         AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$known_providers"])
+        ofi_provider_ident="generic"
     fi
+    AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_IDENT, [$ofi_provider_ident])
 
     GASNET_IF_ENABLED_WITH_AUTO(ofi-thread-domain, [Indicates if the conduit should use the FI_THREAD_DOMAIN threading model(advanced users only)],
                  [ofi_use_thread_domain="1"], [ofi_use_thread_domain="0"], [])
