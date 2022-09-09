@@ -139,7 +139,7 @@
 
   // Uncomment the following defines if conduit provides the corresponding hook.
   // See other/kinds/gasnet_kinds_internal.h for prototypes and brief descriptions.
-#define GASNETC_MK_CREATE_HOOK 1
+#define GASNETC_MK_CREATE_HOOK GASNET_HAVE_MK_CLASS_MULTIPLE
 //#define GASNETC_MK_DESTROY_HOOK 1
 
 // If conduit supports GASNET_MAXEPS!=1, set default and (optional) max values here.
