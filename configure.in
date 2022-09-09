@@ -229,6 +229,7 @@ AC_SUBST(GASNETI_PTR_BITS)
 
 GASNET_IF_ENABLED_NOHELP(arch-ibmpe, [force_arch_ibmpe=yes])
 GASNET_IF_ENABLED_NOHELP(arch-wsl,   [force_arch_wsl=yes])
+GASNET_IF_ENABLED_NOHELP(arch-crayex, [force_arch_crayex=yes])
 
 ##
 # Look for a Cray-provided header allowing for the possibility we are not using Cray's wrapper compiler
@@ -1472,6 +1473,13 @@ case "$target_os" in
 	    GASNET_PLATFORM=wsl
 	    AC_DEFINE(GASNETI_ARCH_WSL)
 	fi
+        # Check for HPE Cray EX (aka Shasta) using kernel version or CRAYPE_NETWORK_TARGET
+        if test x$force_arch_crayex = xyes ||
+           ( uname -r | grep cray_shasta ) >/dev/null 2>&1 ||
+           test "x$CRAYPE_NETWORK_TARGET" = xofi -o "x$CRAYPE_NETWORK_TARGET" = xucx ; then
+            # GASNETI_ARCH_CRAYEX=1 not currenty needed
+            GASNET_PLATFORM=crayex
+        fi
 	AC_MSG_CHECKING(for Linux flavor)
 	AC_MSG_RESULT($GASNET_PLATFORM)
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
