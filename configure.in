@@ -4823,10 +4823,15 @@ elif test -z "$force_pmi"; then
   PMI_SPAWNER_CFLAGS=""
 elif test "$enabled_aries$have_aries" = yesyes; then
   AC_MSG_RESULT(no)
-  GASNET_MSG_ERROR([Cray PMI could not be found, but is required by aries-conduit])
+  GASNET_MSG_ERROR([Cray PMI could not be found, but is required by aries-conduit.  Try loading the pmi environment module.])
 elif test -n "${using_pmi_version+set}"; then
   AC_MSG_RESULT(no)
-  GASNET_MSG_ERROR([$pmi_why PMI version "$using_pmi_version" could not be found])
+  if test "$using_pmi_version" = cray; then
+    extra='.  Try loading the "cray-pmi" or "pmi" environment module, or specifying a different --with-pmi-version=?.'
+  else
+    extra=''
+  fi
+  GASNET_MSG_ERROR([$pmi_why PMI version "$using_pmi_version" could not be found$extra])
 else
   AC_MSG_RESULT(no)
   GASNET_MSG_ERROR([Requested PMI support could not be found])
