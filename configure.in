@@ -4590,11 +4590,13 @@ GASNET_IF_ENABLED_WITH_AUTO(pmi, [Enable/disable PMI support for job spawning],
 
 # If user specifies a PMI version, then we will not probe for others
 unset using_pmi_version
+pmi_why='Default'
 GASNET_WITH(pmi-version, [PMI version (x, 1, 2 or cray)] , [
     case "$withval" in
       1|2|x|cray) using_pmi_version="$withval";;
       *) GASNET_MSG_ERROR([Argument to --with-pmi-version must be 'x', '1', '2', or 'cray']);;
     esac
+    pmi_why='Requested'
 ], [
     GASNET_MSG_WARN([Ignoring --without-pmi-version])
 ])
@@ -4602,6 +4604,8 @@ if test "$enabled_aries$have_aries" = yesyes; then
   if test -n "$using_pmi_version" && test "$using_pmi_version" != 'cray'; then
     GASNET_MSG_WARN([Ignoring --with-pmi-version=$using_pmi_version in favor of Cray PMI required by aries-conduit])
   fi
+  using_pmi_version=cray
+elif test "$GASNET_PLATFORM" = crayex && test -z "$using_pmi_version"; then
   using_pmi_version=cray
 fi
 
@@ -4822,7 +4826,7 @@ elif test "$enabled_aries$have_aries" = yesyes; then
   GASNET_MSG_ERROR([Cray PMI could not be found, but is required by aries-conduit])
 elif test -n "${using_pmi_version+set}"; then
   AC_MSG_RESULT(no)
-  GASNET_MSG_ERROR([Requested PMI version $using_pmi_version could not be found])
+  GASNET_MSG_ERROR([$pmi_why PMI version "$using_pmi_version" could not be found])
 else
   AC_MSG_RESULT(no)
   GASNET_MSG_ERROR([Requested PMI support could not be found])
