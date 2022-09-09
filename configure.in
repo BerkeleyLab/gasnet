@@ -3994,7 +3994,10 @@ case "$target" in
   ;;
 esac
 # Now only on Aries (not Gemini)
-if test "$enabled_aries" = yes; then
+if test "$enabled_aries$GASNET_PLATFORM" = yescrayex; then
+  GASNET_MSG_WARN([HPE Cray EX platform detected.  Please --enable-ofi rather than using aries-conduit])
+  enabled_aries=no
+elif test "$enabled_aries" = yes; then
   AC_MSG_CHECKING(for GNI network type)
   if test "${CRAYPE_NETWORK_TARGET+set}" = set ; then
     gni_network=${CRAYPE_NETWORK_TARGET}
