@@ -4332,8 +4332,7 @@ configured for that provider. If that is not your desired provider, override thi
  WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
 -----------------------------------------------------------------------])])
 
-    # TODO: instead of CRAYPE_NETWORK_TARGET, check GASNET_PLATFORM==crayex once implemented
-    if test x$CRAYPE_NETWORK_TARGET = 'xofi'; then
+    if test "$GASNET_PLATFORM" = crayex; then
       gex_fi_hmem_minor_floor=11
     else
       gex_fi_hmem_minor_floor=12
