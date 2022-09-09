@@ -30,7 +30,14 @@ GASNet-EX ChangeLog
   - New options (and changed defaults) for `testalltoall`
   - More detailed reporting for certain job spawning failure scenarios
 
+* Memory Kinds (support for non-host memory)
+  - This release adds Memory Kinds support to ofi-conduit with certain
+    libfabric providers, for both Nvidia and AMD GPUs.  Support includes the
+    Slingshot-10 and Slingshot-11 networks on HPE Cray EX systems.
+  See docs/memory_kinds.md for more information on the status of Memory Kinds.
+
 * Libfabric [EXPERIMENTAL] (details in ofi-conduit README)
+  - New support for memory kinds `GEX_MK_CLASS_CUDA_UVA` and `GEX_MK_CLASS_HIP`
   - A new environment variable `GASNET_OFI_MAX_MEDIUM` enables setting the
     size of AM Medium buffers at job launch, and the preexisting configure
     option `--with-ofi-max-medium` is now used to set the default value.

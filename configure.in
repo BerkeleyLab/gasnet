@@ -4320,6 +4320,60 @@ configured for that provider. If that is not your desired provider, override thi
 
  WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
 -----------------------------------------------------------------------])])
+
+    # TODO: instead of CRAYPE_NETWORK_TARGET, check GASNET_PLATFORM==crayex once implemented
+    if test x$CRAYPE_NETWORK_TARGET = 'xofi'; then
+      gex_fi_hmem_minor_floor=11
+    else
+      gex_fi_hmem_minor_floor=12
+    fi
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $OFI_CFLAGS -DGEX_FI_MINOR_VERSION=$gex_fi_hmem_minor_floor")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $OFI_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS $OFI_LIBS")
+      # Probe for fi_mr_regattr()
+      GASNET_TRY_CACHE_LINK(for fi_mr_regattr(), fi_mr_regattr,
+        [ #include <rdma/fi_domain.h> ],[ int rc = fi_mr_regattr(NULL, NULL, 0, NULL); ],
+        [ AC_DEFINE(GASNETC_HAVE_FI_MR_REG_ATTR) ] )
+
+      # Probe for libfabric kinds support
+      # FI_HMEM_{CUDA,ROCR} identifiers are an enum, so we create HAVE_* feature macros
+      # TODO: allow-list or ban-list providers here?
+      have_fi_hmem_cuda=no
+      have_fi_hmem_rocr=no
+      GASNET_TRY_CACHE_LINK(for FI_HMEM support (libfabric 1.$gex_fi_hmem_minor_floor or newer),
+        have_fi_hmem,
+        [
+          #include <rdma/fabric.h>
+          #include <rdma/fi_domain.h>
+          #if FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION) < FI_VERSION(1, GEX_FI_MINOR_VERSION)
+            #error "failed check for minimum libfabric version for memory kinds support"
+          #endif
+        ], [{
+              unsigned long caps = (unsigned long)FI_HMEM;
+              struct fi_mr_attr x;
+              x.iface = FI_HMEM_SYSTEM;
+              (void)(&x.device);
+            }],
+        [ GASNET_TRY_CACHE_LINK(for FI_HMEM_CUDA, have_fi_hmem_cuda, [
+              #include <rdma/fi_domain.h>
+            ], [{
+                  struct fi_mr_attr x;
+                  x.iface = FI_HMEM_CUDA;
+                }],
+            [ have_fi_hmem_cuda=yes
+              AC_DEFINE(GASNETC_HAVE_FI_HMEM_CUDA) ])
+          GASNET_TRY_CACHE_LINK(for FI_HMEM_ROCR, have_fi_hmem_rocr, [
+                #include <rdma/fi_domain.h>
+            ], [{
+                  struct fi_mr_attr x;
+                  x.iface = FI_HMEM_ROCR;
+                }],
+            [ have_fi_hmem_rocr=yes
+              AC_DEFINE(GASNETC_HAVE_FI_HMEM_ROCR) ])
+          ])
+    GASNET_POPVAR(CFLAGS)
+    GASNET_POPVAR(LDFLAGS)
+    GASNET_POPVAR(LIBS)
   fi
 fi
 AC_SUBST(OFI_CFLAGS)
@@ -4327,6 +4381,8 @@ AC_SUBST(OFI_LDFLAGS)
 AC_SUBST(OFI_LIBS)
 CONDUIT_END([test "$enabled_ofi$have_ofi" = yesyes])
 AM_CONDITIONAL(USE_OFI_CONDUIT, test "$enabled_ofi$have_ofi" = yesyes)
+AM_CONDITIONAL(HAVE_FI_HMEM_CUDA, test "$have_fi_hmem_cuda" = yes)
+AM_CONDITIONAL(HAVE_FI_HMEM_ROCR, test "$have_fi_hmem_rocr" = yes)
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS FINISH
 #---------------------------------------------------------------------------------------------------------------
