@@ -279,6 +279,11 @@ _upcxx-inst: upcxx-built
 	@touch upcxx-install
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
+_upcxx-smoke_test: upcxx-built
+	@( echo ======== UPCXX make check ========; set -x; \
+	   $(MAKE) -C $(UPCXX_BLDDIR) $(UPCXX_MAKE_J) check || exit 1; ) $(TO_LOG)
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
 # Build a single test from the installed UPCXX directory
 inst_test: upcxx-install
 	@set -x ; $(DO_ENV) && \
