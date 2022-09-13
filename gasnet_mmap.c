@@ -93,6 +93,9 @@
        pagesz = gethugepagesize();
        gasneti_assert_uint(pagesz ,>=, GASNETI_PAGESIZE);
        gasneti_assert_uint(pagesz % GASNETI_PAGESIZE ,==, 0);
+       char valstr[16];
+       GASNETI_TRACE_PRINTF(I, ("gethugepagesize() yields %s",
+                                 gasnett_format_number(pagesz, valstr, sizeof(valstr), 1)));
      }
      return pagesz;
   }
