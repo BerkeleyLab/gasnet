@@ -1981,10 +1981,14 @@ if test "$enabled_pshm" != no; then
    [enabled_pshm_posix=yes], [enabled_pshm_posix=no],
    [ # Default is YES except:
      # + on Solaris due to incompatibility w/ ibv and the "robustness" of SysV
+     # + on HPE Cray EX where we prefer hugetlbfs if available
      enabled_pshm_posix=yes
      case "$target_os" in
        solaris*) enabled_pshm_posix=no ;;
      esac
+     if test "$GASNET_PLATFORM$have_hugetlbfs" = crayexyes; then
+       enabled_pshm_posix=no
+     fi
    ])
  if test "$enabled_pshm_posix$with_pshm" = yesno; then
   # shm_open() might be in libc (e.g. AIX, Darwin) or librt (e.g. Linux, Solaris)
@@ -2096,14 +2100,23 @@ if test "$enabled_pshm" != no; then
 
  # Next check is for mmap()ed file support on hugetlbfs
  enabled_pshm_hugetlbfs=no
- GASNET_IF_ENABLED(pshm-hugetlbfs,
-   [Enable use of hugetlbfs for inter-process shared memory support (default disabled)],
-   [enabled_pshm_hugetlbfs=yes])
+ pshm_hugetlbfs_why='User requested'
+ GASNET_IF_ENABLED_WITH_AUTO(pshm-hugetlbfs,
+   [Enable use of hugetlbfs for inter-process shared memory support (default is system dependent)],
+   [enabled_pshm_hugetlbfs=yes], [enabled_pshm_hugetlbfs=no],
+   [ # Default is NO except:
+     # + on HPE Cray EX if available
+     if test "$GASNET_PLATFORM$have_hugetlbfs" = crayexyes; then
+       enabled_pshm_hugetlbfs=yes
+       pshm_hugetlbfs_why='System defaults to'
+     fi
+   ]
+ )
  if test "$enabled_pshm_hugetlbfs$with_pshm" = yesno; then
   if test $enabled_hugetlbfs = no; then
-   GASNET_MSG_ERROR([User requested --enable-pshm-hugetlbfs but hugetlbfs support was disabled.])
+   GASNET_MSG_ERROR([User requested --enable-pshm-hugetlbfs, but hugetlbfs support was disabled.])
   elif test $have_hugetlbfs = no; then
-   GASNET_MSG_ERROR([User requested --enable-pshm-hugetlbfs but hugetlbfs support was not found.])
+   GASNET_MSG_ERROR([$pshm_hugetlbfs_why --enable-pshm-hugetlbfs but hugetlbfs support was not found.])
   fi
   AC_DEFINE(GASNETI_PSHM_FILE)
   AC_DEFINE(GASNETI_USE_HUGETLBFS)
