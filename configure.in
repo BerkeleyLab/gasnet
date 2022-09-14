@@ -227,9 +227,19 @@ AC_SUBST(GASNETI_PTR_BITS)
 # Allow user forced ARCH and/or ISA settings w/o the corresponding probes
 # XXX: Incomplete...
 
-GASNET_IF_ENABLED_NOHELP(arch-ibmpe, [force_arch_ibmpe=yes])
-GASNET_IF_ENABLED_NOHELP(arch-wsl,   [force_arch_wsl=yes])
-GASNET_IF_ENABLED_NOHELP(arch-crayex, [force_arch_crayex=yes])
+GASNET_IF_ENABLED_NOHELP(force-arch, [
+  case "$enable_force_arch" in
+    generic|ibmpe|wsl|crayex)
+      : # OK
+      ;;
+    yes|'')
+      AC_MSG_ERROR([Missing required argument to --enable-force-arch])
+      ;;
+    *)
+      AC_MSG_ERROR([Unknown --enable-force-arch argument '$enable_force_arch'])
+      ;;
+  esac
+])
 
 ##
 # Look for a Cray-provided header allowing for the possibility we are not using Cray's wrapper compiler
@@ -1458,30 +1468,30 @@ case "$target_os" in
         GASNET_THREAD_LIBS="-lpthread" 
         ;;
   linux*) 
-	# Check for IBM PE by presence of POE
-	if test x$force_arch_ibmpe = xyes || 
+        if test "x$enable_force_arch" = xgeneric; then
+          : # no action
+	elif test "x$enable_force_arch" = xibmpe || 
+	   # Check for IBM PE by presence of POE
            ( env PAGER=cat poe -h | grep 'Parallel Operating Environment' ) >/dev/null 2>&1; then
 	    GASNETI_ARCH_IBMPE=1
 	    GASNET_PLATFORM=ibmpe
 	    AC_DEFINE(GASNETI_ARCH_IBMPE)
-	fi
-	# Check for Microsoft Windows Subsystem for Linux (WSL)
-	if test x$force_arch_wsl = xyes || 
+	elif test "x$enable_force_arch" = xwsl || 
+	   # Check for Microsoft Windows Subsystem for Linux (WSL)
            ( test -f /proc/sys/kernel/osrelease &&
 	     grep 'Microsoft' /proc/sys/kernel/osrelease ) >/dev/null 2>&1; then
 	    GASNETI_ARCH_WSL=1
 	    GASNET_PLATFORM=wsl
 	    AC_DEFINE(GASNETI_ARCH_WSL)
-	fi
-        # Check for HPE Cray EX (aka Shasta) using kernel version or CRAYPE_NETWORK_TARGET
-        if test x$force_arch_crayex = xyes ||
+        elif test "x$enable_force_arch" = xcrayex ||
+           # Check for HPE Cray EX (aka Shasta) using kernel version or CRAYPE_NETWORK_TARGET
            ( uname -r | grep cray_shasta ) >/dev/null 2>&1 ||
            test "x$CRAYPE_NETWORK_TARGET" = xofi -o "x$CRAYPE_NETWORK_TARGET" = xucx ; then
             # GASNETI_ARCH_CRAYEX=1 not currenty needed
             GASNET_PLATFORM=crayex
         fi
 	AC_MSG_CHECKING(for Linux flavor)
-	AC_MSG_RESULT($GASNET_PLATFORM)
+	AC_MSG_RESULT($GASNET_PLATFORM${enable_force_arch:+ (forced)})
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
