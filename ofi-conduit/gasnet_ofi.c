@@ -1543,7 +1543,7 @@ int gasnetc_ep_bindsegment(gasneti_EP_t i_ep, gasneti_Segment_t segment)
     uint64_t access = FI_REMOTE_READ | FI_REMOTE_WRITE;
     uint64_t key = GASNETC_EPIDX_TO_KEY(c_ep->_index);
     uint64_t flags = 0;
-    struct fi_mr_attr attr = {};
+    struct fi_mr_attr attr = {0};
     attr.mr_iov        = &iov;
     attr.iov_count     = 1;
     attr.access        = access;
