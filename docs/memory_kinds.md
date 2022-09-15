@@ -102,6 +102,9 @@ support for PCIe peer-to-peer communication:
   + ofi-conduit (`verbs` provider) on Linux over Mellanox InfiniBand hardware  
   + ofi-conduit (`verbs` provider) on HPE Cray EX systems using Slingshot-10 NICs  
   + ofi-conduit (`cxi` provider) on HPE Cray EX systems using Slingshot-11 NICs  
+  + ofi-conduit *may* work with other providers and/or networks, but the
+    GASNet-EX maintainers lack access to test such configurations.  Reports of
+    success or failure are encouraged!
 
 In this document we will use "communication offload" in place
 of vendor-specific terms for the relevant technology ("GPUDirect RDMA" for
