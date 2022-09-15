@@ -207,6 +207,19 @@ see the instructions in other/cross-configure-help.c.
 [NOTE: We currently don't distribute the cross-configure-help.c in our
 normal distribution.  If you think you need it, contact us at gasnet-devel@lbl.gov]
 
+  On HPE Cray EX (aka "Shasta") systems, we recommend the following configure
+  arguments to use the vendor's compiler wrappers:
+    --with-cc=cc --with-cxx=CC --with-mpi-cc=cc
+  Additionally, exactly one of the following is recommended to ensure that
+  ofi-conduit is built for the appropriate libfabric provider:
+    * HPE Cray EX with Slingshot-10 (100Gbps) NICs: --with-ofi-provider=verbs
+    * HPE Cray EX with Slingshot-11 (200Gbps) NICs: --with-ofi-provider=cxi
+    * HPE Cray EX with BOTH NIC types: --with-ofi-provider=generic
+
+  On Linux clusters with Intel Omni-Path networks, we recommend the following
+  configure arguments to avoid using ibv-conduit over an emulated libibverbs:
+    --disable-ibv --enable-ofi --with-ofi-provider=psm2
+
 * Step 2: make all
   Build the GASNet libraries. A number of other useful makefile targets 
   are available from the top-level:
