@@ -390,6 +390,15 @@ jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d upcxx-install force
 	             clean jac3d
 	mv $</jac3d $@
 
+# upcxx-examples laplace2d
+laplace2d% :: $(UPCXX_BLDDIR)/extras/examples/laplace2d upcxx-install force
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
+	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
+	             clean lap2D
+	mv $</lap2D $@
+
 # upcxx-examples cannon
 canno%-seq canno%-par :: $(UPCXX_BLDDIR)/extras/examples/cannon upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
