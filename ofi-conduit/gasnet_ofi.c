@@ -1584,15 +1584,24 @@ int gasnetc_ep_bindsegment(gasneti_EP_t i_ep, gasneti_Segment_t segment)
     }
 #endif
 #if GASNETC_HAVE_FI_MR_REG_ATTR
+    const char *reg_fn = "fi_mr_regattr";
     int ret = fi_mr_regattr(gasnetc_ofi_domainfd, &attr, flags, mrfd_p);
-    GASNETC_OFI_CHECK_RET(ret, "fi_mr_regattr for rdma failed");
 #else
+    const char *reg_fn = "fi_mr_reg";
     int ret = fi_mr_reg(gasnetc_ofi_domainfd,
                         attr.mr_iov->iov_base, attr.mr_iov->iov_len,
                         attr.access, attr.offset, attr.requested_key,
                         flags, mrfd_p, attr.context);
-    GASNETC_OFI_CHECK_RET(ret, "fi_mr_reg for rdma failed");
 #endif
+    if (ret) {
+        if (gasneti_VerboseErrors) {
+            gasneti_console_message("WARNING",
+                                    "Unexpected error %d (%s) from %s() when binding segment [%p, %p) to EP %d",
+                                    ret, fi_strerror(-ret), reg_fn, segment->_addr, segment->_ub, i_ep->_index);
+        }
+        // TODO: can we do better sorting out failure modes?
+        return GASNET_ERR_RESOURCE;
+    }
     if (segment && ! GASNETC_OFI_HAS_MR_PROV_KEY) {
       gasneti_assert_uint(key ,==, fi_mr_key(*mrfd_p));
     }
