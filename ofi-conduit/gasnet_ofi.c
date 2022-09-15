@@ -970,6 +970,11 @@ int gasnetc_ofi_init(void)
   ret = fi_endpoint(gasnetc_ofi_domainfd, gasnetc_rma_info, &gasnetc_ofi_rdma_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for rdma failed");
 
+  GASNETI_TRACE_PRINTF(I,("RMA EP: max_msg_size=%"PRIuSZ" inject_size=%"PRIuSZ" rma_iov_limit=%"PRIuSZ,
+                          gasnetc_rma_info->ep_attr->max_msg_size,
+                          gasnetc_rma_info->tx_attr->inject_size,
+                          gasnetc_rma_info->tx_attr->rma_iov_limit));
+
   // Maximum size to use for RMA with FI_INJECT
   {
     const char *env_var = "GASNET_OFI_RMA_INJECT_LIMIT";
@@ -1000,6 +1005,11 @@ int gasnetc_ofi_init(void)
 
   ret = fi_endpoint(gasnetc_ofi_domainfd, gasnetc_msg_info, &gasnetc_ofi_reply_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for am reply endpoint failed");
+
+  GASNETI_TRACE_PRINTF(I,("MSG EP: max_msg_size=%"PRIuSZ" inject_size=%"PRIuSZ" iov_limit=%"PRIuSZ,
+                          gasnetc_msg_info->ep_attr->max_msg_size,
+                          gasnetc_msg_info->tx_attr->inject_size,
+                          gasnetc_msg_info->tx_attr->iov_limit));
 
   // Maximum size to use for fi_inject
   {
