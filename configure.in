@@ -1493,6 +1493,8 @@ case "$target_os" in
             if test "${enable_ofi-unset}" = unset; then enable_ofi=yes; fi
             if test "${enable_ibv-unset}" = unset; then enable_ibv=no; fi
             if test "${enable_udp-unset}" = unset; then enable_udp=no; fi
+            if test "${with_ofi_spawner-unset}" = unset; then with_ofi_spawner=pmi; fi
+            if test "${with_ucx_spawner-unset}" = unset; then with_ucx_spawner=pmi; fi
         fi
 	AC_MSG_CHECKING(for Linux flavor)
 	AC_MSG_RESULT($GASNET_PLATFORM${enable_force_arch:+ (forced)})
