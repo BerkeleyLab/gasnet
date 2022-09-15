@@ -4842,7 +4842,19 @@ if test "$have_pmi" = yes; then
   else
     GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
   fi
-  GASNET_ENV_DEFAULT(PMIRUN_CMD, $MPIRUN_CMD, [[Command template for running PMI programs, see other/pmi-spawner/README]])
+  pmirun_cmd_default="$MPIRUN_CMD" # default of defaults
+  if test $GASNET_PLATFORM = crayex; then
+    AC_PATH_PROGS(SRUN_PATH, $SRUN srun)
+    AC_PATH_PROGS(APRUN_PATH, $APRUN aprun)
+    if test -n "$SRUN_PATH" && test -n "$APRUN_PATH"; then
+      : # Because both 'srun' and 'aprun' were found, will not use either as default PMIRUN_CMD
+    elif test -n "$SRUN_PATH"; then
+      pmirun_cmd_default="$SRUN_PATH -n %N -- %C"
+    elif test -n "$APRUN_PATH"; then
+      pmirun_cmd_default="$APRUN_PATH -n %N %C"
+    fi
+  fi
+  GASNET_ENV_DEFAULT(PMIRUN_CMD, $pmirun_cmd_default, [[Command template for running PMI programs, see other/pmi-spawner/README]])
   GASNET_GETFULLPATH(PMIRUN_CMD)
 elif test -z "$force_pmi"; then
   AC_MSG_RESULT(no)
