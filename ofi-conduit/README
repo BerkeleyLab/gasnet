@@ -15,12 +15,12 @@ See more details at: https://ofiwg.github.io/libfabric/
 This conduit is feature-complete and passes tests in recommended configurations.
 Performance tuning is planned as future work.
 
-Since this conduit is considered "experimental" pending performance-tuning
-work, it is disabled by default.  It can be enabled explicitly at configure
-time using either `--enable-ofi` or `--enable-ofi=probe`.  Either option will
-enable ofi-conduit if `configure` locates the prerequisites.  The difference
-is that the first option makes failure to locate the prerequisites fatal in
-`configure`.
+Use of ofi-conduit is only recommended on certain networks (see next section).
+Therefore, it is disabled by default in most systems.  It can be enabled
+explicitly at configure time using either `--enable-ofi` or
+`--enable-ofi=probe`.  Either option will enable ofi-conduit if `configure`
+locates the prerequisites.  The difference is that the first option makes
+failure to locate the prerequisites fatal in `configure`.
 
 Where this conduit runs:
 -----------------------

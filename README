@@ -428,12 +428,12 @@ ucx-conduit: Unified Communication X framework [EXPERIMENTAL]
  This conduit is currently experimental, and is not yet carefully tuned for performance.
  It has only been validated on Mellanox InfiniBand devices starting from ConnectX-5.
 
-ofi-conduit: Open Fabrics Interfaces [EXPERIMENTAL]
+ofi-conduit: Open Fabrics Interfaces (most providers)
  GASNet over the Open Fabrics Interface framework (libfabric).
- This conduit is currently experimental, and is not yet carefully tuned for performance.
- With the exception of HPE Slingshot and Intel OmniPath networks (where ofi-conduit is
- either the best or only option), users are advised to use other conduits compatible
- with their hardware.
+ This conduit is functionally complete but not yet carefully tuned for performance.
+ With the exception of HPE Slingshot and Intel Omni-Path networks (where ofi-conduit
+ is either the best or only option and considered "native"), users are advised to
+ use other conduits compatible with their hardware.
 
 Native, high-performance conduits:
 ---------------------------------
@@ -446,6 +446,13 @@ ibv-conduit: InfiniBand Verbs
  GASNet over the OpenFabrics Verbs API.
  Rigorously tested and supported over InfiniBand hardware on all supported systems (see below).
  Believed to also work on other hardware offering a standard-compliant Verbs layer.
+
+ofi-conduit: Open Fabrics Interfaces (select providers/networks)
+ GASNet over the Open Fabrics Interface framework (libfabric).
+ This conduit is functionally complete but not yet carefully tuned for performance.
+ On HPE Slingshot and Intel OmniPath networks, ofi-conduit is either the best
+ or only option available.  On only those systems, ofi-conduit is categorized as a
+ native, high-performance conduit.
 
 Single-node Development Options
 ===============================
