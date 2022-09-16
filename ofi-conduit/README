@@ -545,7 +545,18 @@ Known problems:
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4461
 
-* See docs/memory_kinds.md in the GASNet-EX sources for current infomation
+* Bug 4507
+  Currently, ofi-conduit's implementation of RMA and AM Long do not correctly
+  honor the `max_msg_size` of the libfabric endpoint.  This can lead to fatal
+  errors for very large RMA operations or AM Long payloads.  Currently, the
+  the smallest known limit of any provider is 1GiB in a single transfer.
+  There are no known work-arounds other than for the client code to break such
+  transfers into smaller sizes.
+  The most up-to-date information on this bug, including the observed limits
+  for some providers, is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4507
+
+* See docs/memory_kinds.md in the GASNet-EX sources for current information
   regarding known issues with respect to memory kinds support in ofi-conduit.
 
 * See the GASNet Bugzilla server for details on additional known bugs:
