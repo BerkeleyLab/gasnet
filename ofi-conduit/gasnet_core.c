@@ -205,10 +205,6 @@ extern int gasnetc_attach_primary(void) {
 
   gasneti_nodemapFini();
 
-  gasneti_console0_message("WARNING",
-      "ofi-conduit is experimental and should not be used for performance measurements.\n"
-      "    WARNING: Please see `ofi-conduit/README` for more details.");
-
   /* ensure extended API is initialized across nodes */
   gasneti_bootstrapBarrier();
 

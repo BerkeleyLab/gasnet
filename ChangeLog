@@ -36,7 +36,12 @@ GASNet-EX ChangeLog
     Slingshot-10 and Slingshot-11 networks on HPE Cray EX systems.
   See docs/memory_kinds.md for more information on the status of Memory Kinds.
 
-* Libfabric [EXPERIMENTAL] (details in ofi-conduit README)
+* Libfabric (details in ofi-conduit README)
+  - The ofi-conduit is no longer "experimental", with caveats:
+    + Its use is only recommended on HPE Cray EX (Shasta) and Linux clusters
+      with Intel Omni-Path (with the psm2 provider)
+    + Performance has not been tuned and further enhancements are planned
+    Please see the conduit README for more details
   - New support for memory kinds `GEX_MK_CLASS_CUDA_UVA` and `GEX_MK_CLASS_HIP`
   - A new environment variable `GASNET_OFI_MAX_MEDIUM` enables setting the
     size of AM Medium buffers at job launch, and the preexisting configure
