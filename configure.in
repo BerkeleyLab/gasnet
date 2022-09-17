@@ -2169,6 +2169,14 @@ if test "$with_pshm" != no; then
   AC_DEFINE_UNQUOTED(GASNETI_CONFIG_PSHM_MAX_NODES, $gasnet_pshm_max_nodes)
 elif test "$enabled_pshm" = yes; then
   GASNET_MSG_ERROR([User requested --enable-pshm but no supported implementation was found])
+elif test "$have_hugetlbfs" = yes && \
+     ( test "$enable_aries" = yes || test "$GASNET_PLATFORM" = crayex ); then
+  # If PSHM is disabled or not found, but hugetlbfs is present on a supported
+  # system, then ensure use of hugetlfs for segment allocation.
+  # To do so, we (ab)use GASNET_PSHM_LIBS which would otherwise be empty.
+  # Currently the supported systems are the Cray XC and HPE Cray EX
+  AC_DEFINE(GASNETI_USE_HUGETLBFS)
+  GASNET_PSHM_LIBS="$HUGETLBFS_LIBS"
 fi
 GASNET_SPLIT_LINKER_OPTS(GASNET_PSHM_LDFLAGS,GASNET_PSHM_LIBS)
 AC_SUBST(GASNET_PSHM_ENABLED)
@@ -4063,11 +4071,7 @@ if test "$enabled_aries" = yes; then
     # PSHM must be XPMEM, HUGETLBFS or none.
     AC_MSG_CHECKING(for appropriate pshm support required by Aries)
     case "$with_pshm" in
-      no) # If none, then we still want hugetlbfs if available.
-        if test $have_hugetlbfs = yes; then
-          GNI_LIBS="$GNI_LIBS $HUGETLBFS_LIBS"
-          GNI_CFLAGS="$GNI_CFLAGS -DGASNETI_USE_HUGETLBFS"
-        fi
+      no) # If none, then we do still get hugetlbfs, fwiw
         AC_MSG_RESULT(none)
         ;;
       xpmem|hugetlbfs)
