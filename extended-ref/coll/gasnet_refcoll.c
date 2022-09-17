@@ -933,6 +933,7 @@ void gasnete_coll_p2p_purge(gasnete_coll_team_t team) {
   while (p2p) {
     gasnete_coll_p2p_t *next = p2p->p2p_next;
     gasneti_free(p2p);
+    GASNETI_STAT_EVENT(W, COLL_P2P_FREE);
     p2p = next;
   }
 
