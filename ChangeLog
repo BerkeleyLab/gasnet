@@ -14,7 +14,7 @@ GASNet-EX ChangeLog
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
   - Unified Communication X (ucx-conduit) [EXPERIMENTAL]
-  - Libfabric (ofi-conduit) [EXPERIMENTAL]
+  - Libfabric (ofi-conduit)
   Users wishing to use other retired conduits may need to download 
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
