@@ -180,4 +180,10 @@
 #define gasneti_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
         (gasneti_unreachable(), 0)
 
+// No validated support for hugetlbfs w/ or w/o PSHM at this time and risk of
+// issues if auto-enabled on an HPE Cray EX system (e.g. bug 4473).
+#if GASNETI_ARCH_CRAYEX
+#undef GASNETI_USE_HUGETLBFS
+#endif
+
 #endif
