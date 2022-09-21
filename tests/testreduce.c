@@ -482,6 +482,8 @@ int main(int argc, char **argv)
   thread_main(NULL);
 #endif
 
+  GASNET_Safe(gex_TM_Destroy(subtm, NULL, 0));
+
   BARRIER();
   MSG0("done.");
   gasnet_exit(0);
