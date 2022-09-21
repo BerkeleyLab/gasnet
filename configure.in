@@ -1487,8 +1487,9 @@ case "$target_os" in
            # Check for HPE Cray EX (aka Shasta) using kernel version or CRAYPE_NETWORK_TARGET
            ( uname -r | grep cray_shasta ) >/dev/null 2>&1 ||
            test "x$CRAYPE_NETWORK_TARGET" = xofi -o "x$CRAYPE_NETWORK_TARGET" = xucx ; then
-            # GASNETI_ARCH_CRAYEX=1 not currenty needed
+            GASNETI_ARCH_CRAYEX=1
             GASNET_PLATFORM=crayex
+            AC_DEFINE(GASNETI_ARCH_CRAYEX)
             # some defaults:
             if test "${enable_ofi-unset}" = unset; then enable_ofi=yes; fi
             if test "${enable_ibv-unset}" = unset; then enable_ibv=no; fi
