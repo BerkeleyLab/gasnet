@@ -780,7 +780,7 @@ static void AMUDP_InitParameters(ep_t ep) {
     ENVINT_WITH_DEFAULT(AMUDP_SocketBuffer_max, "SOCKETBUFFER_MAX", {
                           if (val > 0x7FFFFFFF)  // not currently 64-bit clean
                             AMX_FatalErr("SOCKETBUFFER_INITIAL too large");
-                          if (!val || val < AMUDP_SocketBuffer_initial) 
+                          if (!val || (uint32_t)val < AMUDP_SocketBuffer_initial) 
                           AMX_FatalErr("SOCKETBUFFER_MAX must be >= SOCKETBUFFER_INITIAL"); 
                         });
 
