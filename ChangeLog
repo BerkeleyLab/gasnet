@@ -43,6 +43,9 @@ GASNet-EX ChangeLog
     + Performance has not been tuned and further enhancements are planned
     Please see the conduit README for more details
   - New support for memory kinds `GEX_MK_CLASS_CUDA_UVA` and `GEX_MK_CLASS_HIP`
+  - On HPE Cray EX (aka Shasta) systems, hugepages are now used for
+    GASNet-allocated host memory segments by default (where supported) for
+    both PSHM and non-PSHM configurations.
   - A new environment variable `GASNET_OFI_MAX_MEDIUM` enables setting the
     size of AM Medium buffers at job launch, and the preexisting configure
     option `--with-ofi-max-medium` is now used to set the default value.

@@ -177,4 +177,10 @@ extern void _gasnetc_set_waitmode(int _wait_mode);
 
 /* Configure gasnet_handle.[ch] */
 
+// No validated support for hugetlbfs w/ or w/o PSHM at this time and risk of
+// issues if auto-enabled on an HPE Cray EX system (e.g. bug 4473).
+#if GASNETI_ARCH_CRAYEX
+#undef GASNETI_USE_HUGETLBFS
+#endif
+
 #endif
