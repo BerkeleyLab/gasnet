@@ -337,19 +337,6 @@ above.
 This is based on testing with HPE's `libfabric/1.11.0.x.y` environment module
 (for multiple values of `x` and `y`).
 
-## OFI/Slingshot-11 and CUDA memory
-
-Use of GASNet-EX "CUDA_UVA" memory kinds with ofi-conduit and the `cxi` provider
-for Slingshot-11 networks may crash with a `SIGSEGV` due to incorrect algorithm
-selection inside libfabric for RMA Puts with their source in device memory.
-
-There is currently no known work-around (aside from avoiding this use case).
-
-This is based on testing with HPE's `libfabric/1.15.0.0` environment module.
-
-For the most up-to-date information on this issue see
-[bug 4485](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4485)
-
 # Tested Configurations
 
 We have yet to establish the minimum required versions of hardware, drivers or
