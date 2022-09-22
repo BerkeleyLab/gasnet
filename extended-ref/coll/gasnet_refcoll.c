@@ -888,9 +888,11 @@ void gasnete_coll_p2p_free(gasnete_coll_team_t team, gasnete_coll_p2p_t *p2p) {
   gasneti_assert(p2p != NULL);
   gasneti_assert(p2p->team_id == team->team_id);
 
-  // Since "by construction" there is no longer any possible concurrent access
-  // to p2p, work not related to p2p and freelist linkage can be done outside
-  // the team->p2p_lock critical section
+  // Even though we've reached the end of the collective operation, it is
+  // possible that an AM handler is still between its "real work" and its
+  // release of the p2p_lock.  So it is NOT safe to operate lock-free on p2p.
+
+  gex_HSL_Lock(&team->p2p_lock);
 
   gasnete_coll_p2p_check(p2p);
   gasneti_free(p2p->data);
@@ -904,8 +906,6 @@ void gasnete_coll_p2p_free(gasnete_coll_team_t team, gasnete_coll_p2p_t *p2p) {
 #ifdef GASNETE_P2P_EXTRA_FREE
   GASNETE_P2P_EXTRA_FREE(p2p)
 #endif
-
-  gex_HSL_Lock(&team->p2p_lock);
 
   *(p2p->p2p_prev_p) = p2p->p2p_next;
   if (p2p->p2p_next) {
