@@ -1299,6 +1299,7 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETI_THREAD_FARG
   if(data->state == (dissem->dissemination_phases)*2+1) {
     uint32_t phase = (data->state-2)/2;
     if(data->p2p->state[phase] !=1) return 0; /*wait for the last transfer to finish*/
+    gasneti_sync_reads();
     
     /*rotate the data around*/
     GASNETI_MEMCPY_SAFE_IDENTICAL((int8_t*)args->dst+args->nbytes*op->team->myrank, 
