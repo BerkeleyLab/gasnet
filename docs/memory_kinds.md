@@ -312,10 +312,14 @@ hardware, RMA Puts with their source in CUDA device memory may crash with a
 
 This issue has been seen with a subset of applicable systems, with the majority
 of those tested *not* reproducing the problem.  We have been unable to correlate
-the problem with the versions of the HCA, firmware, driver or libibverbs.  If
-you experience this problem on your system, please contact us.
+the problem with the versions of the HCA, firmware, driver or libibverbs.
 
-There is currently no known work-around (aside from avoiding this use case).
+If you are using an impacted system, this issue can be worked-around
+by setting `FI_VERBS_INLINE_SIZE=0` in the environment.  Because this
+setting disables a valuable performance optimization, it may increase
+the latency of all small RMA Puts, including those from host memory,
+and small Active Message.  Therefore, it is strongly recommended that
+you set this variable *only* if your system exhibits this issue.
 
 For the most up-to-date information on this second issue see
 [bug 4494](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4494)
@@ -330,9 +334,7 @@ above.
     The work around of setting `MLX5_SCATTER_TO_CQE=0` is effective.
 
 2.  OFI/InfiniBand and CUDA memory  
-    There is no known work-around at this time when using HPE's libfabric.  
-    Our own builds of libfabric 1.15.1 appear to be free of this problem, but we
-    do not endorse use a libfabric other than the vendor's for Slingshot-10.
+    The work around of setting `FI_VERBS_INLINE_SIZE=0` is effective.
 
 This is based on testing with HPE's `libfabric/1.11.0.x.y` environment module
 (for multiple values of `x` and `y`).
