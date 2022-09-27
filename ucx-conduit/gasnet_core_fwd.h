@@ -167,4 +167,10 @@
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
     extern void gasnetc_fatalsignal_callback(int _sig);
 
+// No validated support for hugetlbfs w/ or w/o PSHM at this time and risk of
+// issues if auto-enabled on an HPE Cray EX system (e.g. bug 4473).
+#if GASNETI_ARCH_CRAYEX
+#undef GASNETI_USE_HUGETLBFS
+#endif
+
 #endif

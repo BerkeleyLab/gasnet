@@ -2798,6 +2798,11 @@ extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defau
   int64_t val = mem_size_multiplier;
   char defstr[80];
   gasneti_format_number(defaultval, defstr, 80, mem_size_multiplier);
+  if (gasneti_parse_int(defstr, mem_size_multiplier) != defaultval) {
+    // Discard result from gasneti_format_number() if it is rounded/truncated
+    gasneti_assert(mem_size_multiplier); // should not happen otherwise
+    snprintf(defstr, sizeof(defstr), "%"PRId64" B", defaultval);
+  }
   _gasneti_getenv_withdefault(keyname, defstr, (mem_size_multiplier?3:2), &val);
   return val;
 }

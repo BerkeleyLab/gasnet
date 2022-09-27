@@ -179,4 +179,10 @@ extern int gasnetc_getSegmentInfo(struct gasneti_seginfo_s *_seginfo_table, int 
 #define gasnet_getSegmentInfo(seginfo_table, numentries) \
         gasnetc_getSegmentInfo(seginfo_table, numentries)
 
+// No validated support for hugetlbfs w/ or w/o PSHM at this time and risk of
+// issues if auto-enabled on an HPE Cray EX system (e.g. bug 4473).
+#if GASNETI_ARCH_CRAYEX
+#undef GASNETI_USE_HUGETLBFS
+#endif
+
 #endif

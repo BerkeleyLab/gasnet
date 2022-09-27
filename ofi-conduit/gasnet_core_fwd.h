@@ -20,6 +20,7 @@
 #define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_OFI 1
+#define GASNETC_EXTRA_CONFIG_INFO ",ofi_provider=" _STRINGIFY(GASNETC_OFI_PROVIDER_IDENT)
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
@@ -40,8 +41,8 @@
 #define GASNETC_CHECK_PORTABLE_CONDUIT_HOOK 1
 
   // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
-//#define GASNET_HAVE_MK_CLASS_CUDA_UVA GASNETI_MK_CLASS_CUDA_UVA_ENABLED
-//#define GASNET_HAVE_MK_CLASS_HIP GASNETI_MK_CLASS_HIP_ENABLED
+#define GASNET_HAVE_MK_CLASS_CUDA_UVA (GASNETI_MK_CLASS_CUDA_UVA_ENABLED && GASNETC_HAVE_FI_HMEM_CUDA && !GASNET_SEGMENT_EVERYTHING)
+#define GASNET_HAVE_MK_CLASS_HIP (GASNETI_MK_CLASS_HIP_ENABLED && GASNETC_HAVE_FI_HMEM_ROCR && !GASNET_SEGMENT_EVERYTHING)
 
   /* uncomment if your conduit has "private" threads which might run conduit
      code and/or the client's AM handlers, even under GASNET_SEQ.
@@ -138,7 +139,7 @@
 
   // Uncomment the following defines if conduit provides the corresponding hook.
   // See other/kinds/gasnet_kinds_internal.h for prototypes and brief descriptions.
-//#define GASNETC_MK_CREATE_HOOK 1
+#define GASNETC_MK_CREATE_HOOK GASNET_HAVE_MK_CLASS_MULTIPLE
 //#define GASNETC_MK_DESTROY_HOOK 1
 
 // If conduit supports GASNET_MAXEPS!=1, set default and (optional) max values here.

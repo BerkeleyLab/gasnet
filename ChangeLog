@@ -14,7 +14,7 @@ GASNet-EX ChangeLog
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
   - Unified Communication X (ucx-conduit) [EXPERIMENTAL]
-  - Libfabric (ofi-conduit) [EXPERIMENTAL]
+  - Libfabric (ofi-conduit)
   Users wishing to use other retired conduits may need to download 
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
@@ -30,7 +30,22 @@ GASNet-EX ChangeLog
   - New options (and changed defaults) for `testalltoall`
   - More detailed reporting for certain job spawning failure scenarios
 
-* Libfabric [EXPERIMENTAL] (details in ofi-conduit README)
+* Memory Kinds (support for non-host memory)
+  - This release adds Memory Kinds support to ofi-conduit with certain
+    libfabric providers, for both Nvidia and AMD GPUs.  Support includes the
+    Slingshot-10 and Slingshot-11 networks on HPE Cray EX systems.
+  See docs/memory_kinds.md for more information on the status of Memory Kinds.
+
+* Libfabric (details in ofi-conduit README)
+  - The ofi-conduit is no longer "experimental", with caveats:
+    + Its use is only recommended on HPE Cray EX (Shasta) and Linux clusters
+      with Intel Omni-Path (with the psm2 provider)
+    + Performance has not been tuned and further enhancements are planned
+    Please see the conduit README for more details
+  - New support for memory kinds `GEX_MK_CLASS_CUDA_UVA` and `GEX_MK_CLASS_HIP`
+  - On HPE Cray EX (aka Shasta) systems, hugepages are now used for
+    GASNet-allocated host memory segments by default (where supported) for
+    both PSHM and non-PSHM configurations.
   - A new environment variable `GASNET_OFI_MAX_MEDIUM` enables setting the
     size of AM Medium buffers at job launch, and the preexisting configure
     option `--with-ofi-max-medium` is now used to set the default value.
@@ -69,8 +84,11 @@ GASNet-EX ChangeLog
   - bug4448: smp-conduit incorrectly duplicates GASNET_VERBOSEENV output
   - Bug4453: gex_Coll_* should trace more information
   - Bug4454: Scaling issues in gasneti_segmentLimit()
+  - bug4462: testcoll_p-par validation failures on Summit
   = bug4475: configure --disable-full-path-expansion breaks default MPI_CC
   - bug4490: startup hang for large GASNET_MAX_SEGSIZE and huge pages > 4MB
+  - bug4496: SEGV in gasnete_coll_pf_tm_reduce_TreePutSeg for reduce-to-all
+  - bug4509: Non-scalable reduction temporaries
 
 ----------------------------------------------------------------------
 2022-03-31: GASNet-EX 2022.3.0 Release

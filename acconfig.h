@@ -434,6 +434,9 @@
 /* platform is Microsoft Windows Subsystem for Linux */
 #undef GASNETI_ARCH_WSL
 
+/* platform is an HPE Cray EX */
+#undef GASNETI_ARCH_CRAYEX
+
 /* have (potentially buggy) MIPS R10000 multiprocessor */
 #undef GASNETI_ARCH_SGI_IP27
 
@@ -482,6 +485,10 @@
 #undef GASNETC_OFI_USE_MULTI_CQ
 #undef GASNETC_OFI_RETRY_RECVMSG
 #undef GASNETC_OFI_PROVIDER_LIST
+#undef GASNETC_OFI_PROVIDER_IDENT
+#undef GASNETC_HAVE_FI_MR_REG_ATTR
+#undef GASNETC_HAVE_FI_HMEM_CUDA
+#undef GASNETC_HAVE_FI_HMEM_ROCR
 
 /* GASNet ucx-conduit settings */
 #undef GASNETC_UCX_MAX_MEDIUM_DFLT

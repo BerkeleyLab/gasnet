@@ -246,9 +246,10 @@ Additional environment variables:
   Use of GASNet-EX "CUDA_UVA" memory kinds with ucx-conduit may crash due
   to incorrect default algorithm selection inside UCX for RMA transfers
   involving device memory.
-  For sufficiently recent UCX versions, there are work-arounds based on
+  For a certain range of UCX versions, there are work-arounds based on
   setting environment variables to modify the algorithm selection to be
   correct for device memory at the expense of slowing of host memory RMA.
+  For other versions, there is no known work-around.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4384
 

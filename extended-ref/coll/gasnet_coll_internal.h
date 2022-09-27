@@ -452,11 +452,17 @@ struct gasnete_coll_p2p_t_ {
 #endif
   uint32_t		sequence;
   
-  /* Volatile arrays of data and state for the point-to-point synchronization */
+  // Volatile arrays of data and state for the point-to-point synchronization
   uint8_t		*data;
   volatile uint32_t	*state;
   gasneti_weakatomic_t	*counter;
-    
+
+  // Allocated sizes of the arrays above
+  size_t ndata;
+  size_t nstates;
+  size_t ncounters;
+  int    finalized; // indicates that counts above should not change
+
   /* Handler-safe lock (if needed) */
   gex_HSL_t		lock;
   
@@ -466,7 +472,44 @@ struct gasnete_coll_p2p_t_ {
 };
 #endif
 
-extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
+#if GASNET_DEBUG
+  #define gasnete_coll_p2p_check(p2p) do { \
+    gasneti_memcheck(p2p);                                      \
+    if (p2p->nstates) gasneti_memcheck((void*)p2p->state);      \
+    else gasneti_assert(!p2p->state);                           \
+    if (p2p->ncounters) gasneti_memcheck((void*)p2p->counter);  \
+    else gasneti_assert(!p2p->counter);                         \
+    if (p2p->ndata) gasneti_memcheck(p2p->data);                \
+    else gasneti_assert(!p2p->data);                            \
+  } while (0)
+#else
+  #define gasnete_coll_p2p_check(p2p) ((void)0)
+#endif
+
+extern gasnete_coll_p2p_t *gasnete_coll_p2p_get_inner(
+                        gasnete_coll_team_t team, uint32_t sequence,
+                        size_t nstates, size_t ncounters, size_t ndata,
+                        int finalize);
+
+// Lookup/create p2p with the final sizes of fields 'state', 'counter' and 'data'
+// Further growth is prohibited after this call, and thus the caller may use these
+// three fields without fear of concurrent realloc()
+#define gasnete_coll_p2p_get_final(team,sequence,nstates,ncounters,ndata) \
+        gasnete_coll_p2p_get_inner(team,sequence,nstates,ncounters,ndata,1)
+
+// Lookup/create p2p with at least the specified sizes of fields 'state', 'counter' and 'data'
+// Since these fields are subject to realloc(), this call returns with a lock held
+#define gasnete_coll_p2p_get_locked(team,sequence,nstates,ncounters,ndata) \
+        gasnete_coll_p2p_get_inner(team,sequence,nstates,ncounters,ndata,0)
+
+// Callers of gasnete_coll_p2p_get_locked() use this call to release the lock
+// TODO: may want to use fine-grained p2p->lock instead of team->p2p_lock
+#define gasnete_coll_p2p_unlock(team,p2p) do { \
+    gasneti_assert((p2p)->team_id == (team)->team_id); \
+    gasnete_coll_p2p_check(p2p);                       \
+    gex_HSL_Unlock(&(team)->p2p_lock);                 \
+  } while (0)
+
 extern void gasnete_coll_p2p_purge(gasnete_coll_team_t team);
 extern void gasnete_tm_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
                                         void *src, size_t nbytes, uint32_t idx GASNETI_THREAD_FARG);
@@ -1054,7 +1097,7 @@ int gasnete_coll_generic_upsync_acq(gasnete_coll_op_t *op, gex_Rank_t rootrank,
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
     if (op->team->myrank != rootrank) {
       gasneti_local_wmb();
-      gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom), 0, 0 GASNETI_THREAD_PASS);
+      gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom), 0, counter GASNETI_THREAD_PASS);
     } else {
       gasneti_local_rmb();
     }
@@ -1183,7 +1226,6 @@ gasnete_coll_bcast_##FUNC_EXT(gasnet_team_handle_t team,\
                        uint32_t sequence\
                        GASNETI_THREAD_FARG)
 
-GASNETE_COLL_DECLARE_BCAST_ALG(Eager);
 GASNETE_COLL_DECLARE_BCAST_ALG(RVGet);
 GASNETE_COLL_DECLARE_BCAST_ALG(TreeRVGet);
 GASNETE_COLL_DECLARE_BCAST_ALG(RVous);
