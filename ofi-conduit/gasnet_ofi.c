@@ -864,11 +864,14 @@ int gasnetc_ofi_init(void)
   }
 
   if (!strcmp(info->fabric_attr->prov_name, "cxi") && !set_cxi_match_mode) {
-    gasneti_console0_message("WARNING", "ofi-conduit failed to configure FI_CXI_* envvars.  "
-                             "This may lead to unstable behavior and is most often the "
-                             "result of initializing MPI prior to initialization of GASNet.  "
-                             "Please see \"Limits to MPI interoperability\" in the "
-                             "ofi-conduit README for more information.");
+    gasneti_console0_message("WARNING", "ofi-conduit failed to configure FI_CXI_* "
+                             "environment variables due to prior conflicting settings. "
+                             "This may lead to unstable behavior and/or degraded "
+                             "performance.  If you did not intentionally set "
+                             "FI_CXI_RX_MATCH_MODE, then this condition may have resulted "
+                             "from initializing MPI prior to initialization of GASNet. "
+                             "For more information on that scenario, please see \"Limits "
+                             "to MPI interoperability\" in the ofi-conduit README. ");
   }
 
   int quiet = gasneti_getenv_yesno_withdefault("GASNET_QUIET", 0);
