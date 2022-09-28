@@ -87,7 +87,7 @@
  #ifdef GASNETI_USE_HUGETLBFS
   #include <hugetlbfs.h>
   /* Provide greater alignment than default: */
-  static uintptr_t gasneti_mmap_pagesize_huge() {
+  static uintptr_t gasneti_mmap_pagesize_huge(void) {
      static long pagesz = 0;
      if (!pagesz) {
        pagesz = gethugepagesize();
@@ -1221,7 +1221,7 @@ GASNETI_IDENT(gasneti_IdentString_DefaultMaxSegsizeStr,
 /* return user-selected limit for the max segment size, as gleaned from several sources */
 const char *gasnet_max_segsize_str; // intentional tentative definition, to allow client override
 uint64_t gasnet_max_segsize;        // DEPRECATED: intentional tentative definition, to allow client override 
-uintptr_t gasneti_max_segsize() {
+uintptr_t gasneti_max_segsize(void) {
   static uintptr_t result = 0;
   uint64_t tmp;
   if (!result) {
