@@ -51,7 +51,7 @@ GASNet Release Procedure
     Those need to be updated to match the changes made to configure.in.
     Generally, this means stripping the comment: // work-in-progress, not "closed".
   other/gasnet_portable_platform.h - increment EVERY release (even without changes)
-  Conduits: */gasnet_core_fwd.h, */gasnet_extended_fwd.h
+  Conduits: */gasnet_core_fwd.h
   GASNet document spec version: docs/gasnet.texi
 
 * On 'develop' advance the version numbers in configure.in (odd minor and patch
@@ -107,9 +107,10 @@ GASNet Release Procedure
 * Test the release candidate on all directly supported systems and conduits,
   with both debug+stats+trace and ndebug configs, and all supported backend
   C compilers:
+   HPE Cray EX: ofi (and mpi if time/allocation allows)
    Cray XC: aries (and mpi if time/allocation allows)
    Linux-Ethernet: mpi, udp, ofi
-   Linux-InfiniBand: mpi, ibv
+   Linux-InfiniBand: mpi, ibv, ucx
    Linux-OmniPath: ofi (plus mpi and ibv if time/allocation allows)
    Windows/Cygwin: smp+pthreads
    Mac OS X: smp+pthreads, smp+sysv
@@ -228,8 +229,16 @@ GASNet Release Procedure
   + Add a milestone for the next release
 
 * In gasnet-web CVS repository:
-  + Add both tarballs and specs (GASNet and GASNet_Tools) to CVS
-    and the respective date_history
+  + Add the new tarballs to CVS in the following locations
+      tools/GASNet_Tools-[version].tar.gz
+      EX/GASNet-[version].tar.gz
+  + Copy the GASNet-EX spec (docs/GASNet-EX.txt in the tarball) to two places:
+      docs/GASNet-EX.txt          (overwritting the previous version)
+      EX/GASNet-EX-[version].txt  (creating a new file to add to CVS)
+    The following command can be used to populate the first location:
+    `tar --strip-components=1 --wildcards -xf EX/GASNet-[version].tar.gz -- '*/docs/GASNet-EX.txt'`
+  + Update EX/date_history and tools/date_history in CVS with the three
+    versioned files added to the respective directories in the previous two steps.
   + Update index.html for the new release
     Minimum update is:
     - fresh NEWS item
@@ -243,7 +252,6 @@ GASNet Release Procedure
   + "tar xfz ..." to extract the new GASNet release (not Tools)
   + Move the "dist-ex" symbolic link:
     $ ln -sfn GASNet-2040.8.0 dist-ex
-  + Copy dist-ex/docs/GASNet-EX.txt to EX/GASNet-EX-[version].txt
 
 * Update release mirrors:
   + https://bitbucket.org/berkeleylab/gasnet/downloads/
