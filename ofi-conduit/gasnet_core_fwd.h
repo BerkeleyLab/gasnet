@@ -2,7 +2,7 @@
  * Description: GASNet header for libfabric (OFI) conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2015, Intel Corporation
- * Portions copyright 2018-2020, The Regents of the University of California.
+ * Portions copyright 2018-2022, The Regents of the University of California.
  * Terms of use are as specified in license.txt
  */
 
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      0.7
+#define GASNET_CORE_VERSION      0.8
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         OFI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
