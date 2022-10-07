@@ -21,6 +21,9 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4527: Erroneous/confusing startup warning with psm2 provider
+
 ----------------------------------------------------------------------
 2022-09-30: GASNet-EX 2022.9.0, 20th Anniversary Release
 
