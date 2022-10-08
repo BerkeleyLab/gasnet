@@ -1421,6 +1421,15 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   Those bug reports provide more details, and will provide the most current
   information regarding any recommended work-around(s).
 
++ Bugs 4105
+  On systems with InfiniBand headers provided by recent versions of the
+  rdma-core-devel package, the use of `__builtin_constant_p()` may result
+  in a failure to link ibv-conduit applications.  This is believe to only
+  impact older PGI compilers, with none released in 2020 or later known to
+  have this problem.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4105
+
 + Bug 4314
   While this file documents several environment variables as permitting
   different values on different processes, it is not always possible to
