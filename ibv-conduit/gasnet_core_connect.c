@@ -2391,7 +2391,7 @@ gasnetc_connect_static(gasnetc_EP_t ep)
     (void)gasnetc_qp_init2rtr(&conn_info[node], active);
   }
 
-  /* QPs must reach RTS before we may continue
+  /* QPs must reach RTR before we may continue to RTS
      (not strictly necessary in practice as long as we don't try to send until peers do.) */
   gasneti_bootstrapBarrier();
 
