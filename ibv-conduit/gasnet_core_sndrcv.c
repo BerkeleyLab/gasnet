@@ -762,21 +762,27 @@ static void gasnetc_dump_cqe(struct ibv_wc *comp, gasnetc_hca_t *hca, const int 
         int nargs = GASNETC_MSG_NUMARGS(flags);
         const char *cat_name = "????";
         gex_AM_Arg_t *args = NULL;
-        uint32_t nbytes = 0;
+        uint32_t nbytes = (uint32_t)-1;
         switch (category) {
           case gasneti_Short:
             cat_name = "Short";
-            args = sreq->am_buff->shortmsg.args;
+            if (sreq->am_buff) {
+              args = sreq->am_buff->shortmsg.args;
+            }
             break;
           case gasneti_Medium:
             cat_name = "Medium";
-            args = sreq->am_buff->medmsg.args;
-            nbytes = sreq->am_buff->medmsg.nBytes;
+            if (sreq->am_buff) {
+              args = sreq->am_buff->medmsg.args;
+              nbytes = sreq->am_buff->medmsg.nBytes;
+            }
             break;
           case gasneti_Long:
             cat_name = "Long";
-            args = sreq->am_buff->longmsg.args;
-            nbytes = sreq->am_buff->longmsg.nBytes;
+            if (sreq->am_buff) {
+              args = sreq->am_buff->longmsg.args;
+              nbytes = sreq->am_buff->longmsg.nBytes;
+            }
             break;
         }
         if ((nargs == GASNETC_MAX_ARGS) && args) {
@@ -798,7 +804,7 @@ static void gasnetc_dump_cqe(struct ibv_wc *comp, gasnetc_hca_t *hca, const int 
           // For Long, only report packed payload bytes
           nbytes = (nbytes & 0x80000000) ? (nbytes & 0x7fffffff) : 0;
         }
-        if (nbytes) {
+        if (nbytes && (nbytes != (uint32_t)-1)) {
           MSG_APPEND(", includes %u bytes payload", (unsigned int)nbytes);
         }
         break;
