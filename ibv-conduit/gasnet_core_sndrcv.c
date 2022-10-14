@@ -206,7 +206,7 @@ gasneti_auxseg_request_t gasnetc_atomics_auxseg_alloc(gasnet_seginfo_t *auxseg_i
   int request = 1;
 
   // A second cache line for use as remote AMO target in fenced puts, if enabled
-  request += GASNETC_USE_FENCED_PUTS ? 1 :0;
+  request += gasnetc_use_fenced_puts ? 1 :0;
 
 #if GASNETC_BUILD_IBVRATOMIC
   // Some number of cache lines for buffering fetching RAtomics
@@ -219,7 +219,7 @@ gasneti_auxseg_request_t gasnetc_atomics_auxseg_alloc(gasnet_seginfo_t *auxseg_i
   if (auxseg_info) { /* auxseg granted */
     gasnetc_ratomic_sink = (uint64_t*)auxseg_info[gasneti_mynode].addr;
   #if GASNETC_IB_MAX_HCAS > 1
-    if (GASNETC_USE_FENCED_PUTS) {
+    if (gasnetc_use_fenced_puts) {
       // TODO: this use of auxseg is yet another O(ranks) table we must seek to eliminate
       // TODO: at a minimum we can save about half the space by only keeping addr (not len)
       gasneti_assert(!gasnetc_fence_auxseg);
