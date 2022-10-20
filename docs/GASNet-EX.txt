@@ -3305,7 +3305,7 @@ void gex_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
 // End of section describing APIs provided by gasnet_vis.h
 //----------------------------------------------------------------------
 //
-// Collectives (Coll) [EXPERIMENTAL]
+// Collectives (Coll)
 //
 // With the exception of gex_Coll_BarrierNB(), APIs in this section are provided
 // by gasnet_coll.h
