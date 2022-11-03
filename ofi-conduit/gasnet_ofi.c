@@ -947,6 +947,15 @@ int gasnetc_ofi_init(void)
   GASNETI_TRACE_PRINTF(I, ("Opened domain '%s'", info->domain_attr->name));
   gasneti_leak( gasnetc_ofi_domain = gasneti_strdup(info->domain_attr->name) );
 
+  if (gasneti_spawn_verbose) {
+      gasneti_console_message("INFO", "provider '%s' version %u.%u, domain '%s', hostname '%s'",
+                                      gasnetc_ofi_provider,
+                                      (unsigned int)FI_MAJOR(info->fabric_attr->prov_version),
+                                      (unsigned int)FI_MINOR(info->fabric_attr->prov_version),
+                                      gasnetc_ofi_domain,
+                                      gasneti_gethostname());
+  }
+
   // Now read user-provided environment settings
   gasnetc_ofi_read_env_vars(info->fabric_attr->prov_name, info->domain_attr->name);
 
