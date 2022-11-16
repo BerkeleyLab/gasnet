@@ -121,7 +121,8 @@ endif
 MAKE_TEST_ENV = \
 	    CC="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CC)" \
 	   CXXFLAGS="$(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)" \
-	   CXX="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CXX) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)"
+	   CXX="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CXX) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)" \
+	   UPCXX_INSTALL=$(UPCXX_INSTDIR)
 
 # Parametrized support for download/unpack
 UPCXX_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default to auto-detect from downloaded archive suffix
@@ -363,40 +364,30 @@ ccs-%-exe :: ccs-%.sh force
 
 # upcxx-examples guppie
 guppie-%-exe :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx upcxx-install force
-	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
-	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
-	             clean guppie-$*
+	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< clean guppie-$*
 	mv $</guppie-$* $(TEST_EXE)
 
 # upcxx-examples dist_array
 DA-%-exe :: $(UPCXX_BLDDIR)/extras/extensions/dist_array upcxx-install force
-	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
-	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
-	             clean bin/DA-$*
+	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< clean bin/DA-$*
 	-ln -sf $</examples . # for examples/input file
 	mv $</bin/DA-$* $(TEST_EXE)
 
 # upcxx-examples jac3d
 jac3d-exe :: $(UPCXX_BLDDIR)/extras/examples/jac3d upcxx-install force
-	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
-	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
-	             clean jac3d
+	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< clean jac3d
 	mv $</jac3d $(TEST_EXE)
 
 # upcxx-examples laplace2d
 laplace2d-exe :: $(UPCXX_BLDDIR)/extras/examples/laplace2d upcxx-install force
-	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
-	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
-	             clean lap2D
+	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< clean lap2D
 	mv $</lap2D $(TEST_EXE)
 
 # upcxx-examples cannon
 canno%-exe :: $(UPCXX_BLDDIR)/extras/examples/cannon upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
-	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
-	             clean canno$*
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< clean canno$*
 	mv $</canno$* $(TEST_EXE)
 
 # upcxx-examples extend-add
@@ -411,7 +402,7 @@ extend-add_%-exe :: $(UPCXX_BLDDIR)/extras/examples/extend-add upcxx-install for
                        clean extend-add_$*
 	mv $</bin/extend-add_$* $(TEST_EXE)
 
-KOKKOS_MAKE = env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< CC= UPCXX_INSTALL=$(UPCXX_INSTDIR)
+KOKKOS_MAKE = env $(MAKE_TEST_ENV) $(MAKE) $(UPCXX_MAKE_J) -C $< CC= 
 KOKKOS_ARCH ?= Maxwell52
 export KOKKOS_ARCH
 # upcxx-examples kokkos_montecarlo: clearing CC prevents a hang in Makefile.kokkos
@@ -438,9 +429,7 @@ upc-%-exe :: $(UPCXX_BLDDIR)/test/interop upcxx-install force
 # misc make-based examples
 # cuda_vecadd, hip_vecadd :
 %_vecadd-exe :: $(UPCXX_BLDDIR)/example/gpu_vecadd upcxx-install force
-	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
-	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
-	             clean $*_vecadd
+	@set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< clean $*_vecadd
 	mv $</$*_vecadd $(TEST_EXE)
 
 CMAKE ?= cmake
@@ -460,8 +449,7 @@ cmake-exe :: upcxx-install
 	cp -r $(UPCXX_BLDDIR)/utils/cmake .
 	rm -f cmake/UPCXXConfig*
 	cd cmake && ( set -x ; \
-	export UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
-	       UPCXX_INSTALL=$(UPCXX_INSTDIR) ; \
+	export UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 ; \
 	export $(MAKE_TEST_ENV) ; \
 	$(CMAKE) --version ; \
 	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) . )
@@ -487,8 +475,7 @@ sympack-exe :: upcxx-install force
 	cd $(SYMPACK_DIR)/$(UPCXX_THREADMODE) && ( set -x ; \
 	case "$(UPCXX_THREADMODE)" in seq) export SYMPACK_THREADS=-DENABLE_THREADS=OFF ;; \
 	                              par) export SYMPACK_THREADS=-DENABLE_THREADS=ON ;; esac; \
-	export UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
-	       UPCXX_INSTALL=$(UPCXX_INSTDIR) ; \
+	export UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 ; \
 	export $(MAKE_TEST_ENV) FC="$(UPCXX_FC)" ; \
 	$(CMAKE) --version ; \
 	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) $(CMAKE_FC_ARGS) \
