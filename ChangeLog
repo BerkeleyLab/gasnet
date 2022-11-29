@@ -23,6 +23,7 @@ GASNet-EX ChangeLog
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4527: Erroneous/confusing startup warning with psm2 provider
+  - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
 
 ----------------------------------------------------------------------
 2022-09-30: GASNet-EX 2022.9.0, 20th Anniversary Release
@@ -110,7 +111,6 @@ have our sincere thanks for making this milestone possible.
   - bug4490: startup hang for large GASNET_MAX_SEGSIZE and huge pages > 4MB
   - bug4496: SEGV in gasnete_coll_pf_tm_reduce_TreePutSeg for reduce-to-all
   - bug4509: Non-scalable reduction temporaries
-  - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
 
 ----------------------------------------------------------------------
 2022-03-31: GASNet-EX 2022.3.0 Release
