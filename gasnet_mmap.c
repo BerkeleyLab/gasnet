@@ -85,6 +85,7 @@
   */
 
  #ifdef GASNETI_USE_HUGETLBFS
+  GASNETI_IDENT(gasneti_IdentString_Hugetlbfs, "$GASNetHugetlbfs: 1 $");
   #include <hugetlbfs.h>
   static int _gasneti_use_hugetlbfs = -1;
   static uintptr_t _gasneti_hugepagesize = 0;
