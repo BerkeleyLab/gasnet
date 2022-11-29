@@ -402,7 +402,7 @@ void gasnetc_op_ctxt_run_rdma_callback(void *ctxt)
 GASNETI_INLINE(gasnetc_ofi_handle_am)
 void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, uint64_t cq_data);
 void gasnetc_ofi_am_send_complete(gasnetc_ofi_send_ctxt_t *header);
-void gasnetc_ofi_tx_poll();
+void gasnetc_ofi_tx_poll(void);
 GASNETI_INLINE(gasnetc_ofi_am_recv_poll)
 void gasnetc_ofi_am_recv_poll(int is_request);
 void gasnetc_ofi_am_recv_poll_cold(int is_request) { // non-inline wrapper to avoid forced inlining on "cold" paths
@@ -539,7 +539,7 @@ static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) 
  * to contain the complexity of supporting scalable endpoints in the future to
  * this function and the relevant get-address macros.
  */
-static void ofi_setup_address_vector() {
+static void ofi_setup_address_vector(void) {
   int ret = FI_SUCCESS;
   conn_entry_t *mapped_table;
   struct fi_av_attr     av_attr     = {0};
@@ -569,7 +569,7 @@ static void ofi_setup_address_vector() {
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for avfd to am reply epfd failed");
 }
 
-static void ofi_exchange_addresses() {
+static void ofi_exchange_addresses(void) {
   size_t reqnamelen = 0, repnamelen = 0, rdmanamelen = 0;
   char* on_node_addresses;
   int ret = FI_SUCCESS;
@@ -1976,7 +1976,7 @@ out:
 }
 
 /* General progress function */
-void gasnetc_ofi_poll()
+void gasnetc_ofi_poll(void)
 {
     gasnetc_ofi_tx_poll();
     gasnetc_ofi_am_recv_poll(1); /* requests */

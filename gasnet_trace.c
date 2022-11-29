@@ -573,7 +573,7 @@ void gasneti_format_magic(char *buf, uint64_t magic) {
     if (gasneti_autoflush) fflush(fp);      \
   } while (0)
 
-  static void gasneti_tracestats_forceflush() {
+  static void gasneti_tracestats_forceflush(void) {
     if (gasneti_statsfile) fflush(gasneti_statsfile);
     if (gasneti_tracefile) fflush(gasneti_tracefile);
   }
