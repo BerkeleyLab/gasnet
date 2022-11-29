@@ -5921,8 +5921,15 @@ case "$target_os" in
 
     # Darwin 11 (MacOSX Lion) and newer use address-space randomization by default
     # But -no_pie is ignored (with a warning) on aarch64
+    # and on x86_64 starting with Darwin 21
     tmp_ver=`expr "$target_os" : 'darwin\([[0-9]]*\)' 2>/dev/null`
-    if test $target_cpu != aarch64 && expr $tmp_ver \>= 11 >/dev/null; then
+    if test $target_cpu = aarch64; then
+      : # not supported for this arch
+    elif expr $tmp_ver \< 11 >/dev/null; then
+      : # too old
+    elif expr $tmp_ver \>= 21 >/dev/null; then
+      : # too new
+    else
       NOASLR_LDFLAGS="${dash_Wl}-no_pie"
     fi
   ;;
