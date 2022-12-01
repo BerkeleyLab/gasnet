@@ -21,8 +21,13 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* General and Misc.
+  - Add a new GASNET_USE_HUGEPAGES environment variable to provide a run-time
+    disable for hugepage support (when enabled).
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4527: Erroneous/confusing startup warning with psm2 provider
+  - bug4533: RFE: run-time disable for hugepage support
   - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
 
 ----------------------------------------------------------------------

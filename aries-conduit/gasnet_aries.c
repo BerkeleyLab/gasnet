@@ -1304,7 +1304,7 @@ am_memory_report:
   }
 
 #if defined(GASNETI_USE_HUGETLBFS)
-  am_mmap_bytes = GASNETI_ALIGNUP(am_mmap_bytes, gethugepagesize());
+  am_mmap_bytes = GASNETI_ALIGNUP(am_mmap_bytes, gasneti_hugepagesize());
   am_mmap_ptr = gasneti_huge_mmap(NULL, am_mmap_bytes);
 #else
   am_mmap_bytes = GASNETI_PAGE_ALIGNUP(am_mmap_bytes);

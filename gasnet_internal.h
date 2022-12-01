@@ -451,6 +451,7 @@ uintptr_t gasneti_max_segsize(void);
   extern void gasneti_munmap(void *segbase, uintptr_t segsize);
  #endif
  #if defined(GASNETI_USE_HUGETLBFS)
+  extern size_t gasneti_hugepagesize(void);
   extern void *gasneti_huge_mmap(void *addr, uintptr_t size);
   extern void gasneti_huge_munmap(void *addr, uintptr_t size);
  #endif
