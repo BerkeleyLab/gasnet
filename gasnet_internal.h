@@ -441,7 +441,7 @@ GASNETI_COLD
 extern void gasneti_defaultSignalHandler(int sig);
 
 /* gasneti_max_segsize() is the user-selected limit for the max mmap size, as gleaned from several sources */
-uintptr_t gasneti_max_segsize();
+uintptr_t gasneti_max_segsize(void);
 #if defined(HAVE_MMAP) || GASNET_PSHM
   #define GASNETI_MMAP_OR_PSHM 1
   extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
@@ -451,6 +451,7 @@ uintptr_t gasneti_max_segsize();
   extern void gasneti_munmap(void *segbase, uintptr_t segsize);
  #endif
  #if defined(GASNETI_USE_HUGETLBFS)
+  extern size_t gasneti_hugepagesize(void);
   extern void *gasneti_huge_mmap(void *addr, uintptr_t size);
   extern void gasneti_huge_munmap(void *addr, uintptr_t size);
  #endif

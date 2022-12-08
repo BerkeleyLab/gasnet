@@ -19,6 +19,26 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+20XX-YY-ZZ: PENDING
+
+* General and Misc.
+  - Add a new GASNET_USE_HUGEPAGES environment variable to provide a run-time
+    disable for hugepage support (when enabled).
+
+* Libfabric (details in ofi-conduit README)
+  - TEMPORARY: There are currently two candidate workarounds for the misbehavior
+    of the cxi provider under certain AM traffic patterns (bug 4461).  Both are
+    opt-in via an appropriate environment setting:
+          GASNET_OFI_RECEIVE_BUFF_SIZE=single
+          GASNET_OFI_RECEIVE_BUFF_SIZE=recv
+    It is anticipated that only one of these will remain in the next release.
+
+* Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4527: Erroneous/confusing startup warning with psm2 provider
+  - bug4533: RFE: run-time disable for hugepage support
+  - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
+
+----------------------------------------------------------------------
 2022-09-30: GASNet-EX 2022.9.0, 20th Anniversary Release
 
 The GASNet team is proudly celebrating **20 years** of providing
