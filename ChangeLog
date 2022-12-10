@@ -22,8 +22,8 @@ GASNet-EX ChangeLog
 20XX-YY-ZZ: PENDING
 
 * General and Misc.
-  - Add a new GASNET_USE_HUGEPAGES environment variable to provide a run-time
-    disable for hugepage support (when enabled).
+  - Add a new GASNET_USE_HUGEPAGES environment variable to control run-time use
+    of hugepages (assuming configure-time support).
 
 * Libfabric (details in ofi-conduit README)
   - TEMPORARY: There are currently two candidate workarounds for the misbehavior

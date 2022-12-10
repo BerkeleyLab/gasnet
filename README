@@ -662,11 +662,12 @@ these aliases.
 
 * GASNET_USE_HUGEPAGES - Boolean setting to enable/disable use of huge pages.
  This variable is silently ignored if hugetlbfs support was not enabled at
- configure time.  Otherwise, the value defaults to "1", which enables the use
- of libhugetlbfs for certain memory allocations such as GASNet-allocated
- segments and some internal buffers.  The non-default "0" forces GASNet-EX to
- instead allocate normal pages, much as it would if hugetlbfs support was not
- enabled.
+ configure time.  Otherwise, the value defaults to "1" if the environment
+ variable "HUGETLB_DEFAULT_PAGE_SIZE" is set and "0" if it is not.
+ A value of "1" enables the use of libhugetlbfs for certain memory allocations
+ such as GASNet-allocated segments and some internal buffers.  A value of
+ "0" tells GASNet-EX to instead allocate normal pages, as it would if hugetlbfs
+ support was not enabled.
 
 * GASNET_CATCH_EXIT - Boolean setting, where a "0" prevents GASNet from forcing
  global job termination (via atexit() or on_exit()) when a process calls
