@@ -108,6 +108,7 @@ testprograms_seq =      \
         testtoken       \
         testcudauva     \
         testhip         \
+        testze          \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
 
@@ -417,6 +418,9 @@ testcudauva_extracflags = @CUDA_UVA_CFLAGS@
 
 # some tests need hip_runtime.h other related options
 testhip_extracflags = @HIP_CFLAGS@
+
+# some tests need ze_api.h other related options
+testze_extracflags = @ZE_CFLAGS@
 
 # delay function, used by multiple tests
 # need to deliberately exclude and disable optimization for this object file to prevent breaking delay

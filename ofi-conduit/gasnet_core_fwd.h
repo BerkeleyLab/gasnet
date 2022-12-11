@@ -45,6 +45,7 @@
   // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
 #define GASNET_HAVE_MK_CLASS_CUDA_UVA (GASNETI_MK_CLASS_CUDA_UVA_ENABLED && GASNETC_HAVE_FI_HMEM_CUDA && !GASNET_SEGMENT_EVERYTHING)
 #define GASNET_HAVE_MK_CLASS_HIP (GASNETI_MK_CLASS_HIP_ENABLED && GASNETC_HAVE_FI_HMEM_ROCR && !GASNET_SEGMENT_EVERYTHING)
+#define GASNET_HAVE_MK_CLASS_ZE (GASNETI_MK_CLASS_ZE_ENABLED && GASNETC_HAVE_FI_HMEM_ZE && !GASNET_SEGMENT_EVERYTHING)
 
   /* uncomment if your conduit has "private" threads which might run conduit
      code and/or the client's AM handlers, even under GASNET_SEQ.

@@ -27,6 +27,10 @@ size_t maxsz = 0;
 #endif
 #include "test.h"
 
+#if GASNET_HAVE_MK_CLASS_ZE
+  #include "zekind.h"
+#endif
+
 #define GASNET_HEADNODE 0
 #define PRINT_LATENCY 0
 #define PRINT_THROUGHPUT 1
@@ -351,6 +355,7 @@ int main(int argc, char **argv)
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
     int use_cuda_uva = 0;
     int use_hip = 0;
+    int use_ze = 0;
 #endif
     int help = 0;   
 
@@ -408,6 +413,7 @@ int main(int argc, char **argv)
       } else if (!strcmp(argv[arg], "-cuda-uva")) {
         use_cuda_uva = 1;
         use_hip = 0;
+        use_ze = 0;
         ++arg;
 #endif
 #if GASNET_HAVE_MK_CLASS_HIP
@@ -415,6 +421,15 @@ int main(int argc, char **argv)
       } else if (!strcmp(argv[arg], "-hip")) {
         use_hip = 1;
         use_cuda_uva = 0;
+        use_ze = 0;
+        ++arg;
+#endif
+#if GASNET_HAVE_MK_CLASS_ZE
+      // UNDOCUMENTED
+      } else if (!strcmp(argv[arg], "-ze")) {
+        use_cuda_uva = 0;
+        use_hip = 0;
+        use_ze = 1;
         ++arg;
 #endif
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
@@ -553,6 +568,16 @@ int main(int argc, char **argv)
            (use_loc_gpu ? "GPU" : "host"), (use_rem_gpu ? "GPU" : "host"));
       args.gex_class = GEX_MK_CLASS_HIP;
       args.gex_args.gex_class_hip.gex_hipDevice = 0;
+      use_device = 1;
+    }
+    if (use_ze) {
+      MSG0("***NOTICE***: Using EXPERIMENTAL support for ZE memory kind (local %s, remote %s)",
+           (use_loc_gpu ? "GPU" : "host"), (use_rem_gpu ? "GPU" : "host"));
+    #if GASNET_HAVE_MK_CLASS_ZE
+      if (! test_open_ze_device(0, &args)) {
+        FATALERR("GEX_MK_CLASS_ZE: could not find a GPU device");
+      }
+    #endif
       use_device = 1;
     }
 

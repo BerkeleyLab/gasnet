@@ -4542,6 +4542,14 @@ configured for that provider. If that is not your desired provider, override thi
                 }],
             [ have_fi_hmem_rocr=yes
               AC_DEFINE(GASNETC_HAVE_FI_HMEM_ROCR) ])
+          GASNET_TRY_CACHE_LINK(for FI_HMEM_ZE, have_fi_hmem_ze, [
+                #include <rdma/fi_domain.h>
+            ], [{
+                  struct fi_mr_attr x;
+                  x.iface = FI_HMEM_ZE;
+                }],
+            [ have_fi_hmem_ze=yes
+              AC_DEFINE(GASNETC_HAVE_FI_HMEM_ZE) ])
           ])
     GASNET_POPVAR(CFLAGS)
     GASNET_POPVAR(LDFLAGS)
@@ -4555,6 +4563,7 @@ CONDUIT_END([test "$enabled_ofi$have_ofi" = yesyes])
 AM_CONDITIONAL(USE_OFI_CONDUIT, test "$enabled_ofi$have_ofi" = yesyes)
 AM_CONDITIONAL(HAVE_FI_HMEM_CUDA, test "$have_fi_hmem_cuda" = yes)
 AM_CONDITIONAL(HAVE_FI_HMEM_ROCR, test "$have_fi_hmem_rocr" = yes)
+AM_CONDITIONAL(HAVE_FI_HMEM_ZE, test "$have_fi_hmem_ze" = yes)
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS FINISH
 #---------------------------------------------------------------------------------------------------------------
@@ -5484,6 +5493,85 @@ AC_SUBST(HIP_LDFLAGS)
 AC_SUBST(HIP_LIBS)
 AM_CONDITIONAL(HAVE_MK_CLASS_HIP, test "$have_mk_hip" = "yes")
 
+# GEX_MK_CLASS_ZE
+enable_mk_ze_implicit=no
+GASNET_IF_ENABLED_WITH_AUTO(kind-ze,
+        [Support for memory kinds on devices via oneAPI Level Zero (auto-detected with --enable-memory-kinds, otherwise disabled)],
+        [enable_mk_ze="yes"; force_mk_ze="yes"],
+        [enable_mk_ze="no"], [
+         if test "x$enable_kind_ze" = 'xprobe'; then
+           enable_mk_ze="probe"
+         elif test "$GASNETI_PTR_BITS" = 32; then
+           enable_mk_ze="no"
+         else
+           enable_mk_ze="$enable_mk_default"
+           enable_mk_ze_implicit=yes
+         fi
+        ])
+unset have_mk_ze
+if test "$enable_mk_ze" != "no"; then
+  AC_MSG_CHECKING(for target having Level Zero memory kinds support)
+  if test "$GASNETI_PTR_BITS" = 32; then
+    AC_MSG_RESULT([no (32-bit targets are not supported)])
+    have_mk_ze=no
+  else
+    have_mk_ze=no
+    case "$target_cpu:$target_os" in
+      x86_64:linux*)    have_mk_ze='yes';;
+    esac
+    if test "$have_mk_ze" = 'no'; then
+      AC_MSG_RESULT([no (unsupported or unrecognized target $target)])
+    else
+      AC_MSG_RESULT([$have_mk_ze])
+    fi
+  fi
+
+  if test "$have_mk_ze" != "no"; then
+    GASNET_PACKAGE_HOME(ZE, [oneAPI Level Zero], [ocloc], [/usr/local], [include/level_zero/ze_api.h])
+    GASNET_PACKAGE_CFLAGS(ZE)
+    GASNET_ENV_DEFAULT(ZE_LIBS, -lze_loader)
+    GASNET_PACKAGE_LDFLAGS(ZE, ze_loader)
+    GASNET_SPLIT_LINKER_OPTS(ZE,ZE_LIBS)
+
+    # Try to compile and link a basic program using the ZE APIs
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $ZE_CFLAGS")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $ZE_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS $ZE_LIBS")
+
+    GASNET_TRY_CACHE_LINK(for working oneAPI Level Zero configuration, ze_works, [
+      #include <level_zero/ze_api.h>
+    ], [
+      ze_result_t res = zeInit(0);
+      uint32_t count = 0;
+      ze_driver_handle_t driver = NULL;
+      (void) zeDriverGet(&count, &driver);
+      ze_device_handle_t device = NULL;
+      (void) zeDeviceGet(driver, &count, &device);
+    ], [ : ], [ have_mk_ze=no; GASNET_ERR_SAVE() ])
+
+    GASNET_POPVAR(LIBS)
+    GASNET_POPVAR(LDFLAGS)
+    GASNET_POPVAR(CFLAGS)
+  fi
+
+  if test "$have_mk_ze" = "yes"; then
+    AC_DEFINE(GASNETI_MK_CLASS_ZE_ENABLED)
+    GASNET_MSG_WARN([
+oneAPI Level Zero memory kinds support has been enabled.
+This support is experimental and may have performance and correctness bugs.])
+  elif test "$force_mk_ze" = "yes"; then
+    GASNET_MSG_ERROR([oneAPI Level Zero memory kinds support was requested with --enable-kind-ze but is not available])
+  else
+    unset ZE_CFLAGS
+    unset ZE_LDFLAGS
+    unset ZE_LIBS
+  fi
+fi
+AC_SUBST(ZE_CFLAGS)
+AC_SUBST(ZE_LDFLAGS)
+AC_SUBST(ZE_LIBS)
+AM_CONDITIONAL(HAVE_MK_CLASS_ZE, test "$have_mk_ze" = "yes")
+
 AC_DEFUN([MK_OUTPUT],[
   pushdef([lowername],translit($1,'A-Z','a-z'))
   if test "$have_mk_[]lowername" = "yes"; then
@@ -5510,6 +5598,7 @@ cat >>$CONDUIT_LIST <<EOF
 EOF
 MK_OUTPUT(cuda_uva, GPUs with NVIDIA CUDA API (cuda-uva))
 MK_OUTPUT(hip,      GPUs with AMD HIP API (hip))
+MK_OUTPUT(ze,       devices with oneAPI Level Zero (ze) *EXPERIMENTAL*)
 
 dnl GASNET_TOOLSONLY_FALSE_END
 ########################################################################
