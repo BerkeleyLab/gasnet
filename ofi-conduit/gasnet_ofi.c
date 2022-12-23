@@ -103,8 +103,12 @@ static short has_mr_scalable = SCALABLE_NOT_AUTO_DETECTED;
 #endif
 
 static short has_mr_prov_key = 0;
-// cast prevents erroneous use in preprocessor directives
-#define GASNETC_OFI_HAS_MR_PROV_KEY ((short)has_mr_prov_key)
+#ifdef GASNETC_OFI_HAS_MR_PROV_KEY
+  #define GASNETC_OFI_HAS_MR_PROV_KEY_STATIC 1
+#else
+  // cast prevents erroneous use in preprocessor directives
+  #define GASNETC_OFI_HAS_MR_PROV_KEY ((short)has_mr_prov_key)
+#endif
 
 // Alias unless/until the properties are split
 #define GASNETC_OFI_HAS_MR_VIRT_ADDR (!GASNETC_OFI_HAS_MR_SCALABLE)
@@ -925,6 +929,17 @@ int gasnetc_ofi_init(void)
                          GASNETC_OFI_HAS_MR_SCALABLE, 
                          info->fabric_attr->prov_name,
                          (has_mr_scalable ? "enable" : "disable"));
+  }
+#endif
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  if (GASNETC_OFI_HAS_MR_PROV_KEY != has_mr_prov_key) {
+      gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_PROV_KEY=%i does\n"
+                         "  not match the memory registration support that the (%s) provider reported.\n"
+                         "  This could happen if a provider has changed behavior between versions.\n"
+                         "  Use configure option --%s-ofi-mr-prov-key to correct this.",
+                         GASNETC_OFI_HAS_MR_PROV_KEY,
+                         info->fabric_attr->prov_name,
+                         (has_mr_prov_key ? "enable" : "disable"));
   }
 #endif
 #if GASNET_SEGMENT_EVERYTHING
