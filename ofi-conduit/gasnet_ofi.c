@@ -102,8 +102,11 @@ static short has_mr_scalable = SCALABLE_NOT_AUTO_DETECTED;
   #define GASNETC_OFI_HAS_MR_SCALABLE ((short)has_mr_scalable)
 #endif
 
+static short has_mr_prov_key = 0;
+// cast prevents erroneous use in preprocessor directives
+#define GASNETC_OFI_HAS_MR_PROV_KEY ((short)has_mr_prov_key)
+
 // Alias unless/until the properties are split
-#define GASNETC_OFI_HAS_MR_PROV_KEY (!GASNETC_OFI_HAS_MR_SCALABLE)
 #define GASNETC_OFI_HAS_MR_VIRT_ADDR (!GASNETC_OFI_HAS_MR_SCALABLE)
 
 // Table of remote registration keys, used only when GASNETC_OFI_HAS_MR_PROV_KEY
@@ -897,14 +900,11 @@ int gasnetc_ofi_init(void)
   }
 
 #if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
-  // When using 1.5 mr_mode logic, we *currently* expect the three mode bits to be
-  // set or clear as a group, and conflate them as "BASIC" (set) vs "SCALABLE" (clear).
-  // TODO: multi-segment support will render FI_MR_PROV_KEY irrelevant
-  // TODO: FI_MR_ALLOCATED is only relevant to EVERYTHING support.
   has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
+ #if GASNET_SEGMENT_EVERYTHING
   gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
-  gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_PROV_KEY));
-
+ #endif
+  has_mr_prov_key = !!(info->domain_attr->mr_mode & FI_MR_PROV_KEY);
   gasnetc_fi_mr_endpoint = (info->domain_attr->mr_mode & FI_MR_ENDPOINT);
 #else
   has_mr_scalable = (info->domain_attr->mr_mode == FI_MR_SCALABLE);
