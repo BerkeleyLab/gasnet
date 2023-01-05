@@ -910,7 +910,7 @@ these aliases.
  The default is determined as follows (from highest to lowest priority):
    IF "conduit" is supported THEN "conduit" is the default.
    ELSEIF configured using '--with-host-detect=...' THEN the "..." is the default.
-   ELSEIF gethostid() is available THEN "hostid" is the default.
+   ELSEIF gethostid() is available THEN "gethostid" is the default.
    ELSE "hostname" is the default.
 
 
