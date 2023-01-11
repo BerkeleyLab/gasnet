@@ -4338,14 +4338,22 @@ Runtime provider feature detection and conservative defaults will be used except
                  [ofi_retry_recvmsg="1"], [ofi_retry_recvmsg="0"], [])
 
     GASNET_IF_ENABLED_WITH_AUTO(ofi-mr-scalable, [Indicates if the conduit should statically compile FI_MR_SCALABLE support into ofi-conduit (advanced users only)],
-                 [ofi_define_mr_scalable="1"], [ofi_define_mr_scalable="0"], [])
+                 [ofi_define_mr_scalable="1"], [ofi_define_mr_scalable="0"],
+                 [if test x$enable_ofi_scalable = xdynamic; then
+                    : # undocumented explict request for dynamic behavior
+                    ofi_define_mr_scalable=no
+                  fi
+                 ])
 
     GASNET_IF_ENABLED_WITH_AUTO(ofi-mr-prov-key, [Indicates if the conduit should statically compile FI_MR_PROV_KEY support into ofi-conduit (advanced users only)],
                  [ofi_define_mr_prov_key="1"], [ofi_define_mr_prov_key="0"],
-            [ if test x$cxi_version_warning = xyes; then
-               GASNET_MSG_WARN([Could not detect cxi provider version.  Using dynamic (runtime) detection.  You are encouraged to pass --enable-ofi-mr-prov-key or --disable-ofi-mr-prov-key to provide the correct static value.])
-              fi
-            ])
+                 [if test x$enable_ofi_mr_prov_key = xdynamic; then
+                    : # undocumented explict request for dynamic behavior
+                    ofi_define_mr_prov_key=no
+                  elif test x$cxi_version_warning = xyes; then
+                    GASNET_MSG_WARN([Could not detect cxi provider version.  Using dynamic (runtime) detection.  You are encouraged to pass --enable-ofi-mr-prov-key or --disable-ofi-mr-prov-key to provide the correct static value.])
+                  fi
+                 ])
 
     # Inform the user that settings were autodetected
     if test -n "$detected_ofi_provider" \
