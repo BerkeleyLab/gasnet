@@ -24,7 +24,13 @@
 #endif
 
 GASNETI_IDENT(gasnetc_IdentString_Providers,
-              "$GASNetSupportedOFIProviders: " GASNETC_OFI_PROVIDER_LIST " $");
+              "$GASNetOfiProvidersSupported: " GASNETC_OFI_PROVIDER_LIST " $");
+GASNETI_IDENT(gasnetc_IdentString_OfiUseThreadDomain,
+              "$GASNetOfiUseThreadDomain: "_STRINGIFY(GASNETC_OFI_USE_THREAD_DOMAIN)" $");
+GASNETI_IDENT(gasnetc_IdentString_OfiUseMultiCQ,
+              "$GASNetOfiUseMultiCQ: "_STRINGIFY(GASNETC_OFI_USE_MULTI_CQ)" $");
+GASNETI_IDENT(gasnetc_IdentString_OfiRetryRecvmsg,
+              "$GASNetOfiRetryRecvmsg: "_STRINGIFY(GASNETC_OFI_RETRY_RECVMSG)" $");
 
 struct fid_fabric*    gasnetc_ofi_fabricfd;
 struct fid_domain*    gasnetc_ofi_domainfd;
@@ -95,19 +101,29 @@ GASNETI_PUREP(gasnetc_fabric_addr_inner)
 #define SCALABLE_NOT_AUTO_DETECTED (-1)
 
 static short has_mr_scalable = SCALABLE_NOT_AUTO_DETECTED;
-#ifdef GASNETC_OFI_HAS_MR_SCALABLE
+#ifdef GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE
   #define GASNETC_OFI_HAS_MR_SCALABLE_STATIC 1
+  #define GASNETC_OFI_HAS_MR_SCALABLE (GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
+                "$GASNetOfiMRScalable: " GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE " $");
 #else
   // cast prevents erroneous use in preprocessor directives
   #define GASNETC_OFI_HAS_MR_SCALABLE ((short)has_mr_scalable)
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
+                "$GASNetOfiMRScalable: dynamic $");
 #endif
 
 static short has_mr_prov_key = 0;
-#ifdef GASNETC_OFI_HAS_MR_PROV_KEY
+#ifdef GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE
   #define GASNETC_OFI_HAS_MR_PROV_KEY_STATIC 1
+  #define GASNETC_OFI_HAS_MR_PROV_KEY (GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRProvKey,
+                "$GASNetOfiMRProvKey: " GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE " $");
 #else
   // cast prevents erroneous use in preprocessor directives
   #define GASNETC_OFI_HAS_MR_PROV_KEY ((short)has_mr_prov_key)
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRProvKey,
+                "$GASNetOfiMRProvKey: dynamic $");
 #endif
 
 // Alias unless/until the properties are split

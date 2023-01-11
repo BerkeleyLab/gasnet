@@ -4358,10 +4358,10 @@ configured for that provider. If that is not your desired provider, override thi
     fi
 
     if test "$ofi_define_mr_scalable" != "no"; then
-        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_SCALABLE, [((int)$ofi_define_mr_scalable)])
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE, ["$ofi_define_mr_scalable"])
     fi
     if test "$ofi_define_mr_prov_key" != "no"; then
-        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_PROV_KEY, [((int)$ofi_define_mr_prov_key)])
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE, ["$ofi_define_mr_prov_key"])
     fi
     AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_THREAD_DOMAIN, [$ofi_use_thread_domain])
     AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_MULTI_CQ, [$ofi_use_multi_cq])
