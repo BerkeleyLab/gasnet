@@ -86,7 +86,7 @@ Capabilities: FI_RMA and FI_MSG; plus FI_HMEM if using `gex_MK_Create()`
 Secondary Capabilities: FI_MULTI_RECV
 Memory Registration Mode:
     * API 1.4 or earlier: FI_MR_SCALABLE (preferred) or FI_MR_BASIC
-    * API 1.5 or newer: all or none (preferred) of FI_MR_{ALLOCATED,VIRT_ADDR,PROV_KEY}
+    * API 1.5 or newer: both or neither (preferred) of FI_MR_{ALLOCATED,VIRT_ADDR}
     * There is currently no support for providers that require FI_LOCAL_MR / FI_MR_LOCAL
 Other Modes:
     * Supports providers that require FI_MR_ENDPOINT for FI_RMA endpoints
@@ -180,6 +180,16 @@ recommended to be used as tuning options.
       For the generic provider case, both FI_MR_SCALABLE and FI_MR_BASIC
       memory registration support are compiled and the selection is made at
       runtime.
+
+    * --enable-ofi-mr-prov-key
+      Indicates that FI_MR_PROV_KEY memory registration support will be
+      compiled into the conduit.
+    * --disable-ofi-mr-prov-key
+      Indicates that FI_MR_PROV_KEY memory registration support not will
+      be compiled into the conduit.
+
+      The default for known providers differs, in some cases by version.
+      For the generic provider case, the determination is made at runtime.
 
     * --enable-ofi-multi-cq
       Indicates that the provider requires the use of distinct completion

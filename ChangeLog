@@ -26,6 +26,8 @@ GASNet-EX ChangeLog
     of hugepages (assuming configure-time support).
 
 * Libfabric (details in ofi-conduit README)
+  - Add support for providers (including cxi in HPE's libfabric 1.15.2.0)
+    in which the FI_MR_PROV_KEY and FI_MR_VIRT_ADDR bits of mr_mode differ
   - TEMPORARY: There are currently two candidate workarounds for the misbehavior
     of the cxi provider under certain AM traffic patterns (bug 4461).  Both are
     opt-in via an appropriate environment setting:
@@ -37,6 +39,7 @@ GASNet-EX ChangeLog
   - bug4527: Erroneous/confusing startup warning with psm2 provider
   - bug4533: RFE: run-time disable for hugepage support
   - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
+  - bug4553: cxi provider assertion failure with libfabric/1.15.2.0
 
 ----------------------------------------------------------------------
 2022-09-30: GASNet-EX 2022.9.0, 20th Anniversary Release
