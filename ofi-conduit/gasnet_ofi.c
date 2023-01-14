@@ -24,7 +24,13 @@
 #endif
 
 GASNETI_IDENT(gasnetc_IdentString_Providers,
-              "$GASNetSupportedOFIProviders: " GASNETC_OFI_PROVIDER_LIST " $");
+              "$GASNetOfiProvidersSupported: " GASNETC_OFI_PROVIDER_LIST " $");
+GASNETI_IDENT(gasnetc_IdentString_OfiUseThreadDomain,
+              "$GASNetOfiUseThreadDomain: "_STRINGIFY(GASNETC_OFI_USE_THREAD_DOMAIN)" $");
+GASNETI_IDENT(gasnetc_IdentString_OfiUseMultiCQ,
+              "$GASNetOfiUseMultiCQ: "_STRINGIFY(GASNETC_OFI_USE_MULTI_CQ)" $");
+GASNETI_IDENT(gasnetc_IdentString_OfiRetryRecvmsg,
+              "$GASNetOfiRetryRecvmsg: "_STRINGIFY(GASNETC_OFI_RETRY_RECVMSG)" $");
 
 struct fid_fabric*    gasnetc_ofi_fabricfd;
 struct fid_domain*    gasnetc_ofi_domainfd;
@@ -95,15 +101,32 @@ GASNETI_PUREP(gasnetc_fabric_addr_inner)
 #define SCALABLE_NOT_AUTO_DETECTED (-1)
 
 static short has_mr_scalable = SCALABLE_NOT_AUTO_DETECTED;
-#ifdef GASNETC_OFI_HAS_MR_SCALABLE
+#ifdef GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE
   #define GASNETC_OFI_HAS_MR_SCALABLE_STATIC 1
+  #define GASNETC_OFI_HAS_MR_SCALABLE (GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
+                "$GASNetOfiMRScalable: " GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE " $");
 #else
   // cast prevents erroneous use in preprocessor directives
   #define GASNETC_OFI_HAS_MR_SCALABLE ((short)has_mr_scalable)
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
+                "$GASNetOfiMRScalable: dynamic $");
+#endif
+
+static short has_mr_prov_key = 0;
+#ifdef GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE
+  #define GASNETC_OFI_HAS_MR_PROV_KEY_STATIC 1
+  #define GASNETC_OFI_HAS_MR_PROV_KEY (GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRProvKey,
+                "$GASNetOfiMRProvKey: " GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE " $");
+#else
+  // cast prevents erroneous use in preprocessor directives
+  #define GASNETC_OFI_HAS_MR_PROV_KEY ((short)has_mr_prov_key)
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRProvKey,
+                "$GASNetOfiMRProvKey: dynamic $");
 #endif
 
 // Alias unless/until the properties are split
-#define GASNETC_OFI_HAS_MR_PROV_KEY (!GASNETC_OFI_HAS_MR_SCALABLE)
 #define GASNETC_OFI_HAS_MR_VIRT_ADDR (!GASNETC_OFI_HAS_MR_SCALABLE)
 
 // Table of remote registration keys, used only when GASNETC_OFI_HAS_MR_PROV_KEY
@@ -903,14 +926,11 @@ int gasnetc_ofi_init(void)
   }
 
 #if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
-  // When using 1.5 mr_mode logic, we *currently* expect the three mode bits to be
-  // set or clear as a group, and conflate them as "BASIC" (set) vs "SCALABLE" (clear).
-  // TODO: multi-segment support will render FI_MR_PROV_KEY irrelevant
-  // TODO: FI_MR_ALLOCATED is only relevant to EVERYTHING support.
   has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
+ #if GASNET_SEGMENT_EVERYTHING
   gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
-  gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_PROV_KEY));
-
+ #endif
+  has_mr_prov_key = !!(info->domain_attr->mr_mode & FI_MR_PROV_KEY);
   gasnetc_fi_mr_endpoint = (info->domain_attr->mr_mode & FI_MR_ENDPOINT);
 #else
   has_mr_scalable = (info->domain_attr->mr_mode == FI_MR_SCALABLE);
@@ -925,6 +945,17 @@ int gasnetc_ofi_init(void)
                          GASNETC_OFI_HAS_MR_SCALABLE, 
                          info->fabric_attr->prov_name,
                          (has_mr_scalable ? "enable" : "disable"));
+  }
+#endif
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  if (GASNETC_OFI_HAS_MR_PROV_KEY != has_mr_prov_key) {
+      gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_PROV_KEY=%i does\n"
+                         "  not match the memory registration support that the (%s) provider reported.\n"
+                         "  This could happen if a provider has changed behavior between versions.\n"
+                         "  Use configure option --%s-ofi-mr-prov-key to correct this.",
+                         GASNETC_OFI_HAS_MR_PROV_KEY,
+                         info->fabric_attr->prov_name,
+                         (has_mr_prov_key ? "enable" : "disable"));
   }
 #endif
 #if GASNET_SEGMENT_EVERYTHING
