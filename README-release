@@ -29,7 +29,7 @@ GASNet Release Procedure
 
 * Increment the version number for each item or software module that has
   changed since the last public release:
-  Package version number, in configure.in AND docs/GASNet-EX.txt:
+  Package version number in configure.in:
     GASNET_RELEASE_VERSION_*
   - the major and minor versions are the nominal year and month of the package
   - For bug-fix release patches, update the patch number for each (ex: 2020.4.2).
