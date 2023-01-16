@@ -987,6 +987,9 @@ Optional environment variable settings:
      H - High-level messages from the client
      U - Unsuppressable messages, which are always output (use with caution)
   default: (all of the above)
+  Additionally, use of '^' as the first character of the mask causes the mask
+  to be interpreted as its complement.  For instance "^X" enables all types
+  except "X" (with "U" remaining unsuppressable).
 
  GASNET_STATSMASK - specify the types of statistics to collect and report
    operates analogously to GASNET_TRACEMASK
