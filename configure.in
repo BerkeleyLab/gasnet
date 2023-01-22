@@ -4256,7 +4256,6 @@ if test "$enabled_ofi" = yes; then
             ofi_provider="$aliased_ofi_provider"
         fi
     fi
-    cxi_version_warning=no
     case "$ofi_provider" in
         psm2)
             ofi_define_mr_scalable=1
@@ -4264,16 +4263,8 @@ if test "$enabled_ofi" = yes; then
             ofi_use_thread_domain=1
         ;;
         cxi)
-            # FI_MR_PROV_KEY not set in 1.15.0.0 and is set in 1.15.2.0
-            # TODO: we currently assume 1.15.1.0 sets this bit, but perhaps should not
-            if test -z $ofi_version; then
-              cxi_version_warning=yes
-            elif test $ofi_version -gt 11500; then
-              ofi_define_mr_prov_key=1
-            else
-              ofi_define_mr_prov_key=0
-            fi
             ofi_define_mr_scalable=1
+            ofi_define_mr_prov_key=0
             ofi_use_multi_cq=1
             ofi_retry_recvmsg=1
         ;;
@@ -4350,8 +4341,6 @@ Runtime provider feature detection and conservative defaults will be used except
                  [if test x$enable_ofi_mr_prov_key = xdynamic; then
                     : # undocumented explict request for dynamic behavior
                     ofi_define_mr_prov_key=no
-                  elif test x$cxi_version_warning = xyes; then
-                    GASNET_MSG_WARN([Could not detect cxi provider version.  Using dynamic (runtime) detection.  You are encouraged to pass --enable-ofi-mr-prov-key or --disable-ofi-mr-prov-key to provide the correct static value.])
                   fi
                  ])
 
