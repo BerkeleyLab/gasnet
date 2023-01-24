@@ -984,6 +984,22 @@ int gasnetc_ofi_init(void)
                                       gasneti_gethostname());
   }
 
+#if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: "GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE" (static)"));
+#else
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: %d (dynamic)", GASNETC_OFI_HAS_MR_SCALABLE));
+#endif
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_PROV_KEY support: "GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE" (static)"));
+#else
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_PROV_KEY support: %d (dynamic)", GASNETC_OFI_HAS_MR_PROV_KEY));
+#endif
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+  GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: %d (dynamic)", gasnetc_fi_hmem));
+#else
+  GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: 0 (static)"));
+#endif
+
   // Now read user-provided environment settings
   gasnetc_ofi_read_env_vars(info->fabric_attr->prov_name, info->domain_attr->name);
 
