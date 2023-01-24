@@ -934,6 +934,7 @@ int gasnetc_ofi_init(void)
   gasnetc_fi_mr_endpoint = (info->domain_attr->mr_mode & FI_MR_ENDPOINT);
 #else
   has_mr_scalable = (info->domain_attr->mr_mode == FI_MR_SCALABLE);
+  has_mr_prov_key = has_mr_scalable;
 #endif
 #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
   if (GASNETC_OFI_HAS_MR_SCALABLE != has_mr_scalable) {
