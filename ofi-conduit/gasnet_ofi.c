@@ -98,9 +98,7 @@ GASNETI_PUREP(gasnetc_fabric_addr_inner)
         gasnetc_fabric_addr_inner(GASNETC_FADDR_IDX_##type, jobrank)
 
 
-#define SCALABLE_NOT_AUTO_DETECTED (-1)
-
-static short has_mr_scalable = SCALABLE_NOT_AUTO_DETECTED;
+static short has_mr_scalable = 0;
 #ifdef GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE
   #define GASNETC_OFI_HAS_MR_SCALABLE_STATIC 1
   #define GASNETC_OFI_HAS_MR_SCALABLE (GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE[0] == '1')
@@ -792,19 +790,11 @@ int gasnetc_ofi_init(void)
 #if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
   // These are basically FI_MR_BASIC decomposed:
   hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_VIRT_ADDR | FI_MR_PROV_KEY | FI_MR_ENDPOINT;
+#elif GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+  // Use the provider's mr_mode as determined statically at configure time:
+  hints->domain_attr->mr_mode = GASNETC_OFI_HAS_MR_SCALABLE ? FI_MR_SCALABLE : FI_MR_BASIC;
 #else
-  /* If the configure script detected a provider's mr_mode, then force
-   * ofi to use that mode. */
-  switch(GASNETC_OFI_HAS_MR_SCALABLE) {
-      case 0:
-          hints->domain_attr->mr_mode = FI_MR_BASIC;
-          break;
-      case SCALABLE_NOT_AUTO_DETECTED:
-          hints->domain_attr->mr_mode = FI_MR_UNSPEC;
-          break;
-      default:
-          hints->domain_attr->mr_mode = FI_MR_SCALABLE;
-  }
+  hints->domain_attr->mr_mode = FI_MR_UNSPEC;
 #endif
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   hints->domain_attr->mr_mode |= FI_MR_HMEM;
