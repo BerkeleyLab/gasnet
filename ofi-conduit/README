@@ -174,7 +174,7 @@ recommended to be used as tuning options.
     * --disable-ofi-mr-scalable
       Indicates that FI_MR_BASIC memory registration support will be compiled
       into the conduit, and FI_MR_SCALABLE support will not.
-      Currently only the "verbs;ofi_rxm" provider defaults to use of
+      Currently only the "verbs;ofi_rxm" and "gni" providers default to use of
       FI_MR_BASIC.
 
       For the generic provider case, both FI_MR_SCALABLE and FI_MR_BASIC
@@ -188,8 +188,13 @@ recommended to be used as tuning options.
       Indicates that FI_MR_PROV_KEY memory registration support not will
       be compiled into the conduit.
 
-      The default for known providers differs, in some cases by version.
+      The default currently follows FI_MR_BASIC such that only the
+      "verbs;ofi_rxm" and "gni" providers default to use of FI_MR_PROV_KEY.
+
       For the generic provider case, the determination is made at runtime.
+
+      These options are ignored for libfabric versions prior to 1.5 (where
+      the FI_MR_PROV_KEY mr_mode bit first appears).
 
     * --enable-ofi-multi-cq
       Indicates that the provider requires the use of distinct completion

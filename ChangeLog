@@ -37,6 +37,7 @@ GASNet-EX ChangeLog
   - bug4527: Erroneous/confusing startup warning with psm2 provider
   - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
   - bug4468: RFE: negative form of GASNET_TRACEMASK
+  - bug4561: cxi provider performance regression
 
 ----------------------------------------------------------------------
 2023-01-13: GASNet-EX 2022.9.2 Release (bug fix release)
