@@ -788,8 +788,24 @@ int gasnetc_ofi_init(void)
   hints->domain_attr->av_type           = FI_AV_TABLE; /* type AV index */
 
 #if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
-  // These are basically FI_MR_BASIC decomposed:
-  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_VIRT_ADDR | FI_MR_PROV_KEY | FI_MR_ENDPOINT;
+  // The four bits we compose here are basically FI_MR_BASIC decomposed plus FI_MR_ENDPOINT:
+  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_ENDPOINT;
+
+  #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+    // Set FI_MR_VIRT_ADDR according to configure-time selection
+    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_SCALABLE ? 0 : FI_MR_VIRT_ADDR;
+  #else
+    // Try with FI_MR_VIRT_ADDR bit set.  The provider may clear it.
+    hints->domain_attr->mr_mode |= FI_MR_VIRT_ADDR;
+  #endif
+
+  #if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+    // Set FI_MR_PROV_KEY according to configure-time selection
+    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_PROV_KEY ? FI_MR_PROV_KEY : 0;
+  #else
+    // Try with FI_MR_PROV_KEY bit set.  Either we or the provider may clear it
+    hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
+  #endif
 #elif GASNETC_OFI_HAS_MR_SCALABLE_STATIC
   // Use the provider's mr_mode as determined statically at configure time:
   hints->domain_attr->mr_mode = GASNETC_OFI_HAS_MR_SCALABLE ? FI_MR_SCALABLE : FI_MR_BASIC;
@@ -915,6 +931,38 @@ int gasnetc_ofi_init(void)
       else gasneti_console0_message("WARNING", msg, info->fabric_attr->prov_name);
   }
 
+  gasneti_leak( gasnetc_ofi_provider = gasneti_strdup(info->fabric_attr->prov_name) );
+  gasneti_leak( gasnetc_ofi_domain = gasneti_strdup(info->domain_attr->name) );
+
+  // Ensure that subsequent calls to fi_getinfo() won't ever give us a
+  // different provider.  This is necessary when more than one provider matches
+  // the other hints, and the first match is not the one we want.
+  hints->fabric_attr->prov_name = gasnetc_ofi_provider;
+  hints->domain_attr->name = gasnetc_ofi_domain;
+
+#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && !GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  // We offered FI_MR_PROV_KEY, but would rather not support it if not required.
+  // So, query again without FI_MR_PROV_KEY if present.
+  if (info->domain_attr->mr_mode & FI_MR_PROV_KEY) {
+    hints->domain_attr->mr_mode ^= FI_MR_PROV_KEY;
+    struct fi_info *alt_info = gasnetc_ofi_getinfo(hints);
+    int accept = (alt_info != NULL);
+  #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+    // Must preserve statically selected FI_MR_VIRT_ADDR, if any
+    if (alt_info && (FI_MR_VIRT_ADDR & (alt_info->domain_attr->mr_mode ^ info->domain_attr->mr_mode))) {
+      accept = 0;
+    }
+  #endif
+    if (accept) {
+      fi_freeinfo(info);
+      info = alt_info;
+    } else {
+      if (alt_info) fi_freeinfo(alt_info);
+      hints->domain_attr->mr_mode ^= FI_MR_PROV_KEY;
+    }
+  }
+#endif
+
 #if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
   has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
  #if GASNET_SEGMENT_EVERYTHING
@@ -938,7 +986,7 @@ int gasnetc_ofi_init(void)
                          (has_mr_scalable ? "enable" : "disable"));
   }
 #endif
-#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   if (GASNETC_OFI_HAS_MR_PROV_KEY != has_mr_prov_key) {
       gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_PROV_KEY=%i does\n"
                          "  not match the memory registration support that the (%s) provider reported.\n"
@@ -967,13 +1015,13 @@ int gasnetc_ofi_init(void)
                            info->fabric_attr->prov_name,
                            (unsigned int)FI_MAJOR(info->fabric_attr->prov_version),
                            (unsigned int)FI_MINOR(info->fabric_attr->prov_version)));
-  gasneti_leak( gasnetc_ofi_provider = gasneti_strdup(info->fabric_attr->prov_name) );
+  gasneti_assert(! strcmp(gasnetc_ofi_provider, info->fabric_attr->prov_name));
 
   /* Open a fabric access domain, also referred to as a resource domain */
   ret = fi_domain(gasnetc_ofi_fabricfd, info, &gasnetc_ofi_domainfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_domain failed");
   GASNETI_TRACE_PRINTF(I, ("Opened domain '%s'", info->domain_attr->name));
-  gasneti_leak( gasnetc_ofi_domain = gasneti_strdup(info->domain_attr->name) );
+  gasneti_assert(! strcmp(gasnetc_ofi_domain, info->domain_attr->name));
 
   if (gasneti_spawn_verbose) {
       gasneti_console_message("INFO", "provider '%s' version %u.%u, domain '%s', hostname '%s'",
@@ -984,16 +1032,26 @@ int gasnetc_ofi_init(void)
                                       gasneti_gethostname());
   }
 
-  // Now read user-provided environment settings
-  gasnetc_ofi_read_env_vars(info->fabric_attr->prov_name, info->domain_attr->name);
-
-  /* The intention here is to ensure that subsequent calls to fi_getinfo()
-   * won't ever give us a different provider.
-   * This is necessary when more than one provider matches the other hints,
-   * and the first match is not the one we want. */
-  hints->fabric_attr->prov_name = gasnetc_ofi_provider;
-  hints->domain_attr->name = gasnetc_ofi_domain;
   fi_freeinfo(info);
+
+#if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: "GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE" (static)"));
+#else
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: %d (dynamic)", GASNETC_OFI_HAS_MR_SCALABLE));
+#endif
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_PROV_KEY support: "GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE" (static)"));
+#else
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_PROV_KEY support: %d (dynamic)", GASNETC_OFI_HAS_MR_PROV_KEY));
+#endif
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+  GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: %d (dynamic)", gasnetc_fi_hmem));
+#else
+  GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: 0 (static)"));
+#endif
+
+  // Now read user-provided environment settings
+  gasnetc_ofi_read_env_vars(gasnetc_ofi_provider, gasnetc_ofi_domain);
 
   /* Allocate a new active endpoint for RDMA operations */
   hints->caps = FI_RMA;
