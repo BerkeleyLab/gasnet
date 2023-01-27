@@ -23,6 +23,8 @@ GASNet-EX ChangeLog
 
 * Libfabric (details in ofi-conduit README)
   - Now requires libfabric 1.5 or newer
+  - The --{en,dis}able-ofi-mr-scalable configure options have been deprecated
+    in favor of newer alternatives which provide finer-grained control
   - TEMPORARY: There are currently two candidate workarounds for the misbehavior
     of the cxi provider under certain AM traffic patterns (bug 4461).  Both are
     opt-in via an appropriate environment setting:

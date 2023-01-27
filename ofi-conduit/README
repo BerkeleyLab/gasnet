@@ -168,19 +168,17 @@ recommended to be used as tuning options.
       In GASNET_SEQ and GASNET_PARSYNC modes, the two options above have no
       effect.
 
-    * --enable-ofi-mr-scalable
-      Indicates that FI_MR_SCALABLE memory registration support will be
-      compiled into the conduit, and FI_MR_BASIC support will not.
-      This is the default (and recommended) option for most providers.
-    * --disable-ofi-mr-scalable
-      Indicates that FI_MR_BASIC memory registration support will be compiled
-      into the conduit, and FI_MR_SCALABLE support will not.
-      Currently only the "verbs;ofi_rxm" and "gni" providers default to use of
-      FI_MR_BASIC.
+    * --enable-ofi-mr-virt-addr
+      Indicates that FI_MR_VIRT_ADDR memory registration support will be
+      compiled into the conduit.
+    * --disable-ofi-mr-virt-addr
+      Indicates that FI_MR_VIRT_ADDR memory registration support not will
+      be compiled into the conduit.
 
-      For the generic provider case, both FI_MR_SCALABLE and FI_MR_BASIC
-      memory registration support are compiled and the selection is made at
-      runtime.
+      Currently only "verbs;ofi_rxm" and "gni" providers default to use of
+      FI_MR_VIRT_ADDR.
+
+      For the generic provider case, the determination is made at runtime.
 
     * --enable-ofi-mr-prov-key
       Indicates that FI_MR_PROV_KEY memory registration support will be
@@ -189,10 +187,25 @@ recommended to be used as tuning options.
       Indicates that FI_MR_PROV_KEY memory registration support not will
       be compiled into the conduit.
 
-      The default currently follows FI_MR_BASIC such that only the
-      "verbs;ofi_rxm" and "gni" providers default to use of FI_MR_PROV_KEY.
+      Currently only "verbs;ofi_rxm" and "gni" providers default to use of
+      FI_MR_PROV_KEY.
 
       For the generic provider case, the determination is made at runtime.
+
+    * --enable-ofi-mr-scalable [DEPRECATED]
+      This deprecated option is an alias for
+        --disable-ofi-mr-virt-addr --disable-ofi-mr-prov-key
+      and corresponds to the legacy FI_MR_SCALABLE memory registration mode.
+    * --disable-ofi-mr-scalable [DEPRECATED]
+      This deprecated option is an alias for
+        --enable-ofi-mr-virt-addr --enable-ofi-mr-prov-key
+      and corresponds to the legacy FI_MR_BASIC memory registration mode.
+
+      These options are IGNORED in the presence of any of the following options:
+        --disable-ofi-mr-virt-addr --enable-ofi-mr-virt-addr
+        --disable-ofi-mr-prov-key  --enable-ofi-mr-prov-key
+
+      These options may be removed in a future release.
 
     * --enable-ofi-multi-cq
       Indicates that the provider requires the use of distinct completion
@@ -574,7 +587,7 @@ Known problems:
   support, but which does not work in practice.
   There are currently two known work-arounds at configure time:
   + The following overrides the dynamic selection of memory registration mode:
-      --with-ofi-provider=generic --disable-ofi-mr-scalable --enable-ofi-mr-prov-key
+      --with-ofi-provider=generic --enable-ofi-virt-addr --enable-ofi-mr-prov-key
     The resulting GASNet will only work with the gni and verbs providers,
     despite otherwise preserving use of the generic provider.
   + The following specializes for gni, disabling dynamic feature detection:

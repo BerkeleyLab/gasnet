@@ -4222,7 +4222,7 @@ if test "$enabled_ofi" = yes; then
     CONDUIT_SPAWNER
 
     ofi_provider=""
-    ofi_define_mr_scalable="no" # tri-state: "no" omits "#define", forcing runtime selection
+    ofi_define_mr_virt_addr="no" # tri-state: "no" omits "#define", forcing runtime selection
     ofi_define_mr_prov_key="no" # tri-state: "no" omits "#define", forcing runtime selection
     ofi_single_provider="yes"
     detected_ofi_provider=""
@@ -4265,35 +4265,35 @@ if test "$enabled_ofi" = yes; then
     fi
     case "$ofi_provider" in
         psm2)
-            ofi_define_mr_scalable=1
+            ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
             ofi_use_thread_domain=1
         ;;
         cxi)
-            ofi_define_mr_scalable=1
+            ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
             ofi_use_multi_cq=1
             ofi_retry_recvmsg=1
         ;;
         gni)
-            ofi_define_mr_scalable=0
+            ofi_define_mr_virt_addr=1
             ofi_define_mr_prov_key=1
         ;;
         verbs\;ofi_rxm)
-            ofi_define_mr_scalable=0
+            ofi_define_mr_virt_addr=1
             ofi_define_mr_prov_key=1
         ;;
         tcp\;ofi_rxm)
-            ofi_define_mr_scalable=1
+            ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
         ;;
         udp\;ofi_rxd)
-            ofi_define_mr_scalable=1
+            ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
             ofi_retry_recvmsg=1
         ;;
         sockets)
-            ofi_define_mr_scalable=1
+            ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
         ;;
         default|generic|"")  # NOTE: "default" is deprecated and can be removed when Spack packaging drops 2022.3.0
@@ -4335,11 +4335,11 @@ Runtime provider feature detection and conservative defaults will be used except
     GASNET_IF_ENABLED_WITH_AUTO(ofi-retry-recvmsg, [Indicates if the conduit should allow for retry of fi_recvmsg calls (advanced users only)],
                  [ofi_retry_recvmsg="1"], [ofi_retry_recvmsg="0"], [])
 
-    GASNET_IF_ENABLED_WITH_AUTO(ofi-mr-scalable, [Indicates if the conduit should statically compile FI_MR_SCALABLE support into ofi-conduit (advanced users only)],
-                 [ofi_define_mr_scalable="1"], [ofi_define_mr_scalable="0"],
-                 [if test x$enable_ofi_scalable = xdynamic; then
+    GASNET_IF_ENABLED_WITH_AUTO(ofi-mr-virt-addr, [Indicates if the conduit should statically compile FI_MR_VIRT_ADDR support into ofi-conduit (advanced users only)],
+                 [ofi_define_mr_virt_addr="1"], [ofi_define_mr_virt_addr="0"],
+                 [if test x$enable_ofi_mr_virt_addr = xdynamic; then
                     : # undocumented explict request for dynamic behavior
-                    ofi_define_mr_scalable=no
+                    ofi_define_mr_virt_addr=no
                   fi
                  ])
 
@@ -4351,9 +4351,26 @@ Runtime provider feature detection and conservative defaults will be used except
                   fi
                  ])
 
+    GASNET_IF_ENABLED_WITH_AUTO(ofi-mr-scalable, [DEPRECATED],
+      [ if test -n "${enable_ofi_mr_virt_addr+set}${enable_ofi_mr_prov_key+set}"; then
+          GASNET_MSG_WARN([DEPRECATED option --enable-ofi-mr-scalable has been IGNORED due to use of one or more --(en|dis)able-ofi-mr-* options])
+        else
+          GASNET_MSG_WARN([option --enable-ofi-mr-scalable is DEPRECATED])
+          ofi_define_mr_virt_addr="0"; ofi_define_mr_prov_key="0"
+        fi
+      ],
+      [ if test -n "${enable_ofi_mr_virt_addr+set}${enable_ofi_mr_prov_key+set}"; then
+          GASNET_MSG_WARN([DEPRECATED option --disable-ofi-mr-scalable has been IGNORED due to use of one or more --(en|dis)able-ofi-mr-* options])
+        else
+          GASNET_MSG_WARN([option --disable-ofi-mr-scalable is DEPRECATED])
+          ofi_define_mr_virt_addr="1"; ofi_define_mr_prov_key="1"
+        fi
+      ],
+      [])
+
     # Inform the user that settings were autodetected
     if test -n "$detected_ofi_provider" \
-       && test "$ofi_define_mr_scalable" != "no" \
+       && test "$ofi_define_mr_virt_addr" != "no" \
        && test "$ofi_define_mr_prov_key" != "no"; then
         GASNET_MSG_WARN([
 The $detected_ofi_provider OFI provider was detected on your system and the ofi-conduit has been
@@ -4361,8 +4378,8 @@ configured for that provider. If that is not your desired provider, override thi
 --with-ofi-provider=<provider name> configure flag. See the ofi-conduit README for details.])
     fi
 
-    if test "$ofi_define_mr_scalable" != "no"; then
-        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE, ["$ofi_define_mr_scalable"])
+    if test "$ofi_define_mr_virt_addr" != "no"; then
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE, ["$ofi_define_mr_virt_addr"])
     fi
     if test "$ofi_define_mr_prov_key" != "no"; then
         AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE, ["$ofi_define_mr_prov_key"])
