@@ -4191,6 +4191,13 @@ if test "$enabled_ofi" = yes; then
           #define FI_REVISION_VERSION 0
         #endif
       ],[(FI_MAJOR_VERSION*10000 + FI_MINOR_VERSION*100 + FI_REVISION_VERSION)],[ofi_version])
+      AC_MSG_CHECKING(for libfabric 1.5.0 or newer)
+      if test "$ofi_version" -ge 10500; then
+        AC_MSG_RESULT(yes)
+      else
+        AC_MSG_RESULT(no)
+        have_ofi=no
+      fi
     fi
     GASNET_POPVAR(CFLAGS)
     GASNET_POPVAR(LDFLAGS)
