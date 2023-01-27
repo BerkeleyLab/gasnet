@@ -324,16 +324,14 @@ static int gasnetc_ofi_inited = 0;
 // FI_MR_HMEM and corresponding fields in `struct fi_mr_attr` first
 // appear in API version 1.9.  So, memory kinds needs >= 1.9.
 //
-// FI_MR_{SCALABLE,BASIC} are deprecated since 1.5.
-// Some newer providers don't support them.
-// So, use API version >= 1.5 if possible.
+// API version 1.5 is the lowest we support
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   // No need to check MAJOR,MINOR against FI_VERSION(1, 9) since configure has verified version 1.11+.
   #define OFI_CONDUIT_VERSION FI_VERSION(1, 9)
 #elif FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION) >= FI_VERSION(1, 5)
   #define OFI_CONDUIT_VERSION FI_VERSION(1, 5)
 #else
-  #define OFI_CONDUIT_VERSION FI_VERSION(1, 0)
+  #error "ofi-conduit requires libfabric 1.5 or newer"
 #endif
 
 #if GASNET_PSHM
@@ -787,31 +785,25 @@ int gasnetc_ofi_init(void)
   /* av_type: type of address vectores that are usable with this domain */
   hints->domain_attr->av_type           = FI_AV_TABLE; /* type AV index */
 
-#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
   // The four bits we compose here are basically FI_MR_BASIC decomposed plus FI_MR_ENDPOINT:
   hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_ENDPOINT;
 
-  #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-    // Set FI_MR_VIRT_ADDR according to configure-time selection
-    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_SCALABLE ? 0 : FI_MR_VIRT_ADDR;
-  #else
-    // Try with FI_MR_VIRT_ADDR bit set.  The provider may clear it.
-    hints->domain_attr->mr_mode |= FI_MR_VIRT_ADDR;
-  #endif
-
-  #if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
-    // Set FI_MR_PROV_KEY according to configure-time selection
-    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_PROV_KEY ? FI_MR_PROV_KEY : 0;
-  #else
-    // Try with FI_MR_PROV_KEY bit set.  Either we or the provider may clear it
-    hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
-  #endif
-#elif GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-  // Use the provider's mr_mode as determined statically at configure time:
-  hints->domain_attr->mr_mode = GASNETC_OFI_HAS_MR_SCALABLE ? FI_MR_SCALABLE : FI_MR_BASIC;
+#if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+  // Set FI_MR_VIRT_ADDR according to configure-time selection
+  hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_SCALABLE ? 0 : FI_MR_VIRT_ADDR;
 #else
-  hints->domain_attr->mr_mode = FI_MR_UNSPEC;
+  // Try with FI_MR_VIRT_ADDR bit set.  The provider may clear it.
+  hints->domain_attr->mr_mode |= FI_MR_VIRT_ADDR;
 #endif
+
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  // Set FI_MR_PROV_KEY according to configure-time selection
+  hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_PROV_KEY ? FI_MR_PROV_KEY : 0;
+#else
+  // Try with FI_MR_PROV_KEY bit set.  Either we or the provider may clear it
+  hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
+#endif
+
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   hints->domain_attr->mr_mode |= FI_MR_HMEM;
 #endif
@@ -940,7 +932,7 @@ int gasnetc_ofi_init(void)
   hints->fabric_attr->prov_name = gasnetc_ofi_provider;
   hints->domain_attr->name = gasnetc_ofi_domain;
 
-#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && !GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+#if !GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   // We offered FI_MR_PROV_KEY, but would rather not support it if not required.
   // So, query again without FI_MR_PROV_KEY if present.
   if (info->domain_attr->mr_mode & FI_MR_PROV_KEY) {
@@ -963,17 +955,13 @@ int gasnetc_ofi_init(void)
   }
 #endif
 
-#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
   has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
  #if GASNET_SEGMENT_EVERYTHING
   gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
  #endif
   has_mr_prov_key = !!(info->domain_attr->mr_mode & FI_MR_PROV_KEY);
   gasnetc_fi_mr_endpoint = (info->domain_attr->mr_mode & FI_MR_ENDPOINT);
-#else
-  has_mr_scalable = (info->domain_attr->mr_mode == FI_MR_SCALABLE);
-  has_mr_prov_key = has_mr_scalable;
-#endif
+
 #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
   if (GASNETC_OFI_HAS_MR_SCALABLE != has_mr_scalable) {
       gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_SCALABLE=%i does\n"
@@ -986,7 +974,7 @@ int gasnetc_ofi_init(void)
                          (has_mr_scalable ? "enable" : "disable"));
   }
 #endif
-#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   if (GASNETC_OFI_HAS_MR_PROV_KEY != has_mr_prov_key) {
       gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_PROV_KEY=%i does\n"
                          "  not match the memory registration support that the (%s) provider reported.\n"
