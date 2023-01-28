@@ -87,8 +87,8 @@ Endpoint type: RDM
 Capabilities: FI_RMA and FI_MSG; plus FI_HMEM if using `gex_MK_Create()`
 Secondary Capabilities: FI_MULTI_RECV
 Memory Registration Mode:
-    * Supports both or neither (preferred) of FI_MR_{ALLOCATED,VIRT_ADDR}
     * There is currently no support for providers that require FI_MR_LOCAL
+    * GASNET_SEGMENT_EVERYTHING mode lacks support for providers that require FI_MR_ALLOCATED
 Other Modes:
     * Supports providers that require FI_MR_ENDPOINT for FI_RMA endpoints
     * Supports providers that require FI_CONTEXT for FI_MSG endpoints

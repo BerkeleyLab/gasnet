@@ -196,7 +196,7 @@ uintptr_t gasnetc_remote_addr(gex_Rank_t jobrank, void *addr, int rem_epidx)
 #else
     gasneti_assert_int(rem_epidx ,>=, 0);
     gasneti_assert_int(rem_epidx ,<, GASNET_MAXEPS);
-    // uses an offset, but base address is zero for EVERYTHING
+    // For EVERYTHING the base address (if any) is zero
     return (uintptr_t)addr;
 #endif
 }
@@ -782,7 +782,14 @@ int gasnetc_ofi_init(void)
   hints->domain_attr->av_type           = FI_AV_TABLE; /* type AV index */
 
   // The four bits we compose here are basically FI_MR_BASIC decomposed plus FI_MR_ENDPOINT:
-  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_ENDPOINT;
+  hints->domain_attr->mr_mode = FI_MR_ENDPOINT;
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+  // We expect all segment registrations to be of allocated virtual addresses
+  hints->domain_attr->mr_mode |= FI_MR_ALLOCATED;
+#else
+  // EVERYTHING fundamentally cannot satisfy the "ALLOCATED" constraint.
+  // Note that some providers will set this bit on output even if clear on input.
+#endif
 #if GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC
   // Set FI_MR_VIRT_ADDR according to configure-time selection
   hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_VIRT_ADDR ? FI_MR_VIRT_ADDR : 0;
@@ -950,9 +957,6 @@ int gasnetc_ofi_init(void)
 #endif
 
   has_mr_virt_addr = !!(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
-#if GASNET_SEGMENT_EVERYTHING
-  gasneti_assert_always_uint(has_mr_virt_addr ,==, !!(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
-#endif
   has_mr_prov_key = !!(info->domain_attr->mr_mode & FI_MR_PROV_KEY);
   gasnetc_fi_mr_endpoint = (info->domain_attr->mr_mode & FI_MR_ENDPOINT);
 
@@ -980,8 +984,8 @@ int gasnetc_ofi_init(void)
 #endif
 #if GASNET_SEGMENT_EVERYTHING
   if (info->domain_attr->mr_mode & FI_MR_ALLOCATED) {
-      gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING requires a provider which does NOT require\n"
-                         "FI_MR_ALLOCATED.  Pick a different OFI provider if EVERYTHING is needed.\n");
+      gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING requires a provider which does NOT require FI_MR_ALLOCATED.  "
+                         "You must pick either a different provider or a different GASNet segment mode.");
   }
 #endif
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
