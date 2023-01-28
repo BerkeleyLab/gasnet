@@ -4269,8 +4269,8 @@ if test "$enabled_ofi" = yes; then
             ofi_retry_recvmsg=1
         ;;
         gni)
-            ofi_define_mr_scalable=1
-            ofi_define_mr_prov_key=0
+            ofi_define_mr_scalable=0
+            ofi_define_mr_prov_key=1
         ;;
         verbs\;ofi_rxm)
             ofi_define_mr_scalable=0
