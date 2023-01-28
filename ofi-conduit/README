@@ -83,27 +83,40 @@ details.
 
 OFI provider requirements to run this conduit:
 -------------------------------------
-Endpoint type: RDM
-Capabilities: FI_RMA and FI_MSG; plus FI_HMEM if using `gex_MK_Create()`
-Secondary Capabilities: FI_MULTI_RECV
-Memory Registration Mode:
-    * There is currently no support for providers that require FI_MR_LOCAL
-    * GASNET_SEGMENT_EVERYTHING mode lacks support for providers that require FI_MR_ALLOCATED
-Other Modes:
-    * Supports providers that require FI_MR_ENDPOINT for FI_RMA endpoints
-    * Supports providers that require FI_CONTEXT for FI_MSG endpoints
-    * There are currently no operations which would require supporting FI_RX_CQ_DATA
-    * There are currently no operations which would require supporting FI_ASYNC_IOV
-    * There is currently no support for providers that require FI_CONTEXT for FI_RMA endpoints
-    * There is currently no support for providers that require FI_CONTEXT2
-    * There is currently no support for providers that require FI_MSG_PREFIX
-    * There is currently no support for providers that require FI_RESTRICTED_COMP
+The provider MUST support all of the following:
+    * API version 1.5 or newer
+    * API version 1.9 or newer if the client will use `gex_MK_Create()`
+    * endpoint type FI_EP_RDM
+    * capability FI_RMA
+    * capability FI_MSG
+    * capability FI_HMEM if the client will use `gex_MK_Create()`
+    * capability FI_MULTI_RECV unless GASNET_OFI_RECEIVE_BUFF_SIZE=recv
+    * address vector type FI_AV_TABLE
+    * threading mode FI_THREAD_SAFE and/or FI_THREAD_DOMAIN (more info below)
+The provider MUST NOT require any of the following:
+    * FI_MR_LOCAL
+    * FI_MR_ALLOCATED in GASNET_SEGMENT_EVERYTHING mode
+    * FI_CONTEXT for FI_RMA endpoints
+    * FI_CONTEXT2
+    * FI_MSG_PREFIX
+    * FI_RESTRICTED_COMP
+The provider MAY require any of the following:
+    * FI_MR_ENDPOINT
+    * FI_MR_VIRT_ADDR (performance may differ with or without)
+    * FI_MR_PROV_KEY (performance may differ with or without)
+    * FI_RX_CQ_DATA (no operations for which this matters)
+    * FI_ASYNC_IOV (no operations for which this matters)
+    * that at most one endpoint be associated with any given completion queue
+    * (this list is incomplete)
 Threading mode: FI_THREAD_SAFE and/or FI_THREAD_DOMAIN
-    * In GASNET_{SEQ,PARSYNC} mode, all providers use FI_THREAD_DOMAIN as only one thread makes
-      calls into the GASNet library.
-    * By default in GASNET_PAR mode, FI_THREAD_DOMAIN is used only for the psm2 provider (which
-      does not currently support FI_THREAD_SAFE) while all other providers use FI_THREAD_SAFE.
-      See the description of --{en,dis}able-ofi-thread-domain, below, for non-default behaviors.
+    * In GASNET_SEQ and GASNET_PARSYNC modes, ofi-conduit uses FI_THREAD_DOMAIN
+      since these modes ensure serialization of calls into libfabric.
+    * By default in GASNET_PAR mode, FI_THREAD_SAFE is used with most providers
+      to allow concurrent calls into libfabric.  The sole exception is the psm2
+      provider which defaults to FI_THREAD_DOMAIN due to a lack of
+      FI_THREAD_SAFE support.
+      See the description of --{en,dis}able-ofi-thread-domain, below, for
+      the means to override these defaults.
 
 Building ofi-conduit
 --------------------
