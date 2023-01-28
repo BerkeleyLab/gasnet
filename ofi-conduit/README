@@ -571,6 +571,22 @@ Known problems:
   for some providers, is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4507
 
+* Bug 4565
+  Use of explicit --with-ofi-provider=generic with the Cray Aries network (gni
+  provider) selects a memory registration mode for which the provider claims
+  support, but which does not work in practice.
+  There are currently two known work-arounds at configure time:
+  + The following overrides the dynamic selection of memory registration mode:
+      --with-ofi-provider=generic --disable-ofi-mr-scalable --enable-ofi-mr-prov-key
+    The resulting GASNet will only work with the gni and verbs providers,
+    despite otherwise preserving use of the generic provider.
+  + The following specializes for gni, disabling dynamic feature detection:
+      --with-ofi-provider=gni
+    The resulting GASNet will only work with gni provider.
+  The most up-to-date information on this bug, including known work-arounds,
+  is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4565
+
 * See docs/memory_kinds.md in the GASNet-EX sources for current information
   regarding known issues with respect to memory kinds support in ofi-conduit.
 
