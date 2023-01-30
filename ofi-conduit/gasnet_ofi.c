@@ -98,17 +98,17 @@ GASNETI_PUREP(gasnetc_fabric_addr_inner)
         gasnetc_fabric_addr_inner(GASNETC_FADDR_IDX_##type, jobrank)
 
 
-static short has_mr_scalable = 0;
-#ifdef GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE
-  #define GASNETC_OFI_HAS_MR_SCALABLE_STATIC 1
-  #define GASNETC_OFI_HAS_MR_SCALABLE (GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE[0] == '1')
-  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
-                "$GASNetOfiMRScalable: " GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE " $");
+static short has_mr_virt_addr = 0;
+#ifdef GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE
+  #define GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC 1
+  #define GASNETC_OFI_HAS_MR_VIRT_ADDR (GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRVirtAddr,
+                "$GASNetOfiMRVirtAddr: " GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE " $");
 #else
   // cast prevents erroneous use in preprocessor directives
-  #define GASNETC_OFI_HAS_MR_SCALABLE ((short)has_mr_scalable)
-  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
-                "$GASNetOfiMRScalable: dynamic $");
+  #define GASNETC_OFI_HAS_MR_VIRT_ADDR ((short)has_mr_virt_addr)
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRVirtAddr,
+                "$GASNetOfiMRVirtAddr: dynamic $");
 #endif
 
 static short has_mr_prov_key = 0;
@@ -124,11 +124,8 @@ static short has_mr_prov_key = 0;
                 "$GASNetOfiMRProvKey: dynamic $");
 #endif
 
-// Alias unless/until the properties are split
-#define GASNETC_OFI_HAS_MR_VIRT_ADDR (!GASNETC_OFI_HAS_MR_SCALABLE)
-
-// Table of remote registration keys, used only when GASNETC_OFI_HAS_MR_PROV_KEY
-// (e.g. FI_MR_BASIC).  Otherwise NULL.
+// Table of remote registration keys, used only when GASNETC_OFI_HAS_MR_PROV_KEY,
+// and otherwise NULL.
 // The leading dimension is EP index, with indices in [-1, GASNET_MAXEPS) to
 // place the aux segment keys as index -1, and the second dimension is jobrank.
 // The leading dimension is allocated at startup, and the rest is allocated
@@ -187,10 +184,9 @@ uintptr_t gasnetc_remote_addr(gex_Rank_t jobrank, void *addr, int rem_epidx)
     gasneti_assert_int(rem_epidx ,>=, -1);
     gasneti_assert_int(rem_epidx ,<, GASNET_MAXEPS);
     if (GASNETC_OFI_HAS_MR_VIRT_ADDR) {
-        // BASIC uses the virtual address
         return (uintptr_t)addr;
     } else {
-        // SCALABLE uses an offset rather than virtual address
+        // uses an offset rather than virtual address
         int in_auxseg = (rem_epidx < 0);
         gasnet_seginfo_t *si = in_auxseg ? gasneti_seginfo_aux
                                          : gasneti_seginfo_tbl[rem_epidx];
@@ -200,7 +196,7 @@ uintptr_t gasnetc_remote_addr(gex_Rank_t jobrank, void *addr, int rem_epidx)
 #else
     gasneti_assert_int(rem_epidx ,>=, 0);
     gasneti_assert_int(rem_epidx ,<, GASNET_MAXEPS);
-    // SCALABLE uses an offset, but base address is zero for EVERYTHING
+    // For EVERYTHING the base address (if any) is zero
     return (uintptr_t)addr;
 #endif
 }
@@ -324,16 +320,14 @@ static int gasnetc_ofi_inited = 0;
 // FI_MR_HMEM and corresponding fields in `struct fi_mr_attr` first
 // appear in API version 1.9.  So, memory kinds needs >= 1.9.
 //
-// FI_MR_{SCALABLE,BASIC} are deprecated since 1.5.
-// Some newer providers don't support them.
-// So, use API version >= 1.5 if possible.
+// API version 1.5 is the lowest we support
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   // No need to check MAJOR,MINOR against FI_VERSION(1, 9) since configure has verified version 1.11+.
   #define OFI_CONDUIT_VERSION FI_VERSION(1, 9)
 #elif FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION) >= FI_VERSION(1, 5)
   #define OFI_CONDUIT_VERSION FI_VERSION(1, 5)
 #else
-  #define OFI_CONDUIT_VERSION FI_VERSION(1, 0)
+  #error "ofi-conduit requires libfabric 1.5 or newer"
 #endif
 
 #if GASNET_PSHM
@@ -787,31 +781,30 @@ int gasnetc_ofi_init(void)
   /* av_type: type of address vectores that are usable with this domain */
   hints->domain_attr->av_type           = FI_AV_TABLE; /* type AV index */
 
-#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
   // The four bits we compose here are basically FI_MR_BASIC decomposed plus FI_MR_ENDPOINT:
-  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_ENDPOINT;
-
-  #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-    // Set FI_MR_VIRT_ADDR according to configure-time selection
-    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_SCALABLE ? 0 : FI_MR_VIRT_ADDR;
-  #else
-    // Try with FI_MR_VIRT_ADDR bit set.  The provider may clear it.
-    hints->domain_attr->mr_mode |= FI_MR_VIRT_ADDR;
-  #endif
-
-  #if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
-    // Set FI_MR_PROV_KEY according to configure-time selection
-    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_PROV_KEY ? FI_MR_PROV_KEY : 0;
-  #else
-    // Try with FI_MR_PROV_KEY bit set.  Either we or the provider may clear it
-    hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
-  #endif
-#elif GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-  // Use the provider's mr_mode as determined statically at configure time:
-  hints->domain_attr->mr_mode = GASNETC_OFI_HAS_MR_SCALABLE ? FI_MR_SCALABLE : FI_MR_BASIC;
+  hints->domain_attr->mr_mode = FI_MR_ENDPOINT;
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+  // We expect all segment registrations to be of allocated virtual addresses
+  hints->domain_attr->mr_mode |= FI_MR_ALLOCATED;
 #else
-  hints->domain_attr->mr_mode = FI_MR_UNSPEC;
+  // EVERYTHING fundamentally cannot satisfy the "ALLOCATED" constraint.
+  // Note that some providers will set this bit on output even if clear on input.
 #endif
+#if GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC
+  // Set FI_MR_VIRT_ADDR according to configure-time selection
+  hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_VIRT_ADDR ? FI_MR_VIRT_ADDR : 0;
+#else
+  // Try with FI_MR_VIRT_ADDR bit set.  The provider may clear it.
+  hints->domain_attr->mr_mode |= FI_MR_VIRT_ADDR;
+#endif
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  // Set FI_MR_PROV_KEY according to configure-time selection
+  hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_PROV_KEY ? FI_MR_PROV_KEY : 0;
+#else
+  // Try with FI_MR_PROV_KEY bit set.  Either we or the provider may clear it
+  hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
+#endif
+
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   hints->domain_attr->mr_mode |= FI_MR_HMEM;
 #endif
@@ -940,14 +933,14 @@ int gasnetc_ofi_init(void)
   hints->fabric_attr->prov_name = gasnetc_ofi_provider;
   hints->domain_attr->name = gasnetc_ofi_domain;
 
-#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && !GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+#if !GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   // We offered FI_MR_PROV_KEY, but would rather not support it if not required.
   // So, query again without FI_MR_PROV_KEY if present.
   if (info->domain_attr->mr_mode & FI_MR_PROV_KEY) {
     hints->domain_attr->mr_mode ^= FI_MR_PROV_KEY;
     struct fi_info *alt_info = gasnetc_ofi_getinfo(hints);
     int accept = (alt_info != NULL);
-  #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+  #if GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC
     // Must preserve statically selected FI_MR_VIRT_ADDR, if any
     if (alt_info && (FI_MR_VIRT_ADDR & (alt_info->domain_attr->mr_mode ^ info->domain_attr->mr_mode))) {
       accept = 0;
@@ -963,30 +956,22 @@ int gasnetc_ofi_init(void)
   }
 #endif
 
-#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
-  has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
- #if GASNET_SEGMENT_EVERYTHING
-  gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
- #endif
+  has_mr_virt_addr = !!(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
   has_mr_prov_key = !!(info->domain_attr->mr_mode & FI_MR_PROV_KEY);
   gasnetc_fi_mr_endpoint = (info->domain_attr->mr_mode & FI_MR_ENDPOINT);
-#else
-  has_mr_scalable = (info->domain_attr->mr_mode == FI_MR_SCALABLE);
-  has_mr_prov_key = has_mr_scalable;
-#endif
-#if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-  if (GASNETC_OFI_HAS_MR_SCALABLE != has_mr_scalable) {
-      gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_SCALABLE=%i does\n"
+
+#if GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC
+  if (GASNETC_OFI_HAS_MR_VIRT_ADDR != has_mr_virt_addr) {
+      gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_VIRT_ADDR=%i does\n"
                          "  not match the memory registration support that the (%s) provider reported.\n"
-                         "  This could happen if a provider that previously only supported FI_MR_BASIC\n"
-                         "  added support for FI_MR_SCALABLE, or if the wrong provider was selected at runtime.\n"
-                         "  Use configure option --%s-ofi-mr-scalable to correct this.",
-                         GASNETC_OFI_HAS_MR_SCALABLE, 
+                         "  This could happen if a provider has changed behavior between versions.\n"
+                         "  Use configure option --%s-ofi-mr-virt-addr to correct this.",
+                         GASNETC_OFI_HAS_MR_VIRT_ADDR,
                          info->fabric_attr->prov_name,
-                         (has_mr_scalable ? "enable" : "disable"));
+                         (has_mr_virt_addr ? "enable" : "disable"));
   }
 #endif
-#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   if (GASNETC_OFI_HAS_MR_PROV_KEY != has_mr_prov_key) {
       gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_PROV_KEY=%i does\n"
                          "  not match the memory registration support that the (%s) provider reported.\n"
@@ -998,10 +983,9 @@ int gasnetc_ofi_init(void)
   }
 #endif
 #if GASNET_SEGMENT_EVERYTHING
-  if (!GASNETC_OFI_HAS_MR_SCALABLE) {
-      gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING is not supported when using FI_MR_BASIC.\n"
-                         "Pick an OFI provider that supports FI_MR_SCALABLE if EVERYTHING\n"
-                         "is needed.\n");
+  if (info->domain_attr->mr_mode & FI_MR_ALLOCATED) {
+      gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING requires a provider which does NOT require FI_MR_ALLOCATED.  "
+                         "You must pick either a different provider or a different GASNet segment mode.");
   }
 #endif
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
@@ -1034,10 +1018,10 @@ int gasnetc_ofi_init(void)
 
   fi_freeinfo(info);
 
-#if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: "GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE" (static)"));
+#if GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_VIRT_ADDR support: "GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE" (static)"));
 #else
-  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: %d (dynamic)", GASNETC_OFI_HAS_MR_SCALABLE));
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_VIRT_ADDR support: %d (dynamic)", GASNETC_OFI_HAS_MR_VIRT_ADDR));
 #endif
 #if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   GASNETI_TRACE_PRINTF(I, ("FI_MR_PROV_KEY support: "GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE" (static)"));

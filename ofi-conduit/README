@@ -25,6 +25,8 @@ failure to locate the prerequisites fatal in `configure`.
 Where this conduit runs:
 -----------------------
 
+The GASNet OFI conduit requires libfabric 1.5 or newer.
+
 The GASNet OFI conduit can run on any OFI provider that matches its
 requirements. However, at this time, it is recommended *only* for the
 following networks.
@@ -85,9 +87,8 @@ Endpoint type: RDM
 Capabilities: FI_RMA and FI_MSG; plus FI_HMEM if using `gex_MK_Create()`
 Secondary Capabilities: FI_MULTI_RECV
 Memory Registration Mode:
-    * API 1.4 or earlier: FI_MR_SCALABLE (preferred) or FI_MR_BASIC
-    * API 1.5 or newer: both or neither (preferred) of FI_MR_{ALLOCATED,VIRT_ADDR}
-    * There is currently no support for providers that require FI_LOCAL_MR / FI_MR_LOCAL
+    * There is currently no support for providers that require FI_MR_LOCAL
+    * GASNET_SEGMENT_EVERYTHING mode lacks support for providers that require FI_MR_ALLOCATED
 Other Modes:
     * Supports providers that require FI_MR_ENDPOINT for FI_RMA endpoints
     * Supports providers that require FI_CONTEXT for FI_MSG endpoints
@@ -167,19 +168,17 @@ recommended to be used as tuning options.
       In GASNET_SEQ and GASNET_PARSYNC modes, the two options above have no
       effect.
 
-    * --enable-ofi-mr-scalable
-      Indicates that FI_MR_SCALABLE memory registration support will be
-      compiled into the conduit, and FI_MR_BASIC support will not.
-      This is the default (and recommended) option for most providers.
-    * --disable-ofi-mr-scalable
-      Indicates that FI_MR_BASIC memory registration support will be compiled
-      into the conduit, and FI_MR_SCALABLE support will not.
-      Currently only the "verbs;ofi_rxm" and "gni" providers default to use of
-      FI_MR_BASIC.
+    * --enable-ofi-mr-virt-addr
+      Indicates that FI_MR_VIRT_ADDR memory registration support will be
+      compiled into the conduit.
+    * --disable-ofi-mr-virt-addr
+      Indicates that FI_MR_VIRT_ADDR memory registration support not will
+      be compiled into the conduit.
 
-      For the generic provider case, both FI_MR_SCALABLE and FI_MR_BASIC
-      memory registration support are compiled and the selection is made at
-      runtime.
+      Currently only "verbs;ofi_rxm" and "gni" providers default to use of
+      FI_MR_VIRT_ADDR.
+
+      For the generic provider case, the determination is made at runtime.
 
     * --enable-ofi-mr-prov-key
       Indicates that FI_MR_PROV_KEY memory registration support will be
@@ -188,13 +187,25 @@ recommended to be used as tuning options.
       Indicates that FI_MR_PROV_KEY memory registration support not will
       be compiled into the conduit.
 
-      The default currently follows FI_MR_BASIC such that only the
-      "verbs;ofi_rxm" and "gni" providers default to use of FI_MR_PROV_KEY.
+      Currently only "verbs;ofi_rxm" and "gni" providers default to use of
+      FI_MR_PROV_KEY.
 
       For the generic provider case, the determination is made at runtime.
 
-      These options are ignored for libfabric versions prior to 1.5 (where
-      the FI_MR_PROV_KEY mr_mode bit first appears).
+    * --enable-ofi-mr-scalable [DEPRECATED]
+      This deprecated option is an alias for
+        --disable-ofi-mr-virt-addr --disable-ofi-mr-prov-key
+      and corresponds to the legacy FI_MR_SCALABLE memory registration mode.
+    * --disable-ofi-mr-scalable [DEPRECATED]
+      This deprecated option is an alias for
+        --enable-ofi-mr-virt-addr --enable-ofi-mr-prov-key
+      and corresponds to the legacy FI_MR_BASIC memory registration mode.
+
+      These options are IGNORED in the presence of any of the following options:
+        --disable-ofi-mr-virt-addr --enable-ofi-mr-virt-addr
+        --disable-ofi-mr-prov-key  --enable-ofi-mr-prov-key
+
+      These options may be removed in a future release.
 
     * --enable-ofi-multi-cq
       Indicates that the provider requires the use of distinct completion
@@ -425,10 +436,9 @@ Recognized environment variables:
   effect on some providers (sockets), to the intended scaling effect on others
   (verbs), and even outright crashes on other providers (cxi).
 
-* FI_PSM2_LOCK_LEVEL - This variable only applies to the psm2 provider and only
-  is available in libfabric v1.5.0. This environment variable controls the
-  internal locking state of the provider and can be set to the following three
-  values:
+* FI_PSM2_LOCK_LEVEL - This variable only applies to the psm2 provider where
+  it controls the internal locking state of the provider and can be set to the
+  following three values:
     - FI_PSM2_LOCK_LEVEL=0: All locks inside of the provider will be disabled.
     - FI_PSM2_LOCK_LEVEL=1: Some locks inside of the provider will be disabled,
       and is suitable for programs that limit the access to each PSM2 context to
@@ -577,7 +587,7 @@ Known problems:
   support, but which does not work in practice.
   There are currently two known work-arounds at configure time:
   + The following overrides the dynamic selection of memory registration mode:
-      --with-ofi-provider=generic --disable-ofi-mr-scalable --enable-ofi-mr-prov-key
+      --with-ofi-provider=generic --enable-ofi-virt-addr --enable-ofi-mr-prov-key
     The resulting GASNet will only work with the gni and verbs providers,
     despite otherwise preserving use of the generic provider.
   + The following specializes for gni, disabling dynamic feature detection:
