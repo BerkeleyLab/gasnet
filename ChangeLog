@@ -21,10 +21,6 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
-* General and Misc.
-  - Add a new GASNET_USE_HUGEPAGES environment variable to provide a run-time
-    disable for hugepage support (when enabled).
-
 * Libfabric (details in ofi-conduit README)
   - TEMPORARY: There are currently two candidate workarounds for the misbehavior
     of the cxi provider under certain AM traffic patterns (bug 4461).  Both are
@@ -33,10 +29,33 @@ GASNet-EX ChangeLog
           GASNET_OFI_RECEIVE_BUFF_SIZE=recv
     It is anticipated that only one of these will remain in the next release.
 
+* GASNet tools (spec v1.20): (details in README-tools)
+  - Support specifying the complement of a desired trace or stats mask (via the
+    environment variables and library interfaces) by prefixing "^" to the string
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4527: Erroneous/confusing startup warning with psm2 provider
-  - bug4533: RFE: run-time disable for hugepage support
   - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
+  - bug4468: RFE: negative form of GASNET_TRACEMASK
+  - bug4561: cxi provider performance regression
+
+----------------------------------------------------------------------
+2023-01-13: GASNet-EX 2022.9.2 Release (bug fix release)
+
+This bug fix release addresses issues on HPE Cray EX platforms
+discovered since the 2022.9.0 release.
+
+* Libfabric (details in ofi-conduit README)
+  - Add support for providers (including cxi in HPE's libfabric 1.15.2.0)
+    in which the FI_MR_PROV_KEY and FI_MR_VIRT_ADDR bits of mr_mode differ.
+
+* General and Misc.
+  - Add a new GASNET_USE_HUGEPAGES environment variable to control run-time use
+    of hugepages (assuming configure-time support).
+
+* Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4533: RFE: run-time disable for hugepage support
+  - bug4553: cxi provider assertion failure with libfabric/1.15.2.0
 
 ----------------------------------------------------------------------
 2022-09-30: GASNet-EX 2022.9.0, 20th Anniversary Release

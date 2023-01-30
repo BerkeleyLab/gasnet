@@ -662,11 +662,12 @@ these aliases.
 
 * GASNET_USE_HUGEPAGES - Boolean setting to enable/disable use of huge pages.
  This variable is silently ignored if hugetlbfs support was not enabled at
- configure time.  Otherwise, the value defaults to "1", which enables the use
- of libhugetlbfs for certain memory allocations such as GASNet-allocated
- segments and some internal buffers.  The non-default "0" forces GASNet-EX to
- instead allocate normal pages, much as it would if hugetlbfs support was not
- enabled.
+ configure time.  Otherwise, the value defaults to "1" if the environment
+ variable "HUGETLB_DEFAULT_PAGE_SIZE" is set and "0" if it is not.
+ A value of "1" enables the use of libhugetlbfs for certain memory allocations
+ such as GASNet-allocated segments and some internal buffers.  A value of
+ "0" tells GASNet-EX to instead allocate normal pages, as it would if hugetlbfs
+ support was not enabled.
 
 * GASNET_CATCH_EXIT - Boolean setting, where a "0" prevents GASNet from forcing
  global job termination (via atexit() or on_exit()) when a process calls
@@ -909,7 +910,7 @@ these aliases.
  The default is determined as follows (from highest to lowest priority):
    IF "conduit" is supported THEN "conduit" is the default.
    ELSEIF configured using '--with-host-detect=...' THEN the "..." is the default.
-   ELSEIF gethostid() is available THEN "hostid" is the default.
+   ELSEIF gethostid() is available THEN "gethostid" is the default.
    ELSE "hostname" is the default.
 
 
@@ -986,6 +987,9 @@ Optional environment variable settings:
      H - High-level messages from the client
      U - Unsuppressable messages, which are always output (use with caution)
   default: (all of the above)
+  Additionally, use of '^' as the first character of the mask causes the mask
+  to be interpreted as its complement.  For instance "^X" enables all types
+  except "X" (with "U" remaining unsuppressable).
 
  GASNET_STATSMASK - specify the types of statistics to collect and report
    operates analogously to GASNET_TRACEMASK

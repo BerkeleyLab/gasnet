@@ -1,6 +1,6 @@
 GASNet ofi-conduit documentation
 Copyright 2015-2017, Intel Corporation
-Portions copyright 2018-2022, The Regents of the University of California.
+Portions copyright 2018-2023, The Regents of the University of California.
 
 User Information:
 ----------------
@@ -86,7 +86,7 @@ Capabilities: FI_RMA and FI_MSG; plus FI_HMEM if using `gex_MK_Create()`
 Secondary Capabilities: FI_MULTI_RECV
 Memory Registration Mode:
     * API 1.4 or earlier: FI_MR_SCALABLE (preferred) or FI_MR_BASIC
-    * API 1.5 or newer: all or none (preferred) of FI_MR_{ALLOCATED,VIRT_ADDR,PROV_KEY}
+    * API 1.5 or newer: both or neither (preferred) of FI_MR_{ALLOCATED,VIRT_ADDR}
     * There is currently no support for providers that require FI_LOCAL_MR / FI_MR_LOCAL
 Other Modes:
     * Supports providers that require FI_MR_ENDPOINT for FI_RMA endpoints
@@ -174,12 +174,27 @@ recommended to be used as tuning options.
     * --disable-ofi-mr-scalable
       Indicates that FI_MR_BASIC memory registration support will be compiled
       into the conduit, and FI_MR_SCALABLE support will not.
-      Currently only the "verbs;ofi_rxm" provider defaults to use of
+      Currently only the "verbs;ofi_rxm" and "gni" providers default to use of
       FI_MR_BASIC.
 
       For the generic provider case, both FI_MR_SCALABLE and FI_MR_BASIC
       memory registration support are compiled and the selection is made at
       runtime.
+
+    * --enable-ofi-mr-prov-key
+      Indicates that FI_MR_PROV_KEY memory registration support will be
+      compiled into the conduit.
+    * --disable-ofi-mr-prov-key
+      Indicates that FI_MR_PROV_KEY memory registration support not will
+      be compiled into the conduit.
+
+      The default currently follows FI_MR_BASIC such that only the
+      "verbs;ofi_rxm" and "gni" providers default to use of FI_MR_PROV_KEY.
+
+      For the generic provider case, the determination is made at runtime.
+
+      These options are ignored for libfabric versions prior to 1.5 (where
+      the FI_MR_PROV_KEY mr_mode bit first appears).
 
     * --enable-ofi-multi-cq
       Indicates that the provider requires the use of distinct completion
@@ -555,6 +570,22 @@ Known problems:
   The most up-to-date information on this bug, including the observed limits
   for some providers, is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4507
+
+* Bug 4565
+  Use of explicit --with-ofi-provider=generic with the Cray Aries network (gni
+  provider) selects a memory registration mode for which the provider claims
+  support, but which does not work in practice.
+  There are currently two known work-arounds at configure time:
+  + The following overrides the dynamic selection of memory registration mode:
+      --with-ofi-provider=generic --disable-ofi-mr-scalable --enable-ofi-mr-prov-key
+    The resulting GASNet will only work with the gni and verbs providers,
+    despite otherwise preserving use of the generic provider.
+  + The following specializes for gni, disabling dynamic feature detection:
+      --with-ofi-provider=gni
+    The resulting GASNet will only work with gni provider.
+  The most up-to-date information on this bug, including known work-arounds,
+  is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4565
 
 * See docs/memory_kinds.md in the GASNet-EX sources for current information
   regarding known issues with respect to memory kinds support in ofi-conduit.

@@ -24,7 +24,13 @@
 #endif
 
 GASNETI_IDENT(gasnetc_IdentString_Providers,
-              "$GASNetSupportedOFIProviders: " GASNETC_OFI_PROVIDER_LIST " $");
+              "$GASNetOfiProvidersSupported: " GASNETC_OFI_PROVIDER_LIST " $");
+GASNETI_IDENT(gasnetc_IdentString_OfiUseThreadDomain,
+              "$GASNetOfiUseThreadDomain: "_STRINGIFY(GASNETC_OFI_USE_THREAD_DOMAIN)" $");
+GASNETI_IDENT(gasnetc_IdentString_OfiUseMultiCQ,
+              "$GASNetOfiUseMultiCQ: "_STRINGIFY(GASNETC_OFI_USE_MULTI_CQ)" $");
+GASNETI_IDENT(gasnetc_IdentString_OfiRetryRecvmsg,
+              "$GASNetOfiRetryRecvmsg: "_STRINGIFY(GASNETC_OFI_RETRY_RECVMSG)" $");
 
 struct fid_fabric*    gasnetc_ofi_fabricfd;
 struct fid_domain*    gasnetc_ofi_domainfd;
@@ -92,18 +98,33 @@ GASNETI_PUREP(gasnetc_fabric_addr_inner)
         gasnetc_fabric_addr_inner(GASNETC_FADDR_IDX_##type, jobrank)
 
 
-#define SCALABLE_NOT_AUTO_DETECTED (-1)
-
-static short has_mr_scalable = SCALABLE_NOT_AUTO_DETECTED;
-#ifdef GASNETC_OFI_HAS_MR_SCALABLE
+static short has_mr_scalable = 0;
+#ifdef GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE
   #define GASNETC_OFI_HAS_MR_SCALABLE_STATIC 1
+  #define GASNETC_OFI_HAS_MR_SCALABLE (GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
+                "$GASNetOfiMRScalable: " GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE " $");
 #else
   // cast prevents erroneous use in preprocessor directives
   #define GASNETC_OFI_HAS_MR_SCALABLE ((short)has_mr_scalable)
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
+                "$GASNetOfiMRScalable: dynamic $");
+#endif
+
+static short has_mr_prov_key = 0;
+#ifdef GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE
+  #define GASNETC_OFI_HAS_MR_PROV_KEY_STATIC 1
+  #define GASNETC_OFI_HAS_MR_PROV_KEY (GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRProvKey,
+                "$GASNetOfiMRProvKey: " GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE " $");
+#else
+  // cast prevents erroneous use in preprocessor directives
+  #define GASNETC_OFI_HAS_MR_PROV_KEY ((short)has_mr_prov_key)
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRProvKey,
+                "$GASNetOfiMRProvKey: dynamic $");
 #endif
 
 // Alias unless/until the properties are split
-#define GASNETC_OFI_HAS_MR_PROV_KEY (!GASNETC_OFI_HAS_MR_SCALABLE)
 #define GASNETC_OFI_HAS_MR_VIRT_ADDR (!GASNETC_OFI_HAS_MR_SCALABLE)
 
 // Table of remote registration keys, used only when GASNETC_OFI_HAS_MR_PROV_KEY
@@ -767,21 +788,29 @@ int gasnetc_ofi_init(void)
   hints->domain_attr->av_type           = FI_AV_TABLE; /* type AV index */
 
 #if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
-  // These are basically FI_MR_BASIC decomposed:
-  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_VIRT_ADDR | FI_MR_PROV_KEY | FI_MR_ENDPOINT;
+  // The four bits we compose here are basically FI_MR_BASIC decomposed plus FI_MR_ENDPOINT:
+  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_ENDPOINT;
+
+  #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+    // Set FI_MR_VIRT_ADDR according to configure-time selection
+    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_SCALABLE ? 0 : FI_MR_VIRT_ADDR;
+  #else
+    // Try with FI_MR_VIRT_ADDR bit set.  The provider may clear it.
+    hints->domain_attr->mr_mode |= FI_MR_VIRT_ADDR;
+  #endif
+
+  #if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+    // Set FI_MR_PROV_KEY according to configure-time selection
+    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_PROV_KEY ? FI_MR_PROV_KEY : 0;
+  #else
+    // Try with FI_MR_PROV_KEY bit set.  Either we or the provider may clear it
+    hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
+  #endif
+#elif GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+  // Use the provider's mr_mode as determined statically at configure time:
+  hints->domain_attr->mr_mode = GASNETC_OFI_HAS_MR_SCALABLE ? FI_MR_SCALABLE : FI_MR_BASIC;
 #else
-  /* If the configure script detected a provider's mr_mode, then force
-   * ofi to use that mode. */
-  switch(GASNETC_OFI_HAS_MR_SCALABLE) {
-      case 0:
-          hints->domain_attr->mr_mode = FI_MR_BASIC;
-          break;
-      case SCALABLE_NOT_AUTO_DETECTED:
-          hints->domain_attr->mr_mode = FI_MR_UNSPEC;
-          break;
-      default:
-          hints->domain_attr->mr_mode = FI_MR_SCALABLE;
-  }
+  hints->domain_attr->mr_mode = FI_MR_UNSPEC;
 #endif
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   hints->domain_attr->mr_mode |= FI_MR_HMEM;
@@ -902,18 +931,48 @@ int gasnetc_ofi_init(void)
       else gasneti_console0_message("WARNING", msg, info->fabric_attr->prov_name);
   }
 
-#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
-  // When using 1.5 mr_mode logic, we *currently* expect the three mode bits to be
-  // set or clear as a group, and conflate them as "BASIC" (set) vs "SCALABLE" (clear).
-  // TODO: multi-segment support will render FI_MR_PROV_KEY irrelevant
-  // TODO: FI_MR_ALLOCATED is only relevant to EVERYTHING support.
-  has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
-  gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
-  gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_PROV_KEY));
+  gasneti_leak( gasnetc_ofi_provider = gasneti_strdup(info->fabric_attr->prov_name) );
+  gasneti_leak( gasnetc_ofi_domain = gasneti_strdup(info->domain_attr->name) );
 
+  // Ensure that subsequent calls to fi_getinfo() won't ever give us a
+  // different provider.  This is necessary when more than one provider matches
+  // the other hints, and the first match is not the one we want.
+  hints->fabric_attr->prov_name = gasnetc_ofi_provider;
+  hints->domain_attr->name = gasnetc_ofi_domain;
+
+#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && !GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  // We offered FI_MR_PROV_KEY, but would rather not support it if not required.
+  // So, query again without FI_MR_PROV_KEY if present.
+  if (info->domain_attr->mr_mode & FI_MR_PROV_KEY) {
+    hints->domain_attr->mr_mode ^= FI_MR_PROV_KEY;
+    struct fi_info *alt_info = gasnetc_ofi_getinfo(hints);
+    int accept = (alt_info != NULL);
+  #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+    // Must preserve statically selected FI_MR_VIRT_ADDR, if any
+    if (alt_info && (FI_MR_VIRT_ADDR & (alt_info->domain_attr->mr_mode ^ info->domain_attr->mr_mode))) {
+      accept = 0;
+    }
+  #endif
+    if (accept) {
+      fi_freeinfo(info);
+      info = alt_info;
+    } else {
+      if (alt_info) fi_freeinfo(alt_info);
+      hints->domain_attr->mr_mode ^= FI_MR_PROV_KEY;
+    }
+  }
+#endif
+
+#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
+  has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
+ #if GASNET_SEGMENT_EVERYTHING
+  gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
+ #endif
+  has_mr_prov_key = !!(info->domain_attr->mr_mode & FI_MR_PROV_KEY);
   gasnetc_fi_mr_endpoint = (info->domain_attr->mr_mode & FI_MR_ENDPOINT);
 #else
   has_mr_scalable = (info->domain_attr->mr_mode == FI_MR_SCALABLE);
+  has_mr_prov_key = has_mr_scalable;
 #endif
 #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
   if (GASNETC_OFI_HAS_MR_SCALABLE != has_mr_scalable) {
@@ -925,6 +984,17 @@ int gasnetc_ofi_init(void)
                          GASNETC_OFI_HAS_MR_SCALABLE, 
                          info->fabric_attr->prov_name,
                          (has_mr_scalable ? "enable" : "disable"));
+  }
+#endif
+#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  if (GASNETC_OFI_HAS_MR_PROV_KEY != has_mr_prov_key) {
+      gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_PROV_KEY=%i does\n"
+                         "  not match the memory registration support that the (%s) provider reported.\n"
+                         "  This could happen if a provider has changed behavior between versions.\n"
+                         "  Use configure option --%s-ofi-mr-prov-key to correct this.",
+                         GASNETC_OFI_HAS_MR_PROV_KEY,
+                         info->fabric_attr->prov_name,
+                         (has_mr_prov_key ? "enable" : "disable"));
   }
 #endif
 #if GASNET_SEGMENT_EVERYTHING
@@ -945,13 +1015,13 @@ int gasnetc_ofi_init(void)
                            info->fabric_attr->prov_name,
                            (unsigned int)FI_MAJOR(info->fabric_attr->prov_version),
                            (unsigned int)FI_MINOR(info->fabric_attr->prov_version)));
-  gasneti_leak( gasnetc_ofi_provider = gasneti_strdup(info->fabric_attr->prov_name) );
+  gasneti_assert(! strcmp(gasnetc_ofi_provider, info->fabric_attr->prov_name));
 
   /* Open a fabric access domain, also referred to as a resource domain */
   ret = fi_domain(gasnetc_ofi_fabricfd, info, &gasnetc_ofi_domainfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_domain failed");
   GASNETI_TRACE_PRINTF(I, ("Opened domain '%s'", info->domain_attr->name));
-  gasneti_leak( gasnetc_ofi_domain = gasneti_strdup(info->domain_attr->name) );
+  gasneti_assert(! strcmp(gasnetc_ofi_domain, info->domain_attr->name));
 
   if (gasneti_spawn_verbose) {
       gasneti_console_message("INFO", "provider '%s' version %u.%u, domain '%s', hostname '%s'",
@@ -962,16 +1032,26 @@ int gasnetc_ofi_init(void)
                                       gasneti_gethostname());
   }
 
-  // Now read user-provided environment settings
-  gasnetc_ofi_read_env_vars(info->fabric_attr->prov_name, info->domain_attr->name);
-
-  /* The intention here is to ensure that subsequent calls to fi_getinfo()
-   * won't ever give us a different provider.
-   * This is necessary when more than one provider matches the other hints,
-   * and the first match is not the one we want. */
-  hints->fabric_attr->prov_name = gasnetc_ofi_provider;
-  hints->domain_attr->name = gasnetc_ofi_domain;
   fi_freeinfo(info);
+
+#if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: "GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE" (static)"));
+#else
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: %d (dynamic)", GASNETC_OFI_HAS_MR_SCALABLE));
+#endif
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_PROV_KEY support: "GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE" (static)"));
+#else
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_PROV_KEY support: %d (dynamic)", GASNETC_OFI_HAS_MR_PROV_KEY));
+#endif
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+  GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: %d (dynamic)", gasnetc_fi_hmem));
+#else
+  GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: 0 (static)"));
+#endif
+
+  // Now read user-provided environment settings
+  gasnetc_ofi_read_env_vars(gasnetc_ofi_provider, gasnetc_ofi_domain);
 
   /* Allocate a new active endpoint for RDMA operations */
   hints->caps = FI_RMA;

@@ -11,7 +11,7 @@ define([cv_prefix],[gasnet_cv_])
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2022])
 define([GASNET_RELEASE_VERSION_MINOR_D],[9])
-define([GASNET_RELEASE_VERSION_PATCH_D],[3])
+define([GASNET_RELEASE_VERSION_PATCH_D],[7])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
 define([GASNETEX_SPEC_VERSION_MINOR_D],[16])
@@ -4184,7 +4184,14 @@ if test "$enabled_ofi" = yes; then
               rc = fi_getinfo(FI_VERSION(FI_MAJOR_VERSION,FI_MINOR_VERSION),
                               0, 0, 0, 0, 0);
             }], [ : ], [ have_ofi=no; GASNET_ERR_SAVE() ] )
-
+    if test "$have_ofi" = yes; then
+      GASNET_TRY_CACHE_EXTRACT_EXPR(for libfabric version code, ofi_version,[
+        #include <rdma/fabric.h>
+        #ifndef FI_REVISION_VERSION /* first appears in 1.10.0 */
+          #define FI_REVISION_VERSION 0
+        #endif
+      ],[(FI_MAJOR_VERSION*10000 + FI_MINOR_VERSION*100 + FI_REVISION_VERSION)],[ofi_version])
+    fi
     GASNET_POPVAR(CFLAGS)
     GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
@@ -4209,6 +4216,7 @@ if test "$enabled_ofi" = yes; then
 
     ofi_provider=""
     ofi_define_mr_scalable="no" # tri-state: "no" omits "#define", forcing runtime selection
+    ofi_define_mr_prov_key="no" # tri-state: "no" omits "#define", forcing runtime selection
     ofi_single_provider="yes"
     detected_ofi_provider=""
     ofi_use_thread_domain=0
@@ -4251,28 +4259,35 @@ if test "$enabled_ofi" = yes; then
     case "$ofi_provider" in
         psm2)
             ofi_define_mr_scalable=1
+            ofi_define_mr_prov_key=0
             ofi_use_thread_domain=1
         ;;
         cxi)
             ofi_define_mr_scalable=1
+            ofi_define_mr_prov_key=0
             ofi_use_multi_cq=1
             ofi_retry_recvmsg=1
         ;;
         gni)
             ofi_define_mr_scalable=0
+            ofi_define_mr_prov_key=1
         ;;
         verbs\;ofi_rxm)
             ofi_define_mr_scalable=0
+            ofi_define_mr_prov_key=1
         ;;
         tcp\;ofi_rxm)
             ofi_define_mr_scalable=1
+            ofi_define_mr_prov_key=0
         ;;
         udp\;ofi_rxd)
             ofi_define_mr_scalable=1
+            ofi_define_mr_prov_key=0
             ofi_retry_recvmsg=1
         ;;
         sockets)
             ofi_define_mr_scalable=1
+            ofi_define_mr_prov_key=0
         ;;
         default|generic|"")  # NOTE: "default" is deprecated and can be removed when Spack packaging drops 2022.3.0
             if test -n "$ofi_provider"; then
@@ -4314,9 +4329,25 @@ Runtime provider feature detection and conservative defaults will be used except
                  [ofi_retry_recvmsg="1"], [ofi_retry_recvmsg="0"], [])
 
     GASNET_IF_ENABLED_WITH_AUTO(ofi-mr-scalable, [Indicates if the conduit should statically compile FI_MR_SCALABLE support into ofi-conduit (advanced users only)],
-                 [ofi_define_mr_scalable="1"], [ofi_define_mr_scalable="0"], [])
+                 [ofi_define_mr_scalable="1"], [ofi_define_mr_scalable="0"],
+                 [if test x$enable_ofi_scalable = xdynamic; then
+                    : # undocumented explict request for dynamic behavior
+                    ofi_define_mr_scalable=no
+                  fi
+                 ])
+
+    GASNET_IF_ENABLED_WITH_AUTO(ofi-mr-prov-key, [Indicates if the conduit should statically compile FI_MR_PROV_KEY support into ofi-conduit (advanced users only)],
+                 [ofi_define_mr_prov_key="1"], [ofi_define_mr_prov_key="0"],
+                 [if test x$enable_ofi_mr_prov_key = xdynamic; then
+                    : # undocumented explict request for dynamic behavior
+                    ofi_define_mr_prov_key=no
+                  fi
+                 ])
+
     # Inform the user that settings were autodetected
-    if test -n "$detected_ofi_provider" && test "$ofi_define_mr_scalable" != "no"; then
+    if test -n "$detected_ofi_provider" \
+       && test "$ofi_define_mr_scalable" != "no" \
+       && test "$ofi_define_mr_prov_key" != "no"; then
         GASNET_MSG_WARN([
 The $detected_ofi_provider OFI provider was detected on your system and the ofi-conduit has been
 configured for that provider. If that is not your desired provider, override this by using the
@@ -4324,9 +4355,11 @@ configured for that provider. If that is not your desired provider, override thi
     fi
 
     if test "$ofi_define_mr_scalable" != "no"; then
-        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_SCALABLE, [((int)$ofi_define_mr_scalable)])
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE, ["$ofi_define_mr_scalable"])
     fi
-
+    if test "$ofi_define_mr_prov_key" != "no"; then
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE, ["$ofi_define_mr_prov_key"])
+    fi
     AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_THREAD_DOMAIN, [$ofi_use_thread_domain])
     AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_MULTI_CQ, [$ofi_use_multi_cq])
     AC_DEFINE_UNQUOTED(GASNETC_OFI_RETRY_RECVMSG, [$ofi_retry_recvmsg])

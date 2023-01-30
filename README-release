@@ -29,7 +29,7 @@ GASNet Release Procedure
 
 * Increment the version number for each item or software module that has
   changed since the last public release:
-  Package version number, in configure.in AND docs/GASNet-EX.txt:
+  Package version number in configure.in:
     GASNET_RELEASE_VERSION_*
   - the major and minor versions are the nominal year and month of the package
   - For bug-fix release patches, update the patch number for each (ex: 2020.4.2).
@@ -41,10 +41,12 @@ GASNet Release Procedure
     GASNET(EX)_SPEC_VERSION_MAJOR - increment on backwards compatibility break
     GASNET(EX)_SPEC_VERSION_MINOR - increment for new features that don't break
                                     backwards compatibility, zero on MAJOR change
+    Every increment should have a corresponding ChangeLog entry summarizing the change.
   GASNet tools spec version numbers, in configure.in:
     GASNETT_SPEC_VERSION_MAJOR - increment on backward compatibility break
     GASNETT_SPEC_VERSION_MINOR - increment for new features that don't break
                                  backwards compatibility, zero on MAJOR change
+    Every increment should have a corresponding ChangeLog entry summarizing the change.
   Spec version numbers in docs/GASNet-EX.txt and README-tools:
     Following the previous release, develop should have advanced the GASNet-EX and
     GASNet Tools spec numbers in documentation (docs/GASNet-EX.txt and README-tools).
@@ -128,6 +130,13 @@ GASNet Release Procedure
   back to 'develop' at the end of this procedure.  However, if there is
   something critical, it can be cherry-picked to 'develop' without any
   problems (git is smart enough to deal with this at the later merge step).
+
+* Decide whether a tools-only release is being performed.
+  Generally a tools-only release needs to be justified by one of the following:
+    * A bump to GASNETT_SPEC_VERSION_{MAJOR,MINOR} documented in the
+      ChangeLog along with the tools API changes it signifies.
+    * A ChangeLog entry for platform support that also applies to tool-only mode.
+    * One or more "fixed bugs" that apply to tools-only functionality
 
 * Clone a *second* copy of the repository for the tools-only distribution:
     $ git clone --branch release/2040.8.0 \

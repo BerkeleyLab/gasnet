@@ -96,7 +96,8 @@
       gasneti_sync_reads();
     } else {
       char valstr[16];
-      if (gasneti_getenv_yesno_withdefault("GASNET_USE_HUGEPAGES",1)) {
+      int dflt = getenv("HUGETLB_DEFAULT_PAGE_SIZE") ? 1 : 0; // intentionally not gasneti_getenv()
+      if (gasneti_getenv_yesno_withdefault("GASNET_USE_HUGEPAGES", dflt)) {
         _gasneti_use_hugetlbfs = 1;
         _gasneti_hugepagesize = gethugepagesize();
         gasneti_assert_always(_gasneti_hugepagesize != 0);
