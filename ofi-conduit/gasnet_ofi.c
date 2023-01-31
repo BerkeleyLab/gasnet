@@ -1044,7 +1044,13 @@ int gasnetc_ofi_init(void)
     hints->caps |= FI_HMEM;
   }
 #endif
-  hints->mode = 0;  // in particular we do not support FI_CONTEXT due to many-to-one iop
+
+  // We do not support FI_CONTEXT for an RMA endpoint due to many-to-one iop.
+  // However, we must set the bit as a work-around for psm2 provider in libfabric < 1.10 (bug 4567)
+  int have_bug_4567 = using_psm_provider &&
+                      (FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION) < FI_VERSION(1, 10));
+  hints->mode = have_bug_4567 ? FI_CONTEXT : 0;
+  GASNETI_TRACE_PRINTF(I,("Work-around for bug 4567 is %sabled.", have_bug_4567?"en":"dis"));
 
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_rma_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for RMA endpoint");
