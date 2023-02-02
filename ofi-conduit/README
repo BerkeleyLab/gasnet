@@ -572,10 +572,10 @@ Known problems:
   network on some HPE Cray EX systems) has been observed to fail in various
   ways, including crashes and dropped messages.
   At the time of this writing, the best known work-around is to set
-    GASNET_OFI_RECEIVE_BUFF_SIZE=single
-  in your environment.  This setting automatically uses a receive buffer size
-  that ensures only a single AM will be received per "multi-receive" buffer,
-  and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is adjusted to compensate.
+    GASNET_OFI_RECEIVE_BUFF_SIZE=recv
+  in your environment.  This setting disables use of the "multi-receive"
+  feature of libfabric, and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is
+  adjusted to compensate.
   Empirical evidence shows this prevents the failures in applications which
   exhibit them (which is *not* every application).  However, this measurably
   increases the latency of small AM operations.  So, this should only be used

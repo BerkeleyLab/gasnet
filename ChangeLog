@@ -25,12 +25,10 @@ GASNet-EX ChangeLog
   - Now requires libfabric 1.5 or newer
   - The --{en,dis}able-ofi-mr-scalable configure options have been deprecated
     in favor of newer alternatives which provide finer-grained control
-  - TEMPORARY: There are currently two candidate workarounds for the misbehavior
-    of the cxi provider under certain AM traffic patterns (bug 4461).  Both are
-    opt-in via an appropriate environment setting:
-          GASNET_OFI_RECEIVE_BUFF_SIZE=single
-          GASNET_OFI_RECEIVE_BUFF_SIZE=recv
-    It is anticipated that only one of these will remain in the next release.
+  - A new opt-in work-around for bug 4461 (failure of the cxi provider under
+    certain AM traffic patterns).  This replaces a less effective workaround
+    introduced in GASNet-EX 2022.9.0.
+    See "Bug 4461" in the conduit README for details.
 
 * GASNet tools (spec v1.20): (details in README-tools)
   - Support specifying the complement of a desired trace or stats mask (via the
