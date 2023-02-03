@@ -41,6 +41,7 @@ GASNet-EX ChangeLog
   - bug4468: RFE: negative form of GASNET_TRACEMASK
   - bug4561: cxi provider performance regression
   - bug4567: broken support for psm2 provider in libfabric < 1.10
+  - bug4568: RFE: support for FI_AV_MAP
   - bug4574: RFE: support per-endpoint AVs
 
 ----------------------------------------------------------------------

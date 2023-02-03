@@ -73,7 +73,18 @@ typedef struct gasnetc_ofi_recv_metadata {
     gasnetc_ofi_recv_ctxt_t am_buff_ctxt;
 } gasnetc_ofi_recv_metadata_t;
 
-#define USE_AV_MAP 0
+static short use_av_map = 0;
+#ifdef GASNETC_OFI_USE_AV_MAP_CONFIGURE
+  #define GASNETC_OFI_USE_AV_MAP_STATIC 1
+  #define GASNETC_OFI_USE_AV_MAP (GASNETC_OFI_USE_AV_MAP_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiUseAVMAP,
+                "$GASNetOfiUseAVMAP: " GASNETC_OFI_USE_AV_MAP_CONFIGURE " $");
+#else
+  // cast prevents erroneous use in preprocessor directives
+  #define GASNETC_OFI_USE_AV_MAP ((short)use_av_map)
+  GASNETI_IDENT(gasnetc_IdentString_OfiUseAVMAP,
+                "$GASNetOfiUseAVMAP: dynamic $");
+#endif
 
 // Must match order of fi_getname() calls in ofi_exchange_addresses(),
 // where this is enforced via static assertions.
@@ -87,18 +98,17 @@ enum {
 // One address vector per endpoint
 static struct fid_av* gasnetc_ofi_avfd[NUM_OFI_ENDPOINTS];
 
-#if USE_AV_MAP
-    static addr_table_t  *addr_table[NUM_OFI_ENDPOINTS];
-#endif
+// Entries non-NULL only for FI_AV_MAP
+static fi_addr_t *gasnetc_addr_map[NUM_OFI_ENDPOINTS] = { NULL, };
 
 // TODO: multi-ep with independent resources will require rewriting this
 GASNETI_INLINE(gasnetc_fabric_addr_inner) GASNETI_PURE
 fi_addr_t gasnetc_fabric_addr_inner(int idx, gex_Rank_t jobrank) {
-#if USE_AV_MAP
-    return addr_table[idx]->table[jobrank];
-#else
+  if (GASNETC_OFI_USE_AV_MAP) {
+    return gasnetc_addr_map[idx][jobrank];
+  } else {
     return (fi_addr_t)jobrank;
-#endif
+  }
 }
 GASNETI_PUREP(gasnetc_fabric_addr_inner)
 #define gasnetc_fabric_addr(type, jobrank) \
@@ -576,14 +586,17 @@ static void ofi_setup_address_vector(void) {
 #else
   av_attr.type        = FI_AV_TABLE;
 #endif
+  av_attr.count       = gasneti_nodes;
+
+  // TODO:
+  //  + set av_attr.ep_per_node to improve provider resource allocation?
+  //  + set av_attr.name and mmap_addr to share address vectors within a host?
 
   // Create an AV per endpoint
   for (int i = 0; i < NUM_OFI_ENDPOINTS; ++i) {
-  #if USE_AV_MAP
-    addr_table[i]       = (addr_table_t*)gasneti_malloc(gasneti_nodes * NUM_OFI_ENDPOINTS 
-            * sizeof(conn_entry_t) + sizeof(addr_table_t));
-    addr_table[i]->size = gasneti_nodes * NUM_OFI_ENDPOINTS;
-  #endif
+    if (GASNETC_OFI_USE_AV_MAP) {
+      gasnetc_addr_map[i] = (fi_addr_t*)gasneti_malloc(sizeof(fi_addr_t) * av_attr.count);
+    }
     ret = fi_av_open(gasnetc_ofi_domainfd, &av_attr, &gasnetc_ofi_avfd[i], NULL);
     GASNETC_OFI_CHECK_RET(ret, "fi_av_open failed");
   }
@@ -649,8 +662,8 @@ static void ofi_exchange_addresses(void) {
     p = alladdrs + offsets[i];
     for (gex_Rank_t j = 0; j < gasneti_nodes; ++j) {
       uint64_t flags = (j == gasneti_nodes - 1) ? 0 : FI_MORE;
-      // To support AV_MAP, the first NULL below needs to point to the addr_table
-      ret = fi_av_insert(gasnetc_ofi_avfd[i], p, 1, NULL, flags , NULL);
+      fi_addr_t *addr_p = GASNETC_OFI_USE_AV_MAP ? gasnetc_addr_map[i] + j : NULL;
+      ret = fi_av_insert(gasnetc_ofi_avfd[i], p, 1, addr_p, flags , NULL);
       if (ret != 1) {
         gasneti_fatalerror("fi_av_insert(rank=%u, ep=%d) failed %d\n", j, i, ret);
       }
@@ -800,8 +813,13 @@ int gasnetc_ofi_init(void)
   /* resource_mgmt: FI_RM_ENABLED - provider protects against overrunning 
      local and remote resources. */
   hints->domain_attr->resource_mgmt     = FI_RM_ENABLED;
-  /* av_type: type of address vectores that are usable with this domain */
-  hints->domain_attr->av_type           = FI_AV_TABLE; /* type AV index */
+
+  // av_type: type of address vectors that are usable with this domain
+#if !GASNETC_OFI_USE_AV_MAP_STATIC
+  hints->domain_attr->av_type           = FI_AV_UNSPEC;
+#else
+  hints->domain_attr->av_type           = GASNETC_OFI_USE_AV_MAP ? FI_AV_MAP : FI_AV_TABLE;
+#endif
 
   // The four bits we compose here are basically FI_MR_BASIC decomposed plus FI_MR_ENDPOINT:
   hints->domain_attr->mr_mode = FI_MR_ENDPOINT;
@@ -1014,6 +1032,19 @@ int gasnetc_ofi_init(void)
   gasnetc_fi_hmem = !!(info->caps & FI_HMEM);
 #endif
 
+  use_av_map = (info->domain_attr->av_type == FI_AV_MAP);
+#if GASNETC_OFI_USE_AV_MAP_STATIC
+  if (GASNETC_OFI_USE_AV_MAP != use_av_map) {
+      gasneti_fatalerror("The statically-determined value for GASNETC_OFI_USE_AV_MAP=%i does\n"
+                         "  not match the address vector type that the (%s) provider reported.\n"
+                         "  This could happen if a provider has changed behavior between versions.\n"
+                         "  Use configure option --%s-ofi-av-map to correct this.",
+                         GASNETC_OFI_USE_AV_MAP,
+                         info->fabric_attr->prov_name,
+                         (GASNETC_OFI_USE_AV_MAP ? "disable" : "enable"));
+  }
+#endif
+
   /* Open the fabric provider */
   ret = fi_fabric(info->fabric_attr, &gasnetc_ofi_fabricfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_fabric failed");
@@ -1054,6 +1085,11 @@ int gasnetc_ofi_init(void)
   GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: %d (dynamic)", gasnetc_fi_hmem));
 #else
   GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: 0 (static)"));
+#endif
+#if GASNETC_OFI_USE_AV_MAP_STATIC
+  GASNETI_TRACE_PRINTF(I, ("Use of FI_AV_MAP: "GASNETC_OFI_USE_AV_MAP_CONFIGURE" (static)"));
+#else
+  GASNETI_TRACE_PRINTF(I, ("Use of FI_AV_MAP: %d (dynamic)", GASNETC_OFI_USE_AV_MAP));
 #endif
 
   // Now read user-provided environment settings
@@ -1420,6 +1456,7 @@ void gasnetc_ofi_exit(void)
     if(fi_close(&gasnetc_ofi_avfd[i]->fid)!=FI_SUCCESS) {
       gasneti_fatalerror("close av[%d] failed", i);
     }
+    gasneti_free(gasnetc_addr_map[i]);
   }
 
   if(fi_close(&gasnetc_ofi_domainfd->fid)!=FI_SUCCESS) {
@@ -1437,10 +1474,6 @@ void gasnetc_ofi_exit(void)
     }
     gasneti_free(gasnetc_remote_key_tbl - 1);
   }
-
-#if USE_AV_MAP
-  gasneti_free(addr_table);
-#endif
 }
 
 /*------------------------------------------------

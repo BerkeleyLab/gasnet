@@ -69,13 +69,6 @@ extern struct fid_cq*        gasnetc_ofi_reply_cqfd;
 
 /* The cut off of when to fully block for a non-blocking put*/
 extern size_t gasnetc_ofi_bbuf_threshold;
-/* Address table data */
-typedef void*                     conn_entry_t;
-typedef struct
-{
-  int                   size;
-  conn_entry_t          table[];
-}addr_table_t;
 
 typedef enum GASNETC_OFI_AM_TYPE {
   OFI_AM_SHORT = 0,
