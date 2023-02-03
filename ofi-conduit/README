@@ -698,5 +698,3 @@ The OFI community is working on increasing the number of providers that can supp
 * Implement native atomics via FI_ATOMIC
 
 * Implement native collectives via FI_COLLECTIVE
-
-* Implement Memory Kinds support using the FI_HMEM capability
