@@ -25,6 +25,8 @@ GASNet-EX ChangeLog
   - Now requires libfabric 1.5 or newer
   - The --{en,dis}able-ofi-mr-scalable configure options have been deprecated
     in favor of newer alternatives which provide finer-grained control
+  - Restore default use of the "RDMADISSEM" barrier, which had been previously
+    disabled in favor of a slower barrier implementaton due to bug 4427.
   - A new opt-in work-around for bug 4461 (failure of the cxi provider under
     certain AM traffic patterns).  This replaces a less effective workaround
     introduced in GASNet-EX 2022.9.0.
@@ -38,6 +40,7 @@ GASNet-EX ChangeLog
   - bug4157: ibv XRC deadlock under certain loads
   - bug4170: RFE: mod and div operations in gasneti_getenv_hwloc_withdefault()
   - bug4171: RFE: support local ranks in gasneti_getenv_hwloc_withdefault()
+  - bug4427: ofi-conduit failures with RDMADISSEM barrier
   - bug4527: Erroneous/confusing startup warning with psm2 provider
   - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
   - bug4468: RFE: negative form of GASNET_TRACEMASK
