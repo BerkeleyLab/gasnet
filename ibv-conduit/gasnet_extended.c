@@ -293,6 +293,20 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 #include "gasnet_extended_refbarrier.c"
 #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
 
+// Simple 2-phase use of RDMA inboxes
+#define GASNETE_IBDBARRIER_INBOX_SZ 64
+#define GASNETE_IBDBARRIER_INBOX(_bd,_state)     \
+            ((gasnete_coll_rmdbarrier_inbox_t *)        \
+             ((uintptr_t)((_bd)->barrier_inbox)         \
+                       + (unsigned)((_state)-2) * GASNETE_IBDBARRIER_INBOX_SZ))
+#define GASNETE_IBDBARRIER_INBOX_REMOTE(_bd,_step,_state)  \
+            ((gasnete_coll_rmdbarrier_inbox_t *)            \
+             ((_bd)->barrier_peers[(unsigned)(_step)].addr    \
+                       + (unsigned)((_state)-2) * GASNETE_IBDBARRIER_INBOX_SZ))
+#define GASNETE_IBDBARRIER_INBOX_NEXT(_addr)    \
+            ((gasnete_coll_rmdbarrier_inbox_t *) \
+             ((uintptr_t)(_addr) + 2U * GASNETE_IBDBARRIER_INBOX_SZ))
+
 static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_request_t *result) {
   if (0 == strcmp(barrier, "IBDISSEM")) {
     /* TODO: could keep the full space and allocate some to additional teams */
@@ -307,7 +321,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 
     for (steps=0, i=1; i<size; ++steps, i*=2) /* empty */ ;
 
-    request = 2 * steps * GASNETE_RDMABARRIER_INBOX_SZ;
+    request = 2 * steps * GASNETE_IBDBARRIER_INBOX_SZ;
     gasneti_assert_always(request <= result->optimalsz);
     result->minsz = request;
     result->optimalsz = request;
@@ -370,8 +384,8 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
    * This has sufficient lifetime for bulk and sufficient alignment for non-bulk.
    * Use of opposite phase prevents cacheline contention with arrivals.
    */
-  const unsigned int stride = GASNETE_RDMABARRIER_INBOX_SZ / sizeof(gasnete_coll_rmdbarrier_inbox_t);
-  payload = (stride/2) + GASNETE_RDMABARRIER_INBOX(barrier_data, (state^1));
+  const unsigned int stride = GASNETE_IBDBARRIER_INBOX_SZ / sizeof(gasnete_coll_rmdbarrier_inbox_t);
+  payload = (stride/2) + GASNETE_IBDBARRIER_INBOX(barrier_data, (state^1));
   payload->value  = value;
   payload->flags  = flags;
   payload->flags2 = ~flags;
@@ -385,7 +399,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
 
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gex_Rank_t jobrank = barrier_data->barrier_peers[step].jobrank;
-    void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
+    void * const addr = GASNETE_IBDBARRIER_INBOX_REMOTE(barrier_data, step, state);
 #if GASNET_PSHM
     if (gasneti_pshm_jobrank_in_supernode(jobrank)) {
       *(volatile gasnete_coll_rmdbarrier_inbox_t *)addr = *payload;
@@ -478,7 +492,7 @@ void gasnete_ibdbarrier_kick(gasnete_coll_team_t team) {
   flags = barrier_data->barrier_flags;
 
   /* process all consecutive steps which have arrived since we last ran */
-  inbox = GASNETE_RDMABARRIER_INBOX(barrier_data, state);
+  inbox = GASNETE_IBDBARRIER_INBOX(barrier_data, state);
   for (new_state = state; new_state < barrier_data->barrier_goal && gasnete_rmdbarrier_poll(inbox); new_state+=2) {
     const int step_value = inbox->value;
     const int step_flags = inbox->flags;
@@ -515,7 +529,7 @@ void gasnete_ibdbarrier_kick(gasnete_coll_team_t team) {
     }
 
     ++numsteps;
-    inbox = GASNETE_RDMABARRIER_INBOX_NEXT(inbox);
+    inbox = GASNETE_IBDBARRIER_INBOX_NEXT(inbox);
   }
 
   if (numsteps) { /* completed one or more steps */
@@ -755,7 +769,7 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
     int step;
 
     gasneti_assert(gasnete_rdmabarrier_auxseg);
-    gasneti_assert_always(2 * sizeof(gasnete_coll_rmdbarrier_inbox_t) <= GASNETE_RDMABARRIER_INBOX_SZ);
+    gasneti_assert_always(2 * sizeof(gasnete_coll_rmdbarrier_inbox_t) <= GASNETE_IBDBARRIER_INBOX_SZ);
     barrier_data->barrier_inbox = gasnete_rdmabarrier_auxseg[gasneti_mynode].addr;
 
     barrier_data->barrier_peers = gasneti_malloc((1+steps) * sizeof(* barrier_data->barrier_peers));
