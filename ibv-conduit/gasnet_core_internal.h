@@ -979,6 +979,14 @@ extern int gasnetc_rdma_get(
 
 extern gasnetc_buffer_t *gasnetc_get_bbuf(int block GASNETI_THREAD_FARG) GASNETI_MALLOC;
 GASNETI_MALLOCP(gasnetc_get_bbuf)
+#if GASNETC_IBV_SRQ
+  extern gasnetc_buffer_t *gasnetc_get_bbuf_srq(int block, int is_reply GASNETI_THREAD_FARG) GASNETI_MALLOC;
+  GASNETI_MALLOCP(gasnetc_get_bbuf_srq)
+  #define gasnetc_get_bbuf_am(is_reply,block_and_ti)  gasnetc_get_bbuf_srq(is_reply, block_and_ti)
+#else
+  #define gasnetc_get_bbuf_am(is_reply,block_and_ti)  gasnetc_get_bbuf(block_and_ti)
+#endif
+
 extern gasnetc_sreq_t *gasnetc_get_sreq(gasnetc_sreq_opcode_t opcode GASNETI_THREAD_FARG) GASNETI_MALLOC;
 GASNETI_MALLOCP(gasnetc_get_sreq)
 
