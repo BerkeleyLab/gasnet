@@ -1034,8 +1034,8 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid)
 }
 
 /* Take and sreq and bind it to a specific (not wildcard) qp */
-#if GASNETC_DYNAMIC_CONNECT
-gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply)
+#if GASNETC_DYNAMIC_CONNECT || GASNETC_IBV_SRQ
+gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply GASNETI_THREAD_FARG)
 #else
 gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq)
 #endif
@@ -1064,6 +1064,38 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
     }
   #endif
 
+#if GASNETC_IBV_SRQ
+  // When using SRQ, rcv buffers for AM Requests may be under-provisioned,
+  // leading to back-pressure on the injecting SQ.  When encountering this
+  // as an injector, we must not become inattentive to the rcv CQ or we
+  // risk deadlock (bug 4157).  So we may need to process inbound traffic
+  // as well.
+  //
+  // Note that the AM Reply traffic is on a distinct channel (different
+  // injecting QP) and is always *fully* provisioned.  Thus there is no need
+  // to poll the rcv CQ during Reply injection.  Value of `should_poll_rcv`
+  // ensures we don't, since doing so would risk recursion and deadlock due
+  // to resources already held.
+  const int should_poll_rcv = gasnetc_use_srq && !is_reply;
+
+  // This mess is needed because one cannot use `#if` inside the arguments
+  // to a macro such as GASNETI_SPIN_DOUNTIL()
+  #if GASNET_PSHM
+    #define MAYBE_POLL_RCV_PSHM() gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS)
+  #else
+    #define MAYBE_POLL_RCV_PSHM() ((void)0)
+  #endif
+  #define MAYBE_POLL_RCV(_ep, _cep) do { \
+      if (should_poll_rcv && !gasnetc_sema_read(GASNETC_CEP_SQ_SEMA(_cep))) {  \
+        gasnetc_poll_rcv_all(_ep, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS); \
+        MAYBE_POLL_RCV_PSHM();                                                 \
+        GASNETI_PROGRESSFNS_RUN();                                             \
+      }                                                                        \
+    } while (0)
+#else
+  #define MAYBE_POLL_RCV(_ep, _cep) ((void)0)
+#endif
+
     GASNETI_SPIN_DOUNTIL(
       gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)),
       {
@@ -1071,8 +1103,12 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
         /* Redo load balancing choice */
         qpi = gasnetc_epid_select_qpi(ceps, epid);
         cep = &ceps[qpi];
+        MAYBE_POLL_RCV(ep, cep);
       });
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ);
+
+#undef MAYBE_POLL_RCV
+#undef MAYBE_POLL_RCV_PSHM
   }
   cep->used = 1;
 
