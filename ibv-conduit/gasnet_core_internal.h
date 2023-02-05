@@ -270,9 +270,13 @@ typedef union {
 #if GASNETC_ANY_PAR
   #define GASNETC_PARSEQ _PAR
   #define gasnetc_cons_atomic(_id) _CONCAT(gasneti_atomic_,_id)
+  #define gasnetc_cons_atomic32(_id) _CONCAT(gasneti_atomic32_,_id)
+  #define gasnetc_cons_atomic64(_id) _CONCAT(gasneti_atomic64_,_id)
 #else
   #define GASNETC_PARSEQ _SEQ
   #define gasnetc_cons_atomic(_id) _CONCAT(gasneti_nonatomic_,_id)
+  #define gasnetc_cons_atomic32(_id) _CONCAT(gasneti_nonatomic32_,_id)
+  #define gasnetc_cons_atomic64(_id) _CONCAT(gasneti_nonatomic64_,_id)
 #endif
 
 #define GASNETC_SEMA_INITIALIZER  GASNETI_CONS_SEMA(GASNETC_PARSEQ,INITIALIZER)
@@ -305,6 +309,19 @@ typedef gasnetc_cons_atomic(val_t)        gasnetc_atomic_val_t;
 #define gasnetc_atomic_swap               gasnetc_cons_atomic(swap)
 #define gasnetc_atomic_add                gasnetc_cons_atomic(add)
 #define gasnetc_atomic_subtract           gasnetc_cons_atomic(subtract)
+
+// Narrow subset used for pointers
+#if PLATFORM_ARCH_32
+  #define gasnetc_cons_atomic_ptr           gasnetc_cons_atomic32
+#else
+  #define gasnetc_cons_atomic_ptr           gasnetc_cons_atomic64
+#endif
+typedef gasnetc_cons_atomic_ptr(t)          gasnetc_atomic_ptr_t;
+#define gasnetc_atomic_ptr_init             gasnetc_cons_atomic_ptr(init)
+#define gasnetc_atomic_ptr_set              gasnetc_cons_atomic_ptr(set)
+#define gasnetc_atomic_ptr_read             gasnetc_cons_atomic_ptr(read)
+#define gasnetc_atomic_ptr_compare_and_swap gasnetc_cons_atomic_ptr(compare_and_swap)
+#define gasnetc_atomic_ptr_swap             gasnetc_cons_atomic_ptr(swap)
 
 /* ------------------------------------------------------------------------------------ */
 /* Wrap mmap and munmap so we can do without them if required */
