@@ -3911,6 +3911,7 @@ GASNETI_INLINE(gasnetc_am_get_buffer)
 int gasnetc_am_get_buffer(size_t buf_len,
                           gex_Flags_t immediate,
                           void *inline_buf,
+                          int is_reply,
                           // Outputs:
                           gasnetc_buffer_t **buf_p,
                           gasnetc_buffer_t **buf_alloc_p
@@ -3924,7 +3925,7 @@ int gasnetc_am_get_buffer(size_t buf_len,
     gasneti_assert(*buf_alloc_p == NULL);
   } else {
     // Allocation of a pinned bounce buffer
-    buf = gasnetc_get_bbuf(!immediate GASNETI_THREAD_PASS);
+    buf = gasnetc_get_bbuf_am(is_reply, !immediate GASNETI_THREAD_PASS);
     if (!buf) {
       // TODO-EX: stats/trace for this as distinct from ..._STALL
       gasneti_assert(immediate);
@@ -4160,7 +4161,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     // Obtain an appropriate buffer in which to build the message
     gasnetc_buffer_t *buf, *buf_alloc = NULL;
     if (gasnetc_am_get_buffer(head_len + copy_len + gath_len, immediate, inline_buf,
-                              &buf, &buf_alloc GASNETI_THREAD_PASS)) {
+                              is_reply, &buf, &buf_alloc GASNETI_THREAD_PASS)) {
       gasneti_assert(immediate);
       goto out_no_buffer;
     }
@@ -4765,7 +4766,7 @@ int gasnetc_prepare_common(
   const gex_Flags_t immediate = flags & GEX_FLAG_IMMEDIATE;
   gasnetc_buffer_t *buf, *buf_alloc = NULL;
   if (gasnetc_am_get_buffer(head_len + nbytes, immediate, &sd->_inline_buf,
-                            &buf, &buf_alloc GASNETI_THREAD_PASS)) {
+                            is_reply, &buf, &buf_alloc GASNETI_THREAD_PASS)) {
     gasneti_assert(immediate);
     return 1;
   }

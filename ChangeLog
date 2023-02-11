@@ -35,6 +35,7 @@ GASNet-EX ChangeLog
     environment variables and library interfaces) by prefixing "^" to the string
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4157: ibv XRC deadlock under certain loads
   - bug4527: Erroneous/confusing startup warning with psm2 provider
   - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
   - bug4468: RFE: negative form of GASNET_TRACEMASK
