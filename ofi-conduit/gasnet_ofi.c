@@ -59,6 +59,13 @@ static int gasnetc_fi_mr_endpoint = 0;
 static int gasnetc_fi_hmem = 0;
 #endif
 
+#define GASNETC_PROHIBIT_MODE_BIT(info,bit,scope) do { \
+    if (info->mode & bit) {                            \
+      gasneti_fatalerror("Provider '%s' has set unsupported mode bit " #bit " for %s", \
+                         gasnetc_ofi_provider, scope); \
+    }                                                  \
+  } while (0)
+
 size_t gasnetc_ofi_max_medium = GASNETC_OFI_MAX_MEDIUM_DFLT;
 
 typedef struct gasnetc_ofi_recv_metadata {
@@ -1055,6 +1062,12 @@ int gasnetc_ofi_init(void)
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_rma_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for RMA endpoint");
 
+  // Sanity checks for bits we cannot support
+  if (!have_bug_4567) GASNETC_PROHIBIT_MODE_BIT(gasnetc_rma_info, FI_CONTEXT, "RMA endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_rma_info, FI_CONTEXT2, "RMA endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_rma_info, FI_MSG_PREFIX, "RMA endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_rma_info, FI_RESTRICTED_COMP, "RMA endpoints");
+
   ret = fi_endpoint(gasnetc_ofi_domainfd, gasnetc_rma_info, &gasnetc_ofi_rdma_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for rdma failed");
 
@@ -1087,6 +1100,11 @@ int gasnetc_ofi_init(void)
 
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_msg_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for MSG endpoints");
+
+  // Sanity checks for bits we cannot support
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_msg_info, FI_CONTEXT2, "MSG endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_msg_info, FI_MSG_PREFIX, "MSG endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_msg_info, FI_RESTRICTED_COMP, "MSG endpoints");
 
   ret = fi_endpoint(gasnetc_ofi_domainfd, gasnetc_msg_info, &gasnetc_ofi_request_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for am request endpoint failed");
