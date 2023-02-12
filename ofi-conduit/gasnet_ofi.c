@@ -34,7 +34,6 @@ GASNETI_IDENT(gasnetc_IdentString_OfiRetryRecvmsg,
 
 struct fid_fabric*    gasnetc_ofi_fabricfd;
 struct fid_domain*    gasnetc_ofi_domainfd;
-struct fid_av*        gasnetc_ofi_avfd;
 struct fid_cq*        gasnetc_ofi_tx_cqfd;  // CQ, ideally for both AM and RDMA tx ops
 #if GASNETC_OFI_USE_MULTI_CQ
 struct fid_cq*        gasnetc_ofi_reqtx_cqfd = NULL; // CQ for AM Request tx ops, IFF cannot share
@@ -84,20 +83,21 @@ enum {
     GASNETC_FADDR_IDX_RDMA,
     NUM_OFI_ENDPOINTS
 };
-#define GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank) \
-    ((idx) + (jobrank)*NUM_OFI_ENDPOINTS)
+
+// One address vector per endpoint
+static struct fid_av* gasnetc_ofi_avfd[NUM_OFI_ENDPOINTS];
 
 #if USE_AV_MAP
-    static addr_table_t  *addr_table;
+    static addr_table_t  *addr_table[NUM_OFI_ENDPOINTS];
 #endif
 
 // TODO: multi-ep with independent resources will require rewriting this
 GASNETI_INLINE(gasnetc_fabric_addr_inner) GASNETI_PURE
 fi_addr_t gasnetc_fabric_addr_inner(int idx, gex_Rank_t jobrank) {
 #if USE_AV_MAP
-    return (fi_addr_t)(addr_table->table[GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank)]);
+    return addr_table[idx]->table[jobrank];
 #else
-    return (fi_addr_t)GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank);
+    return (fi_addr_t)jobrank;
 #endif
 }
 GASNETI_PUREP(gasnetc_fabric_addr_inner)
@@ -569,31 +569,33 @@ static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) 
  */
 static void ofi_setup_address_vector(void) {
   int ret = FI_SUCCESS;
-  conn_entry_t *mapped_table;
   struct fi_av_attr     av_attr     = {0};
 
-  /* Open Address Vector and bind the AV to the domain */
 #if USE_AV_MAP
   av_attr.type        = FI_AV_MAP;
-  addr_table          = (addr_table_t*)gasneti_malloc(gasneti_nodes * NUM_OFI_ENDPOINTS 
-          * sizeof(conn_entry_t) + sizeof(addr_table_t));
-  addr_table->size    = gasneti_nodes * NUM_OFI_ENDPOINTS;
-  mapped_table        = addr_table->table;
 #else
   av_attr.type        = FI_AV_TABLE;
-  mapped_table        = NULL;
 #endif
-  ret = fi_av_open(gasnetc_ofi_domainfd, &av_attr, &gasnetc_ofi_avfd, NULL);
-  GASNETC_OFI_CHECK_RET(ret, "fi_av_open failed");
 
-  /* Bind AV to endpoints, both RDMA/AM endpoints share the same AV object */
-  ret = fi_ep_bind(gasnetc_ofi_rdma_epfd, &gasnetc_ofi_avfd->fid, 0);
+  // Create an AV per endpoint
+  for (int i = 0; i < NUM_OFI_ENDPOINTS; ++i) {
+  #if USE_AV_MAP
+    addr_table[i]       = (addr_table_t*)gasneti_malloc(gasneti_nodes * NUM_OFI_ENDPOINTS 
+            * sizeof(conn_entry_t) + sizeof(addr_table_t));
+    addr_table[i]->size = gasneti_nodes * NUM_OFI_ENDPOINTS;
+  #endif
+    ret = fi_av_open(gasnetc_ofi_domainfd, &av_attr, &gasnetc_ofi_avfd[i], NULL);
+    GASNETC_OFI_CHECK_RET(ret, "fi_av_open failed");
+  }
+
+  // Bind AVs to distinct endpoints
+  ret = fi_ep_bind(gasnetc_ofi_rdma_epfd, &gasnetc_ofi_avfd[GASNETC_FADDR_IDX_RDMA]->fid, 0);
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for avfd to rdma_epfd failed");
 
-  ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_avfd->fid, 0);
+  ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_avfd[GASNETC_FADDR_IDX_REQ]->fid, 0);
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for avfd to am request epfd failed");
 
-  ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_avfd->fid, 0);
+  ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_avfd[GASNETC_FADDR_IDX_REP]->fid, 0);
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for avfd to am reply epfd failed");
 }
 
@@ -617,31 +619,44 @@ static void ofi_exchange_addresses(void) {
 
   char* alladdrs = gasneti_malloc(gasneti_nodes*total_len);
   char* p = on_node_addresses;
+  size_t offsets[NUM_OFI_ENDPOINTS];
 
   gasneti_static_assert(GASNETC_FADDR_IDX_REQ == 0);
   ret = fi_getname(&gasnetc_ofi_request_epfd->fid, p, &reqnamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the AM request endpoint");
+  offsets[GASNETC_FADDR_IDX_REQ] = p - on_node_addresses;
   p += reqnamelen;
 
   gasneti_static_assert(GASNETC_FADDR_IDX_REP == 1);
   ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, p, &repnamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the AM reply endpoint");
+  offsets[GASNETC_FADDR_IDX_REP] = p - on_node_addresses;
   p += repnamelen;
 
   gasneti_static_assert(GASNETC_FADDR_IDX_RDMA == 2);
   ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, p, &rdmanamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the RDMA endpoint");
+  offsets[GASNETC_FADDR_IDX_RDMA] = p - on_node_addresses;
   p += rdmanamelen;
 
   gasneti_assert_ptr(p ,==, on_node_addresses + total_len);
 
   gasneti_bootstrapExchange(on_node_addresses, total_len, alladdrs);
-  /* NOTE: If AV_MAP is ever to be supported, the NULL in the below call needs to be
-   * changed to point to the AV structure. */
-  ret = fi_av_insert(gasnetc_ofi_avfd, alladdrs, gasneti_nodes*NUM_OFI_ENDPOINTS, 
-          NULL ,0ULL, NULL);
-  if (gasneti_nodes*NUM_OFI_ENDPOINTS != ret) 
-      gasneti_fatalerror("fi_av_insert failed. Expected: %d Actual: %d\n", gasneti_nodes*NUM_OFI_ENDPOINTS, ret);
+
+  // Interleaving of three endpoints' addresses leads to this
+  // transpose-order traversal and "round-robin" insertion
+  for (int i = 0; i < NUM_OFI_ENDPOINTS; ++i) {
+    p = alladdrs + offsets[i];
+    for (gex_Rank_t j = 0; j < gasneti_nodes; ++j) {
+      uint64_t flags = (j == gasneti_nodes - 1) ? 0 : FI_MORE;
+      // To support AV_MAP, the first NULL below needs to point to the addr_table
+      ret = fi_av_insert(gasnetc_ofi_avfd[i], p, 1, NULL, flags , NULL);
+      if (ret != 1) {
+        gasneti_fatalerror("fi_av_insert(rank=%u, ep=%d) failed %d\n", j, i, ret);
+      }
+      p += total_len;
+    }
+  }
 
   gasneti_free(alladdrs);
   gasneti_free(on_node_addresses);
@@ -1401,8 +1416,10 @@ void gasnetc_ofi_exit(void)
   if(fi_close(&gasnetc_ofi_request_cqfd->fid)!=FI_SUCCESS) {
     gasneti_fatalerror("close am request cqfd failed\n");
   }
-  if(fi_close(&gasnetc_ofi_avfd->fid)!=FI_SUCCESS) {
-    gasneti_fatalerror("close av failed\n");
+  for (int i = 0; i < NUM_OFI_ENDPOINTS; ++i) {
+    if(fi_close(&gasnetc_ofi_avfd[i]->fid)!=FI_SUCCESS) {
+      gasneti_fatalerror("close av[%d] failed", i);
+    }
   }
 
   if(fi_close(&gasnetc_ofi_domainfd->fid)!=FI_SUCCESS) {

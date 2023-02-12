@@ -58,7 +58,6 @@ typedef gasnetc_paratomic(t)         gasnetc_paratomic_t;
 
 extern struct fid_fabric*    gasnetc_ofi_fabricfd;
 extern struct fid_domain*    gasnetc_ofi_domainfd;
-extern struct fid_av*        gasnetc_ofi_avfd;
 extern struct fid_cq*        gasnetc_ofi_tx_cqfd; /* CQ for both AM and RDMA tx ops */
 
 extern struct fid_ep*        gasnetc_ofi_rdma_epfd;
