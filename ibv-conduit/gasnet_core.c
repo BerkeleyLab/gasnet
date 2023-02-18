@@ -1823,7 +1823,12 @@ static int gasnetc_init( gex_Client_t            *client_p,
     GASNETI_RETURN_ERRR(RESOURCE, "job size exceeds ibv-conduit capabilities");
   }
 
-  /* Process the environment for configuration/settings */
+  // Derive nodemap by the default means.
+  // We cannot use LID info if GASNET_IBV_PORTS is inhomogeneous (bug 4208)
+  gasneti_nodemapInit(&gasneti_bootstrapExchange, NULL, 0, 0);
+
+  // Process the environment for configuration/settings
+  // Requires nodemap in general
   i = gasnetc_load_settings();
   if (i != GASNET_OK) {
     return i;
@@ -2080,10 +2085,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
   }
   gasneti_bootstrapExchange(local_lid, gasnetc_num_ports * sizeof(uint16_t), remote_lid);
   gasneti_free(local_lid);
-
-  // Derive nodemap by the default means.
-  // We cannot use LID info if GASNET_IBV_PORTS is inhomogeneous (bug 4208)
-  gasneti_nodemapInit(&gasneti_bootstrapExchange, NULL, 0, 0);
 
   /* compute various snd/rcv resource limits (requires node map) */
   i = gasnetc_sndrcv_limits();
