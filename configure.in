@@ -4224,6 +4224,7 @@ if test "$enabled_ofi" = yes; then
     ofi_provider=""
     ofi_define_mr_virt_addr="no" # tri-state: "no" omits "#define", forcing runtime selection
     ofi_define_mr_prov_key="no" # tri-state: "no" omits "#define", forcing runtime selection
+    ofi_define_use_av_map="no" # tri-state: "no" omits "#define", forcing runtime selection
     ofi_single_provider="yes"
     detected_ofi_provider=""
     ofi_use_thread_domain=0
@@ -4267,34 +4268,41 @@ if test "$enabled_ofi" = yes; then
         psm2)
             ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
+            ofi_define_use_av_map=0
             ofi_use_thread_domain=1
         ;;
         cxi)
             ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
+            ofi_define_use_av_map=0
             ofi_use_multi_cq=1
             ofi_retry_recvmsg=1
         ;;
         gni)
             ofi_define_mr_virt_addr=1
             ofi_define_mr_prov_key=1
+            ofi_define_use_av_map=0
         ;;
         verbs\;ofi_rxm)
             ofi_define_mr_virt_addr=1
             ofi_define_mr_prov_key=1
+            ofi_define_use_av_map=0
         ;;
         tcp\;ofi_rxm)
             ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
+            ofi_define_use_av_map=0
         ;;
         udp\;ofi_rxd)
             ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
+            ofi_define_use_av_map=0
             ofi_retry_recvmsg=1
         ;;
         sockets)
             ofi_define_mr_virt_addr=0
             ofi_define_mr_prov_key=0
+            ofi_define_use_av_map=0
         ;;
         default|generic|"")  # NOTE: "default" is deprecated and can be removed when Spack packaging drops 2022.3.0
             if test -n "$ofi_provider"; then
@@ -4368,8 +4376,25 @@ Runtime provider feature detection and conservative defaults will be used except
       ],
       [])
 
+    # For separate enable/disable documentation:
+    AC_ARG_ENABLE(ofi-av-map,GASNET_OPTION_HELP(enable-ofi-av-map,
+                  [Include conduit support for FI_AV_MAP, excluding FI_AV_TABLE (advanced users only)]))
+    AC_ARG_ENABLE(ofi-av-map,GASNET_OPTION_HELP(disable-ofi-av-map,
+                  [Include conduit support for FI_AV_TABLE, excluding FI_AV_MAP (advanced users only)]))
+    # Real work (w/o docs)
+    pushdef([GASNET_SUPPRESSHELP],1)
+    GASNET_IF_ENABLED_WITH_AUTO(ofi-av-map, [N/A],
+                 [ofi_define_use_av_map="1"], [ofi_define_use_av_map="0"],
+                 [if test x$enable_ofi_use_av_map = xdynamic; then
+                    : # undocumented explict request for dynamic behavior
+                    ofi_define_use_av_map=no
+                  fi
+                 ])
+    popdef([GASNET_SUPPRESSHELP])
+
     # Inform the user that settings were autodetected
     if test -n "$detected_ofi_provider" \
+       && test "$ofi_define_use_av_map" != "no" \
        && test "$ofi_define_mr_virt_addr" != "no" \
        && test "$ofi_define_mr_prov_key" != "no"; then
         GASNET_MSG_WARN([
@@ -4383,6 +4408,9 @@ configured for that provider. If that is not your desired provider, override thi
     fi
     if test "$ofi_define_mr_prov_key" != "no"; then
         AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE, ["$ofi_define_mr_prov_key"])
+    fi
+    if test "$ofi_define_use_av_map" != "no"; then
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_AV_MAP_CONFIGURE, ["$ofi_define_use_av_map"])
     fi
     AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_THREAD_DOMAIN, [$ofi_use_thread_domain])
     AC_DEFINE_UNQUOTED(GASNETC_OFI_USE_MULTI_CQ, [$ofi_use_multi_cq])

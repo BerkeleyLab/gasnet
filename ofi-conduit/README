@@ -91,7 +91,6 @@ The provider MUST support all of the following:
     * capability FI_MSG
     * capability FI_HMEM if the client will use `gex_MK_Create()`
     * capability FI_MULTI_RECV unless GASNET_OFI_RECEIVE_BUFF_SIZE=recv
-    * address vector type FI_AV_TABLE
     * threading mode FI_THREAD_SAFE and/or FI_THREAD_DOMAIN (more info below)
 The provider MUST NOT require any of the following:
     * FI_MR_LOCAL
@@ -101,6 +100,7 @@ The provider MUST NOT require any of the following:
     * FI_MSG_PREFIX
     * FI_RESTRICTED_COMP
 The provider MAY require any of the following:
+    * address vector type FI_AV_TABLE and/or FI_AV_MAP
     * FI_MR_ENDPOINT
     * FI_MR_VIRT_ADDR (performance may differ with or without)
     * FI_MR_PROV_KEY (performance may differ with or without)
@@ -219,6 +219,17 @@ recommended to be used as tuning options.
         --disable-ofi-mr-prov-key  --enable-ofi-mr-prov-key
 
       These options may be removed in a future release.
+
+    * --enable-ofi-av-map
+      Indicates that only support for address vector type FI_AV_MAP will be
+      compiled into the conduit.
+    * --disable-ofi-av-map
+      Indicates that only support for address vector type FI_AV_TABLE will
+      be compiled into the conduit.
+
+      Currently all providers default to use of FI_AV_TABLE.
+
+      For the generic provider case, the determination is made at runtime.
 
     * --enable-ofi-multi-cq
       Indicates that the provider requires the use of distinct completion
