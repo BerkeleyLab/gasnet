@@ -253,19 +253,28 @@ static int check_op(const char **typestring_p, const char operator, const char* 
 // 2. Check for env var "[keyname]_TYPE" equal to "None" (case insensitive).
 //    If YES, return the value of keyname from the environment.
 // 3. Strip any '/' or '%' suffixes to be applied in later steps
+// 4. Check for env var "[keyname]_TYPE" equal to "{J,H,N}Rank" (case insensitive).
+//    If YES, return the associated suffixed env var (if any) or the value of keyname from the environment.
 // With hwloc support:
-//   4. Look for a hwloc object type in env var "[keyname]_TYPE", or dflt_type if none.
-//   5. Find the intersection of this proc's cpu binding with options of the given type.
-//   6. Return the value of env var "[keyname]_[binding]", if any,
+//   5. Look for a hwloc object type in env var "[keyname]_TYPE", or dflt_type if none.
+//   6. Find the intersection of this proc's cpu binding with options of the given type.
+//   7. Return the value of env var "[keyname]_[binding]", if any,
 //      otherwise return the value of keyname from the environment
 // Without hwloc support:
-//   7. If we get this far, warn at most once about lack of hwloc support
-//   8. Return the value of keyname from the environment.
+//   8. If we get this far, warn at most once about lack of hwloc support
+//   9. Return the value of keyname from the environment.
 //
 // Detected hwloc errors result in a warning (at most once per "step")
 // and use of the unsuffixed variable.
 char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val, const char *dflt_type)
 {
+#if USE_HWLOC_LIB || USE_HWLOC_UTILS
+  // Define these early to avoid harmlss goto-bypasses-initialization warnings
+  gasneti_hwloc_obj_type_t type = (gasneti_hwloc_obj_type_t)0;
+  gasneti_hwloc_cpuset_t cpuset = NULL;
+#endif
+
+  char *suffix = NULL;
   char *result = NULL;
 
   // Step 1 - check for suffixed vars
@@ -296,18 +305,45 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
                        "multiple arithmetic operations (at most one is allowed)",
                        orig_typestring, keyname);
   }
+
+  // Step 4 - check env var "[keyname]_TYPE" for "?Rank" (which doesn't need hwloc)
+  if (typestring && typestring[0]) {
+    gex_Rank_t n = GEX_RANK_INVALID;
+    int match = !strcasecmp("rank", typestring+1); // Note +1 offset into the string
+    if (match) {
+      switch (tolower(typestring[0])) {
+        case 'j': // 'J'obrank
+          n = gasneti_mynode;
+          break;
+        case 'h': // 'H'ost-relative rank
+          n = gasneti_myhost.node_rank;
+          break;
+        case 'n': // 'N'brhd-relative rank
+          n = gasneti_mysupernode.node_rank;
+          break;
+        default:
+          match = 0;
+      }
+      if (match && (n == GEX_RANK_INVALID)) {
+        gasneti_fatalerror("%s value uninitialized in gasneti_getenv_hwloc_withdefault()", typestring);
+      }
+    }
+    if (match) {
+      if (div) n /= div;
+      if (mod) n %= mod;
+      suffix = gasneti_sappendf(NULL, "_%d", n);
+      goto try_suffix;
+    }
+  }
           
 #if USE_HWLOC_LIB || USE_HWLOC_UTILS
   // The "real thing" via EITHER libhwloc OR hwloc-{bind,calc}
-  char *suffix = NULL;
-  gasneti_hwloc_obj_type_t type = (gasneti_hwloc_obj_type_t)0;
-  gasneti_hwloc_cpuset_t cpuset = NULL;
 
-  // Step 4 - hwloc object type
+  // Step 5 - hwloc object type
   // Note non-zero return indicates invalid dflt_type, not a user error
   gasneti_assert_zeroret( get_selector_type(&type, keyname, typestring, dflt_type) );
 
-  // Step 5a - query the current proc's cpu binding
+  // Step 6a - query the current proc's cpu binding
   #if USE_HWLOC_LIB
     int topo_is_init = 0;
     hwloc_topology_t topology;
@@ -340,7 +376,7 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
     }
   #endif
 
-  // Step 5b - compute intersection between 'cpuset' and object(s) of 'type'
+  // Step 6b - compute intersection between 'cpuset' and object(s) of 'type'
   #if USE_HWLOC_LIB
   {
     int count = hwloc_get_nbobjs_by_type(topology, type);
@@ -388,7 +424,8 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   }
  #endif
     
-  // Step 6 - query the environment with suffix
+  // Step 7 - query the environment with suffix
+try_suffix:
   if (suffix && suffix[0]) {
     char *fullkey = gasneti_sappendf(NULL, "%s%s", keyname, suffix);
     GASNETI_TRACE_PRINTF(I,("Query environment variable '%s' for type='%s'",
@@ -450,7 +487,7 @@ out_bad_intersect:
 #else // !(USE_HWLOC_LIB || USE_HWLOC_UTILS)
   // Fallback when hwloc is unavailable
 
-  // Step 7.  Warn at most once about presence of suffixed keys
+  // Step 8.  Warn at most once about presence of suffixed keys
   static int did_warn = 0;
   if (!did_warn) {
     gasneti_console_message("WARNING",
@@ -461,7 +498,7 @@ out_bad_intersect:
   }
   gasneti_free(firstkey);
 
-  // Step 8.  Return the only thing we can
+  // Step 9.  Return the only thing we can
   goto out_return_unsuffixed;
 #endif
 
