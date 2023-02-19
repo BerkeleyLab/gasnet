@@ -3092,6 +3092,37 @@ char *gasneti_sappendf(char *s, const char *fmt, ...) {
   return s;
 }
 
+// case-insensitive string comparison
+// same semantics as the POSIX-1.2001 equivalent (except possible for NULL?)
+int gasneti_strcasecmp(const char *s1, const char *s2) {
+  gasneti_assert(s1);
+  gasneti_assert(s2);
+  size_t i = 0;
+  while (s1[i] && s2[i]) {
+    char a = tolower(s1[i]);
+    char b = tolower(s2[i]);
+    if (a != b) return ((a < b) ? -1 : 1);
+    ++i;
+  }
+  if (!s1[i] && !s2[i]) return 0; // ended together (identical)
+  else return (s2[i] ? -1 : 1); // shorter string is the lesser
+}
+
+int gasneti_strncasecmp(const char *s1, const char *s2, size_t n) {
+  gasneti_assert(s1);
+  gasneti_assert(s2);
+  size_t i = 0;
+  while ((i < n) && s1[i] && s2[i]) {
+    char a = tolower(s1[i]);
+    char b = tolower(s2[i]);
+    if (a != b) return ((a < b) ? -1 : 1);
+    ++i;
+  }
+  if (i == n) return 0; // first n chars were identical
+  if (!s1[i] && !s2[i]) return 0; // ended together (identical)
+  else return (s2[i] ? -1 : 1); // shorter string is the lesser
+}
+
 #if GASNET_DEBUGMALLOC
   extern void *(*gasnett_debug_malloc_fn)(size_t sz, const char *curloc);
   extern void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc);
