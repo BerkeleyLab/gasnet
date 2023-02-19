@@ -621,6 +621,18 @@ Known problems:
   is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4565
 
+* Bug 4581
+  Currently, ofi-conduit's implementation of `gasnet_getMaxLocalSegmentSize()`
+  does not take into consideration any limits a given provider may impose on the
+  maximum length of a memory registration.  This may result in warnings like the
+  following (often followed by a fatal error in the client):
+      *** WARNING (proc 0): Unexpected error -12 (Cannot allocate memory) from
+          fi_mr_regattr() when binding segment [0x.., 0x...) to EP 0
+  The only known work-around at this time is to allocate a smaller segment.
+  The most up-to-date information on this bug, including known work-arounds,
+  is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4581
+
 * See docs/memory_kinds.md in the GASNet-EX sources for current information
   regarding known issues with respect to memory kinds support in ofi-conduit.
 
