@@ -39,6 +39,7 @@ GASNet-EX ChangeLog
   - bug4527: Erroneous/confusing startup warning with psm2 provider
   - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
   - bug4468: RFE: negative form of GASNET_TRACEMASK
+  - bug4507: ofi message too long
   - bug4561: cxi provider performance regression
   - bug4567: broken support for psm2 provider in libfabric < 1.10
   - bug4568: RFE: support for FI_AV_MAP
