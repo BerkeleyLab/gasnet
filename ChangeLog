@@ -36,6 +36,8 @@ GASNet-EX ChangeLog
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4157: ibv XRC deadlock under certain loads
+  - bug4170: RFE: mod and div operations in gasneti_getenv_hwloc_withdefault()
+  - bug4171: RFE: support local ranks in gasneti_getenv_hwloc_withdefault()
   - bug4527: Erroneous/confusing startup warning with psm2 provider
   - bug4538: gasnet_client_attach_hook called after registering memory in ofi conduit
   - bug4468: RFE: negative form of GASNET_TRACEMASK
