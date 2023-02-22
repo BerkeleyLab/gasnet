@@ -66,6 +66,10 @@ static int gasnetc_fi_hmem = 0;
   } while (0)
 
 size_t gasnetc_ofi_max_medium = GASNETC_OFI_MAX_MEDIUM_DFLT;
+size_t gasnetc_ofi_max_long;
+
+// Maximum size to use for RMA
+size_t gasnetc_max_rma_size;
 
 typedef struct gasnetc_ofi_recv_metadata {
     struct iovec iov;
@@ -1127,6 +1131,13 @@ int gasnetc_ofi_init(void)
                           gasnetc_rma_info->tx_attr->inject_size,
                           gasnetc_rma_info->tx_attr->rma_iov_limit));
 
+  // Maximum size to use for fi_read() and fi_write() calls
+  gasnetc_max_rma_size = gasnetc_rma_info->ep_attr->max_msg_size;
+  gasneti_assert_always_uint( ofi_bbuf_size ,<=, gasnetc_max_rma_size );
+
+  // Maximum size supported for an AMLong payload
+  gasnetc_ofi_max_long = MIN(gasnetc_max_rma_size, 0x7fffffff);
+
   // Maximum size to use for RMA with FI_INJECT
   {
     const char *env_var = "GASNET_OFI_RMA_INJECT_LIMIT";
@@ -1144,6 +1155,7 @@ int gasnetc_ofi_init(void)
     max_buffered_write = value;
   }
   GASNETI_TRACE_PRINTF(I, ("Max buffered write size is %"PRIu64, max_buffered_write));
+  gasneti_assert_always_uint( max_buffered_write ,<=, gasnetc_max_rma_size );
 
   /* Allocate a new active endpoint for AM operations buffer */
   hints->caps     = FI_MSG | FI_MULTI_RECV;
@@ -2522,6 +2534,19 @@ out_imm_bounce:
     else {
 block_anyways:
       GASNETC_STAT_EVENT(NB_PUT_BLOCK);
+      if (nbytes > gasnetc_max_rma_size) {
+          // Will require multiple fi_write() calls, for which gasnetc_rdma_put()
+          // only supports NBI (iop) callers.  So, use an access region.
+          gasnete_begin_nbi_accessregion(0, 1 GASNETI_THREAD_PASS);
+            gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+            gasnete_iop_t *iop = mythread->current_iop;
+            gasneti_assert(iop->put_ofi.type == OFI_TYPE_IPUT);
+            iop->initiated_put_cnt++;
+            gasneti_assert_zeroret( gasnetc_rdma_put(tm, rank, dest_addr, src_addr, nbytes,
+                                                     &iop->put_ofi, 0, flags GASNETI_THREAD_PASS) );
+          return gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
+      }
+      // Small enough for a single fi_write()
       gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
       eop->ofi.type = OFI_TYPE_EPUT;
       if (gasnetc_rdma_put(tm, rank, dest_addr, src_addr, nbytes, &eop->ofi, 0, flags GASNETI_THREAD_PASS)) {
@@ -2535,12 +2560,12 @@ block_anyways:
 }
 
 int
-gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest_addr, void *src_addr, size_t nbytes,
+gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dst_ptr, void *src_ptr, size_t nbytes,
                  gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
     const gex_EP_Location_t loc = gasneti_e_tm_rank_to_location(tm, rank, 0);
     const gex_Rank_t jobrank = loc.gex_rank;
-    const int rem_epidx = gasnetc_in_auxseg(jobrank, dest_addr) ? -1 : loc.gex_ep_index;
+    const int rem_epidx = gasnetc_in_auxseg(jobrank, dst_ptr) ? -1 : loc.gex_ep_index;
     gasnetc_EP_t c_ep = (gasnetc_EP_t)gasneti_e_tm_to_i_ep(tm);
     int ret = FI_SUCCESS;
 
@@ -2548,9 +2573,43 @@ gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest_addr, void *src_addr, 
     gasneti_assert((alc == 0) || (alc == 1));
 
     PERIODIC_RMA_POLL();
+
+    size_t remain = nbytes;
+    const size_t chunksz = gasnetc_max_rma_size;
+    uintptr_t dst_addr = (uintptr_t) dst_ptr;
+    uintptr_t src_addr = (uintptr_t) src_ptr;
+
+    if (nbytes > chunksz) {
+      // Chunking logic is for IOP only (NB -> NBI xform done by caller if needed)
+      gasneti_assert(ctxt_ptr->type == OFI_TYPE_IPUT);
+      gasnete_iop_t *iop = gasneti_container_of(ctxt_ptr, gasnete_iop_t, put_ofi);
+      gasnete_iop_check(iop);
+
+      flags &= ~GEX_FLAG_IMMEDIATE; // multi-chunk precludes IMMEDIATE support
+
+      // TODO: is there any advantage to using the first chunk to achieve "good" alignment?
+      do {
+        iop->initiated_put_cnt++;
+        if (alc) GASNETE_IOP_LC_START(iop);
+        OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
+                         OFI_WRITE(c_ep, (void*)src_addr, chunksz,
+                                   jobrank, rem_epidx, (void*)dst_addr, ctxt_ptr, alc),
+                         OFI_POLL_ALL);
+        GASNETC_OFI_CHECK_RET(ret, "fi_write failed");
+#if GASNET_DEBUG
+        gasnetc_paratomic_increment(&pending_rdma,0);
+#endif
+
+        dst_addr += chunksz;
+        src_addr += chunksz;
+        remain -= chunksz;
+      } while (remain > chunksz);
+    }
+
+    // Might honor GEX_FLAG_IMMEDIATE *only* if this is the first fi_write():
     OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
-                         OFI_WRITE(c_ep, src_addr, nbytes,
-                                   jobrank, rem_epidx, dest_addr, ctxt_ptr, alc),
+                         OFI_WRITE(c_ep, (void*)src_addr, remain,
+                                   jobrank, rem_epidx, (void*)dst_addr, ctxt_ptr, alc),
                          OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
     GASNETC_OFI_CHECK_RET(ret, "fi_write failed");
 #if GASNET_DEBUG
@@ -2560,16 +2619,17 @@ gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest_addr, void *src_addr, 
     return 0;
 
 out_imm:
+    gasneti_assert(remain == nbytes); // IMM failure only possible in single-chunk case
     return 1;
 }
 
 int
-gasnetc_rdma_get(void *dest_addr, gex_TM_t tm, gex_Rank_t rank, void * src_addr, size_t nbytes,
+gasnetc_rdma_get(void *dst_ptr, gex_TM_t tm, gex_Rank_t rank, void *src_ptr, size_t nbytes,
                  gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
     const gex_EP_Location_t loc = gasneti_e_tm_rank_to_location(tm, rank, 0);
     const gex_Rank_t jobrank = loc.gex_rank;
-    const int rem_epidx = gasnetc_in_auxseg(jobrank, src_addr) ? -1 : loc.gex_ep_index;
+    const int rem_epidx = gasnetc_in_auxseg(jobrank, src_ptr) ? -1 : loc.gex_ep_index;
     gasnetc_EP_t c_ep = (gasnetc_EP_t)gasneti_e_tm_to_i_ep(tm);
     int ret = FI_SUCCESS;
 
@@ -2577,9 +2637,41 @@ gasnetc_rdma_get(void *dest_addr, gex_TM_t tm, gex_Rank_t rank, void * src_addr,
 
     PERIODIC_RMA_POLL();
 
+    size_t remain = nbytes;
+    const size_t chunksz = gasnetc_max_rma_size;
+    uintptr_t dst_addr = (uintptr_t) dst_ptr;
+    uintptr_t src_addr = (uintptr_t) src_ptr;
+
+    if (nbytes > chunksz) {
+      // Chunking logic is for IOP only (NB -> NBI xform done by caller if needed)
+      gasneti_assert(ctxt_ptr->type == OFI_TYPE_IGET);
+      gasnete_iop_t *iop = gasneti_container_of(ctxt_ptr, gasnete_iop_t, get_ofi);
+      gasnete_iop_check(iop);
+
+      flags &= ~GEX_FLAG_IMMEDIATE; // multi-chunk precludes IMMEDIATE support
+
+      // TODO: is there any advantage to using the first chunk to achieve "good" alignment?
+      do {
+        iop->initiated_get_cnt++;
+        OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
+                         OFI_READ(c_ep, (void*)dst_addr, chunksz,
+                                  jobrank, rem_epidx, (void*)src_addr, ctxt_ptr, 0),
+                         OFI_POLL_ALL);
+        GASNETC_OFI_CHECK_RET(ret, "fi_read failed");
+#if GASNET_DEBUG
+        gasnetc_paratomic_increment(&pending_rdma,0);
+#endif
+
+        dst_addr += chunksz;
+        src_addr += chunksz;
+        remain -= chunksz;
+      } while (remain > chunksz);
+    }
+
+    // Might honor GEX_FLAG_IMMEDIATE *only* if this is the first fi_read():
     OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
-                         OFI_READ(c_ep, dest_addr, nbytes,
-                                  jobrank, rem_epidx, src_addr, ctxt_ptr, 0),
+                         OFI_READ(c_ep, (void*)dst_addr, remain,
+                                  jobrank, rem_epidx, (void*)src_addr, ctxt_ptr, 0),
                          OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
 
     GASNETC_OFI_CHECK_RET(ret, "fi_read failed");
@@ -2590,6 +2682,7 @@ gasnetc_rdma_get(void *dest_addr, gex_TM_t tm, gex_Rank_t rank, void * src_addr,
     return 0;
 
 out_imm:
+    gasneti_assert(remain == nbytes); // IMM failure only possible in single-chunk case
     return 1;
 }
 

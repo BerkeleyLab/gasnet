@@ -67,6 +67,8 @@ extern struct fid_ep*        gasnetc_ofi_reply_epfd;
 extern struct fid_cq*        gasnetc_ofi_request_cqfd;
 extern struct fid_cq*        gasnetc_ofi_reply_cqfd;
 
+extern size_t                gasnetc_max_rma_size;
+
 /* The cut off of when to fully block for a non-blocking put*/
 extern size_t gasnetc_ofi_bbuf_threshold;
 
