@@ -533,16 +533,15 @@ static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) 
 
     const char* num_multirecv_buffs_env = "GASNET_OFI_NUM_RECEIVE_BUFFS";
     const char* multirecv_size_env = "GASNET_OFI_RECEIVE_BUFF_SIZE";
-    char *env_val = gasneti_strdup(gasnet_getenv(multirecv_size_env));
-    for (size_t i = 0; i < strlen(env_val); ++i) env_val[i] = toupper(env_val[i]);
-    if (! strcmp("SINGLE", env_val) || ! strcmp("RECV", env_val)) {
+    const char *env_val = gasnet_getenv(multirecv_size_env);
+    if (! gasneti_strcasecmp("SINGLE", env_val) || ! gasneti_strcasecmp("RECV", env_val)) {
         const char *value = gasneti_dynsprintf("%s => %d", env_val, (int)min_multi_recv);
         gasneti_envstr_display(multirecv_size_env, value, 0);
         multirecv_buff_size = min_multi_recv;
         // See Bug 4478 for information leading to the selection of 450 as a default.
         // TODO: at least consider scaling this with PPN
         num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 450, 0);
-        if (! strcmp("RECV", env_val)) {
+        if (! gasneti_strcasecmp("RECV", env_val)) {
           // single-message buffers are posted *without* FI_MULTI_RECV
           maybe_multi_recv = 0;
         }
@@ -550,8 +549,7 @@ static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) 
         multirecv_buff_size = gasneti_getenv_int_withdefault(multirecv_size_env, 1024*1024, 1);
         num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 8, 0);
     }
-    gasneti_assert((maybe_multi_recv == FI_MULTI_RECV) || ! strcmp("RECV", env_val));
-    gasneti_free(env_val);
+    gasneti_assert((maybe_multi_recv == FI_MULTI_RECV) || ! gasneti_strcasecmp("RECV", env_val));
 
     if (num_multirecv_buffs < 2)
         gasneti_fatalerror("%s must be at least 2.\n", num_multirecv_buffs_env);
