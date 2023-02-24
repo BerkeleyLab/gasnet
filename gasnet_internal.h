@@ -90,6 +90,10 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
 GASNETI_FORMAT_PRINTF(gasneti_sappendf,2,3,
 extern char *gasneti_sappendf(char *s, const char *fmt, ...));
 
+// Version of str[n]casecmp() available even w/o POSIX.1-2001
+extern int gasneti_strcasecmp(const char *s1, const char *s2);
+extern int gasneti_strncasecmp(const char *s1, const char *s2, size_t n);
+
 #if GASNET_DEBUGMALLOC
   extern void *_gasneti_malloc(size_t nbytes, const char *curloc) GASNETI_MALLOC;
   extern void *_gasneti_malloc_allowfail(size_t nbytes, const char *curloc) GASNETI_MALLOC;

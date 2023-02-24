@@ -407,27 +407,13 @@ Recognized environment variables:
 * GASNET_OFI_DEVICE_*
   The environment variable 'GASNET_OFI_DEVICE', described immediately above,
   provides only a single setting and unless one uses some external means to
-  give per-process settings this cannot provide per-process control.  This
+  give per-process settings, this cannot provide per-process control.  This
   can make it difficult to get the best performance from multi-rail systems
   with multiple processes per node and architectural locality properties that
   affect PCI/adapter access efficiency.
-  However, if 'hwloc' is detected at configure time, then it is possible to
-  give ofi-conduit values for 'GASNET_OFI_DEVICE' which will vary per-process
-  based on cpu-binding and machine topology information as follows.
-   1. The variable 'GASNET_OFI_DEVICE_TYPE' names an object type using hwloc's
-      terminology, with the default being "Socket" (aka "Package").
-      If the value is "None" (case-insensitive) then the logic below is
-      disabled and the value of 'GASNET_OFI_DEVICE' is used by all processes.
-   2. GASNet queries the set of objects of the given type which intersect the
-      process's cpuset, to construct a variable name 'GASNET_OFI_DEVICE_[suff]'
-      where '[suff]' is an underscore-delimited ordered list of logical
-      object ids.  For example, with the default object type, a process bound
-      only to cores in the first socket would have a variable name of
-      'GASNET_OFI_DEVICE_0'.  Meanwhile, if the cpuset spans sockets 0 and 1
-      (such as for an unbound process on a 2-socket system) then the variable
-      'GASNET_OFI_DEVICE_0_1' is used.
-   3. If the environment variable determined in step 2 is set, then it is
-      used.  Otherwise the un-suffixed 'GASNET_OFI_DEVICE' is used.
+  See "topology-aware environment variable families" in GASNet's top-level
+  README for a description of how 'GASNET_OFI_DEVICE_TYPE' can be used to
+  establish process-specific values for 'GASNET_OFI_DEVICE'.
   As a concrete example, on OLCF's Crusher there are four NICs -- one per NUMA
   Node.  Examining the corresponding Quick Start Guide one can construct the
   following settings to ensure processes bound to cores in a single NUMA Node
