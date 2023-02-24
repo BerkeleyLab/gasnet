@@ -188,6 +188,17 @@ GASNETI_MALLOCP(_gasneti_calloc)
 #define gasneti_free_error    ERROR__GASNet_conduit_code_must_use_gasneti_free
 #define free(p)               gasneti_free_error
 
+#ifdef strcasecmp
+#undef strcasecmp
+#endif
+#define gasneti_strcasecmp_error     ERROR__GASNet_conduit_code_must_use_gasneti_strcasecmp
+#define strcasecmp(s1,s2)            gasneti_strcasecmp_error
+#ifdef strncasecmp
+#undef strncasecmp
+#endif
+#define gasneti_strncasecmp_error    ERROR__GASNet_conduit_code_must_use_gasneti_strncasecmp
+#define strncasecmp(s1,s2,n)         gasneti_strncasecmp_error
+
 #include <assert.h>
 #undef assert
 #define gasneti_assert_error  ERROR__GASNet_conduit_code_should_use_gasneti_assert
