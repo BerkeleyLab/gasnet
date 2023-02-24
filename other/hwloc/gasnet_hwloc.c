@@ -184,15 +184,7 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   const char *typestring = gasneti_getenv_withdefault(typekey, dflt_type);
   gasneti_free(typekey);
   if (typestring) {
-    const char none[] = "none";
-    int match = 1;
-    for (int i = 0; i < sizeof(none); ++i) { // includes final '\0'
-      if (tolower(typestring[i]) != none[i]) {
-        match = 0;
-        break;
-      }
-    }
-    if (match) {
+    if (! gasneti_strcasecmp("none", typestring)) {
       // short-cut w/o using hwloc if TYPE is "none"
       gasneti_free(firstkey);
       goto out_return_unsuffixed;
