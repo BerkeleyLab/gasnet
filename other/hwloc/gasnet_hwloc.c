@@ -309,7 +309,7 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   // Step 4 - check env var "[keyname]_TYPE" for "?Rank" (which doesn't need hwloc)
   if (typestring && typestring[0]) {
     gex_Rank_t n = GEX_RANK_INVALID;
-    int match = !strcasecmp("rank", typestring+1); // Note +1 offset into the string
+    int match = !gasneti_strcasecmp("rank", typestring+1); // Note +1 offset into the string
     if (match) {
       switch (tolower(typestring[0])) {
         case 'j': // 'J'obrank
