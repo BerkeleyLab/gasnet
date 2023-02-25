@@ -2066,18 +2066,11 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team, int barrier_type
   if(!envdefault_set) {
     /* fetch user barrier selection */
     const char *selection = gasneti_getenv_withdefault("GASNET_BARRIER",GASNETE_BARRIER_DEFAULT);
-    char tmp[255];
     char options[255];
-    int i;
-    for (i = 0; selection[i] && i < sizeof(tmp)-1; i++) {
-      tmp[i] = toupper(selection[i]); /* normalize to uppercase */
-    }
-    tmp[i] = '\0';
-    selection = tmp;
     options[0] = '\0';
 #define GASNETE_ISBARRIER(namestr) \
 ((options[0]?strcat(options, ", "),(void)0:(void)0),strcat(options, namestr), \
-!strcmp(selection, namestr))
+!gasneti_strcasecmp(selection, namestr))
     
     if(GASNETE_ISBARRIER("DISSEM")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_DISSEM;
     else if(GASNETE_ISBARRIER("AMDISSEM")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_AMDISSEM;
