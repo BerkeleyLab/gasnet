@@ -1092,7 +1092,7 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
 {
   gasnetc_cep_t *ceps = gasnetc_get_cep(ep, gasnetc_epid2node(epid));
   gasnetc_cep_t *cep;
-  int qpi;
+  gasnetc_epid_t qpi;
 
   /* Loop until space is available on the selected SQ for 1 new entry.
    * If we hold the last one then threads sending to the same node will stall. */
@@ -1119,14 +1119,24 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
   // leading to back-pressure on the injecting SQ.  When encountering this
   // as an injector, we must not become inattentive to the rcv CQ or we
   // risk deadlock (bug 4157).  So we may need to process inbound traffic
-  // as well.
+  // as well.  This includes RDMA Put of a RequestLong payload, in addition
+  // to the send of the header.
   //
-  // Note that the AM Reply traffic is on a distinct channel (different
-  // injecting QP) and is always *fully* provisioned.  Thus there is no need
-  // to poll the rcv CQ during Reply injection.  Value of `should_poll_rcv`
-  // ensures we don't, since doing so would risk recursion and deadlock due
-  // to resources already held.
-  const int should_poll_rcv = gasnetc_use_srq && !is_reply;
+  // Note that the AM Request traffic is on a distinct channel (different
+  // injecting QP) from RMA traffic and AM Reply traffic; and that the receive
+  // buffer pool for Replies is always *fully* provisioned.  Thus there is no
+  // need to poll the rcv CQ for anything other than the injection of an AM
+  // Request header or a RequestLong payload.  In fact, doing so for Reply
+  // injection would risk recursion and deadlock due to resources already held.
+  //
+  // As defined below, `should_poll_rcv` fully identifies the conditions under
+  // which the poll is needed by checking for use of a bound (non-zero) qpi in
+  // the Request-specific "upper half" of the qpi space.  This implicitly
+  // checks for use of SRQ, since no operations are bound to those qpi values
+  // otherwise.
+  gasnetc_epid_t orig_qpi = gasnetc_epid2qpi(epid);
+  const int should_poll_rcv = orig_qpi && GASNETC_QPI_IS_REQ(orig_qpi - 1);
+  if (is_reply) gasneti_assert(!should_poll_rcv); // sanity check
 
   // This mess is needed because one cannot use `#if` inside the arguments
   // to a macro such as GASNETI_SPIN_DOUNTIL()
