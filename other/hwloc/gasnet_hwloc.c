@@ -272,6 +272,7 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   // Define these early to avoid harmlss goto-bypasses-initialization warnings
   gasneti_hwloc_obj_type_t type = (gasneti_hwloc_obj_type_t)0;
   gasneti_hwloc_cpuset_t cpuset = NULL;
+  int topo_is_init = 0;
 #endif
 
   char *suffix = NULL;
@@ -345,7 +346,6 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
 
   // Step 6a - query the current proc's cpu binding
   #if USE_HWLOC_LIB
-    int topo_is_init = 0;
     hwloc_topology_t topology;
     if (hwloc_topology_init(&topology) < 0) {
       // failed to initialize hwloc
