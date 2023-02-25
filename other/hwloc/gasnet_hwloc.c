@@ -425,36 +425,7 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
  #endif
     
   // Step 7 - query the environment with suffix
-try_suffix:
-  if (suffix && suffix[0]) {
-    char *fullkey = gasneti_sappendf(NULL, "%s%s", keyname, suffix);
-    GASNETI_TRACE_PRINTF(I,("Query environment variable '%s' for type='%s'",
-                            fullkey, orig_typestring));
-    result = gasneti_getenv(fullkey);
-    if (result) {
-      gasnett_envstr_display(fullkey, result, 0);
-    }
-    gasneti_free(fullkey);
-  }
-  gasneti_free(suffix);
-
-out:
-  if (typestring != orig_typestring) gasneti_free((void*)typestring);
-  suff_set_free();
-  gasneti_free(firstkey);
-  #if USE_HWLOC_LIB
-    if (cpuset) hwloc_bitmap_free(cpuset);
-    if (topo_is_init) hwloc_topology_destroy(topology);
-  #elif USE_HWLOC_UTILS
-    // casts below discard const qualifiers to avoid warnings
-    gasneti_free((void *)type);
-    gasneti_free((void *)cpuset);
-  #endif
-
-  // Return the suffixed variable's value if any, else use unsuffixed
-  if (result) return result;
-  else goto out_return_unsuffixed;
-
+  goto try_suffix;
 
 out_bad_cpuset:
   {
@@ -502,6 +473,34 @@ out_bad_intersect:
   goto out_return_unsuffixed;
 #endif
 
+try_suffix:
+  if (suffix && suffix[0]) {
+    char *fullkey = gasneti_sappendf(NULL, "%s%s", keyname, suffix);
+    GASNETI_TRACE_PRINTF(I,("Query environment variable '%s' for type='%s'",
+                            fullkey, orig_typestring));
+    result = gasneti_getenv(fullkey);
+    if (result) {
+      gasnett_envstr_display(fullkey, result, 0);
+    }
+    gasneti_free(fullkey);
+  }
+  gasneti_free(suffix);
+
+out:
+  if (typestring != orig_typestring) gasneti_free((void*)typestring);
+  suff_set_free();
+  gasneti_free(firstkey);
+  #if USE_HWLOC_LIB
+    if (cpuset) hwloc_bitmap_free(cpuset);
+    if (topo_is_init) hwloc_topology_destroy(topology);
+  #elif USE_HWLOC_UTILS
+    // casts below discard const qualifiers to avoid warnings
+    gasneti_free((void *)type);
+    gasneti_free((void *)cpuset);
+  #endif
+
+  // Return the suffixed variable's value if any, else use unsuffixed
+  if (result) return result;
 
 out_return_unsuffixed:
   // Return the unsuffixed "keyname" value from the environment.
