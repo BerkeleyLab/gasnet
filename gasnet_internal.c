@@ -3081,10 +3081,12 @@ char *gasneti_sappendf(char *s, const char *fmt, ...) {
 }
 
 // case-insensitive string comparison
-// same semantics as the POSIX-1.2001 equivalent (except possible for NULL?)
+// same semantics as the POSIX-1.2001 equivalent except for NULL arguments,
+// which these functions treat as indistinguishable from a pointer to '\0'
 int gasneti_strcasecmp(const char *s1, const char *s2) {
-  gasneti_assert(s1);
-  gasneti_assert(s2);
+  static char zero = '\0';
+  if (!s1) s1 = &zero;
+  if (!s2) s2 = &zero;
   size_t i = 0;
   while (s1[i] && s2[i]) {
     char a = tolower(s1[i]);
@@ -3097,8 +3099,9 @@ int gasneti_strcasecmp(const char *s1, const char *s2) {
 }
 
 int gasneti_strncasecmp(const char *s1, const char *s2, size_t n) {
-  gasneti_assert(s1);
-  gasneti_assert(s2);
+  static char zero = '\0';
+  if (!s1) s1 = &zero;
+  if (!s2) s2 = &zero;
   size_t i = 0;
   while ((i < n) && s1[i] && s2[i]) {
     char a = tolower(s1[i]);
