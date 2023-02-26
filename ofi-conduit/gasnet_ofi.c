@@ -677,33 +677,44 @@ static void ofi_exchange_addresses(void) {
   gasneti_free(on_node_addresses);
 }
 
+// Visit available info structs, grouped by provider from most to least preferred.
+// Invokes callback for each struct, terminates early if the callback returns non-zero.
+// This is a helper for other functions
+typedef int (*gasnetc_info_visitor_t)(const struct fi_info *p, void *context);
+static void gasnetc_info_foreach(struct fi_info *info, gasnetc_info_visitor_t callback, void *context)
+{
+  for (const char *q = supported_providers; *q; /*empty*/) {
+      while (*q == ' ') ++q;
+      const char *r = strchr(q, ' ');
+      int prov_name_len = r ? r - q : strlen(q);
+      for (struct fi_info *p = info; p; p = p->next) {
+          if (! strncmp(p->fabric_attr->prov_name, q, prov_name_len)) {
+              if (callback(p, context)) return;
+          }
+      }
+      q += prov_name_len;
+  }
+}
+
+// Find the first entry for the most-preferred provider offered, if any.
+static int gasnetc_getinfo_visitor(const struct fi_info *p, void *context)
+{
+  // This visitor simply dups the first match
+  *(struct fi_info **)context = fi_dupinfo(p);
+  return 1; // end traversal
+}
 static struct fi_info *gasnetc_ofi_getinfo(struct fi_info *hints)
 {
   struct fi_info *info = NULL;
-
   int ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
   if (FI_SUCCESS != ret) {
     return NULL;
   }
 
-  // Find the first entry for the most-preferred provider offered, if any.
-  const char *q = supported_providers;
-  while (*q) {
-      while (*q == ' ') ++q;
-      const char *r = strchr(q, ' ');
-      int len = r ? r - q : strlen(q);
-      char prov_name[64];
-      strncpy(prov_name, q, len);
-      prov_name[len] = '\0';
-      for (struct fi_info *p = info; p; p = p->next) {
-          if (!strcmp(p->fabric_attr->prov_name, prov_name)) {
-              return p;
-          }
-      }
-      q += len;
-  }
-
-  return info; // caller will notice the wrong provider
+  struct fi_info *result = NULL;
+  gasnetc_info_foreach(info, gasnetc_getinfo_visitor, &result);
+  fi_freeinfo(info);
+  return result; // caller will notice if this is the wrong provider
 }
 
 // Utility function to set an environment variable with proper tracing/logging
