@@ -742,6 +742,26 @@ static void *gasnetc_alloc_pages(size_t len, const char *desc)
     return result;
 }
 
+static void gasnetc_check_version(const char *prov_name, unsigned int major, unsigned int minor)
+{
+  if (strcmp(prov_name,gasnetc_ofi_provider)) return;
+
+  uint32_t have = fi_version();
+  uint32_t want = FI_VERSION(major,minor);
+  if (FI_VERSION_GE(have, want)) return;
+
+  const char *msg = gasneti_dynsprintf(
+              "Provider '%s' is untrusted in libfabric version %d.%d "
+              "(minimum trusted version is %d.%d).",
+              gasnetc_ofi_provider, FI_MAJOR(have), FI_MINOR(have), major, minor);
+  // UNDOCUMENTED mechanism to suppress the error:
+  if (gasneti_getenv_yesno_withdefault("GASNET_OFI_ALLOW_UNTRUSTED_PROVIDER", 0)) {
+    gasneti_console0_message("WARNING","%s",msg);
+  } else {
+    gasneti_fatalerror("%s",msg);
+  }
+}
+
 /*------------------------------------------------
  * Initialize OFI conduit
  * ----------------------------------------------*/
@@ -974,6 +994,13 @@ int gasnetc_ofi_init(void)
   // the other hints, and the first match is not the one we want.
   hints->fabric_attr->prov_name = gasnetc_ofi_provider;
   hints->domain_attr->name = gasnetc_ofi_domain;
+
+  // Check provider-specific minimum library versions (before checking modes)
+  // REMINDER: these are documented in README and also enforced in configure.in
+  gasnetc_check_version("udp;ofi_rxd"    , 1,7 );
+  gasnetc_check_version("verbs;ofi_rxm"  , 1,12);
+  gasnetc_check_version("gni"            , 1,14);
+  gasnetc_check_version("tcp;ofi_rxm"    , 1,15);
 
 #if !GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   // We offered FI_MR_PROV_KEY, but would rather not support it if not required.
