@@ -555,15 +555,6 @@ Known problems:
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4422
 
-* Bug 4427
-  The "RDMADISSEM" barrier, used as the default in an RDMA-capable conduit
-  without a conduit-specific barrier, has been observed to be incorrect when
-  used with at least the sockets and udp;ofi_rxd providers.
-  To be cautious, the less efficient "AMDISSEM" barrier is currently the default
-  in ofi-conduit, *independent* of provider.
-  The most up-to-date information on this bug is maintained at:
-    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4427
-
 * Bug 4461
   Under certain AM traffic patterns, the cxi provider (for the Slingshot-11
   network on some HPE Cray EX systems) has been observed to fail in various
@@ -668,10 +659,6 @@ Future work:
 
 The OFI community is working on increasing the number of providers that can support GASNet.
 
-* Restore "RDMADISSEM" as the default barrier for those providers where it is
-  safe to do so (see bug 4427) or deploy a better alternative (perhaps via
-  FI_COLLECTIVE)
-
 * Implement AMLong via target-side reassembly using fi_writedata()
 
 * Implement asynchronous LC support for Long, most likely as part of the
@@ -696,3 +683,5 @@ The OFI community is working on increasing the number of providers that can supp
 * Implement native atomics via FI_ATOMIC
 
 * Implement native collectives via FI_COLLECTIVE
+
+* Seek a better barrier than RDMADISSEM via FI_COLLECTIVE

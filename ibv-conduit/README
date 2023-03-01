@@ -238,13 +238,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   of environment variables.
   See GASNet's top-level README for documentation.
 
-  + GASNET_BARRIER
-    In addition to the barrier algorithms in the top-level README, there
-    is an implementation specific to IBV:
-    IBDISSEM - like RDMADISSEM, but implemented using lower-level
-               operations for lower latency.
-    Currently IBDISSEM is the default on IBV.
-
   Spawner settings:
   ----------------
   + GASNET_IBV_SPAWNER
