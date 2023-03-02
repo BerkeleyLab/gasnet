@@ -1198,11 +1198,10 @@ static int16_t get_pkey(void)
 
 // Print the ports
 static void gasnetc_list_ports(void) {
-  gasneti_console_message("INFO", "Detected the following devices:ports");
-
   struct ibv_device **hca_list;
   int num_hcas = 0;
   hca_list = ibv_get_device_list(&num_hcas);
+  char *msg = NULL;
 
   int good_count = 0;
   for (int hca_num = 0; hca_num < num_hcas; ++hca_num) {
@@ -1210,19 +1209,19 @@ static void gasnetc_list_ports(void) {
 
 #if HAVE_IBV_TRANSPORT_TYPE
     if (hca_list[hca_num]->transport_type != IBV_TRANSPORT_IB) {
-      gasneti_console_message("INFO", "    %s BAD - identifies as NON InfiniBand device\n", hca_name);
+      msg = gasneti_sappendf(msg, "        %s BAD - identifies as NON InfiniBand device\n", hca_name);
       continue;
     }
 #endif
     struct ibv_context *hca_handle = ibv_open_device(hca_list[hca_num]);
     if (! hca_handle) {
-      gasneti_console_message("INFO", "    %s BAD - failed to open device\n", hca_name);
+      msg = gasneti_sappendf(msg, "        %s BAD - failed to open device\n", hca_name);
       continue;
     }
 
     struct ibv_device_attr hca_attr;
     if (ibv_query_device(hca_handle, &hca_attr)) {
-      gasneti_console_message("INFO", "    %s BAD - failed to query device capabilities\n", hca_name);
+      msg = gasneti_sappendf(msg, "        %s BAD - failed to query device capabilities\n", hca_name);
       (void) ibv_close_device(hca_handle);
       continue;
     }
@@ -1231,16 +1230,16 @@ static void gasnetc_list_ports(void) {
     for (int port_num = 1; port_num <= hca_attr.phys_port_cnt; ++port_num) {
       struct ibv_port_attr port_attr;
       if (ibv_query_port(hca_handle, port_num, &port_attr)) {
-        gasneti_console_message("INFO", "    %s:%d BAD - failed to query port capabilities\n", hca_name, port_num);
+        msg = gasneti_sappendf(msg, "        %s:%d BAD - failed to query port capabilities\n", hca_name, port_num);
         continue;
       }
       if (port_attr.state != IBV_PORT_ACTIVE) {
-        gasneti_console_message("INFO", "    %s:%d BAD - reports state=%s\n",
+        msg = gasneti_sappendf(msg, "        %s:%d BAD - reports state=%s\n",
                                 hca_name, port_num, port_state_name(port_attr.state));
         continue;
       }
       if (!port_attr.lid) {
-        gasneti_console_message("INFO", "    %s:%d BAD - reports LID=0\n", hca_name, port_num);
+        msg = gasneti_sappendf(msg, "        %s:%d BAD - reports LID=0\n", hca_name, port_num);
         continue;
       }
 
@@ -1250,7 +1249,7 @@ static void gasnetc_list_ports(void) {
         for (int i = 0; i < hca_attr.max_pkeys; ++i) {
           uint16_t pkey_val;
           if (ibv_query_pkey(hca_handle, port_num, i, &pkey_val)) {
-            gasneti_console_message("INFO", "    %s:%d BAD - failed to query pkeys\n", hca_name, port_num);
+            msg = gasneti_sappendf(msg, "        %s:%d BAD - failed to query pkeys\n", hca_name, port_num);
             idx = i;
             break;
           }
@@ -1260,24 +1259,28 @@ static void gasnetc_list_ports(void) {
           }
         }
         if (idx < 0) {
-          gasneti_console_message("INFO", "    %s:%d BAD - not associated with user-specified pkey 0x%x\n",
+          msg = gasneti_sappendf(msg, "        %s:%d BAD - not associated with user-specified pkey 0x%x\n",
                                   hca_name, port_num, (unsigned int)pkey);
           continue;
         }
       }
 
-      gasneti_console_message("INFO", "    %s:%d GOOD\n", hca_name, port_num);
+      msg = gasneti_sappendf(msg, "        %s:%d GOOD\n", hca_name, port_num);
       ++good_count;
     }
     (void) ibv_close_device(hca_handle);
   }
-  if (good_count) {
-    gasneti_console_message("INFO", "Found %d potentially usable InfiniBand ports\n", good_count);
-  } else if (num_hcas) {
-    gasneti_console_message("INFO", "Found %d devices, but no usable InfiniBand ports\n", num_hcas);
+
+  if (num_hcas) {
+    int middle_val = good_count ? good_count : num_hcas;
+    const char *middle_text = good_count ? "potentially" : "devices, but no";
+    gasneti_console_message("INFO", "Detected the following devices:ports\n%s"
+                                    "    Found %d %s usable InfiniBand ports",
+                                     msg, middle_val, middle_text);
   } else {
     gasneti_console_message("INFO", "No IBV-compatible devices found\n");
   }
+  gasneti_free(msg);
 }
 
 /* Try to find up to *port_count_p ACTIVE ports, replacing w/ the actual count */
