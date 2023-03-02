@@ -21,6 +21,11 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* Libfabric (details in ofi-conduit README)
+  - Add initial/experimental support for the AWS Elastic Fabric Adapter via
+    "efa" provider. Operation with this provider remains untuned and is not
+    yet officially supported.
+
 ----------------------------------------------------------------------
 2023-03-31: GASNet-EX 2023.3.0
 
