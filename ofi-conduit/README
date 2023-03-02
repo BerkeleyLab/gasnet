@@ -26,12 +26,13 @@ Where this conduit runs:
 -----------------------
 
 The GASNet OFI conduit requires libfabric 1.5 or newer.
+Use with some providers requires higher minimum versions (see below).
 
 The GASNet OFI conduit can run on any OFI provider that matches its
 requirements. However, at this time, it is recommended *only* for the
 following networks.
 
-  + Intel(R) Omni-Path Fabric  via the "psm2" provider
+  + Intel(R) Omni-Path Fabric, via the "psm2" provider
   + HPE Slingshot-10 (100 Gb/s ConnectX-5 NIC), via the "verbs;ofi_rxm" provider
   + HPE Slingshot-11 (200 Gb/s Cassini NIC), via the "cxi" provider
 
@@ -40,15 +41,28 @@ GASNet conduits are a more appropriate choice. Therefore we do not recommend
 use of these providers in general.
 
   + TCP, via the "sockets" provider
-  + UDP, via "udp;ofi_rxd", under libfabric 1.7 and higher
-  + Cray Aries, via the "gni" provider, under libfabric 1.14 and higher
+  + UDP, via the "udp;ofi_rxd" provider
+  + Cray Aries, via the "gni" provider
 
 The following providers have not met our expectations (with respect to
 performance or stability) when tested on the listed networks and therefore are
 not currently recommended at all.
 
-  + TCP, via "tcp;ofi_rxm"
-  + InfiniBand, via "verbs;ofi_rxm"
+  + TCP, via the "tcp;ofi_rxm" provider
+  + InfiniBand, via "verbs;ofi_rxm" provider
+
+Independent of recommendations above for or against use of any given provider,
+the following are minimum libfabric versions below which ofi-conduit will
+reject certain providers due to known correctness defects in older versions
+impacting GASNet stability:
+
+  + "udp;ofi_rxd"     1.7
+  + "verbs;ofi_rxm"   1.12
+  + "gni"             1.14
+  + "tcp;ofi_rxm"     1.15
+
+Providers not listed above are accepted from the higher of 1.5 or the first
+libfabric release in which they appear.
 
 The ofi-conduit is currently known to lack support for the following providers
 as of libfabric v1.14.0. If these providers are important to you, please
