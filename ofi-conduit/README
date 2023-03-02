@@ -57,7 +57,7 @@ reject certain providers due to known correctness defects in older versions
 impacting GASNet stability:
 
   + "udp;ofi_rxd"     1.7
-  + "verbs;ofi_rxm"   1.12
+  + "verbs;ofi_rxm"   1.12  (1.11 with HPE Slingshot-10)
   + "gni"             1.14
   + "tcp;ofi_rxm"     1.15
 

@@ -1054,7 +1054,12 @@ int gasnetc_ofi_init(void)
   // Check provider-specific minimum library versions (before checking modes)
   // REMINDER: these are documented in README and also enforced in configure.in
   gasnetc_check_version("udp;ofi_rxd"    , 1,7 );
+#if HAVE_PMI_CRAY_H
+  // HPE's libfabric 1.11.x.y.z for Slingshot-10
+  gasnetc_check_version("verbs;ofi_rxm"  , 1,11);
+#else
   gasnetc_check_version("verbs;ofi_rxm"  , 1,12);
+#endif
   gasnetc_check_version("gni"            , 1,14);
   gasnetc_check_version("tcp;ofi_rxm"    , 1,15);
 
