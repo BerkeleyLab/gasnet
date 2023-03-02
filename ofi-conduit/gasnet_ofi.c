@@ -677,33 +677,82 @@ static void ofi_exchange_addresses(void) {
   gasneti_free(on_node_addresses);
 }
 
+// Visit available info structs, grouped by provider from most to least preferred.
+// Invokes callback for each struct, terminates early if the callback returns non-zero.
+// This is a helper for other functions
+typedef int (*gasnetc_info_visitor_t)(const struct fi_info *p, void *context);
+static void gasnetc_info_foreach(struct fi_info *info, gasnetc_info_visitor_t callback, void *context)
+{
+  for (const char *q = supported_providers; *q; /*empty*/) {
+      while (*q == ' ') ++q;
+      const char *r = strchr(q, ' ');
+      int prov_name_len = r ? r - q : strlen(q);
+      for (struct fi_info *p = info; p; p = p->next) {
+          if (! strncmp(p->fabric_attr->prov_name, q, prov_name_len)) {
+              if (callback(p, context)) return;
+          }
+      }
+      q += prov_name_len;
+  }
+}
+
+// List available devices, grouped by provider from most to least preferred
+static int gasnetc_list_devices_visitor(const struct fi_info *p, void *context)
+{
+  // This visitor adds one line to a multi-line message for each struct visted, with de-duplication
+  char **msg_p = (char **)context;
+  char *msg = *msg_p;
+  const char *prov_name = p->fabric_attr->prov_name;
+  const char *dev_name = p->domain_attr->name;
+  char line[128];
+  snprintf(line, sizeof(line)-1, "\n        %-16s %s", prov_name, dev_name);
+  if (!msg) {
+    *msg_p = gasneti_strdup(line);
+  } else if (!strstr(msg, line)) {
+    // append 'line' to 'msg'
+    size_t old_len = strlen(msg);
+    size_t new_len = old_len + strlen(line) + 1;
+    *msg_p = msg = gasneti_realloc(msg, new_len);
+    strcpy(msg + old_len, line);
+  }
+  return 0; // continue traversal
+}
+static void gasnetc_list_devices(struct fi_info *hints)
+{
+  struct fi_info *info = NULL;
+  int ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
+  if (FI_SUCCESS != ret) {
+    gasneti_console_message("INFO", "Failed to detect any supported providers and/or devices");
+    return;
+  }
+
+  char *msg = NULL;
+  gasnetc_info_foreach(info, gasnetc_list_devices_visitor, &msg);
+  gasneti_console_message("INFO", "Detected the following provider and device pair(s)%s", msg);
+  gasneti_free(msg);
+  fi_freeinfo(info);
+  return;
+}
+
+// Find the first entry for the most-preferred provider offered, if any.
+static int gasnetc_getinfo_visitor(const struct fi_info *p, void *context)
+{
+  // This visitor simply dups the first match
+  *(struct fi_info **)context = fi_dupinfo(p);
+  return 1; // end traversal
+}
 static struct fi_info *gasnetc_ofi_getinfo(struct fi_info *hints)
 {
   struct fi_info *info = NULL;
-
   int ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
   if (FI_SUCCESS != ret) {
     return NULL;
   }
 
-  // Find the first entry for the most-preferred provider offered, if any.
-  const char *q = supported_providers;
-  while (*q) {
-      while (*q == ' ') ++q;
-      const char *r = strchr(q, ' ');
-      int len = r ? r - q : strlen(q);
-      char prov_name[64];
-      strncpy(prov_name, q, len);
-      prov_name[len] = '\0';
-      for (struct fi_info *p = info; p; p = p->next) {
-          if (!strcmp(p->fabric_attr->prov_name, prov_name)) {
-              return p;
-          }
-      }
-      q += len;
-  }
-
-  return info; // caller will notice the wrong provider
+  struct fi_info *result = NULL;
+  gasnetc_info_foreach(info, gasnetc_getinfo_visitor, &result);
+  fi_freeinfo(info);
+  return result; // caller will notice if this is the wrong provider
 }
 
 // Utility function to set an environment variable with proper tracing/logging
@@ -866,6 +915,13 @@ int gasnetc_ofi_init(void)
   // Try with FI_MR_PROV_KEY bit set.  Either we or the provider may clear it
   hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
 #endif
+
+  // If user has requested, list devices prior to adding FI_MR_HMEM which
+  // is optional (we eventually retry w/o it if it leads to no matches).
+  if (gasneti_getenv_yesno_withdefault("GASNET_OFI_LIST_DEVICES", 0) &&
+      gasneti_check_node_list("GASNET_OFI_LIST_DEVICES_NODES")) {
+      gasnetc_list_devices(hints);
+  }
 
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   hints->domain_attr->mr_mode |= FI_MR_HMEM;

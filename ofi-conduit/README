@@ -416,6 +416,8 @@ Recognized environment variables:
   libfabric as matching the specified provider and required capabilities.
   This setting can be used to specify a device to be used in place of this
   default.
+  See 'GASNET_OFI_LIST_DEVICES' and 'GASNET_OFI_LIST_DEVICES_NODES' for how
+  to enumerate available devices.
   See also 'GASNET_OFI_DEVICE_*', immediately below.
 
 * GASNET_OFI_DEVICE_*
@@ -443,6 +445,22 @@ Recognized environment variables:
   Of course, even on the same system, your mileage may vary.
   By default 'GASNET_OFI_DEVICE_TYPE' is "Socket" and all other variables in
   this family are unset.
+
+* GASNET_OFI_LIST_DEVICES
+  The value is a boolean: "0" to disable or "1" to enable the reporting of
+  all supportable provider/device pairs.  In this context, "supportable"
+  may be constrained by such factors as the configured provider or use of
+  environment variables which constrain provider enumeration.
+  See 'GASNET_OFI_LIST_DEVICES_NODES' for how to limit which nodes report.
+  The default is "0" (no report).
+
+* GASNET_OFI_LIST_DEVICES_NODES
+  If GASNET_OFI_LIST_DEVICES is enabled, then this setting may be used to limit
+  which nodes report providers/devices pairs.  The value is a list which may
+  contain one or more integers or ranges separated by commas, such as
+  "0,2-4,6".  If unset, empty, or equal to "*" then all nodes will report (if
+  enabled by GASNET_OFI_LIST_DEVICES).
+  The default is no limit on which nodes report.
 
 * FI_PROVIDER - set to a provider name to override the default OFI provider selection
   Note that only in the "generic provider" case (described with the configure
