@@ -688,7 +688,7 @@ static void gasnetc_info_foreach(struct fi_info *info, gasnetc_info_visitor_t ca
       const char *r = strchr(q, ' ');
       int prov_name_len = r ? r - q : strlen(q);
       for (struct fi_info *p = info; p; p = p->next) {
-          if (! strncmp(p->fabric_attr->prov_name, q, prov_name_len)) {
+          if (! gasneti_strncasecmp(p->fabric_attr->prov_name, q, prov_name_len)) {
               if (callback(p, context)) return;
           }
       }
