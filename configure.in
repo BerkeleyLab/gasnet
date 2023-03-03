@@ -4289,7 +4289,11 @@ if test "$enabled_ofi" = yes; then
             ofi_define_mr_virt_addr=1
             ofi_define_mr_prov_key=1
             ofi_define_use_av_map=0
-            ofi_floor=11200
+            if test "$GASNET_PLATFORM" = crayex; then
+              ofi_floor=11100
+            else
+              ofi_floor=11200
+            fi
         ;;
         tcp\;ofi_rxm)
             ofi_define_mr_virt_addr=0

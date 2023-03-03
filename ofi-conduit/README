@@ -57,7 +57,7 @@ reject certain providers due to known correctness defects in older versions
 impacting GASNet stability:
 
   + "udp;ofi_rxd"     1.7
-  + "verbs;ofi_rxm"   1.12
+  + "verbs;ofi_rxm"   1.12  (1.11 with HPE Slingshot-10)
   + "gni"             1.14
   + "tcp;ofi_rxm"     1.15
 
@@ -535,29 +535,6 @@ The following environment variables may be used to tune this behavior:
 Known problems:
 ---------------
 
-* Bug 4179
-  In libfabric 1.11 and earlier, the verbs;ofi_rxm provider (used, for
-  instance, on the Slingshot-10 network of some HPE Cray EX systems) has been
-  observed to experience corruption of AMs, as at least sometimes diagnosed
-  with a fatal error message like the following:
-    GASNet node [...] received an AM message from node [...] for a handler
-    index with no associated AM handler function registered
-  At the time of this writing, the best known work-around is to update
-  libfabric to version 1.12 or newer.  However, if that is not possible, then
-  an alternative is to set
-    GASNET_OFI_RECEIVE_BUFF_SIZE=single
-  in your environment.  This setting automatically uses a receive buffer size
-  that ensures only a single AM will be received per "multi-receive" buffer,
-  and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is adjusted to some
-  unspecified larger value to compensate.
-  Empirical evidence shows this prevents the failures in applications which
-  exhibit them (which is *not* every application).  However, this measurably
-  increases the latency of small AM operations.  So, this should only be used
-  if it is suspected that bug 4179 is impacting your application and you cannot
-  update libfabric to 1.12 or newer.
-  The most up-to-date information on this bug is maintained at:
-    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4179
-
 * Bug 4267
   Multi-threaded applications in which one or more threads are using GASNet
   concurrent with another thread calling gasnet_exit() may experience "random
@@ -602,6 +579,35 @@ Known problems:
   if it is suspected that bug 4461 is impacting your application.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4461
+
+* Bug 4517
+  In libfabric 1.11 and earlier, the verbs;ofi_rxm provider used on the
+  Slingshot-10 network of some HPE Cray EX systems has been observed to
+  experience corruption of AMs, which (at least sometimes) are diagnosed
+  with a fatal error message like one of the following:
+    GASNet node [...] received an AM message from node [...] for a handler
+    index with no associated AM handler function registered
+  OR
+    *** FATAL ERROR: Assertion failure (proc 0): in gasnetc_ofi_handle_am()
+    at [...]/ofi-conduit/gasnet_ofi.c:1341: isreq == header->isreq
+       op1 :           1 (0x00000001) == isreq
+       op2 :           0 (0x00000000) == header->isreq
+  At the time of this writing, the best known work-around is to update
+  libfabric to version 1.12 or newer.  However, replacing the vendor's
+  version on a system like the HPE Cray EX is generally not advisable.
+  So, for such systems an alternative work-around is to set
+    GASNET_OFI_RECEIVE_BUFF_SIZE=recv
+  in your environment.  This setting disables ofi-conduit's use of libfabric's
+  "multi-receive" feature, and adjusts the default value for
+  GASNET_OFI_NUM_RECEIVE_BUFFS to some unspecified larger value to compensate.
+  Empirical evidence shows this prevents the failures in applications which
+  exhibit them (which is *not* every application).  However, this measurably
+  increases the latency of small AM operations.  So, this should only be used
+  if it is suspected that bug 4517 is impacting your application.
+  NOTE: On networks other than Slingshot-10, ofi-conduit enforces a minimum
+  libfabric version of 1.12 for this provider and this bug should not arise.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4517
 
 * Bug 4565
   Use of explicit --with-ofi-provider=generic with the Cray Aries network (gni
