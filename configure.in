@@ -4343,16 +4343,6 @@ Runtime provider feature detection and conservative defaults will be used except
     fi
     AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_IDENT, [$ofi_provider_ident])
 
-    # REMINDER: per-provider floors are documented in ofi-conduit/README
-    # and also enforced in ofi-conduit/gasnet_ofi.c:gasnetc_ofi_init()
-    GASNET_IF_ENABLED_NOHELP(allow-untrusted-ofi-provider, [:], [
-        if test $ofi_version -lt $ofi_floor; then  # NOTE: ofi_floor==0 if no floor is to be enforced
-          have="$(expr $ofi_version / 10000).$(expr $ofi_version / 100 % 100).$(expr $ofi_version % 100)"
-          want="$(expr $ofi_floor / 10000).$(expr $ofi_floor / 100 % 100).$(expr $ofi_floor % 100)"
-          GASNET_MSG_ERROR([Provider '$ofi_provider' is untrusted in libfabric version $have (minimum trusted version is $want).])
-        fi
-      ])
-
     GASNET_IF_ENABLED_WITH_AUTO(ofi-thread-domain, [Indicates if the conduit should use the FI_THREAD_DOMAIN threading model(advanced users only)],
                  [ofi_use_thread_domain="1"], [ofi_use_thread_domain="0"], [])
 
@@ -4421,6 +4411,24 @@ The $detected_ofi_provider OFI provider was detected on your system and the ofi-
 configured for that provider. If that is not your desired provider, override this by using the
 --with-ofi-provider=<provider name> configure flag. See the ofi-conduit README for details.])
     fi
+
+    # Check provider-specific version *after* any $detected_ofi_provider message
+    #
+    # REMINDER: per-provider floors are documented in ofi-conduit/README
+    # and also enforced in ofi-conduit/gasnet_ofi.c:gasnetc_ofi_init()
+    GASNET_IF_ENABLED_NOHELP(allow-untrusted-ofi-provider, [:], [
+        if test $ofi_version -ne 0; then  # NOTE: ofi_floor==0 if no floor is to be enforced
+          AC_MSG_CHECKING([for provider-specific minimum libfabric version])
+          if test $ofi_version -ge $ofi_floor; then
+            AC_MSG_RESULT([yes])
+          else
+            have="$(expr $ofi_version / 10000).$(expr $ofi_version / 100 % 100).$(expr $ofi_version % 100)"
+            want="$(expr $ofi_floor / 10000).$(expr $ofi_floor / 100 % 100).$(expr $ofi_floor % 100)"
+            AC_MSG_RESULT([no - provider '$ofi_provider' is untrusted in libfabric version $have (minimum trusted version is $want).])
+            have_ofi=no
+          fi
+        fi
+      ])
 
     if test "$ofi_define_mr_virt_addr" != "no"; then
         AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE, ["$ofi_define_mr_virt_addr"])
