@@ -1309,6 +1309,10 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
 
   gasneti_assert(team->total_ranks > 1); /* singleton should have matched (state >= goal), above */
 
+  GASNET_BEGIN_FUNCTION(); // XXX: can we remove/avoid this lookup?
+  if_pf (!gasneti_nbi_ff_ok(GASNETI_THREAD_PASS_ALONE))
+    return; // Unsafe to nest nbi_ff region.  See Bug 4592
+
 #if GASNETI_PSHM_BARRIER_HIER
   if (barrier_data->barrier_pshm) {
     /* Cannot begin to probe until local notify is complete */
