@@ -1075,6 +1075,7 @@ typedef struct _gasneti_threaddata_t {
   // For use by conduit-independent logic desiring fire-and-forget implict ops.
   // This includes, at least, the RDMADISSEM barrier.
   gasneti_aop_t *nbi_ff_aop;
+  unsigned int nbi_ff_depth;
 
   //
   // Conduit-specific data
@@ -1088,23 +1089,48 @@ typedef struct _gasneti_threaddata_t {
 /* ------------------------------------------------------------------------------------ */
 // A "NBI fire-and-forget" facility using aops is provided for convenience of
 // conduit-independent logic with no need to test or wait for completions.
+// As long as this aop remains the current iop, nesting of gasneti_begin_nbi_ff() is
+// supported.  One can use gasneti_nbi_ff_ok() to determine if a subsequent call
+// to gasneti_begin_nbi_ff() is permitted.
 
 GASNETI_INLINE(gasneti_begin_nbi_ff)
 void gasneti_begin_nbi_ff(GASNETI_THREAD_FARG_ALONE)
 {
-  gasneti_aop_t *aop = GASNETI_MYTHREAD->nbi_ff_aop;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  if (mythread->nbi_ff_depth++) { // already active
+    gasneti_assert(mythread->current_iop == (gasnete_iop_t*)mythread->nbi_ff_aop);
+    return;
+  }
+  gasneti_aop_t *aop = mythread->nbi_ff_aop;
   if_pf (aop == NULL) {
     aop = gasneti_aop_create(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_MYTHREAD->nbi_ff_aop = aop;
+    mythread->nbi_ff_aop = aop;
   }
   gasneti_aop_push(aop GASNETI_THREAD_PASS);
 }
 GASNETI_INLINE(gasneti_end_nbi_ff)
 void gasneti_end_nbi_ff(GASNETI_THREAD_FARG_ALONE)
 {
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_assert(mythread->nbi_ff_depth > 0);
+  if (--mythread->nbi_ff_depth) { // still active
+    gasneti_assert(mythread->current_iop == (gasnete_iop_t*)mythread->nbi_ff_aop);
+    return;
+  }
   gasneti_aop_t *aop = gasneti_aop_pop(GASNETI_THREAD_PASS_ALONE);
-  gasneti_assert(aop == GASNETI_MYTHREAD->nbi_ff_aop);
+  gasneti_assert(aop == mythread->nbi_ff_aop);
 }
+// Non-zero if the nbi_ff aop is either
+// + not on iop stack (thus safe to push)
+// + or is at the top of the iop stack (thus safe to increment its depth)
+GASNETI_INLINE(gasneti_nbi_ff_ok)
+int gasneti_nbi_ff_ok(GASNETI_THREAD_FARG_ALONE)
+{
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  return !mythread->nbi_ff_depth ||
+         (mythread->current_iop == (gasnete_iop_t*)mythread->nbi_ff_aop);
+}
+
 
 // Sets the nbi_ff_aop of all threads to NULL and returns (via reference
 // arguments) an array of events and its length.  This array, contains all of
