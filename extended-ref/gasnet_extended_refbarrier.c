@@ -1227,8 +1227,8 @@ typedef struct gasnete_coll_rmdbarrier_inbox_s {
 GASNETI_INLINE(gasnete_rmdbarrier_send)
 void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
-                             gex_AM_Arg_t value, gex_AM_Arg_t flags) {
-  GASNET_BEGIN_FUNCTION(); /* XXX: can we remove/avoid this lookup? */
+                             gex_AM_Arg_t value, gex_AM_Arg_t flags
+                             GASNETI_THREAD_FARG) {
   unsigned int step = state >> GASNETE_RMD_PHASE_BITS;
   gex_Event_t event;
   gasnete_coll_rmdbarrier_inbox_t *payload;
@@ -1277,7 +1277,8 @@ static int gasnete_rmdbarrier_kick_pshm(gasnete_coll_team_t team) {
         barrier_data->barrier_state = state + GASNETE_RMD_ONE_STEP;
         gasnete_rmdbarrier_unlock(&barrier_data->barrier_lock); /* Cannot send while holding HSL */
         if (barrier_data->barrier_size && !barrier_data->barrier_passive) {
-          gasnete_rmdbarrier_send(barrier_data, 1, state+GASNETE_RMD_ONE_STEP, value, flags);
+          GASNET_BEGIN_FUNCTION(); // XXX: can we remove/avoid this lookup?
+          gasnete_rmdbarrier_send(barrier_data, 1, state+GASNETE_RMD_ONE_STEP, value, flags GASNETI_THREAD_PASS);
         } else {
           gasnete_barrier_pf_disable(team);
         }
@@ -1308,6 +1309,10 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
     return; /* nothing to do */
 
   gasneti_assert(team->total_ranks > 1); /* singleton should have matched (state >= goal), above */
+
+  GASNET_BEGIN_FUNCTION(); // XXX: can we remove/avoid this lookup?
+  if_pf (!gasneti_nbi_ff_ok(GASNETI_THREAD_PASS_ALONE))
+    return; // Unsafe to nest nbi_ff region.  See Bug 4592
 
 #if GASNETI_PSHM_BARRIER_HIER
   if (barrier_data->barrier_pshm) {
@@ -1393,7 +1398,7 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
   gasnete_rmdbarrier_unlock(&barrier_data->barrier_lock);
 
   if (numsteps) { /* need to issue one or more Puts */
-    gasnete_rmdbarrier_send(barrier_data, numsteps, state+GASNETE_RMD_ONE_STEP, value, flags);
+    gasnete_rmdbarrier_send(barrier_data, numsteps, state+GASNETE_RMD_ONE_STEP, value, flags GASNETI_THREAD_PASS);
   }
 }
 
@@ -1426,7 +1431,10 @@ static void gasnete_rmdbarrier_notify(gasnete_coll_team_t team, int id, int flag
   gasneti_sync_writes();
   barrier_data->barrier_state = state;
 
-  if (do_send) gasnete_rmdbarrier_send(barrier_data, 1, state, id, flags);
+  if (do_send) {
+    GASNET_BEGIN_FUNCTION(); // XXX: can we remove/avoid this lookup?
+    gasnete_rmdbarrier_send(barrier_data, 1, state, id, flags GASNETI_THREAD_PASS);
+  }
   if (want_pf) gasnete_barrier_pf_enable(team);
 
   /*  update state */
