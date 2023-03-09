@@ -1262,7 +1262,7 @@ changes from memory to disk).
 Unless PSHM is disabled, the default behavior of the configure step is to probe
 for support via exactly one preferred mechanism.  For Solaris the preferred
 mechanism is SystemV, while for all other platforms it is POSIX.  If the
-preferred mechanism is not supported (or is explicitly disabled) the then there
+preferred mechanism is not supported (or is explicitly disabled) then there
 is no automatic fallback to any other mechanism.  So, if one wishes to use
 another mechanism, one should explicitly disable the default (POSIX or SysV)
 support and enable the desired mechanism:

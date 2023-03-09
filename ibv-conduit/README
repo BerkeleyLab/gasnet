@@ -149,7 +149,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   time using '--disable-ibv-conn-thread'.
 
   By default, ibv-conduit uses 64KB buffers for AM Mediums, to yield
-  gasnetc_AM_LUB{Request,Reply}Medium() values tens of bytes smaller due
+  gex_AM_LUB{Request,Reply}Medium() values tens of bytes smaller due
   to message headers.  This default can be overridden by passing
   '--with-ibv-max-medium=N' for 'N' equal to any power-of-two from 1024 to
   262144, inclusive.
