@@ -40,19 +40,18 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   necessary support (primarily use of "rdmacm" for connection setup) are
   encouraged to contact gasnet-devel@lbl.gov.
 
-  While ibv-conduit may work on Intel Omni-Path (OPA) HCAs, we instead
-  recommend use of ofi-conduit on such systems.
-
   Nearly all InfiniBand cards (known as Host Channel Adapters, or HCAs)
   have support for Open Fabrics Verbs, available from www.openfabrics.org
   or from the HCA or OS vendor.  We have tested numerous InfiniBand HCAs
-  from Mellanox, InfiniPath HCAs from Pathscale/QLogic, and TrueScale HCAs
-  from Intel.
+  from Mellanox.  HCAs from other vendors have not been validated or have
+  failed validation.
 
-  In addition to the Open Fabrics Verbs, vendor-specific APIs also exist
-  and some have GASNet conduits:
-   + ofi-conduit for the PSM (version 1) API on Intel TrueScale HCAs
-   + ofi-conduit for the PSM2 API on Intel Omni-Path HCAs
+  While ibv-conduit may work on Intel Omni-Path (OPA) HCAs, we instead
+  recommend use of ofi-conduit with the psm2 provider on such systems.
+
+  While ibv-conduit may work on InfiniPath HCAs from Pathscale/QLogic and
+  TrueScale HCAs from Intel, we instead recommend use of mpi-conduit on such
+  systems.
 
   The performance of ibv-conduit relative to others on the same hardware
   will depend on your applications' communications patterns, the number of

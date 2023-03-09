@@ -68,14 +68,19 @@ The ofi-conduit is currently known to lack support for the following providers
 as of libfabric v1.14.0. If these providers are important to you, please
 contact us at gasnet-staff@lbl.gov .
 
-  + "psm1" provider for the (end-of-life) TrueScale products
+  + "psm" provider for the (end-of-life) TrueScale products
   + "opx" provider, an alternative to "psm2" for the Omni-Path fabric
 
 The fi_info command installed with libfabric can be used to query the available
 OFI providers on your system.  It is worth noting that the available providers
 on a cluster compute node may differ from those on a front-end node.
 
-Users with InfiniBand hardware should use the GASNet ibv-conduit, rather than
+Users with Mellanox InfiniBand hardware should use the GASNet ibv-conduit,
+rather than ofi-conduit with the verbs OFI provider, as the former may provide
+better performance.
+
+Users with InfiniBand hardware with an InfiniPath HCA (PathScale or Qlogic) or
+TrueScale HCA (Intel) should use the GASNet mpi-conduit, rather than
 ofi-conduit with the verbs OFI provider, as the former may provide better
 performance.
 
@@ -102,7 +107,7 @@ The provider MUST support all of the following:
     * API version 1.9 or newer if the client will use `gex_MK_Create()`
     * endpoint type FI_EP_RDM
     * capability FI_RMA
-    * capability FI_MSG
+    * capability FI_MSG for at least two endpoints per process
     * capability FI_HMEM if the client will use `gex_MK_Create()`
     * capability FI_MULTI_RECV unless GASNET_OFI_RECEIVE_BUFF_SIZE=recv
     * threading mode FI_THREAD_SAFE and/or FI_THREAD_DOMAIN (more info below)
