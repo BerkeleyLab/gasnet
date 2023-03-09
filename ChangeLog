@@ -62,6 +62,7 @@ GASNet-EX ChangeLog
   - bug4569: RFE: per-provider version
   - bug4574: RFE: support per-endpoint AVs
   - bug4579: Document tcp provider floor
+  - bug4587: Undefined behavior in testinternal
 
 ----------------------------------------------------------------------
 2023-01-13: GASNet-EX 2022.9.2 Release (bug fix release)
