@@ -220,6 +220,11 @@ normal distribution.  If you think you need it, contact us at gasnet-devel@lbl.g
   configure arguments to avoid using ibv-conduit over an emulated libibverbs:
     --disable-ibv --enable-ofi --with-ofi-provider=psm2
 
+  On Linux InfiniBand clusters with InfiniPath HCAs from Pathscale/QLogic or
+  TrueScale HCAs from Intel, we recommend the following configure arguments to
+  use mpi-conduit (and to avoid using ibv-conduit or ofi-conduit):
+    --enable-mpi --disable-ibv --disable-ofi
+
 * Step 2: make all
   Build the GASNet libraries. A number of other useful makefile targets 
   are available from the top-level:
