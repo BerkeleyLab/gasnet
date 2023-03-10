@@ -757,19 +757,26 @@ static struct fi_info *gasnetc_ofi_getinfo(struct fi_info *hints)
 
 // Utility function to set an environment variable with proper tracing/logging
 // Returns zero if the variable was already set, non-zero otherwise.
+// Returns zero if !replace and the variable was already set to a different
+// (case-insensitive) value, non-zero otherwise.
 int gasnetc_setenv_string(const char *key, const char *val, int replace)
 {
-    char *prev;
-    if (!replace && NULL != (prev = gasneti_getenv(key))) {
+    const char *prev = gasneti_getenv(key);
+    int same = prev && !gasneti_strcasecmp(prev, val);
+    if (same) {
+        GASNETI_TRACE_PRINTF(I, ("Preserving default %s='%s' in environment", key, prev));
+        gasneti_envstr_display(key, prev, 1);
+        return 1;
+    } else if (!replace && prev) {
+        GASNETI_TRACE_PRINTF(I, ("Not overwriting %s='%s' in environment", key, prev));
         gasneti_envstr_display(key, prev, 0);
-        GASNETI_TRACE_PRINTF(I, ("Not overwriting %s in environment", key));
         return 0;
     } else {
         GASNETI_TRACE_PRINTF(I, ("Setting %s='%s' in environment", key, val));
         gasneti_envstr_display(key, val, 1);
         gasneti_setenv(key, val);
         return 1;
-  }
+    }
 }
 
 // Wrapper for case of gasnetc_setenv_string for an unsigned int key
@@ -949,11 +956,14 @@ int gasnetc_ofi_init(void)
 
   // CXI provider:
   // To handle bursty AM traffic, enable hybrid receive mode with reasonable default parameters.
-  // If FI_CXI_RX_MATCH_MODE is already set, we make NO changes (or risk an inconsistent mess).
+  // If FI_CXI_RX_MATCH_MODE is already set to something else, we make NO changes (or risk an
+  // inconsistent mess).
   int set_cxi_match_mode = gasnetc_setenv_string("FI_CXI_RX_MATCH_MODE", "hybrid", 0);
   if (set_cxi_match_mode) {
-    gasnetc_setenv_string("FI_CXI_RDZV_THRESHOLD", "256", 1);
-    gasnetc_setenv_string("FI_CXI_RDZV_GET_MIN", "256", 1);
+    // Always try to set both RDZV parameters but will warn if either conflicts
+    // Don't use && or || due to short-circuit evaluation
+    if (! gasnetc_setenv_string("FI_CXI_RDZV_THRESHOLD", "256", 0)) set_cxi_match_mode = 0;
+    if (! gasnetc_setenv_string("FI_CXI_RDZV_GET_MIN", "256", 0)) set_cxi_match_mode = 0;
   } // else: warning deferred until provider selection confirms use of CXI
 
   info = gasnetc_ofi_getinfo(hints);
@@ -1014,7 +1024,8 @@ int gasnetc_ofi_init(void)
                              "environment variables due to prior conflicting settings. "
                              "This may lead to unstable behavior and/or degraded "
                              "performance.  If you did not intentionally set "
-                             "FI_CXI_RX_MATCH_MODE, then this condition may have resulted "
+                             "FI_CXI_RX_MATCH_MODE, FI_CXI_RDZV_THRESHOLD, or "
+                             "FI_CXI_RDZV_GET_MIN then this condition may have resulted "
                              "from initializing MPI prior to initialization of GASNet. "
                              "For more information on that scenario, please see \"Limits "
                              "to MPI interoperability\" in the ofi-conduit README. ");
