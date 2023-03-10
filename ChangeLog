@@ -19,7 +19,7 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX-YY-ZZ: PENDING
+2023-03-31: GASNet-EX 2023.3.0
 
 * Libfabric (details in ofi-conduit README)
   - Now requires libfabric 1.5 or newer
