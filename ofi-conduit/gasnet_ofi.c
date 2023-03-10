@@ -34,7 +34,6 @@ GASNETI_IDENT(gasnetc_IdentString_OfiRetryRecvmsg,
 
 struct fid_fabric*    gasnetc_ofi_fabricfd;
 struct fid_domain*    gasnetc_ofi_domainfd;
-struct fid_av*        gasnetc_ofi_avfd;
 struct fid_cq*        gasnetc_ofi_tx_cqfd;  // CQ, ideally for both AM and RDMA tx ops
 #if GASNETC_OFI_USE_MULTI_CQ
 struct fid_cq*        gasnetc_ofi_reqtx_cqfd = NULL; // CQ for AM Request tx ops, IFF cannot share
@@ -59,7 +58,18 @@ static int gasnetc_fi_mr_endpoint = 0;
 static int gasnetc_fi_hmem = 0;
 #endif
 
+#define GASNETC_PROHIBIT_MODE_BIT(info,bit,scope) do { \
+    if (info->mode & bit) {                            \
+      gasneti_fatalerror("Provider '%s' has set unsupported mode bit " #bit " for %s", \
+                         gasnetc_ofi_provider, scope); \
+    }                                                  \
+  } while (0)
+
 size_t gasnetc_ofi_max_medium = GASNETC_OFI_MAX_MEDIUM_DFLT;
+size_t gasnetc_ofi_max_long;
+
+// Maximum size to use for RMA
+size_t gasnetc_max_rma_size;
 
 typedef struct gasnetc_ofi_recv_metadata {
     struct iovec iov;
@@ -67,7 +77,18 @@ typedef struct gasnetc_ofi_recv_metadata {
     gasnetc_ofi_recv_ctxt_t am_buff_ctxt;
 } gasnetc_ofi_recv_metadata_t;
 
-#define USE_AV_MAP 0
+static short use_av_map = 0;
+#ifdef GASNETC_OFI_USE_AV_MAP_CONFIGURE
+  #define GASNETC_OFI_USE_AV_MAP_STATIC 1
+  #define GASNETC_OFI_USE_AV_MAP (GASNETC_OFI_USE_AV_MAP_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiUseAVMAP,
+                "$GASNetOfiUseAVMAP: " GASNETC_OFI_USE_AV_MAP_CONFIGURE " $");
+#else
+  // cast prevents erroneous use in preprocessor directives
+  #define GASNETC_OFI_USE_AV_MAP ((short)use_av_map)
+  GASNETI_IDENT(gasnetc_IdentString_OfiUseAVMAP,
+                "$GASNetOfiUseAVMAP: dynamic $");
+#endif
 
 // Must match order of fi_getname() calls in ofi_exchange_addresses(),
 // where this is enforced via static assertions.
@@ -77,38 +98,38 @@ enum {
     GASNETC_FADDR_IDX_RDMA,
     NUM_OFI_ENDPOINTS
 };
-#define GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank) \
-    ((idx) + (jobrank)*NUM_OFI_ENDPOINTS)
 
-#if USE_AV_MAP
-    static addr_table_t  *addr_table;
-#endif
+// One address vector per endpoint
+static struct fid_av* gasnetc_ofi_avfd[NUM_OFI_ENDPOINTS];
+
+// Entries non-NULL only for FI_AV_MAP
+static fi_addr_t *gasnetc_addr_map[NUM_OFI_ENDPOINTS] = { NULL, };
 
 // TODO: multi-ep with independent resources will require rewriting this
 GASNETI_INLINE(gasnetc_fabric_addr_inner) GASNETI_PURE
 fi_addr_t gasnetc_fabric_addr_inner(int idx, gex_Rank_t jobrank) {
-#if USE_AV_MAP
-    return (fi_addr_t)(addr_table->table[GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank)]);
-#else
-    return (fi_addr_t)GASNETC_FABRIC_ADDR_OFFSET(idx, jobrank);
-#endif
+  if (GASNETC_OFI_USE_AV_MAP) {
+    return gasnetc_addr_map[idx][jobrank];
+  } else {
+    return (fi_addr_t)jobrank;
+  }
 }
 GASNETI_PUREP(gasnetc_fabric_addr_inner)
 #define gasnetc_fabric_addr(type, jobrank) \
         gasnetc_fabric_addr_inner(GASNETC_FADDR_IDX_##type, jobrank)
 
 
-static short has_mr_scalable = 0;
-#ifdef GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE
-  #define GASNETC_OFI_HAS_MR_SCALABLE_STATIC 1
-  #define GASNETC_OFI_HAS_MR_SCALABLE (GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE[0] == '1')
-  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
-                "$GASNetOfiMRScalable: " GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE " $");
+static short has_mr_virt_addr = 0;
+#ifdef GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE
+  #define GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC 1
+  #define GASNETC_OFI_HAS_MR_VIRT_ADDR (GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE[0] == '1')
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRVirtAddr,
+                "$GASNetOfiMRVirtAddr: " GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE " $");
 #else
   // cast prevents erroneous use in preprocessor directives
-  #define GASNETC_OFI_HAS_MR_SCALABLE ((short)has_mr_scalable)
-  GASNETI_IDENT(gasnetc_IdentString_OfiMRScalable,
-                "$GASNetOfiMRScalable: dynamic $");
+  #define GASNETC_OFI_HAS_MR_VIRT_ADDR ((short)has_mr_virt_addr)
+  GASNETI_IDENT(gasnetc_IdentString_OfiMRVirtAddr,
+                "$GASNetOfiMRVirtAddr: dynamic $");
 #endif
 
 static short has_mr_prov_key = 0;
@@ -124,11 +145,8 @@ static short has_mr_prov_key = 0;
                 "$GASNetOfiMRProvKey: dynamic $");
 #endif
 
-// Alias unless/until the properties are split
-#define GASNETC_OFI_HAS_MR_VIRT_ADDR (!GASNETC_OFI_HAS_MR_SCALABLE)
-
-// Table of remote registration keys, used only when GASNETC_OFI_HAS_MR_PROV_KEY
-// (e.g. FI_MR_BASIC).  Otherwise NULL.
+// Table of remote registration keys, used only when GASNETC_OFI_HAS_MR_PROV_KEY,
+// and otherwise NULL.
 // The leading dimension is EP index, with indices in [-1, GASNET_MAXEPS) to
 // place the aux segment keys as index -1, and the second dimension is jobrank.
 // The leading dimension is allocated at startup, and the rest is allocated
@@ -187,10 +205,9 @@ uintptr_t gasnetc_remote_addr(gex_Rank_t jobrank, void *addr, int rem_epidx)
     gasneti_assert_int(rem_epidx ,>=, -1);
     gasneti_assert_int(rem_epidx ,<, GASNET_MAXEPS);
     if (GASNETC_OFI_HAS_MR_VIRT_ADDR) {
-        // BASIC uses the virtual address
         return (uintptr_t)addr;
     } else {
-        // SCALABLE uses an offset rather than virtual address
+        // uses an offset rather than virtual address
         int in_auxseg = (rem_epidx < 0);
         gasnet_seginfo_t *si = in_auxseg ? gasneti_seginfo_aux
                                          : gasneti_seginfo_tbl[rem_epidx];
@@ -200,7 +217,7 @@ uintptr_t gasnetc_remote_addr(gex_Rank_t jobrank, void *addr, int rem_epidx)
 #else
     gasneti_assert_int(rem_epidx ,>=, 0);
     gasneti_assert_int(rem_epidx ,<, GASNET_MAXEPS);
-    // SCALABLE uses an offset, but base address is zero for EVERYTHING
+    // For EVERYTHING the base address (if any) is zero
     return (uintptr_t)addr;
 #endif
 }
@@ -324,16 +341,14 @@ static int gasnetc_ofi_inited = 0;
 // FI_MR_HMEM and corresponding fields in `struct fi_mr_attr` first
 // appear in API version 1.9.  So, memory kinds needs >= 1.9.
 //
-// FI_MR_{SCALABLE,BASIC} are deprecated since 1.5.
-// Some newer providers don't support them.
-// So, use API version >= 1.5 if possible.
+// API version 1.5 is the lowest we support
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   // No need to check MAJOR,MINOR against FI_VERSION(1, 9) since configure has verified version 1.11+.
   #define OFI_CONDUIT_VERSION FI_VERSION(1, 9)
 #elif FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION) >= FI_VERSION(1, 5)
   #define OFI_CONDUIT_VERSION FI_VERSION(1, 5)
 #else
-  #define OFI_CONDUIT_VERSION FI_VERSION(1, 0)
+  #error "ofi-conduit requires libfabric 1.5 or newer"
 #endif
 
 #if GASNET_PSHM
@@ -518,16 +533,15 @@ static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) 
 
     const char* num_multirecv_buffs_env = "GASNET_OFI_NUM_RECEIVE_BUFFS";
     const char* multirecv_size_env = "GASNET_OFI_RECEIVE_BUFF_SIZE";
-    char *env_val = gasneti_strdup(gasnet_getenv(multirecv_size_env));
-    for (size_t i = 0; i < strlen(env_val); ++i) env_val[i] = toupper(env_val[i]);
-    if (! strcmp("SINGLE", env_val) || ! strcmp("RECV", env_val)) {
+    const char *env_val = gasnet_getenv(multirecv_size_env);
+    if (! gasneti_strcasecmp("SINGLE", env_val) || ! gasneti_strcasecmp("RECV", env_val)) {
         const char *value = gasneti_dynsprintf("%s => %d", env_val, (int)min_multi_recv);
         gasneti_envstr_display(multirecv_size_env, value, 0);
         multirecv_buff_size = min_multi_recv;
         // See Bug 4478 for information leading to the selection of 450 as a default.
         // TODO: at least consider scaling this with PPN
         num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 450, 0);
-        if (! strcmp("RECV", env_val)) {
+        if (! gasneti_strcasecmp("RECV", env_val)) {
           // single-message buffers are posted *without* FI_MULTI_RECV
           maybe_multi_recv = 0;
         }
@@ -535,8 +549,7 @@ static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) 
         multirecv_buff_size = gasneti_getenv_int_withdefault(multirecv_size_env, 1024*1024, 1);
         num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 8, 0);
     }
-    gasneti_assert((maybe_multi_recv == FI_MULTI_RECV) || ! strcmp("RECV", env_val));
-    gasneti_free(env_val);
+    gasneti_assert((maybe_multi_recv == FI_MULTI_RECV) || ! gasneti_strcasecmp("RECV", env_val));
 
     if (num_multirecv_buffs < 2)
         gasneti_fatalerror("%s must be at least 2.\n", num_multirecv_buffs_env);
@@ -568,31 +581,36 @@ static void gasnetc_ofi_read_env_vars(const char *provider, const char *domain) 
  */
 static void ofi_setup_address_vector(void) {
   int ret = FI_SUCCESS;
-  conn_entry_t *mapped_table;
   struct fi_av_attr     av_attr     = {0};
 
-  /* Open Address Vector and bind the AV to the domain */
 #if USE_AV_MAP
   av_attr.type        = FI_AV_MAP;
-  addr_table          = (addr_table_t*)gasneti_malloc(gasneti_nodes * NUM_OFI_ENDPOINTS 
-          * sizeof(conn_entry_t) + sizeof(addr_table_t));
-  addr_table->size    = gasneti_nodes * NUM_OFI_ENDPOINTS;
-  mapped_table        = addr_table->table;
 #else
   av_attr.type        = FI_AV_TABLE;
-  mapped_table        = NULL;
 #endif
-  ret = fi_av_open(gasnetc_ofi_domainfd, &av_attr, &gasnetc_ofi_avfd, NULL);
-  GASNETC_OFI_CHECK_RET(ret, "fi_av_open failed");
+  av_attr.count       = gasneti_nodes;
 
-  /* Bind AV to endpoints, both RDMA/AM endpoints share the same AV object */
-  ret = fi_ep_bind(gasnetc_ofi_rdma_epfd, &gasnetc_ofi_avfd->fid, 0);
+  // TODO:
+  //  + set av_attr.ep_per_node to improve provider resource allocation?
+  //  + set av_attr.name and mmap_addr to share address vectors within a host?
+
+  // Create an AV per endpoint
+  for (int i = 0; i < NUM_OFI_ENDPOINTS; ++i) {
+    if (GASNETC_OFI_USE_AV_MAP) {
+      gasnetc_addr_map[i] = (fi_addr_t*)gasneti_malloc(sizeof(fi_addr_t) * av_attr.count);
+    }
+    ret = fi_av_open(gasnetc_ofi_domainfd, &av_attr, &gasnetc_ofi_avfd[i], NULL);
+    GASNETC_OFI_CHECK_RET(ret, "fi_av_open failed");
+  }
+
+  // Bind AVs to distinct endpoints
+  ret = fi_ep_bind(gasnetc_ofi_rdma_epfd, &gasnetc_ofi_avfd[GASNETC_FADDR_IDX_RDMA]->fid, 0);
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for avfd to rdma_epfd failed");
 
-  ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_avfd->fid, 0);
+  ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_avfd[GASNETC_FADDR_IDX_REQ]->fid, 0);
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for avfd to am request epfd failed");
 
-  ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_avfd->fid, 0);
+  ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_avfd[GASNETC_FADDR_IDX_REP]->fid, 0);
   GASNETC_OFI_CHECK_RET(ret, "fi_ep_bind for avfd to am reply epfd failed");
 }
 
@@ -616,80 +634,149 @@ static void ofi_exchange_addresses(void) {
 
   char* alladdrs = gasneti_malloc(gasneti_nodes*total_len);
   char* p = on_node_addresses;
+  size_t offsets[NUM_OFI_ENDPOINTS];
 
   gasneti_static_assert(GASNETC_FADDR_IDX_REQ == 0);
   ret = fi_getname(&gasnetc_ofi_request_epfd->fid, p, &reqnamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the AM request endpoint");
+  offsets[GASNETC_FADDR_IDX_REQ] = p - on_node_addresses;
   p += reqnamelen;
 
   gasneti_static_assert(GASNETC_FADDR_IDX_REP == 1);
   ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, p, &repnamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the AM reply endpoint");
+  offsets[GASNETC_FADDR_IDX_REP] = p - on_node_addresses;
   p += repnamelen;
 
   gasneti_static_assert(GASNETC_FADDR_IDX_RDMA == 2);
   ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, p, &rdmanamelen);
   GASNETC_OFI_CHECK_RET(ret, "fi_getname failed for the RDMA endpoint");
+  offsets[GASNETC_FADDR_IDX_RDMA] = p - on_node_addresses;
   p += rdmanamelen;
 
   gasneti_assert_ptr(p ,==, on_node_addresses + total_len);
 
   gasneti_bootstrapExchange(on_node_addresses, total_len, alladdrs);
-  /* NOTE: If AV_MAP is ever to be supported, the NULL in the below call needs to be
-   * changed to point to the AV structure. */
-  ret = fi_av_insert(gasnetc_ofi_avfd, alladdrs, gasneti_nodes*NUM_OFI_ENDPOINTS, 
-          NULL ,0ULL, NULL);
-  if (gasneti_nodes*NUM_OFI_ENDPOINTS != ret) 
-      gasneti_fatalerror("fi_av_insert failed. Expected: %d Actual: %d\n", gasneti_nodes*NUM_OFI_ENDPOINTS, ret);
+
+  // Interleaving of three endpoints' addresses leads to this
+  // transpose-order traversal and "round-robin" insertion
+  for (int i = 0; i < NUM_OFI_ENDPOINTS; ++i) {
+    p = alladdrs + offsets[i];
+    for (gex_Rank_t j = 0; j < gasneti_nodes; ++j) {
+      uint64_t flags = (j == gasneti_nodes - 1) ? 0 : FI_MORE;
+      fi_addr_t *addr_p = GASNETC_OFI_USE_AV_MAP ? gasnetc_addr_map[i] + j : NULL;
+      ret = fi_av_insert(gasnetc_ofi_avfd[i], p, 1, addr_p, flags , NULL);
+      if (ret != 1) {
+        gasneti_fatalerror("fi_av_insert(rank=%u, ep=%d) failed %d\n", j, i, ret);
+      }
+      p += total_len;
+    }
+  }
 
   gasneti_free(alladdrs);
   gasneti_free(on_node_addresses);
 }
 
+// Visit available info structs, grouped by provider from most to least preferred.
+// Invokes callback for each struct, terminates early if the callback returns non-zero.
+// This is a helper for other functions
+typedef int (*gasnetc_info_visitor_t)(const struct fi_info *p, void *context);
+static void gasnetc_info_foreach(struct fi_info *info, gasnetc_info_visitor_t callback, void *context)
+{
+  for (const char *q = supported_providers; *q; /*empty*/) {
+      while (*q == ' ') ++q;
+      const char *r = strchr(q, ' ');
+      int prov_name_len = r ? r - q : strlen(q);
+      for (struct fi_info *p = info; p; p = p->next) {
+          if (! gasneti_strncasecmp(p->fabric_attr->prov_name, q, prov_name_len)) {
+              if (callback(p, context)) return;
+          }
+      }
+      q += prov_name_len;
+  }
+}
+
+// List available devices, grouped by provider from most to least preferred
+static int gasnetc_list_devices_visitor(const struct fi_info *p, void *context)
+{
+  // This visitor adds one line to a multi-line message for each struct visted, with de-duplication
+  char **msg_p = (char **)context;
+  char *msg = *msg_p;
+  const char *prov_name = p->fabric_attr->prov_name;
+  const char *dev_name = p->domain_attr->name;
+  char line[128];
+  snprintf(line, sizeof(line)-1, "\n        %-16s %s", prov_name, dev_name);
+  if (!msg) {
+    *msg_p = gasneti_strdup(line);
+  } else if (!strstr(msg, line)) {
+    // append 'line' to 'msg'
+    size_t old_len = strlen(msg);
+    size_t new_len = old_len + strlen(line) + 1;
+    *msg_p = msg = gasneti_realloc(msg, new_len);
+    strcpy(msg + old_len, line);
+  }
+  return 0; // continue traversal
+}
+static void gasnetc_list_devices(struct fi_info *hints)
+{
+  struct fi_info *info = NULL;
+  int ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
+  if (FI_SUCCESS != ret) {
+    gasneti_console_message("INFO", "Failed to detect any supported providers and/or devices");
+    return;
+  }
+
+  char *msg = NULL;
+  gasnetc_info_foreach(info, gasnetc_list_devices_visitor, &msg);
+  gasneti_console_message("INFO", "Detected the following provider and device pair(s)%s", msg);
+  gasneti_free(msg);
+  fi_freeinfo(info);
+  return;
+}
+
+// Find the first entry for the most-preferred provider offered, if any.
+static int gasnetc_getinfo_visitor(const struct fi_info *p, void *context)
+{
+  // This visitor simply dups the first match
+  *(struct fi_info **)context = fi_dupinfo(p);
+  return 1; // end traversal
+}
 static struct fi_info *gasnetc_ofi_getinfo(struct fi_info *hints)
 {
   struct fi_info *info = NULL;
-
   int ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
   if (FI_SUCCESS != ret) {
     return NULL;
   }
 
-  // Find the first entry for the most-preferred provider offered, if any.
-  const char *q = supported_providers;
-  while (*q) {
-      while (*q == ' ') ++q;
-      const char *r = strchr(q, ' ');
-      int len = r ? r - q : strlen(q);
-      char prov_name[64];
-      strncpy(prov_name, q, len);
-      prov_name[len] = '\0';
-      for (struct fi_info *p = info; p; p = p->next) {
-          if (!strcmp(p->fabric_attr->prov_name, prov_name)) {
-              return p;
-          }
-      }
-      q += len;
-  }
-
-  return info; // caller will notice the wrong provider
+  struct fi_info *result = NULL;
+  gasnetc_info_foreach(info, gasnetc_getinfo_visitor, &result);
+  fi_freeinfo(info);
+  return result; // caller will notice if this is the wrong provider
 }
 
 // Utility function to set an environment variable with proper tracing/logging
 // Returns zero if the variable was already set, non-zero otherwise.
+// Returns zero if !replace and the variable was already set to a different
+// (case-insensitive) value, non-zero otherwise.
 int gasnetc_setenv_string(const char *key, const char *val, int replace)
 {
-    char *prev;
-    if (!replace && NULL != (prev = gasneti_getenv(key))) {
+    const char *prev = gasneti_getenv(key);
+    int same = prev && !gasneti_strcasecmp(prev, val);
+    if (same) {
+        GASNETI_TRACE_PRINTF(I, ("Preserving default %s='%s' in environment", key, prev));
+        gasneti_envstr_display(key, prev, 1);
+        return 1;
+    } else if (!replace && prev) {
+        GASNETI_TRACE_PRINTF(I, ("Not overwriting %s='%s' in environment", key, prev));
         gasneti_envstr_display(key, prev, 0);
-        GASNETI_TRACE_PRINTF(I, ("Not overwriting %s in environment", key));
         return 0;
     } else {
         GASNETI_TRACE_PRINTF(I, ("Setting %s='%s' in environment", key, val));
         gasneti_envstr_display(key, val, 1);
         gasneti_setenv(key, val);
         return 1;
-  }
+    }
 }
 
 // Wrapper for case of gasnetc_setenv_string for an unsigned int key
@@ -709,6 +796,26 @@ static void *gasnetc_alloc_pages(size_t len, const char *desc)
         gasneti_fatalerror("Failed to allocate %"PRIuSZ " bytes %s", len, desc);
     }
     return result;
+}
+
+static void gasnetc_check_version(const char *prov_name, unsigned int major, unsigned int minor)
+{
+  if (strcmp(prov_name,gasnetc_ofi_provider)) return;
+
+  uint32_t have = fi_version();
+  uint32_t want = FI_VERSION(major,minor);
+  if (FI_VERSION_GE(have, want)) return;
+
+  const char *msg = gasneti_dynsprintf(
+              "Provider '%s' is untrusted in libfabric version %d.%d "
+              "(minimum trusted version is %d.%d).",
+              gasnetc_ofi_provider, FI_MAJOR(have), FI_MINOR(have), major, minor);
+  // UNDOCUMENTED mechanism to suppress the error:
+  if (gasneti_getenv_yesno_withdefault("GASNET_OFI_ALLOW_UNTRUSTED_PROVIDER", 0)) {
+    gasneti_console0_message("WARNING","%s",msg);
+  } else {
+    gasneti_fatalerror("%s",msg);
+  }
 }
 
 /*------------------------------------------------
@@ -784,34 +891,45 @@ int gasnetc_ofi_init(void)
   /* resource_mgmt: FI_RM_ENABLED - provider protects against overrunning 
      local and remote resources. */
   hints->domain_attr->resource_mgmt     = FI_RM_ENABLED;
-  /* av_type: type of address vectores that are usable with this domain */
-  hints->domain_attr->av_type           = FI_AV_TABLE; /* type AV index */
 
-#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
-  // The four bits we compose here are basically FI_MR_BASIC decomposed plus FI_MR_ENDPOINT:
-  hints->domain_attr->mr_mode = FI_MR_ALLOCATED | FI_MR_ENDPOINT;
-
-  #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-    // Set FI_MR_VIRT_ADDR according to configure-time selection
-    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_SCALABLE ? 0 : FI_MR_VIRT_ADDR;
-  #else
-    // Try with FI_MR_VIRT_ADDR bit set.  The provider may clear it.
-    hints->domain_attr->mr_mode |= FI_MR_VIRT_ADDR;
-  #endif
-
-  #if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
-    // Set FI_MR_PROV_KEY according to configure-time selection
-    hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_PROV_KEY ? FI_MR_PROV_KEY : 0;
-  #else
-    // Try with FI_MR_PROV_KEY bit set.  Either we or the provider may clear it
-    hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
-  #endif
-#elif GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-  // Use the provider's mr_mode as determined statically at configure time:
-  hints->domain_attr->mr_mode = GASNETC_OFI_HAS_MR_SCALABLE ? FI_MR_SCALABLE : FI_MR_BASIC;
+  // av_type: type of address vectors that are usable with this domain
+#if !GASNETC_OFI_USE_AV_MAP_STATIC
+  hints->domain_attr->av_type           = FI_AV_UNSPEC;
 #else
-  hints->domain_attr->mr_mode = FI_MR_UNSPEC;
+  hints->domain_attr->av_type           = GASNETC_OFI_USE_AV_MAP ? FI_AV_MAP : FI_AV_TABLE;
 #endif
+
+  // The four bits we compose here are basically FI_MR_BASIC decomposed plus FI_MR_ENDPOINT:
+  hints->domain_attr->mr_mode = FI_MR_ENDPOINT;
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+  // We expect all segment registrations to be of allocated virtual addresses
+  hints->domain_attr->mr_mode |= FI_MR_ALLOCATED;
+#else
+  // EVERYTHING fundamentally cannot satisfy the "ALLOCATED" constraint.
+  // Note that some providers will set this bit on output even if clear on input.
+#endif
+#if GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC
+  // Set FI_MR_VIRT_ADDR according to configure-time selection
+  hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_VIRT_ADDR ? FI_MR_VIRT_ADDR : 0;
+#else
+  // Try with FI_MR_VIRT_ADDR bit set.  The provider may clear it.
+  hints->domain_attr->mr_mode |= FI_MR_VIRT_ADDR;
+#endif
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  // Set FI_MR_PROV_KEY according to configure-time selection
+  hints->domain_attr->mr_mode |= GASNETC_OFI_HAS_MR_PROV_KEY ? FI_MR_PROV_KEY : 0;
+#else
+  // Try with FI_MR_PROV_KEY bit set.  Either we or the provider may clear it
+  hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
+#endif
+
+  // If user has requested, list devices prior to adding FI_MR_HMEM which
+  // is optional (we eventually retry w/o it if it leads to no matches).
+  if (gasneti_getenv_yesno_withdefault("GASNET_OFI_LIST_DEVICES", 0) &&
+      gasneti_check_node_list("GASNET_OFI_LIST_DEVICES_NODES")) {
+      gasnetc_list_devices(hints);
+  }
+
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   hints->domain_attr->mr_mode |= FI_MR_HMEM;
 #endif
@@ -838,11 +956,14 @@ int gasnetc_ofi_init(void)
 
   // CXI provider:
   // To handle bursty AM traffic, enable hybrid receive mode with reasonable default parameters.
-  // If FI_CXI_RX_MATCH_MODE is already set, we make NO changes (or risk an inconsistent mess).
+  // If FI_CXI_RX_MATCH_MODE is already set to something else, we make NO changes (or risk an
+  // inconsistent mess).
   int set_cxi_match_mode = gasnetc_setenv_string("FI_CXI_RX_MATCH_MODE", "hybrid", 0);
   if (set_cxi_match_mode) {
-    gasnetc_setenv_string("FI_CXI_RDZV_THRESHOLD", "256", 1);
-    gasnetc_setenv_string("FI_CXI_RDZV_GET_MIN", "256", 1);
+    // Always try to set both RDZV parameters but will warn if either conflicts
+    // Don't use && or || due to short-circuit evaluation
+    if (! gasnetc_setenv_string("FI_CXI_RDZV_THRESHOLD", "256", 0)) set_cxi_match_mode = 0;
+    if (! gasnetc_setenv_string("FI_CXI_RDZV_GET_MIN", "256", 0)) set_cxi_match_mode = 0;
   } // else: warning deferred until provider selection confirms use of CXI
 
   info = gasnetc_ofi_getinfo(hints);
@@ -903,7 +1024,8 @@ int gasnetc_ofi_init(void)
                              "environment variables due to prior conflicting settings. "
                              "This may lead to unstable behavior and/or degraded "
                              "performance.  If you did not intentionally set "
-                             "FI_CXI_RX_MATCH_MODE, then this condition may have resulted "
+                             "FI_CXI_RX_MATCH_MODE, FI_CXI_RDZV_THRESHOLD, or "
+                             "FI_CXI_RDZV_GET_MIN then this condition may have resulted "
                              "from initializing MPI prior to initialization of GASNet. "
                              "For more information on that scenario, please see \"Limits "
                              "to MPI interoperability\" in the ofi-conduit README. ");
@@ -940,14 +1062,26 @@ int gasnetc_ofi_init(void)
   hints->fabric_attr->prov_name = gasnetc_ofi_provider;
   hints->domain_attr->name = gasnetc_ofi_domain;
 
-#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && !GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+  // Check provider-specific minimum library versions (before checking modes)
+  // REMINDER: these are documented in README and also enforced in configure.in
+  gasnetc_check_version("udp;ofi_rxd"    , 1,7 );
+#if HAVE_PMI_CRAY_H
+  // HPE's libfabric 1.11.x.y.z for Slingshot-10
+  gasnetc_check_version("verbs;ofi_rxm"  , 1,11);
+#else
+  gasnetc_check_version("verbs;ofi_rxm"  , 1,12);
+#endif
+  gasnetc_check_version("gni"            , 1,14);
+  gasnetc_check_version("tcp;ofi_rxm"    , 1,15);
+
+#if !GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   // We offered FI_MR_PROV_KEY, but would rather not support it if not required.
   // So, query again without FI_MR_PROV_KEY if present.
   if (info->domain_attr->mr_mode & FI_MR_PROV_KEY) {
     hints->domain_attr->mr_mode ^= FI_MR_PROV_KEY;
     struct fi_info *alt_info = gasnetc_ofi_getinfo(hints);
     int accept = (alt_info != NULL);
-  #if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
+  #if GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC
     // Must preserve statically selected FI_MR_VIRT_ADDR, if any
     if (alt_info && (FI_MR_VIRT_ADDR & (alt_info->domain_attr->mr_mode ^ info->domain_attr->mr_mode))) {
       accept = 0;
@@ -963,30 +1097,22 @@ int gasnetc_ofi_init(void)
   }
 #endif
 
-#if OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)
-  has_mr_scalable = !(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
- #if GASNET_SEGMENT_EVERYTHING
-  gasneti_assert_always_uint(has_mr_scalable ,==, !(info->domain_attr->mr_mode & FI_MR_ALLOCATED));
- #endif
+  has_mr_virt_addr = !!(info->domain_attr->mr_mode & FI_MR_VIRT_ADDR);
   has_mr_prov_key = !!(info->domain_attr->mr_mode & FI_MR_PROV_KEY);
   gasnetc_fi_mr_endpoint = (info->domain_attr->mr_mode & FI_MR_ENDPOINT);
-#else
-  has_mr_scalable = (info->domain_attr->mr_mode == FI_MR_SCALABLE);
-  has_mr_prov_key = has_mr_scalable;
-#endif
-#if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-  if (GASNETC_OFI_HAS_MR_SCALABLE != has_mr_scalable) {
-      gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_SCALABLE=%i does\n"
+
+#if GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC
+  if (GASNETC_OFI_HAS_MR_VIRT_ADDR != has_mr_virt_addr) {
+      gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_VIRT_ADDR=%i does\n"
                          "  not match the memory registration support that the (%s) provider reported.\n"
-                         "  This could happen if a provider that previously only supported FI_MR_BASIC\n"
-                         "  added support for FI_MR_SCALABLE, or if the wrong provider was selected at runtime.\n"
-                         "  Use configure option --%s-ofi-mr-scalable to correct this.",
-                         GASNETC_OFI_HAS_MR_SCALABLE, 
+                         "  This could happen if a provider has changed behavior between versions.\n"
+                         "  Use configure option --%s-ofi-mr-virt-addr to correct this.",
+                         GASNETC_OFI_HAS_MR_VIRT_ADDR,
                          info->fabric_attr->prov_name,
-                         (has_mr_scalable ? "enable" : "disable"));
+                         (has_mr_virt_addr ? "enable" : "disable"));
   }
 #endif
-#if (OFI_CONDUIT_VERSION >= FI_VERSION(1, 5)) && GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
+#if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   if (GASNETC_OFI_HAS_MR_PROV_KEY != has_mr_prov_key) {
       gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_PROV_KEY=%i does\n"
                          "  not match the memory registration support that the (%s) provider reported.\n"
@@ -998,14 +1124,26 @@ int gasnetc_ofi_init(void)
   }
 #endif
 #if GASNET_SEGMENT_EVERYTHING
-  if (!GASNETC_OFI_HAS_MR_SCALABLE) {
-      gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING is not supported when using FI_MR_BASIC.\n"
-                         "Pick an OFI provider that supports FI_MR_SCALABLE if EVERYTHING\n"
-                         "is needed.\n");
+  if (info->domain_attr->mr_mode & FI_MR_ALLOCATED) {
+      gasneti_fatalerror("GASNET_SEGMENT_EVERYTHING requires a provider which does NOT require FI_MR_ALLOCATED.  "
+                         "You must pick either a different provider or a different GASNet segment mode.");
   }
 #endif
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   gasnetc_fi_hmem = !!(info->caps & FI_HMEM);
+#endif
+
+  use_av_map = (info->domain_attr->av_type == FI_AV_MAP);
+#if GASNETC_OFI_USE_AV_MAP_STATIC
+  if (GASNETC_OFI_USE_AV_MAP != use_av_map) {
+      gasneti_fatalerror("The statically-determined value for GASNETC_OFI_USE_AV_MAP=%i does\n"
+                         "  not match the address vector type that the (%s) provider reported.\n"
+                         "  This could happen if a provider has changed behavior between versions.\n"
+                         "  Use configure option --%s-ofi-av-map to correct this.",
+                         GASNETC_OFI_USE_AV_MAP,
+                         info->fabric_attr->prov_name,
+                         (GASNETC_OFI_USE_AV_MAP ? "disable" : "enable"));
+  }
 #endif
 
   /* Open the fabric provider */
@@ -1034,10 +1172,10 @@ int gasnetc_ofi_init(void)
 
   fi_freeinfo(info);
 
-#if GASNETC_OFI_HAS_MR_SCALABLE_STATIC
-  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: "GASNETC_OFI_HAS_MR_SCALABLE_CONFIGURE" (static)"));
+#if GASNETC_OFI_HAS_MR_VIRT_ADDR_STATIC
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_VIRT_ADDR support: "GASNETC_OFI_HAS_MR_VIRT_ADDR_CONFIGURE" (static)"));
 #else
-  GASNETI_TRACE_PRINTF(I, ("FI_MR_SCALABLE support: %d (dynamic)", GASNETC_OFI_HAS_MR_SCALABLE));
+  GASNETI_TRACE_PRINTF(I, ("FI_MR_VIRT_ADDR support: %d (dynamic)", GASNETC_OFI_HAS_MR_VIRT_ADDR));
 #endif
 #if GASNETC_OFI_HAS_MR_PROV_KEY_STATIC
   GASNETI_TRACE_PRINTF(I, ("FI_MR_PROV_KEY support: "GASNETC_OFI_HAS_MR_PROV_KEY_CONFIGURE" (static)"));
@@ -1048,6 +1186,11 @@ int gasnetc_ofi_init(void)
   GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: %d (dynamic)", gasnetc_fi_hmem));
 #else
   GASNETI_TRACE_PRINTF(I, ("FI_HMEM support: 0 (static)"));
+#endif
+#if GASNETC_OFI_USE_AV_MAP_STATIC
+  GASNETI_TRACE_PRINTF(I, ("Use of FI_AV_MAP: "GASNETC_OFI_USE_AV_MAP_CONFIGURE" (static)"));
+#else
+  GASNETI_TRACE_PRINTF(I, ("Use of FI_AV_MAP: %d (dynamic)", GASNETC_OFI_USE_AV_MAP));
 #endif
 
   // Now read user-provided environment settings
@@ -1060,10 +1203,22 @@ int gasnetc_ofi_init(void)
     hints->caps |= FI_HMEM;
   }
 #endif
-  hints->mode = 0;  // in particular we do not support FI_CONTEXT due to many-to-one iop
+
+  // We do not support FI_CONTEXT for an RMA endpoint due to many-to-one iop.
+  // However, we must set the bit as a work-around for psm2 provider in libfabric < 1.10 (bug 4567)
+  int have_bug_4567 = using_psm_provider &&
+                      (FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION) < FI_VERSION(1, 10));
+  hints->mode = have_bug_4567 ? FI_CONTEXT : 0;
+  GASNETI_TRACE_PRINTF(I,("Work-around for bug 4567 is %sabled.", have_bug_4567?"en":"dis"));
 
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_rma_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for RMA endpoint");
+
+  // Sanity checks for bits we cannot support
+  if (!have_bug_4567) GASNETC_PROHIBIT_MODE_BIT(gasnetc_rma_info, FI_CONTEXT, "RMA endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_rma_info, FI_CONTEXT2, "RMA endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_rma_info, FI_MSG_PREFIX, "RMA endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_rma_info, FI_RESTRICTED_COMP, "RMA endpoints");
 
   ret = fi_endpoint(gasnetc_ofi_domainfd, gasnetc_rma_info, &gasnetc_ofi_rdma_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for rdma failed");
@@ -1072,6 +1227,13 @@ int gasnetc_ofi_init(void)
                           gasnetc_rma_info->ep_attr->max_msg_size,
                           gasnetc_rma_info->tx_attr->inject_size,
                           gasnetc_rma_info->tx_attr->rma_iov_limit));
+
+  // Maximum size to use for fi_read() and fi_write() calls
+  gasnetc_max_rma_size = gasnetc_rma_info->ep_attr->max_msg_size;
+  gasneti_assert_always_uint( ofi_bbuf_size ,<=, gasnetc_max_rma_size );
+
+  // Maximum size supported for an AMLong payload
+  gasnetc_ofi_max_long = MIN(gasnetc_max_rma_size, 0x7fffffff);
 
   // Maximum size to use for RMA with FI_INJECT
   {
@@ -1090,6 +1252,7 @@ int gasnetc_ofi_init(void)
     max_buffered_write = value;
   }
   GASNETI_TRACE_PRINTF(I, ("Max buffered write size is %"PRIu64, max_buffered_write));
+  gasneti_assert_always_uint( max_buffered_write ,<=, gasnetc_max_rma_size );
 
   /* Allocate a new active endpoint for AM operations buffer */
   hints->caps     = FI_MSG | FI_MULTI_RECV;
@@ -1097,6 +1260,11 @@ int gasnetc_ofi_init(void)
 
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_msg_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for MSG endpoints");
+
+  // Sanity checks for bits we cannot support
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_msg_info, FI_CONTEXT2, "MSG endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_msg_info, FI_MSG_PREFIX, "MSG endpoints");
+  GASNETC_PROHIBIT_MODE_BIT(gasnetc_msg_info, FI_RESTRICTED_COMP, "MSG endpoints");
 
   ret = fi_endpoint(gasnetc_ofi_domainfd, gasnetc_msg_info, &gasnetc_ofi_request_epfd, NULL);
   GASNETC_OFI_CHECK_RET(ret, "fi_endpoint for am request endpoint failed");
@@ -1393,8 +1561,11 @@ void gasnetc_ofi_exit(void)
   if(fi_close(&gasnetc_ofi_request_cqfd->fid)!=FI_SUCCESS) {
     gasneti_fatalerror("close am request cqfd failed\n");
   }
-  if(fi_close(&gasnetc_ofi_avfd->fid)!=FI_SUCCESS) {
-    gasneti_fatalerror("close av failed\n");
+  for (int i = 0; i < NUM_OFI_ENDPOINTS; ++i) {
+    if(fi_close(&gasnetc_ofi_avfd[i]->fid)!=FI_SUCCESS) {
+      gasneti_fatalerror("close av[%d] failed", i);
+    }
+    gasneti_free(gasnetc_addr_map[i]);
   }
 
   if(fi_close(&gasnetc_ofi_domainfd->fid)!=FI_SUCCESS) {
@@ -1412,10 +1583,6 @@ void gasnetc_ofi_exit(void)
     }
     gasneti_free(gasnetc_remote_key_tbl - 1);
   }
-
-#if USE_AV_MAP
-  gasneti_free(addr_table);
-#endif
 }
 
 /*------------------------------------------------
@@ -2464,6 +2631,19 @@ out_imm_bounce:
     else {
 block_anyways:
       GASNETC_STAT_EVENT(NB_PUT_BLOCK);
+      if (nbytes > gasnetc_max_rma_size) {
+          // Will require multiple fi_write() calls, for which gasnetc_rdma_put()
+          // only supports NBI (iop) callers.  So, use an access region.
+          gasnete_begin_nbi_accessregion(0, 1 GASNETI_THREAD_PASS);
+            gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+            gasnete_iop_t *iop = mythread->current_iop;
+            gasneti_assert(iop->put_ofi.type == OFI_TYPE_IPUT);
+            iop->initiated_put_cnt++;
+            gasneti_assert_zeroret( gasnetc_rdma_put(tm, rank, dest_addr, src_addr, nbytes,
+                                                     &iop->put_ofi, 0, flags GASNETI_THREAD_PASS) );
+          return gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
+      }
+      // Small enough for a single fi_write()
       gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
       eop->ofi.type = OFI_TYPE_EPUT;
       if (gasnetc_rdma_put(tm, rank, dest_addr, src_addr, nbytes, &eop->ofi, 0, flags GASNETI_THREAD_PASS)) {
@@ -2477,12 +2657,12 @@ block_anyways:
 }
 
 int
-gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest_addr, void *src_addr, size_t nbytes,
+gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dst_ptr, void *src_ptr, size_t nbytes,
                  gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, int alc, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
     const gex_EP_Location_t loc = gasneti_e_tm_rank_to_location(tm, rank, 0);
     const gex_Rank_t jobrank = loc.gex_rank;
-    const int rem_epidx = gasnetc_in_auxseg(jobrank, dest_addr) ? -1 : loc.gex_ep_index;
+    const int rem_epidx = gasnetc_in_auxseg(jobrank, dst_ptr) ? -1 : loc.gex_ep_index;
     gasnetc_EP_t c_ep = (gasnetc_EP_t)gasneti_e_tm_to_i_ep(tm);
     int ret = FI_SUCCESS;
 
@@ -2490,9 +2670,43 @@ gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest_addr, void *src_addr, 
     gasneti_assert((alc == 0) || (alc == 1));
 
     PERIODIC_RMA_POLL();
+
+    size_t remain = nbytes;
+    const size_t chunksz = gasnetc_max_rma_size;
+    uintptr_t dst_addr = (uintptr_t) dst_ptr;
+    uintptr_t src_addr = (uintptr_t) src_ptr;
+
+    if (nbytes > chunksz) {
+      // Chunking logic is for IOP only (NB -> NBI xform done by caller if needed)
+      gasneti_assert(ctxt_ptr->type == OFI_TYPE_IPUT);
+      gasnete_iop_t *iop = gasneti_container_of(ctxt_ptr, gasnete_iop_t, put_ofi);
+      gasnete_iop_check(iop);
+
+      flags &= ~GEX_FLAG_IMMEDIATE; // multi-chunk precludes IMMEDIATE support
+
+      // TODO: is there any advantage to using the first chunk to achieve "good" alignment?
+      do {
+        iop->initiated_put_cnt++;
+        if (alc) GASNETE_IOP_LC_START(iop);
+        OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
+                         OFI_WRITE(c_ep, (void*)src_addr, chunksz,
+                                   jobrank, rem_epidx, (void*)dst_addr, ctxt_ptr, alc),
+                         OFI_POLL_ALL);
+        GASNETC_OFI_CHECK_RET(ret, "fi_write failed");
+#if GASNET_DEBUG
+        gasnetc_paratomic_increment(&pending_rdma,0);
+#endif
+
+        dst_addr += chunksz;
+        src_addr += chunksz;
+        remain -= chunksz;
+      } while (remain > chunksz);
+    }
+
+    // Might honor GEX_FLAG_IMMEDIATE *only* if this is the first fi_write():
     OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
-                         OFI_WRITE(c_ep, src_addr, nbytes,
-                                   jobrank, rem_epidx, dest_addr, ctxt_ptr, alc),
+                         OFI_WRITE(c_ep, (void*)src_addr, remain,
+                                   jobrank, rem_epidx, (void*)dst_addr, ctxt_ptr, alc),
                          OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
     GASNETC_OFI_CHECK_RET(ret, "fi_write failed");
 #if GASNET_DEBUG
@@ -2502,16 +2716,17 @@ gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest_addr, void *src_addr, 
     return 0;
 
 out_imm:
+    gasneti_assert(remain == nbytes); // IMM failure only possible in single-chunk case
     return 1;
 }
 
 int
-gasnetc_rdma_get(void *dest_addr, gex_TM_t tm, gex_Rank_t rank, void * src_addr, size_t nbytes,
+gasnetc_rdma_get(void *dst_ptr, gex_TM_t tm, gex_Rank_t rank, void *src_ptr, size_t nbytes,
                  gasnetc_ofi_nb_op_ctxt_t *ctxt_ptr, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
     const gex_EP_Location_t loc = gasneti_e_tm_rank_to_location(tm, rank, 0);
     const gex_Rank_t jobrank = loc.gex_rank;
-    const int rem_epidx = gasnetc_in_auxseg(jobrank, src_addr) ? -1 : loc.gex_ep_index;
+    const int rem_epidx = gasnetc_in_auxseg(jobrank, src_ptr) ? -1 : loc.gex_ep_index;
     gasnetc_EP_t c_ep = (gasnetc_EP_t)gasneti_e_tm_to_i_ep(tm);
     int ret = FI_SUCCESS;
 
@@ -2519,9 +2734,41 @@ gasnetc_rdma_get(void *dest_addr, gex_TM_t tm, gex_Rank_t rank, void * src_addr,
 
     PERIODIC_RMA_POLL();
 
+    size_t remain = nbytes;
+    const size_t chunksz = gasnetc_max_rma_size;
+    uintptr_t dst_addr = (uintptr_t) dst_ptr;
+    uintptr_t src_addr = (uintptr_t) src_ptr;
+
+    if (nbytes > chunksz) {
+      // Chunking logic is for IOP only (NB -> NBI xform done by caller if needed)
+      gasneti_assert(ctxt_ptr->type == OFI_TYPE_IGET);
+      gasnete_iop_t *iop = gasneti_container_of(ctxt_ptr, gasnete_iop_t, get_ofi);
+      gasnete_iop_check(iop);
+
+      flags &= ~GEX_FLAG_IMMEDIATE; // multi-chunk precludes IMMEDIATE support
+
+      // TODO: is there any advantage to using the first chunk to achieve "good" alignment?
+      do {
+        iop->initiated_get_cnt++;
+        OFI_INJECT_RETRY(&gasnetc_ofi_locks.rdma_tx,
+                         OFI_READ(c_ep, (void*)dst_addr, chunksz,
+                                  jobrank, rem_epidx, (void*)src_addr, ctxt_ptr, 0),
+                         OFI_POLL_ALL);
+        GASNETC_OFI_CHECK_RET(ret, "fi_read failed");
+#if GASNET_DEBUG
+        gasnetc_paratomic_increment(&pending_rdma,0);
+#endif
+
+        dst_addr += chunksz;
+        src_addr += chunksz;
+        remain -= chunksz;
+      } while (remain > chunksz);
+    }
+
+    // Might honor GEX_FLAG_IMMEDIATE *only* if this is the first fi_read():
     OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
-                         OFI_READ(c_ep, dest_addr, nbytes,
-                                  jobrank, rem_epidx, src_addr, ctxt_ptr, 0),
+                         OFI_READ(c_ep, (void*)dst_addr, remain,
+                                  jobrank, rem_epidx, (void*)src_addr, ctxt_ptr, 0),
                          OFI_POLL_ALL, flags & GEX_FLAG_IMMEDIATE, out_imm);
 
     GASNETC_OFI_CHECK_RET(ret, "fi_read failed");
@@ -2532,6 +2779,7 @@ gasnetc_rdma_get(void *dest_addr, gex_TM_t tm, gex_Rank_t rank, void * src_addr,
     return 0;
 
 out_imm:
+    gasneti_assert(remain == nbytes); // IMM failure only possible in single-chunk case
     return 1;
 }
 
