@@ -614,6 +614,27 @@ Known problems:
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4517
 
+* Bug 4554
+  On one HPE Cray EX system with Nvida GPUs and Slingshot-11 network, it was
+  observed that following a major upgrade of the system software, tests using
+  `GEX_MK_CLASS_CUDA_UVA` would crash in RMA Put operations of 224 bytes or
+  less.  An example backtrace would include something like the following, where
+  the "cuda_gdrcopy_*" frame are the key ones:
+    [3] #7  <signal handler called>
+    [3] #8  cuda_gdrcopy_impl (handle=0, devptr=0x148e53200000, hostptr=0x17d27f0, len=4, dir=dir@entry=GDRCOPY_FROM_DEVICE) at src/hmem_cuda_gdrcopy.c:265
+    [3] #9  0x0000148e9e82e9c4 in cuda_gdrcopy_from_dev (handle=<optimized out>, hostptr=<optimized out>, devptr=<optimized out>, len=<optimized out>) at src/hmem_cuda_gdrcopy.c:291
+    [3] #10 0x0000148e9e82d5dd in cuda_copy_from_dev (device=<optimized out>, dst=<optimized out>, src=<optimized out>, size=<optimized out>) at src/hmem_cuda.c:176
+    [3] #11 0x0000148e9e82c1ed in ofi_copy_from_hmem (size=4, src=<optimized out>,
+  The same system has since undergone minor upgrades and the problem no longer
+  occurs.  Unfortunately, we are unaware of any software version numbers to
+  allow one to distinguish a system with or without this problem.
+  If one experiences crashes matching the description above, the best known
+  work-around is to set `FI_HMEM_CUDA_USE_GDRCOPY=no` in one's environment.
+  Since this work-around is expected to have a performance cost, we also
+  recommend asking your system administrator to request a fix from the vendor.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4554
+
 * Bug 4565
   Use of explicit --with-ofi-provider=generic with the Cray Aries network (gni
   provider) selects a memory registration mode for which the provider claims
