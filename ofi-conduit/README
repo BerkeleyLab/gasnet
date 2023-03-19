@@ -481,7 +481,8 @@ Recognized environment variables:
   provider-internal memory.  Unfortunately at the time of this writing the
   effect appears to be highly provider-specific, ranging from no apparent
   effect on some providers (sockets), to the intended scaling effect on others
-  (verbs), and even outright crashes on other providers (cxi).
+  (verbs), and even outright crashes on some versions of other providers (cxi).
+  See "Bug 4413" in the "Known problems" for more information.
 
 * FI_PSM2_LOCK_LEVEL - This variable only applies to the psm2 provider where
   it controls the internal locking state of the provider and can be set to the
@@ -549,10 +550,11 @@ Known problems:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4267
 
 * Bug 4413
-  At least cxi provider is known to crash at initialization if the environment
-  variable "FI_UNIVERSE_SIZE" is set.  However, this is a supported variable in
-  some providers, and is even *recommended* for use with verbs;ofi_rxm in runs
-  with more than 256 processes.
+  At least cxi provider in libfabric 1.15.0.0 is known to crash at
+  initialization if the environment variable "FI_UNIVERSE_SIZE" is set, though
+  1.15.2.0 does not appear to have this problem.  In general, this is a
+  supported variable in multiple providers, and is even *recommended* for use
+  with verbs;ofi_rxm in runs with more than 256 processes.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4413
 
