@@ -65,6 +65,7 @@ GASNet-EX ChangeLog
   - bug4587: Undefined behavior in testinternal
   - bug4591: Fix confusing documentation regarding TrueScale IB hardware
   - bug4596: smp-conduit lacks multi-process GASNET_FREEZE support
+  - bug4597: ofi-conduit + ssh-spawner GASNET_FREEZE support is unusable
 
 ----------------------------------------------------------------------
 2023-01-13: GASNet-EX 2022.9.2 Release (bug fix release)
