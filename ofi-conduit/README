@@ -566,8 +566,19 @@ Known problems:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4503 (cxi)
 
 * Bug 4422
-  Multi-threaded applications run on a single core when using psm2 provider,
-  unless some action is taken to pin the application to subset of the cores.
+  By default, multi-threaded applications run on a single core when using psm2
+  provider (for Intel Omni-Path networks).  There are two known work-arounds
+  available:
+  + The undesired pinning to a single core will not take place if the process
+    is already pinned to a strict subset of the host's CPU cores.  In many
+    cases there are other motivations (such as NUMA affinity) for such pinning,
+    making this our preferred recommendation when practical.  However, the best
+    means to accomplish this may depend on the batch system.  An approach using
+    hwloc-bind (independent of batch system) is demonstrated in the bug report
+    (see link below).
+  + If pinning to a strict subset of the host's CPU cores is either undesirable
+    or impractical, one may instead set HFI_NO_CPUAFFINITY=1 in the environment
+    to disable the undesired single-core pinning behavior.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4422
 
