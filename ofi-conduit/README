@@ -363,7 +363,7 @@ Recognized environment variables:
   increasing these may improve AM throughput or have no impact.  On some
   providers, reducing these may severely reduce AM throughput or even lead to
   crashes.  Defaults: 8 and 1M
-  See also: Bug 4179 and Bug 4461 under "Known problems"
+  See also: Bug 4461 and Bug 4517 under "Known problems"
 
 * GASNET_OFI_AM_INJECT_LIMIT - limit on size of fi_inject() payload.
   GASNet Active Messages of total size (at the ofi level) no larger than this
