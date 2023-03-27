@@ -116,7 +116,7 @@ GASNet Release Procedure
    Cray XC: aries (and mpi if time/allocation allows)
    Linux-Ethernet: mpi, udp, ofi
    Linux-InfiniBand: mpi, ibv, ucx
-   Linux-OmniPath: ofi (plus mpi and ibv if time/allocation allows)
+   Linux-Omni-Path: ofi (plus mpi and ibv if time/allocation allows)
    Windows/Cygwin: smp+pthreads
    Mac OS X: smp+pthreads, smp+sysv
   SEGMENT_EVERYTHING should be tested on all conduits supporting it.
@@ -245,7 +245,7 @@ GASNet Release Procedure
       tools/GASNet_Tools-[version].tar.gz
       EX/GASNet-[version].tar.gz
   + Copy the GASNet-EX spec (docs/GASNet-EX.txt in the tarball) to two places:
-      docs/GASNet-EX.txt          (overwritting the previous version)
+      docs/GASNet-EX.txt          (overwriting the previous version)
       EX/GASNet-EX-[version].txt  (creating a new file to add to CVS)
     The following command can be used to populate the first location:
     `tar --strip-components=1 --wildcards -xf EX/GASNet-[version].tar.gz -- '*/docs/GASNet-EX.txt'`

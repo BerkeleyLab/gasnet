@@ -27,7 +27,7 @@ GASNet-EX ChangeLog
   - The --{en,dis}able-ofi-mr-scalable configure options have been deprecated
     in favor of newer alternatives which provide finer-grained control.
   - Restore default use of the "RDMADISSEM" barrier, which had been previously
-    disabled in favor of a slower barrier implementaton due to bug 4427.
+    disabled in favor of a slower barrier implementation due to bug 4427.
   - New envvars GASNET_OFI_LIST_DEVICES{,_NODES} to request a list of
     the available network devices.
   - New opt-in work-around for bug 4461 (failure of the Slingshot-11 cxi
@@ -62,7 +62,7 @@ GASNet-EX ChangeLog
   - bug4574: RFE: support per-endpoint AVs
   - bug4579: Document tcp provider floor
   - bug4587: Undefined behavior in testinternal
-  - bug4591: Fix confusing documentation regarding TrueScale IB hardware
+  - bug4591: Fix confusing documentation regarding True Scale IB hardware
   - bug4596: smp-conduit lacks multi-process GASNET_FREEZE support
   - bug4597: ofi-conduit + ssh-spawner GASNET_FREEZE support is unusable
   - bug4606: current aprun not recognized by gasnetrun

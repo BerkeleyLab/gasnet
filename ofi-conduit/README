@@ -68,7 +68,7 @@ The ofi-conduit is currently known to lack support for the following providers
 as of libfabric v1.14.0. If these providers are important to you, please
 contact us at gasnet-staff@lbl.gov .
 
-  + "psm" provider for the (end-of-life) TrueScale products
+  + "psm" provider for the (end-of-life) True Scale products
   + "opx" provider, an alternative to "psm2" for the Omni-Path fabric
 
 The fi_info command installed with libfabric can be used to query the available
@@ -80,7 +80,7 @@ rather than ofi-conduit with the verbs OFI provider, as the former may provide
 better performance.
 
 Users with InfiniBand hardware with an InfiniPath HCA (PathScale or Qlogic) or
-TrueScale HCA (Intel) should use the GASNet mpi-conduit, rather than
+True Scale HCA (Intel) should use the GASNet mpi-conduit, rather than
 ofi-conduit with the verbs OFI provider, as the former may provide better
 performance.
 
@@ -179,7 +179,7 @@ The following configure options are also available:
       Default: 64
 
     * --with-ofi-max-medium=VALUE
-      This option specifes the default value of the environment variable
+      This option specifies the default value of the environment variable
       GASNET_OFI_MAX_MEDIUM, which in turn determines the value returned
       by gex_AM_LUB{Request,Reply}Medium().
       The value cannot be less than 512.
@@ -383,7 +383,7 @@ Recognized environment variables:
 * GASNET_OFI_RMA_INJECT_LIMIT - limit on size of RMA with FI_INJECT
   GASNet RMA put operations no larger than this size may be issued using the
   `FI_INJECT` flag to ensure the data is consumed synchronously.  This can
-  reduce the overal complexity of operations using `GEX_EVENT_NOW`, typically
+  reduce the overall complexity of operations using `GEX_EVENT_NOW`, typically
   at cost of an extra copy.  This setting does not affect local completion
   semantics at the GASNet API level.
   It too large a value is requested, it will be reduced to the maximum which
@@ -628,7 +628,7 @@ Known problems:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4517
 
 * Bug 4554
-  On an HPE Cray EX system with Nvida GPUs, Slingshot-11 network, and the 2.0.0
+  On an HPE Cray EX system with Nvidia GPUs, Slingshot-11 network, and the 2.0.0
   release of the Slingshot host software, it has been observed that tests using
   `GEX_MK_CLASS_CUDA_UVA` would crash in RMA Put operations of 224 bytes or
   less.  An example backtrace would include something like the following, where
@@ -703,7 +703,7 @@ Known problems:
   not compatible with ofi-conduit's needs.  As a result, initializing MPI
   prior to GASNet will yield less reliable Active Messages and possible hangs
   or crashes as a result.  Therefore, when an ofi-conduit application is
-  launched using `srun`, care is taken to avoid initializing MPI as the spawer.
+  launched using `srun`, care is taken to avoid initializing MPI as the spawner.
   To ensure those automatic measures are sufficient, we have the following
   recommendations for use of ofi-conduit on the HPE Cray EX platform:
     + Do not use MPI for job launch:
