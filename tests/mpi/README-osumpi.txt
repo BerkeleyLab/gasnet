@@ -1,4 +1,4 @@
-http://nowlab.cis.ohio-state.edu/projects/mpi-iba/benchmarks.html
+http://mvapich.cse.ohio-state.edu/benchmarks/
 
  This page contains sample MPI-level tests for performance evaluation:
 
