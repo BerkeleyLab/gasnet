@@ -278,7 +278,7 @@ All GASNet conduit code is required to meet the following coding standards:
 
 * Do not use printf/fprintf for console output, use gasneti_console_message instead.
 
-* Environment variable queries should use gasneti_getenv_*_withdefault() whereever
+* Environment variable queries should use gasneti_getenv_*_withdefault() wherever
   practical, to ensure proper verboseenv console reporting of settings/units/defaults.
   Any calls to bare gasneti_getenv() should be followed by a call to the
   appropriate gasneti_env*_display() function to ensure proper reporting.
@@ -331,7 +331,7 @@ All GASNet conduit code is required to meet the following coding standards:
 * Commit messages should describe all the major changes in the commit.
 
 * Fixes to any defects appearing in an official release should appear in a surgical,
-  isolated commit whereever practical. This is mandatory whenever the fix is a
+  isolated commit wherever practical. This is mandatory whenever the fix is a
   reasonable candidate for cherry-pick to the released version. The commit message 
   for fixing a user-visible defect in a release must reference a bug number in
   the public bug database (even if it means you enter the bug for that reason),
@@ -348,7 +348,7 @@ All GASNet conduit code is required to meet the following coding standards:
   necessary files from the extended-ref directory that you need to change 
   (and continue to include the unchanged files) to reduce maintenance headache
   (this applies especially to gasnet_extended.h, gasnet_extended_help.h, and
-  gasnet_extended_common.c. which should never be cloned).
+  gasnet_extended_common.c, which should never be cloned).
 
 * Makefiles must never rely on features newer than the current GNU make version floor.
   Makefile commands and configure scripts should adhere strictly to simple

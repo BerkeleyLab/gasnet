@@ -1,4 +1,4 @@
-http://nowlab.cis.ohio-state.edu/projects/mpi-iba/benchmarks.html
+http://mvapich.cse.ohio-state.edu/benchmarks/
 
  This page contains sample MPI-level tests for performance evaluation:
 
@@ -16,7 +16,7 @@ Bandwidth Test
 
 Bidirectional Bandwidth Test
 
-    * The bidirectional bandwidth test is similar to the bandwidth test, except that both the nodes involved send out a fixed number of back-to-back messages and wait for the reply. This test measures the maximum sustainable aggregrate bandwidth by two nodes. The program for OSU bidirectional bandwidth 2.0 is available here.
+    * The bidirectional bandwidth test is similar to the bandwidth test, except that both the nodes involved send out a fixed number of back-to-back messages and wait for the reply. This test measures the maximum sustainable aggregate bandwidth by two nodes. The program for OSU bidirectional bandwidth 2.0 is available here.
 
 Broadcast Latency Test
 
@@ -24,7 +24,7 @@ Broadcast Latency Test
 
 One-Sided Put Latency Test (only applicable for MVAPICH2)
 
-    * One-Sided Put Latency Test: The sender (origin process) calls MPI_Put (ping) to directly place a message of certain data size in the receiver window. The receiver (target process) calls MPI_Win_wait to make sure the message has been received. Then the receiver initates a MPI_Put (pong) of the same data size to the sender which is now waiting on a synchronization call. Several iterations of this test is carried out and the average put latency numbers is obtained. The program for OSU One-Sided Put latency 1.0 is available here.
+    * One-Sided Put Latency Test: The sender (origin process) calls MPI_Put (ping) to directly place a message of certain data size in the receiver window. The receiver (target process) calls MPI_Win_wait to make sure the message has been received. Then the receiver initiates a MPI_Put (pong) of the same data size to the sender which is now waiting on a synchronization call. Several iterations of this test is carried out and the average put latency numbers is obtained. The program for OSU One-Sided Put latency 1.0 is available here.
 
 One-Sided Get Latency Test (only applicable for MVAPICH2)
 
@@ -40,7 +40,7 @@ One-Sided Get Bandwidth Test (only applicable for MVAPICH2)
 
 One-Sided Put Bidirectional Bandwidth Test (only applicable for MVAPICH2)
 
-    * One-Sided Put Bidirectional Bandwidth Test: The bidirectional bandwidth test is similar to the bandwidth test,except that both the nodes involved send out a fixed number of back to back put messages and wait for the completion. This test measures the maximum sustainable aggregrate bandwidth by two nodes. The program for OSU One-Sided Put Bidirectional Bandwidth 1.0 is available here.
+    * One-Sided Put Bidirectional Bandwidth Test: The bidirectional bandwidth test is similar to the bandwidth test,except that both the nodes involved send out a fixed number of back to back put messages and wait for the completion. This test measures the maximum sustainable aggregate bandwidth by two nodes. The program for OSU One-Sided Put Bidirectional Bandwidth 1.0 is available here.
 
 Accumulate Latency Test (only applicable for MVAPICH2)
 
