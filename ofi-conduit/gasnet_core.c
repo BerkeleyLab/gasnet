@@ -90,8 +90,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
 
   gasneti_init_done = 1; /* enable early to allow tracing */
 
-  gasneti_freezeForDebugger();
-
   #if GASNET_DEBUG_VERBOSE
     gasneti_console_message("gasnetc_init","about to spawn..."); 
   #endif
@@ -110,11 +108,16 @@ static int gasnetc_init( gex_Client_t            *client_p,
   gasneti_spawner = gasneti_spawnerInit(argc, argv, force_spawner, &gasneti_nodes, &gasneti_mynode);
   if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
+  // bug 4597: freeze following process spawning and environment propagation
+  gasneti_freezeForDebugger();
+
   /* Must init timers after global env, and preferably before tracing */
   GASNETI_TICKS_INIT();
 
   /* Now enable tracing of all the following steps */
   gasneti_trace_init(argc, argv);
+
+  gasneti_nodemapInit(gasneti_spawner->Exchange, NULL, 0, 0);
 
   /* bootstrap the nodes for ofi conduit */
   int ret = gasnetc_ofi_init();
@@ -127,8 +130,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
   }
 
   gasneti_assert_zeroret(gasnetc_exit_init());
-
-  gasneti_nodemapInit(gasneti_spawner->Exchange, NULL, 0, 0);
 
   #if GASNET_PSHM
   gasneti_pshm_init(gasneti_bootstrapSNodeBroadcast, 0);
