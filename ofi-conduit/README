@@ -64,6 +64,12 @@ impacting GASNet stability:
 Providers not listed above are accepted from the higher of 1.5 or the first
 libfabric release in which they appear.
 
+The following providers have passed correctness and performance sanity checks
+at some point in time.  However, due to lack of access for periodic testing, we
+cannot consider these to be supported at this time:
+
+  + AWS Elastic Fabric Adapter, via "efa" provider
+
 The ofi-conduit is currently known to lack support for the following providers
 as of libfabric v1.14.0. If these providers are important to you, please
 contact us at gasnet-staff@lbl.gov .
