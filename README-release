@@ -119,8 +119,6 @@ GASNet Release Procedure
    Windows/Cygwin: smp+pthreads
    Mac OS X: smp+pthreads, smp+sysv
   SEGMENT_EVERYTHING should be tested on all conduits supporting it.
-  In most cases these test will be conducted as part of Berkeley UPC's
-  release testing (the "gasnet-tests" suite of the BUPC test harness).
 
 * Install the release candidate and ensure that share/docs/gasnet contains
   all the intended documentation, including any files referenced by README.
@@ -229,12 +227,6 @@ GASNet Release Procedure
     $ git tag gasnet-tools-spec-1.32 master
     $ git push origin gasnet-tools-spec-1.32
 
-* If this GASNet release has a paired Berkeley UPC release, then one should
-  apply a tag to mark the correlation:
-    $ git tag berkeley-upc-2040.8.0 master
-    $ git push origin berkeley-upc-2040.8.0
-  We avoid using an annotated tag here so that "git describe" won't use it.
-
 * In Bugzilla (before publishing the release):
   + Add the version number of this release
   + Add a milestone for the next release
@@ -276,8 +268,46 @@ GASNet Release Procedure
   Reply-To: gasnet-devel@lbl.gov
   Subject: GASNet-EX [version] Release Announcement
 
-* In Bugzilla CLOSE the bugs resolved in this release, following the 
-  protocol described in the BUPC's release procedure.
+* In Bugzilla CLOSE the bugs resolved in this release and rollover those
+  which were not, as follows:
+
+  + Set Status=CLOSED for any GASNet Bugzilla reports RESOLVED/FIXED or
+    VERIFIED/FIXED in this release to inform the reporter and all CC-list
+    members that the fix appears in the new release.  Take care to audit the
+    list to avoid closing bugs that were fixed on the develop branch but NOT
+    in the release.
+    Suggested comment text:
+      We believe this bug to be fixed in the GASNet-[YYYY.MM.PP] release,
+      available from https://gasnet.lbl.gov
+
+      If you believe that this bug is still present in GASNet-[YYYY.MM.PP]
+      (or later) please REOPEN this bug report with details on how to reproduce
+      the problem.
+
+  + Temporarily globally disable Bugzilla email (ideally during off-peak hours)
+    to prevent generating tons of spam during the following steps (which should
+    all be done together):
+    - Open the Bugzilla Administration page
+    - Click on "Parameters" section, then "Email" on the left
+    - Change mail_delivery_method from "Sendmail" to "None"
+    - Click "Save Changes" at the bottom of the page.
+
+  + Set Status=CLOSED for any GASNet Bugzilla reports RESOLVED as INVALID,
+    WONTFIX, WORKSFORME or DUPLICATE which have been in that status for one
+    "release year" or longer.
+    Suggested comment text:
+      Mass CLOSE of bugs in RESOLVED/[XXX] status for a full release cycle (or longer).
+    For DUPLICATE bugs only, add the following additional text:
+      Note that this doesn't necessarily mean the reported problem is "Closed"; only
+      that this bug report is no longer active.  See the duplicated bug for the
+      current Status of the reported problem.
+
+  + Update the milestone for any Bugzilla reports in NEW, ASSIGNED or REOPENED
+    state on the old milestone to the next milestone.
+    Suggested comment text:
+        Rolling-over open bugs to next milestone.
+
+  + Restore the Bugzilla mail_delivery_method to Sendmail
 
 * Revise this document with any additions, corrections or changes
 
