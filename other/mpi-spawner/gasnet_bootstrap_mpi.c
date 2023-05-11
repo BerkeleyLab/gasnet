@@ -186,7 +186,7 @@ static void bootstrapFini(void) {
    * However, as seen w/ mpich-1.2.5, the alternative is to
    * hang on exit, which is no alternative at all.
    */
-  if (!gasnetc_mpi_preinitialized) {
+  if (gasneti_getenv_yesno_withdefault("GASNET_MPI_FINALIZE", 1)) {
     if (is_verbose) gasneti_console_message("MPI-SPAWNER","MPI_Finalize()");
     (void) MPI_Finalize();
   }
