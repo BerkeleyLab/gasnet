@@ -682,6 +682,20 @@ Known problems:
   is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4581
 
+* Bug 4652
+  There exist versions and/or configurations of Slurm on HPE Cray EX systems
+  which prevent the launch of single-node ofi-conduit jobs with the cxi
+  provider.  Failure messages (one per-process) look like the following:
+    *** FATAL ERROR (proc 0): in gasnetc_ofi_init() at
+    [...]/gasnet_ofi.c:1164: fi_domain failed: -38(Function not implemented)
+  For certain versions/configurations, one can work around this issue either
+  by adding `--network=single_node_vni` to one's `srun` command or by setting
+  `SLURM_NETWORK=single_node_vni` in the environment.  However, there are
+  also versions/configurations for which there is no known work-around.
+  The most up-to-date information on this bug, including known work-arounds,
+  is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4652
+
 * See docs/memory_kinds.md in the GASNet-EX sources for current information
   regarding known issues with respect to memory kinds support in ofi-conduit.
 
