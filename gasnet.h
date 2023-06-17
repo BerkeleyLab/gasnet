@@ -457,9 +457,9 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
 /* Blocking Put and Get */
 
 #define gasnet_put(node,dest,src,nbytes) \
-                ((void)gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,0))
+                ((void)gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_get(dest,node,src,nbytes) \
-                ((void)gex_RMA_GetBlocking(gasneti_thunk_tm,dest,node,src,nbytes,0))
+                ((void)gex_RMA_GetBlocking(gasneti_thunk_tm,dest,node,src,nbytes,GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_put_bulk gasnet_put
 #define gasnet_get_bulk gasnet_get
 
@@ -467,29 +467,29 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
 /* Implicit-handle non-blocking Put and Get */
 
 #define gasnet_put_nbi(node,dest,src,nbytes) \
-                ((void)gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,0))
+                ((void)gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_put_nbi_bulk(node,dest,src,nbytes) \
-                ((void)gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_DEFER,0))
+                ((void)gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_DEFER,GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_get_nbi(dest,node,src,nbytes) \
-                ((void)gex_RMA_GetNBI(gasneti_thunk_tm,dest,node,src,nbytes,0))
+                ((void)gex_RMA_GetNBI(gasneti_thunk_tm,dest,node,src,nbytes,GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_get_nbi_bulk gasnet_get_nbi
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle non-blocking Put and Get */
 
 #define gasnet_put_nb(node,dest,src,nbytes) \
-                gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,0)
+                gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,GASNETI_FLAG_G2EX_DEBUG)
 #define gasnet_put_nb_bulk(node,dest,src,nbytes) \
-                gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_DEFER,0)
+                gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_DEFER,GASNETI_FLAG_G2EX_DEBUG)
 #define gasnet_get_nb(dest,node,src,nbytes) \
-                gex_RMA_GetNB(gasneti_thunk_tm,dest,node,src,nbytes,0)
+                gex_RMA_GetNB(gasneti_thunk_tm,dest,node,src,nbytes,GASNETI_FLAG_G2EX_DEBUG)
 #define gasnet_get_nb_bulk gasnet_get_nb
 
 /* ------------------------------------------------------------------------------------ */
 /* Value Gets - blocking and explicit-handle non-blocking */
 
 #define gasnet_get_val(node,src,nbytes) \
-                gex_RMA_GetBlockingVal(gasneti_thunk_tm,node,src,nbytes,0)
+                gex_RMA_GetBlockingVal(gasneti_thunk_tm,node,src,nbytes,GASNETI_FLAG_G2EX_DEBUG)
 
 typedef struct {
   gex_RMA_Value_t gasneti_valget_value;
@@ -507,7 +507,7 @@ gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t _node, void *_src, size_t
 #endif
   _result->gasneti_valget_value = 0;
   //assert(_nbytes > 0 && _nbytes <= sizeof(gex_RMA_Value_t));
-  _result->gasneti_valget_event = gex_RMA_GetNB(gasneti_thunk_tm, _dest, _node, _src, _nbytes, 0);
+  _result->gasneti_valget_event = gex_RMA_GetNB(gasneti_thunk_tm, _dest, _node, _src, _nbytes, GASNETI_FLAG_G2EX_DEBUG);
   return _result;
 }
 
@@ -526,11 +526,11 @@ gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t _handle
 /* Value Puts - blocking, and explicit- and implicit-handle non-blocking */
 
 #define gasnet_put_val(node,dest,value,nbytes) \
-         ((void)gex_RMA_PutBlockingVal(gasneti_thunk_tm,node,dest,value,nbytes,0))
+         ((void)gex_RMA_PutBlockingVal(gasneti_thunk_tm,node,dest,value,nbytes,GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_put_nb_val(node,dest,value,nbytes) \
-                gex_RMA_PutNBVal(gasneti_thunk_tm,node,dest,value,nbytes,0)
+                gex_RMA_PutNBVal(gasneti_thunk_tm,node,dest,value,nbytes,GASNETI_FLAG_G2EX_DEBUG)
 #define gasnet_put_nbi_val(node,dest,value,nbytes) \
-         ((void)gex_RMA_PutNBIVal(gasneti_thunk_tm,node,dest,value,nbytes,0))
+         ((void)gex_RMA_PutNBIVal(gasneti_thunk_tm,node,dest,value,nbytes,GASNETI_FLAG_G2EX_DEBUG))
 
 /* ------------------------------------------------------------------------------------ */
 /* Memset */
