@@ -584,29 +584,29 @@ extern int         gasneti_legacy_memset_nbi(gex_Rank_t _node, void *_dest, int 
 /* VIS */
 
 #define gasnet_putv_bulk(dstrank,dstcount,dstlist,srccount,srclist) \
- ((void)gex_VIS_VectorPutBlocking(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),0))
+ ((void)gex_VIS_VectorPutBlocking(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_getv_bulk(dstcount,dstlist,srcrank,srccount,srclist) \
- ((void)gex_VIS_VectorGetBlocking(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),0))
+ ((void)gex_VIS_VectorGetBlocking(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_putv_nb_bulk(dstrank,dstcount,dstlist,srccount,srclist) \
-       gex_VIS_VectorPutNB(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),0)
+       gex_VIS_VectorPutNB(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),GASNETI_FLAG_G2EX_DEBUG)
 #define gasnet_getv_nb_bulk(dstcount,dstlist,srcrank,srccount,srclist) \
-       gex_VIS_VectorGetNB(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),0)
+       gex_VIS_VectorGetNB(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),GASNETI_FLAG_G2EX_DEBUG)
 #define gasnet_putv_nbi_bulk(dstrank,dstcount,dstlist,srccount,srclist) \
- ((void)gex_VIS_VectorPutNBI(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),0))
+ ((void)gex_VIS_VectorPutNBI(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_getv_nbi_bulk(dstcount,dstlist,srcrank,srccount,srclist) \
- ((void)gex_VIS_VectorGetNBI(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),0))
+ ((void)gex_VIS_VectorGetNBI(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_puti_bulk(dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
- ((void)gex_VIS_IndexedPutBlocking(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,0))
+ ((void)gex_VIS_IndexedPutBlocking(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_geti_bulk(dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen) \
- ((void)gex_VIS_IndexedGetBlocking(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,0))
+ ((void)gex_VIS_IndexedGetBlocking(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_puti_nb_bulk(dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
-       gex_VIS_IndexedPutNB(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,0)
+       gex_VIS_IndexedPutNB(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,GASNETI_FLAG_G2EX_DEBUG)
 #define gasnet_geti_nb_bulk(dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen) \
-       gex_VIS_IndexedGetNB(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,0)
+       gex_VIS_IndexedGetNB(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,GASNETI_FLAG_G2EX_DEBUG)
 #define gasnet_puti_nbi_bulk(dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
- ((void)gex_VIS_IndexedPutNBI(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,0))
+ ((void)gex_VIS_IndexedPutNBI(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,GASNETI_FLAG_G2EX_DEBUG))
 #define gasnet_geti_nbi_bulk(dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen) \
- ((void)gex_VIS_IndexedGetNBI(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,0))
+ ((void)gex_VIS_IndexedGetNBI(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,GASNETI_FLAG_G2EX_DEBUG))
 
 // dedicated g2ex wrappers translate the Strided metadata from legacy to EX format
 #define gasnet_puts_bulk(dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
