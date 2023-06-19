@@ -86,10 +86,25 @@ static void common(gex_Token_t token, gex_Rank_t srcrank, int is_req, int catego
   CHECK(mask & GEX_TI_EP);
   CHECK(info.gex_ep == myep);
 
+#if (GASNET_SUPPORTS_TI_IS_REQ == 1)
+  CHECK(mask & GEX_TI_IS_REQ);
+#elif defined(GASNET_SUPPORTS_TI_IS_REQ)
+  #error GASNET_SUPPORTS_TI_IS_REQ is neither '1' nor undefined
+#endif
   if (mask & GEX_TI_IS_REQ)  CHECK(info.gex_is_req  == is_req);
 
+#if (GASNET_SUPPORTS_TI_IS_LONG == 1)
+  CHECK(mask & GEX_TI_IS_LONG);
+#elif defined(GASNET_SUPPORTS_TI_IS_LONG)
+  #error GASNET_SUPPORTS_TI_IS_LONG is neither '1' nor undefined
+#endif
   if (mask & GEX_TI_IS_LONG) CHECK(info.gex_is_long == (category == am_long));
 
+#if (GASNET_SUPPORTS_TI_ENTRY == 1)
+  CHECK(mask & GEX_TI_ENTRY);
+#elif defined(GASNET_SUPPORTS_TI_ENTRY)
+  #error GASNET_SUPPORTS_TI_ENTRY is neither '1' nor undefined
+#endif
   if (mask & GEX_TI_ENTRY) {
     unsigned int myindex = 2*category + !is_req;
     gex_Flags_t flags = (is_req ? GEX_FLAG_AM_REQUEST : GEX_FLAG_AM_REPLY)
@@ -163,10 +178,6 @@ int main(int argc, char **argv)
   gex_AM_RequestLong1  (myteam, next_rank, hidx_LReq, NULL, 0, next_base, GEX_EVENT_NOW, 0, myrank);
 
   GASNET_BLOCKUNTIL(3 == gasnett_atomic_read(&reply_cnt, 0));
-  int errors = (int)gasnett_atomic_read(&error_cnt,0);
-  if (errors) {
-     MSG("ERROR: %d errors detected", errors);
-  }
 
   {
     gex_Rank_t num_nbrhd;
@@ -181,19 +192,47 @@ int main(int argc, char **argv)
                                             GEX_DT_U64, sizeof(tmp), 1,
                                             GEX_OP_AND, NULL, NULL, 0));
       if (!myrank) {
-        #define OPTIONAL(query) do { \
+        #define CHECKDEF(query) do { \
           if (0 == (supported & query)) { \
+            MSG0("ERROR: Optional " #query " query is not supported, but feature macro is defined"); \
+            gasnett_atomic_increment(&error_cnt, 0); \
+          } \
+        } while (0)
+        #define CHECKUNDEF(query) do { \
+          if (supported & query) { \
+            MSG0("WARNING: Optional " #query " query appears to be supported, but feature macro is undefined"); \
+          } else { \
             MSG0("INFO: Optional " #query " query is not supported"); \
           } \
         } while (0)
 
-        OPTIONAL(GEX_TI_ENTRY);
-        OPTIONAL(GEX_TI_IS_REQ);
-        OPTIONAL(GEX_TI_IS_LONG);
+      #ifdef GASNET_SUPPORTS_TI_ENTRY
+        CHECKDEF(GEX_TI_ENTRY);
+      #else
+        CHECKUNDEF(GEX_TI_ENTRY);
+      #endif
 
-        #undef OPTIONAL
+      #ifdef GASNET_SUPPORTS_TI_IS_REQ
+        CHECKDEF(GEX_TI_IS_REQ);
+      #else
+        CHECKUNDEF(GEX_TI_IS_REQ);
+      #endif
+
+      #ifdef GASNET_SUPPORTS_TI_IS_LONG
+        CHECKDEF(GEX_TI_IS_LONG);
+      #else
+        CHECKUNDEF(GEX_TI_IS_LONG);
+      #endif
+
+        #undef CHECKDEF
+        #undef CHECKUNDEF
       }
     }
+  }
+
+  int errors = (int)gasnett_atomic_read(&error_cnt,0);
+  if (errors) {
+     MSG("ERROR: %d errors detected", errors);
   }
 
   gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
