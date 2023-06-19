@@ -72,6 +72,13 @@
 #define GASNETC_GET_HANDLER 1
 #endif
 
+  /* uncomment each line for which your conduit supports the
+     corresponding optional token info query.
+  */
+#define GASNET_SUPPORTS_TI_ENTRY 1
+#define GASNET_SUPPORTS_TI_IS_REQ 1
+#define GASNET_SUPPORTS_TI_IS_LONG 1
+
   /* uncomment for each {Request,Reply} X {Medium,Long} pair for which your
      conduit implements the corresponding gasnetc_AM_{Prepare,Commit}*().
      If unset, a conduit-independent implementation in terms of the internal
