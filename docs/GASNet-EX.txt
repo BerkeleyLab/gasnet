@@ -72,27 +72,36 @@
 
 // Hybrid/transitional client support:
 //
+// All clients must initialize GASNet using *either* the legacy
+// gasnet_init()/gasnet_attach() calls *or* the new gex_Client_Init() call
+// described in a subsequent section.
+//
 // Clients who are incrementally adopting GASNet-EX may have a period of time
-// when they are using both GASNet-1 and GASNet-EX APIs in the same process. 
-// Such clients should initialize GASNet using *either* the legacy 
-// gasnet_init()/gasnet_attach() calls, or the new gex_Client_Init() call
-// (described in a subsequent section).
+// when they are using deprecated GASNet-1 calls (see below).  A process using
+// such deprecated calls must enable legacy support, which is done implicitly
+// when a process calls gasnet_init() or explicitly when a caller passes the
+// GEX_FLAG_USES_GASNET1 flag to gex_Client_Init().
+//
+// The following functions from GASNet-1 have been deprecated in favor of new
+// GASNet-EX equivalents. These `gasnet_`-prefixed deprecated functions shall
+// only be invoked if legacy support has been enabled.
+// + gasnet_AMRequest*()
+// + gasnet_get*(), including bulk, non-bulk, value-based and VIS
+// + gasnet_put*(), including bulk, non-bulk, value-based and VIS
+// + gasnet_memset*()
+// NOTE: This list is subject to expansion as new GASNet-EX APIs are
+// implemented which displace less-capable GASNet-1 APIs.
 //
 // Note that gasnet_init()/gasnet_attach() may only be called once per process,
-// and currently only one client per process can use GASNet-1 APIs.
+// and currently only one client per process can use the deprecated GASNet-1
+// functions listed above.
 //
-// Hybrid/transitional clients who initialize using gex_Client_Init() should
-// pass the following flag to that function to request the use of GASNet-1 services.
-// 
 #define GEX_FLAG_USES_GASNET1 ((gex_Flags_t)???)
 
-// The following API allows jobs that initialize GASNet for legacy support to
-// access the key GASNet-EX objects created explicitly by gex_Client_Init(), or
-// implicitly by gasnet_init()/gasnet_attach().  The types and usage of these
-// objects are described below.  Initialization for legacy support is either of
-// the following:
-// + Initialization using the legacy gasnet_init()/gasnet_attach() APIs
-// + Initialization using gex_Client_Init() with GEX_FLAG_USES_GASNET1
+// The following API allows jobs that enable legacy support (as described
+// immediately above) to access the key GASNet-EX objects created explicitly by
+// gex_Client_Init(), or implicitly by gasnet_init()/gasnet_attach().  The types
+// and usage of these objects are described below.
 //
 // This call is defined in gasnet.h (not gasnetex.h).
 //

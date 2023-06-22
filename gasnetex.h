@@ -874,6 +874,12 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 
 #define GASNETI_FLAG_INIT_LEGACY           (1U << 31)
 
+#if GASNET_DEBUG
+  #define GASNETI_FLAG_G2EX_DEBUG             (1U << 30)
+#else
+  #define GASNETI_FLAG_G2EX_DEBUG             0
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 // GASNETC_MAX_{ARGS,MEDIUM,LONG}_NBRHD
 // These are compile-time constants used by the "neighborhood" AM support,
