@@ -1505,16 +1505,16 @@ extern gex_TI_t gasnetc_Token_Info(
   result |= GEX_TI_EP;
 
   /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
-  //info->gex_entry = 0;//###;
-  //result |= GEX_TI_ENTRY;
+  info->gex_entry = gasneti_import_ep(gasneti_THUNK_EP)->_amtbl + hdr->handler;
+  result |= GEX_TI_ENTRY;
 
   /* (###) add code here to set boolean "is a request" field info->gex_is_req (optional) */
-  //info->gex_is_req = real_token->u.generic.is_req;
-  //result |= GEX_TI_IS_REQ;
+  info->gex_is_req = hdr->is_req;
+  result |= GEX_TI_IS_REQ;
 
   /* (###) add code here to set boolean "is a long" field info->gex_is_long (optional) */
-  //info->gex_is_long = real_token->is_long;
-  //result |= GEX_TI_IS_LONG;
+  info->gex_is_long = (hdr->am_type == GASNETC_UCX_AM_LONG);
+  result |= GEX_TI_IS_LONG;
 
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }

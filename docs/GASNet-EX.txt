@@ -1706,6 +1706,22 @@ typedef [some integer type] gex_TI_t;
 // Convenience: all defined queries (Required and Optional)
 #define GEX_TI_ALL           ((gex_TI_t)???)
 
+// Support indicators for Optional token into queries.
+//
+// GASNET_SUPPORTS_TI_{ENTRY,IS_REQ,IS_LONG} preprocessor identifiers are
+// defined to 1 or undefined to indicate whether (or not, respectively) the
+// implementation of gex_Token_Info() supports the corresponding query for
+// all valid tokens.
+//
+// When any of these is undefined, the implementation is still permitted to
+// support the query conditionally.  For instance, the shared-memory transport
+// may support an Optional query that is not supported for AMs travelling
+// outside of the shared-memory nbrhd, or vice-versa.
+
+#define GASNET_SUPPORTS_TI_ENTRY        1 or undefined
+#define GASNET_SUPPORTS_TI_IS_REQ       1 or undefined
+#define GASNET_SUPPORTS_TI_IS_LONG      1 or undefined
+
 // Takes a token, address of client-allocated gex_Token_Info_t, and a mask.
 // The mask is a bit-wise OR of GEX_TI_* constants, which indicates which
 // fields of the gex_Token_Info_t should be set by the call.
