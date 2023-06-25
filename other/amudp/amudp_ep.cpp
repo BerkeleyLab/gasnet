@@ -943,6 +943,17 @@ extern int AM_GetMsgTag(void *token, tag_t *tagp) {
   return AM_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+extern int AMUDP_GetTokenInfo(void *token, handler_t *handler, amudp_category_t *cat, int *is_req) {
+  AMX_CHECKINIT();
+  AMX_CHECK_ERR((!token || !handler || !cat || !is_req),BAD_ARG);
+
+  amudp_msg_t *msg = &((amudp_buf_t *)token)->msg;
+  *handler = msg->handlerId;
+  *cat     = AMUDP_MSG_CATEGORY(msg);
+  *is_req  = AMUDP_MSG_ISREQUEST(msg);
+  return AM_OK;
+}
+/* ------------------------------------------------------------------------------------ */
 extern int AMUDP_SetHandlerCallbacks(ep_t ep, AMUDP_preHandlerCallback_t preHandlerCallback, 
                                               AMUDP_postHandlerCallback_t postHandlerCallback) {
   AMX_CHECKINIT();
