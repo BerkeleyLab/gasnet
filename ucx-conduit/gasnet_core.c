@@ -1330,11 +1330,10 @@ static void gasnetc_exit_body(void) {
   // TODO: 30 is arbitrary and hard-coded
   alarm(MAX(30, timeout));
   if (graceful) {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
-    gasneti_bootstrapFini();
-    // TODO: this may belong earlier, but placement earlier leads to errors
     GASNETC_EXIT_STATE("ucx finalization");
     gasnetc_ucx_fini();
+    GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
+    gasneti_bootstrapFini();
   } else {
     GASNETC_EXIT_STATE("in gasneti_bootstrapAbort() during forceful exit");
     gasneti_bootstrapAbort(exitcode);
