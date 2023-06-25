@@ -29,6 +29,12 @@ GASNet-EX ChangeLog
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
 
+* Portable UDP support (details in udp-conduit README)
+  - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+
+* Portable MPI support (details in mpi-conduit README)
+  - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+
 * GASNet-EX Spec v0.17: (details in docs/GASNet-EX.txt)
   - Add new `GASNET_SUPPORTS_TI_*` feature macros
 
