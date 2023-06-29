@@ -556,6 +556,9 @@ static int gasnetc_init(
   /* Must init timers after global env, and preferably before tracing */
   GASNETI_TICKS_INIT();
 
+  /* Now enable tracing of all the following steps */
+  gasneti_trace_init(argc, argv);
+
   if (gasneti_spawn_verbose) {
     gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
       gasneti_mynode, gasneti_nodes);
@@ -857,7 +860,10 @@ extern int gasnetc_Client_Init(
     // NOTE: gasnetc_init() creates the first Client, EP and TM for use in bootstrap comms
     int retval = gasnetc_init(client_p, ep_p, tm_p, clientName, argc, argv, flags);
     if (retval != GASNET_OK) GASNETI_RETURN(retval);
+  #if 0
+    /* called within gasnetc_init to allow init tracing */
     gasneti_trace_init(argc, argv);
+  #endif
   } else {
     gasneti_fatalerror("No multi-client support");
   }
