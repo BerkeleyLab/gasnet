@@ -73,8 +73,10 @@
 #endif
 
   /* uncomment each line for which your conduit supports the
-     corresponding optional token info query.
+     corresponding token info query.
   */
+#define GASNET_SUPPORTS_TI_SRCRANK 1
+#define GASNET_SUPPORTS_TI_EP 1
 #define GASNET_SUPPORTS_TI_ENTRY 1
 #define GASNET_SUPPORTS_TI_IS_REQ 1
 #define GASNET_SUPPORTS_TI_IS_LONG 1
