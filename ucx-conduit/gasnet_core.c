@@ -773,9 +773,8 @@ extern int gasnetc_attach_primary(void) {
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
-  // TODO: can we safely invert the next two lines to use an AM-based barrier here instead?
-  gasneti_bootstrapBarrier();
   gasneti_attach_done = 1;
+  gasneti_bootstrapBarrier();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete"));
 
