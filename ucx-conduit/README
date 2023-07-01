@@ -348,5 +348,18 @@ Additional environment variables:
   + Investigate older UCX versions and hardware compatibility and update README.
   + Support Graceful exits if rank 0 has failed.
   + Restore `--enable-segment-everything` mode:
-    - Fix robustness problems with AMLong in `--enable-segment-everything` mode.
+    - Fix performance and memory usage of AMLong in `--enable-segment-everything` mode.
     - Apply ODP to optimize `--enable-segment-everything` mode.
+    NOTE:
+      In FAST and LARGE modes, receive buffers are preposted to the tag-matching APIs
+      at initialization, and reposted as quickly as the received AMs have been
+      executed.
+      However, in EVERYTHING mode there are NO preposted receives.  Instead, every
+      internal poll (both inside and outside handler context) calls
+      `ucp_tag_probe_nb()` to determine the length necessary in order to post the
+      receive for the message (for which the underlying transport has at least
+      transferred the length and tag, plus maybe the payload in an eager protocol).
+      In general (unless eager) the AM send buffer at the initiator will remain
+      allocated until this matching receive is posted.  Thus, one may deadlock if
+      there is some path by which an AM injector is waiting for send buffers when all
+      of them are tied up with AMs sent to inattentive peers.
