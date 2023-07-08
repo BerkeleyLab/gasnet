@@ -2444,44 +2444,51 @@ out_imm:
     return 1;
 }
 
-int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler, 
-                     void *source_addr, size_t nbytes,   /* data payload */
-                     int numargs, va_list argptr, int isreq, gex_Flags_t flags GASNETI_THREAD_FARG)
+GASNETI_INLINE(gasnetc_medium_prep)
+gasnetc_ofi_send_ctxt_t *gasnetc_medium_prep(
+                int numargs,
+                int isreq,
+                gex_Flags_t flags
+                GASNETI_THREAD_FARG)
 {
     // Get a send buffer
     gasnetc_ofi_send_ctxt_t *header = gasnetc_ofi_get_am_header(isreq, flags GASNETI_THREAD_PASS);
     if (!header) {
         gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
-        return 1;
+        goto out_imm;
     }
+
+    // Initialize available metadata
     gasnetc_ofi_am_send_buf_t *sendbuf = &header->sendbuf;
-
-    int ret = 0;
-    struct fid_ep* ep;
-    fi_addr_t am_dest;
-    int poll_type;
-    if (isreq) {
-        ep = gasnetc_ofi_request_epfd;
-        am_dest = gasnetc_fabric_addr(REQ, dest);
-        poll_type = OFI_POLL_ALL;
-    } 
-    else {
-        ep = gasnetc_ofi_reply_epfd;
-        am_dest = gasnetc_fabric_addr(REP, dest);
-        poll_type = OFI_POLL_REPLY;
-    }
-
-    size_t len = GASNETI_ALIGNUP(sizeof(gex_AM_Arg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
-    memcpy((uint8_t *)(sendbuf->buf.medium_buf.data)+ len, source_addr, nbytes);
-    len += (nbytes + offsetof(gasnetc_ofi_am_send_buf_t, buf.medium_buf));
-    len = GASNETI_ALIGNUP(len, GASNETI_MEDBUF_ALIGNMENT); // ensure multi-recv buffer alignment
-
-    // Initialize metadata (handler, args, etc.)
-    sendbuf->handler = (uint8_t) handler;
     sendbuf->sourceid = gasneti_mynode;
     sendbuf->type = OFI_AM_MEDIUM;
-    sendbuf->argnum = numargs;
     sendbuf->isreq = isreq;
+    sendbuf->argnum = numargs;
+
+out_imm:
+    return header;
+}
+
+GASNETI_INLINE(gasnetc_medium_commit)
+int gasnetc_medium_commit(
+                gasnetc_ofi_send_ctxt_t *header, const int fixed,
+                gex_Rank_t dest, gex_AM_Index_t handler,
+                const void *client_buf, size_t nbytes,   /* data payload */
+                unsigned int numargs, va_list argptr, int isreq,
+                gex_Flags_t flags GASNETI_THREAD_FARG)
+{
+    gasnetc_ofi_am_send_buf_t *sendbuf = &header->sendbuf;
+
+    size_t args_len = GASNETI_ALIGNUP(sizeof(gex_AM_Arg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
+    if (fixed || client_buf) {
+      GASNETI_MEMCPY_SAFE_EMPTY((uint8_t *)(sendbuf->buf.medium_buf.data) + args_len, client_buf, nbytes);
+    }
+
+    size_t len = offsetof(gasnetc_ofi_am_send_buf_t, buf.medium_buf) + args_len + nbytes;
+    len = GASNETI_ALIGNUP(len, GASNETI_MEDBUF_ALIGNMENT); // ensure multi-recv buffer alignment
+
+    // Remainder of metadata (handler, args, nbytes)
+    sendbuf->handler = (uint8_t) handler;
     gex_AM_Arg_t *arglist = (gex_AM_Arg_t*) sendbuf->buf.medium_buf.data;
     for (int i = 0 ; i < numargs ; ++i) {
         arglist[i] = va_arg(argptr, gex_AM_Arg_t);
@@ -2492,7 +2499,22 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
     sendbuf->overhead = overhead;
     gasneti_assert_uint(overhead ,<, 256);
 
+    struct fid_ep* ep;
+    fi_addr_t am_dest;
+    int poll_type;
+    if (isreq) {
+        ep = gasnetc_ofi_request_epfd;
+        am_dest = gasnetc_fabric_addr(REQ, dest);
+        poll_type = OFI_POLL_ALL;
+    }
+    else {
+        ep = gasnetc_ofi_reply_epfd;
+        am_dest = gasnetc_fabric_addr(REP, dest);
+        poll_type = OFI_POLL_REPLY;
+    }
+
     // Send
+    int ret;
     if(len <= max_buffered_send) {
         OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.am_tx,
                              ret = fi_inject(ep, sendbuf, len, am_dest),
@@ -2513,9 +2535,83 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
     return 0;
 
 out_imm:
+    gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
     gasnetc_ofi_free_am_header(header);
     return 1;
 }
+
+int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler, 
+                     void *source_addr, size_t nbytes,   /* data payload */
+                     int numargs, va_list argptr, int isreq, gex_Flags_t flags GASNETI_THREAD_FARG)
+{
+    gasnetc_ofi_send_ctxt_t *header;
+    header = gasnetc_medium_prep(numargs, isreq, flags GASNETI_THREAD_PASS);
+    if (!header) return 1;
+    gasneti_assume((source_addr != NULL) || !nbytes);
+    return gasnetc_medium_commit(header, /*fixed*/1, dest, handler, source_addr, nbytes,
+                                 numargs, argptr, isreq, flags GASNETI_THREAD_PASS);
+}
+
+
+#if GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM || GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
+
+extern gasneti_AM_SrcDesc_t gasnetc_ofi_PrepareMedium(
+                        gasneti_AM_SrcDesc_t  sd,
+                        int                   isreq,
+                        gex_Rank_t            jobrank,
+                        const void           *client_buf,
+                        size_t                size,
+                        gex_Flags_t           flags,
+                        unsigned int          numargs
+                        GASNETI_THREAD_FARG)
+{
+    const gex_Flags_t immediate = flags & GEX_FLAG_IMMEDIATE;
+    gasnetc_ofi_send_ctxt_t *header =
+        gasnetc_medium_prep(numargs, isreq, /*flags*/immediate GASNETI_THREAD_PASS);
+    if (!header) goto out_immediate;
+
+    sd->_void_p = header;
+    sd->_is_nbrhd = 0;
+    sd->_dest._request._rank = jobrank; // yes, same for request and reply paths
+    sd->_size = size;
+
+    if (client_buf) {
+        sd->_addr = (/*non-const*/ void *)client_buf;
+    } else {
+        size_t args_len = GASNETI_ALIGNUP(sizeof(gex_AM_Arg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
+        sd->_addr = sd->_gex_buf =
+            (void *)((uintptr_t)&header->sendbuf.buf.medium_buf.data + args_len);
+        gasneti_init_sd_poison(sd);
+    }
+
+    return sd;
+
+out_immediate:
+    gasneti_assert(immediate);
+    gasneti_reset_srcdesc(sd);
+    return NULL;
+}
+
+extern void gasnetc_ofi_CommitMedium(
+                gasneti_AM_SrcDesc_t sd,
+                int isreq,
+                gex_AM_Index_t handler,
+                size_t nbytes,
+                va_list argptr
+                GASNETI_THREAD_FARG)
+{
+    gasnetc_ofi_send_ctxt_t *header = (gasnetc_ofi_send_ctxt_t *)sd->_void_p;
+    unsigned int numargs = header->sendbuf.argnum;
+    gex_Rank_t jobrank = sd->_dest._request._rank;
+    const void *source_addr = sd->_gex_buf ? NULL : sd->_addr;
+    gasneti_assert_zeroret(
+        gasnetc_medium_commit(header, /*fixed*/0, jobrank, handler,
+                              source_addr, nbytes,
+                              numargs, argptr, isreq, /*flags*/0
+                              GASNETI_THREAD_PASS));
+}
+
+#endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM || GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
                        void *source_addr, size_t nbytes,   /* data payload */

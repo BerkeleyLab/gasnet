@@ -83,8 +83,8 @@
      your conduit must provide the V-suffixed functions for any of these that
      are not defined.
    */
-/* #define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1 */
-/* #define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM 1 */
+#define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1
+#define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM 1
 /* #define GASNET_NATIVE_NP_ALLOC_REQ_LONG 1 */
 /* #define GASNET_NATIVE_NP_ALLOC_REP_LONG 1 */
 
