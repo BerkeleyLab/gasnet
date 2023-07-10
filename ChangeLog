@@ -24,6 +24,12 @@ GASNet-EX ChangeLog
 * Memory Kinds (support for non-host memory)
   - Memory Kinds support for AMD GPUs extended to ROCm-6 (bug 4686)
 
+* Libfabric (details in ofi-conduit README)
+  - Negotiated-Payload Active Message (NPAM) Mediums are implemented natively
+    for ofi-conduit, replacing use of a portable reference implementation.
+    This was measured to improve bandwidth on the HPE Slingshot network when
+    using NPAM interfaces with a GASNet-allocated buffer.
+
 * InfiniBand Verbs (details in ibv-conduit README)
   - A new send progress thread can be enabled to process completion events
     related to communication injection, potentially reducing the cost of
