@@ -683,25 +683,6 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   #define gasnetc_ibv_wc_status_str(status) "N/A"
 #endif
 
-const char *gasnetc_ibv_wc_opcode_str(enum ibv_wc_opcode opcode)
-{
-  switch (opcode) {
-  #define OPCASE(op) case IBV_WC_##op: return #op; break;
-    // Only need the send queue opcodes, and only the subset we might use
-    OPCASE(SEND)
-    OPCASE(RDMA_WRITE)
-    OPCASE(RDMA_READ)
-    OPCASE(COMP_SWAP)
-    OPCASE(FETCH_ADD)
-  #undef OPCASE
-    default: {
-      static char opcode_str[32];
-      snprintf(opcode_str, sizeof(opcode_str), "UNKNOWN%d", opcode);
-      return opcode_str;
-    }
-  }
-}
-
 const char *gasnetc_opcode_str(gasnetc_sreq_opcode_t opcode)
 {
   switch (opcode) {
@@ -752,14 +733,13 @@ static void gasnetc_dump_cqe(struct ibv_wc *comp, gasnetc_hca_t *hca, const int 
 
 #if GASNETC_DYNAMIC_CONNECT && !GASNETC_USE_CONN_THREAD
   if (comp->wr_id & 1) { // UD for dynamic connection
-    MSG_APPEND(" operation=CONN(%s)", gasnetc_ibv_wc_opcode_str(comp->opcode));
+    MSG_APPEND("%s"," operation=CONN");
   } else
 #endif
   if (is_snd) {
     gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)comp->wr_id;
-    MSG_APPEND(" op=%s(%s) dest=(proc:%d, qpi:%d)",
+    MSG_APPEND(" op=%s dest=(proc:%d, qpi:%d)",
                gasnetc_opcode_str(sreq->opcode),
-               gasnetc_ibv_wc_opcode_str(comp->opcode),
                gasnetc_epid2node(sreq->cep->epid),
                gasnetc_epid2qpi(sreq->cep->epid) - 1);
 
@@ -923,7 +903,6 @@ static int gasnetc_snd_reap(int limit) {
 	  switch (sreq->opcode) {
           #if GASNETC_PIN_SEGMENT && GASNETC_FH_OPTIONAL
 	  case GASNETC_OP_GET_BOUNCE:	/* Bounce-buffer GET */
-            //gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_READ);  Disabled due to bug 4363
 	    gasneti_assert(sreq->comp.cb != NULL);
 	    gasneti_assert(!GASNETC_USE_FIREHOSE); /* Only possible when firehose disabled */
 	    gasneti_assert(sreq->bb_buff != NULL);
@@ -936,7 +915,6 @@ static int gasnetc_snd_reap(int limit) {
           #endif
 
 	  case GASNETC_OP_GET_ZEROCP:	/* Zero-copy GET */
-            //gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_READ);  Disabled due to bug 4363
 	    gasneti_assert(sreq->comp.cb != NULL);
             sreq->comp.cb(sreq->comp.data);
 	    GASNETC_COLLECT_FHS();
@@ -944,7 +922,6 @@ static int gasnetc_snd_reap(int limit) {
 
 	  case GASNETC_OP_PUT_BOUNCE:	/* Bounce-buffer PUT */
 	  case GASNETC_OP_LONG_BOUNCE:	/* Bounce-buffer Long payload */
-            //gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_WRITE);  Disabled due to bug 4363
             if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
             }
@@ -959,7 +936,6 @@ static int gasnetc_snd_reap(int limit) {
 	    break;
 
 	  case GASNETC_OP_PUT_INLINE:	/* Inline PUT */
-            //gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_WRITE);  Disabled due to bug 4363
             if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
             }
@@ -972,7 +948,6 @@ static int gasnetc_snd_reap(int limit) {
 
 	  case GASNETC_OP_PUT_ZEROCP:	/* Zero-copy PUT */
 	  case GASNETC_OP_LONG_ZEROCP:	/* Zero-copy Long payload */
-            //gasneti_assert_uint(comp.opcode ,==, IBV_WC_RDMA_WRITE);  Disabled due to bug 4363
 	    if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
 	    }
@@ -980,7 +955,6 @@ static int gasnetc_snd_reap(int limit) {
 	    break;
 
 	  case GASNETC_OP_AM:		/* AM send */
-            //gasneti_assert_uint(comp.opcode ,==, IBV_WC_SEND);  Disabled due to bug 4363
 	    if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
 	    }
@@ -988,8 +962,6 @@ static int gasnetc_snd_reap(int limit) {
 	    break;
 
 	  case GASNETC_OP_ATOMIC:
-            //gasneti_assert((comp.opcode == IBV_WC_FETCH_ADD) ||
-            //               (comp.opcode == IBV_WC_COMP_SWAP));  Disabled due to bug 4363
 	    if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
 	    }
@@ -997,7 +969,6 @@ static int gasnetc_snd_reap(int limit) {
 
           #if GASNETC_HAVE_FENCED_PUTS
           case GASNETC_OP_FENCE:        // Atomic after PUT, with descriptor chaining
-            //gasneti_assert_uint(comp.opcode ,==, IBV_WC_FETCH_ADD);  Disabled due to bug 4363
             sreq->opcode = GASNETC_OP_FREE;
             sreq = sreq->fence_sreq;
             #if GASNET_DEBUG
