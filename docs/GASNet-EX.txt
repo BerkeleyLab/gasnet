@@ -1695,29 +1695,36 @@ typedef struct {
 typedef [some integer type] gex_TI_t;
 
 // REQUIRED: All implementations must support these queries:
-#define GEX_TI_SRCRANK       ((gex_TI_t)???)
-#define GEX_TI_EP            ((gex_TI_t)???)
+#define GEX_TI_SRCRANK       ((gex_TI_t)???)     # required since spec v0.1
+#define GEX_TI_EP            ((gex_TI_t)???)     # required since spec v0.1
 
 // OPTIONAL: Some implementations might not support these queries:
-#define GEX_TI_ENTRY         ((gex_TI_t)???)
-#define GEX_TI_IS_REQ        ((gex_TI_t)???)
-#define GEX_TI_IS_LONG       ((gex_TI_t)???)
+#define GEX_TI_ENTRY         ((gex_TI_t)???)     # optional since spec v0.1
+#define GEX_TI_IS_REQ        ((gex_TI_t)???)     # optional since spec v0.1
+#define GEX_TI_IS_LONG       ((gex_TI_t)???)     # optional since spec v0.1
 
 // Convenience: all defined queries (Required and Optional)
-#define GEX_TI_ALL           ((gex_TI_t)???)
+#define GEX_TI_ALL           ((gex_TI_t)???)     # required since spec v0.1
 
-// Support indicators for Optional token into queries.
+// Support indicators for Optional token into queries
+// Available since spec v0.17
 //
-// GASNET_SUPPORTS_TI_{ENTRY,IS_REQ,IS_LONG} preprocessor identifiers are
-// defined to 1 or undefined to indicate whether (or not, respectively) the
-// implementation of gex_Token_Info() supports the corresponding query for
-// all valid tokens.
+// GASNET_SUPPORTS_TI_* preprocessor identifiers are defined to 1 or undefined
+// to indicate whether (or not, respectively) the implementation of
+// gex_Token_Info() supports the corresponding query for all valid tokens.
+//
+// When any of these is defined for an Optional query, it is an indication that
+// the current implementation of the current conduit supports the
+// corresponding query.  However, it is not a guarantee of such support in
+// other conduits or in future releases of the current conduit.
 //
 // When any of these is undefined, the implementation is still permitted to
 // support the query conditionally.  For instance, the shared-memory transport
 // may support an Optional query that is not supported for AMs travelling
 // outside of the shared-memory nbrhd, or vice-versa.
 
+#define GASNET_SUPPORTS_TI_SRCRANK      1
+#define GASNET_SUPPORTS_TI_EP           1
 #define GASNET_SUPPORTS_TI_ENTRY        1 or undefined
 #define GASNET_SUPPORTS_TI_IS_REQ       1 or undefined
 #define GASNET_SUPPORTS_TI_IS_LONG      1 or undefined
