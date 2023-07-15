@@ -1415,6 +1415,32 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   The most up-to-date information on this issue is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4314
 
++ Bug 4658
+  One may experience RMA failures when ODP is enabled and the application
+  executable is located on a GPFS filesystem.  In some cases the problem
+  manifests as an application hang, and in others as failure with a message
+  like the following, where "local protection error" and "ZEROCP" are consistent
+  portions of the details:
+
+  *** ERROR (proc 1): snd status=4(local protection error) vendor_err=0x36 qp_num=0x63ec hca=mlx5_0 op=GET_ZEROCP dest=(proc:0, qpi:0)
+  *** FATAL ERROR (proc 1): in gasnetc_snd_reap() at [redcted]/ibv-conduit/gasnet_core_sndrcv.c:1029: aborting on reap of failed send
+  *** NOTICE (proc 1): Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace.
+
+  In a debug build, the first line will include additional operation
+  metadata such as in the following:
+
+  *** ERROR (proc 1): snd status=4(local protection error) vendor_err=0x36 qp_num=0x63ec hca=mlx5_0 op=GET_ZEROCP dest=(proc:0, qpi:0) flags=0 loc_addr=0x00000000 00ac1f98 rem_addr=0x00007fd9 17e353c0 length=4
+
+  While the example outputs above are for a Get operation, Puts are also
+  impacted.
+  Currently, workarounds include
+  1. Disabling ODP via `GASNET_USE_ODP=0` in the environment at runtime, or
+     by passing `--disable-ibv-odp` to `configure`
+  2. Relocating the executable to a non-GPFS directory
+  The most up-to-date information on this issue is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4658
+
+
 + See the GASNet Bugzilla server for details on other known bugs:
   https://gasnet-bugs.lbl.gov/
 
