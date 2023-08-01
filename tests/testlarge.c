@@ -304,6 +304,7 @@ int main(int argc, char **argv)
     int fullduplexmode = 0;
     int crossmachinemode = 0;
     int skipwarmup = 0;
+    size_t segsz = 0;
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
     int use_cuda_uva = 0;
     int use_hip = 0;
@@ -350,6 +351,10 @@ int main(int argc, char **argv)
       } else if (!strcmp(argv[arg], "-max-step")) {
         ++arg;
         if (argc > arg) { max_step = gasnett_parse_int(argv[arg], 1); arg++; }
+        else help = 1;
+      } else if (!strcmp(argv[arg], "-segsz")) {
+        ++arg;
+        if (argc > arg) { segsz = gasnett_parse_int(argv[arg], 1024*1024); arg++; }
         else help = 1;
 #if GASNET_HAVE_MK_CLASS_CUDA_UVA
       // UNDOCUMENTED
@@ -402,7 +407,15 @@ int main(int argc, char **argv)
     #ifdef GASNET_SEGMENT_EVERYTHING
       if (maxsz > TEST_SEGSZ) { ERR("maxsz must be <= %"PRIuPTR" on GASNET_SEGMENT_EVERYTHING",(uintptr_t)TEST_SEGSZ); gasnet_exit(1); }
     #endif
-    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+    if (segsz == 0) {
+      segsz = TEST_SEGSZ_REQUEST;
+    } else if (segsz < TEST_SEGSZ_REQUEST) {
+      ERR("Command line -segsz %"PRIuPTR" is less than %"PRIuPTR,
+           (uintptr_t)segsz, (uintptr_t)(TEST_SEGSZ_REQUEST));
+      gasnet_exit(1);
+    }
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, segsz));
+
     test_init("testlarge",1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The '-in' or '-out' option selects whether the initiator-side\n"
                "   memory is in the GASNet segment or not (default is 'in').\n"
@@ -415,7 +428,10 @@ int main(int argc, char **argv)
                "   nodes communicate with each other, while all other nodes sit idle.\n"
                "  The '-minsz N' option sets the minimum transfer size tested (default is 16).\n"
                "  The '-max-step N' option selects the maximum step between transfer sizes,\n"
-               "    which by default advance by doubling until maxsz is reached.");
+               "    which by default advance by doubling until maxsz is reached.\n"
+               "  The '-segsz N' option sets the segment space to use (in MB).\n"
+               "    The default is the minimum necessary to complete the tests."
+              );
     if (help || argc > arg) test_usage();
     
     max_payload = maxsz;
@@ -490,7 +506,7 @@ int main(int argc, char **argv)
       }
 
       GASNET_Safe( gex_MK_Create(&kind, myclient, &args, 0) );
-      GASNET_Safe( gex_Segment_Create(&d_segment, myclient, NULL, TEST_SEGSZ_REQUEST, kind, 0) );
+      GASNET_Safe( gex_Segment_Create(&d_segment, myclient, NULL, segsz, kind, 0) );
       GASNET_Safe( gex_EP_Create(&gpu_ep, myclient, GEX_EP_CAPABILITY_RMA, 0) );
       GASNET_Safe( gex_EP_BindSegment(gpu_ep, d_segment, 0) );
       gex_EP_PublishBoundSegment(myteam, &gpu_ep, 1, 0);
@@ -514,7 +530,7 @@ int main(int argc, char **argv)
         }
         assert(((uintptr_t)msgbuf) % PAGESZ == 0);
 
-        if (myproc == 0) 
+        if (myproc == 0) {
           MSG("Running %i iterations of %s%s%sbulk %s%s%s with local addresses %sside the segment for sizes: %"PRIuPTR"...%"PRIuPTR"\n", 
           iters, 
           (firstlastmode ? "first/last " : ""),
@@ -523,6 +539,10 @@ int main(int argc, char **argv)
           doputs?"put":"", (doputs&&dogets)?"/":"", dogets?"get":"",
           insegment ? "in" : "out", 
           (uintptr_t)min_payload, (uintptr_t)max_payload);
+          if (segsz > TEST_SEGSZ_REQUEST) {
+            MSG("Using non-default segment size %"PRIuPTR, (uintptr_t)segsz);
+          }
+        }
         BARRIER();
 
         if (iamsender && !skipwarmup) { /* pay some warm-up costs */
