@@ -38,6 +38,10 @@ GASNet-EX ChangeLog
 * GASNet-EX Spec v0.17: (details in docs/GASNet-EX.txt)
   - Add new `GASNET_SUPPORTS_TI_*` feature macros
 
+* General and Misc.
+  - New options to `testlarge` and `testsmall` enable testing a wider
+    range of conditions.
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4363: ibv-conduit assertion failures regarding incorrect opcode
   - bug4594: UCX should not enable native atomics unconditionally
