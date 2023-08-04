@@ -89,13 +89,13 @@ int gasneti_MK_Create_hip(
   // Look for NVIDIA GDR support
   const char *filename = "/sys/kernel/mm/memory_peers/nv_mem/version";
  #else
-  // Look for AMD GDR support (AMD Kernel Fusion Driver == amdkfd).
+  // Look for AMD ROCmRDMA support (AMD Kernel Fusion Driver == amdkfd).
   const char *filename = "/sys/kernel/mm/memory_peers/amdkfd/version";
  #endif
   if (access(filename, F_OK)) {
     // TODO: gracefully fall back to "reference implementation",
     // once one is available, rather than failing.
-    GASNETI_RETURN_ERRR(BAD_ARG,"GEX_MK_CLASS_HIP: kernel lacks GPUDirect RDMA support");
+    GASNETI_RETURN_ERRR(BAD_ARG,"GEX_MK_CLASS_HIP: kernel lacks ROCmRDMA support");
   }
 #endif
 
