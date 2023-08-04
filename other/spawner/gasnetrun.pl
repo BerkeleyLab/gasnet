@@ -255,7 +255,7 @@ if (($conduit eq 'IBV') && !exists($ENV{'OMPI_MCA_mpi_warn_on_fork'})) {
       $ENV{"GASNET_SPAWN_VERBOSE"} = "1" unless (exists($ENV{"GASNET_SPAWN_VERBOSE"}));
     }
     if ($spawner eq 'MPI') {
-        print("gasnetrun: forwarding to mpi-based spawner\n") if ($verbose);
+        print("gasnetrun: forwarding to $spawn_control-based spawner\n") if ($verbose);
         @ARGV = (@mpi_args, @ARGV);
         (my $mpi = $0) =~ s/\.pl$/-mpi.pl/;
         die "cannot find $mpi: $!" unless -f $mpi;

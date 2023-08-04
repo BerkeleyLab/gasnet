@@ -380,7 +380,9 @@ sub expand {
 	shift;
     }
 
-    print "gasnetrun: identified MPI spawner as: $spawner_desc\n" if ($verbose);
+    print "gasnetrun: identified "
+          . ( uc($ENV{'GASNET_SPAWN_CONTROL'}) || 'MPI' )
+          . " spawner as: $spawner_desc\n" if ($verbose);
 
 # Validate -n as needed
     if (!defined($numproc) && $spawncmd =~ /%N/) {
