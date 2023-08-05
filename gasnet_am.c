@@ -314,6 +314,15 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
 
   // Validate conduit's returned mask (any requested+required fields missing?);
   gasneti_assert_uint( (~result & (mask & GASNETI_TI_REQUIRED)) ,==, 0);
+#if GASNET_SUPPORTS_TI_ENTRY
+  gasneti_assert_uint( (~result & (mask & GEX_TI_ENTRY)) ,==, 0);
+#endif
+#if GASNET_SUPPORTS_TI_IS_REQ
+  gasneti_assert_uint( (~result & (mask & GEX_TI_IS_REQ)) ,==, 0);
+#endif
+#if GASNET_SUPPORTS_TI_IS_LONG
+  gasneti_assert_uint( (~result & (mask & GEX_TI_IS_LONG)) ,==, 0);
+#endif
 
   // For each field set: validate
   if (result & GEX_TI_SRCRANK) {

@@ -87,7 +87,7 @@ int gasneti_init_done = 0; /*  true after init */
 int gasneti_attach_done = 0; /*  true after attach */
 extern void gasneti_checkinit(void) {
   if (!gasneti_init_done)
-    gasneti_fatalerror("Illegal call to GASNet before gasnet_init() initialization");
+    gasneti_fatalerror("Illegal call to GASNet before library initialization. Please use gex_Client_Init() to initialize GASNet.");
 }
 extern void gasneti_checkattach(void) {
    gasneti_checkinit();

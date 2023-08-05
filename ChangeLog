@@ -26,6 +26,30 @@ GASNet-EX ChangeLog
     "efa" provider. Operation with this provider remains untuned and is not
     yet officially supported.
 
+* Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
+  - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+
+* Portable UDP support (details in udp-conduit README)
+  - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+
+* Portable MPI support (details in mpi-conduit README)
+  - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+
+* GASNet-EX Spec v0.17: (details in docs/GASNet-EX.txt)
+  - Add new `GASNET_SUPPORTS_TI_*` feature macros
+
+* General and Misc.
+  - New options to `testlarge` and `testsmall` enable testing a wider
+    range of conditions.
+
+* Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4363: ibv-conduit assertion failures regarding incorrect opcode
+  - bug4594: UCX should not enable native atomics unconditionally
+  - bug4598: ucx-conduit + ssh-spawner GASNET_FREEZE support is unusable
+  - bug4654: RFE: feature macros for optional GET_TI_* queries
+  - bug4655: ucx: bad exits on Summit
+  - bug4663: failure compiling pmi-spawner with PMIx 4.2.0 and higher
+
 ----------------------------------------------------------------------
 2023-03-31: GASNet-EX 2023.3.0
 

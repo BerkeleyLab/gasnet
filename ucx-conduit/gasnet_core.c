@@ -538,8 +538,6 @@ static int gasnetc_init(
   if (gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already initialized");
 
-  gasneti_freezeForDebugger();
-
   #if GASNET_DEBUG_VERBOSE
     gasneti_console_message("gasnetc_init","about to spawn...");
   #endif
@@ -552,8 +550,14 @@ static int gasnetc_init(
 
   gasneti_init_done = 1;
 
+  // bug 4598: freeze following process spawning and environment propagation
+  gasneti_freezeForDebugger();
+
   /* Must init timers after global env, and preferably before tracing */
   GASNETI_TICKS_INIT();
+
+  /* Now enable tracing of all the following steps */
+  gasneti_trace_init(argc, argv);
 
   if (gasneti_spawn_verbose) {
     gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
@@ -856,7 +860,10 @@ extern int gasnetc_Client_Init(
     // NOTE: gasnetc_init() creates the first Client, EP and TM for use in bootstrap comms
     int retval = gasnetc_init(client_p, ep_p, tm_p, clientName, argc, argv, flags);
     if (retval != GASNET_OK) GASNETI_RETURN(retval);
+  #if 0
+    /* called within gasnetc_init to allow init tracing */
     gasneti_trace_init(argc, argv);
+  #endif
   } else {
     gasneti_fatalerror("No multi-client support");
   }
@@ -1323,11 +1330,10 @@ static void gasnetc_exit_body(void) {
   // TODO: 30 is arbitrary and hard-coded
   alarm(MAX(30, timeout));
   if (graceful) {
-    GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
-    gasneti_bootstrapFini();
-    // TODO: this may belong earlier, but placement earlier leads to errors
     GASNETC_EXIT_STATE("ucx finalization");
     gasnetc_ucx_fini();
+    GASNETC_EXIT_STATE("in gasneti_bootstrapFini() during graceful exit");
+    gasneti_bootstrapFini();
   } else {
     GASNETC_EXIT_STATE("in gasneti_bootstrapAbort() during forceful exit");
     gasneti_bootstrapAbort(exitcode);
@@ -1504,16 +1510,16 @@ extern gex_TI_t gasnetc_Token_Info(
   result |= GEX_TI_EP;
 
   /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
-  //info->gex_entry = 0;//###;
-  //result |= GEX_TI_ENTRY;
+  info->gex_entry = gasneti_import_ep(gasneti_THUNK_EP)->_amtbl + hdr->handler;
+  result |= GEX_TI_ENTRY;
 
   /* (###) add code here to set boolean "is a request" field info->gex_is_req (optional) */
-  //info->gex_is_req = real_token->u.generic.is_req;
-  //result |= GEX_TI_IS_REQ;
+  info->gex_is_req = hdr->is_req;
+  result |= GEX_TI_IS_REQ;
 
   /* (###) add code here to set boolean "is a long" field info->gex_is_long (optional) */
-  //info->gex_is_long = real_token->is_long;
-  //result |= GEX_TI_IS_LONG;
+  info->gex_is_long = (hdr->am_type == GASNETC_UCX_AM_LONG);
+  result |= GEX_TI_IS_LONG;
 
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
