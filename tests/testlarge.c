@@ -53,7 +53,7 @@ int iamsender = 0;
 int unitsMB = 0;
 int doputs = 1;
 int dogets = 1;
-int lbufs = 1;
+int lbufs = 0;
 
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
   static int use_loc_gpu = 0;
@@ -448,11 +448,13 @@ int main(int argc, char **argv)
     if (!min_payload) min_payload = 16;
 
     if (!insegment) {
-        if ((lbufs <= 0) || (lbufs > iters)) lbufs = iters;
+        // silently map out-of-range to iters
+        if ((lbufs < 0) || (lbufs > iters)) lbufs = iters;
     } else if (lbufs) {
         MSG0("WARNING: Ignoring '-lbufs N' without '-out'.");
         lbufs = 1;
     }
+    if (!lbufs) lbufs = 1; // default
 
     /* get SPMD info (needed for segment size) */
     myproc = gex_TM_QueryRank(myteam);
