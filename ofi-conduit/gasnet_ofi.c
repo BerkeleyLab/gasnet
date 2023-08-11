@@ -962,6 +962,9 @@ int gasnetc_ofi_init(void)
   // To handle bursty AM traffic, enable hybrid receive mode with reasonable default parameters.
   // If FI_CXI_RX_MATCH_MODE is already set to something else, we make NO changes (or risk an
   // inconsistent mess).
+  const char *initial_CXI_RX_MATCH_MODE  = gasnet_getenv("FI_CXI_RX_MATCH_MODE");
+  const char *initial_CXI_RDZV_THRESHOLD = gasnet_getenv("FI_CXI_RDZV_THRESHOLD");
+  const char *initial_CXI_RDZV_GET_MIN   = gasnet_getenv("FI_CXI_RDZV_GET_MIN");
   int set_cxi_match_mode = gasnetc_setenv_string("FI_CXI_RX_MATCH_MODE", "hybrid", 0);
   if (set_cxi_match_mode) {
     // Always try to set both RDZV parameters but will warn if either conflicts
@@ -1024,15 +1027,26 @@ int gasnetc_ofi_init(void)
   }
 
   if (!strcmp(info->fabric_attr->prov_name, "cxi") && !set_cxi_match_mode) {
+    const char *str0 = (initial_CXI_RX_MATCH_MODE && initial_CXI_RX_MATCH_MODE[0])
+                     ? gasneti_dynsprintf("='%s'", initial_CXI_RX_MATCH_MODE)
+                     : "";
+    const char *str1 = (initial_CXI_RDZV_THRESHOLD && initial_CXI_RDZV_THRESHOLD[0])
+                     ? gasneti_dynsprintf("='%s'", initial_CXI_RDZV_THRESHOLD)
+                     : "";
+    const char *str2 = (initial_CXI_RDZV_GET_MIN && initial_CXI_RDZV_GET_MIN[0])
+                     ? gasneti_dynsprintf("='%s'", initial_CXI_RDZV_GET_MIN)
+                     : "";
     gasneti_console0_message("WARNING", "ofi-conduit failed to configure FI_CXI_* "
                              "environment variables due to prior conflicting settings. "
                              "This may lead to unstable behavior and/or degraded "
                              "performance.  If you did not intentionally set "
-                             "FI_CXI_RX_MATCH_MODE, FI_CXI_RDZV_THRESHOLD, or "
-                             "FI_CXI_RDZV_GET_MIN then this condition may have resulted "
+                             "FI_CXI_RX_MATCH_MODE%s, FI_CXI_RDZV_THRESHOLD%s, or "
+                             "FI_CXI_RDZV_GET_MIN%s then this condition may have resulted "
                              "from initializing MPI prior to initialization of GASNet. "
                              "For more information on that scenario, please see \"Limits "
-                             "to MPI interoperability\" in the ofi-conduit README. ");
+                             "to MPI interoperability\" in the ofi-conduit README. ",
+                             str0, str1, str2
+                            );
   }
 
   int quiet = gasneti_getenv_yesno_withdefault("GASNET_QUIET", 0);
