@@ -463,14 +463,17 @@ cmake-exe :: upcxx-install
 SYMPACK_URL?=https://github.com/symPACK/symPACK/archive/master.tar.gz
 SYMPACK_GIT_REPO?=#https://github.com/symPACK/symPACK.git # does not support archive?
 SYMPACK_GIT_COMMIT=master
-#SYMPACK_INPUT_URL=https://sparse.tamu.edu/RB/Nasa/nasa2146.tar.gz
-SYMPACK_INPUT_URL=https://bitbucket.org/berkeleylab/upcxx-extras/downloads/nasa2146.tar.gz
+#SYMPACK_INPUT_PROBLEM=nasa2146
+SYMPACK_INPUT_PROBLEM=boneS10
+SYMPACK_INPUT_URL=https://bitbucket.org/berkeleylab/upcxx-extras/downloads/$(SYMPACK_INPUT_PROBLEM).tar.gz
 SYMPACK_DIR=$(HARNESS_WORKDIR)/sympack
+SYMPACK_DRIVER=run_sympack
+SYMPACK_CUDA=-DENABLE_CUDA=OFF
 _sympack:
 	-rm -Rf $(SYMPACK_DIR)
 	( set -x ; $(MAKE) upcxx-download PRODUCT=sympack URL=$(SYMPACK_URL) GIT_REPO=$(SYMPACK_GIT_REPO) GIT_COMMIT=$(SYMPACK_GIT_COMMIT) DESTDIR=$(SYMPACK_DIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	( set -x ; $(MAKE) upcxx-download PRODUCT=sympack_input URL=$(SYMPACK_INPUT_URL) GIT_REPO= GIT_COMMIT= DESTDIR=$(SYMPACK_DIR)/input ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
-	cp $(SYMPACK_DIR)/input/nasa2146.rb .
+	mv $(SYMPACK_DIR)/input/$(SYMPACK_INPUT_PROBLEM).rb sympack-input.rb
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 sympack-exe :: upcxx-install force
@@ -483,12 +486,17 @@ sympack-exe :: upcxx-install force
 	export $(MAKE_TEST_ENV) FC="$(UPCXX_FC)" ; \
 	$(CMAKE) --version ; \
 	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) $(CMAKE_FC_ARGS) \
-		 $$SYMPACK_THREADS $(SYMPACK_BUILD) \
 	         -DENABLE_PTSCOTCH=OFF -DENABLE_SCOTCH=OFF -DENABLE_PARMETIS=OFF -DENABLE_METIS=OFF \
+		 $(SYMPACK_CUDA) $$SYMPACK_THREADS $(SYMPACK_BUILD) \
 		 .. )
-	$(MAKE) -C $(SYMPACK_DIR)/$(UPCXX_THREADMODE) all examples VERBOSE=1
-	mv $(SYMPACK_DIR)/$(UPCXX_THREADMODE)/run_sympack $(TEST_EXE)
+	$(MAKE) -C $(SYMPACK_DIR)/$(UPCXX_THREADMODE) $(SYMPACK_DRIVER) VERBOSE=1
+	mv $(SYMPACK_DIR)/$(UPCXX_THREADMODE)/$(SYMPACK_DRIVER) $(TEST_EXE)
 
+sympack2D-exe :: force
+	$(MAKE) SYMPACK_DRIVER=run_sympack2D sympack-exe
+
+sympack2D_cuda-exe :: force
+	$(MAKE) SYMPACK_DRIVER=run_sympack2D SYMPACK_CUDA=-DENABLE_CUDA=ON sympack-exe
 
 
 force:
