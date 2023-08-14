@@ -144,7 +144,7 @@ upcxx-download: force
 	rm -Rf $(DESTDIR) $(UPCXX_TMPDIR) && mkdir $(UPCXX_TMPDIR)
 	@if test -n "$(GIT_REPO)" ; then \
 	    set -x ; cd $(UPCXX_TMPDIR) && $(GIT) archive --remote=$(GIT_REPO) --format=zip --prefix=git-archive/ --output=git-archive.zip $(GIT_COMMIT) || exit 2 ; \
-	 elif ( expr $(URL) : file:/ || expr $(URL) : / ) >/dev/null; then \
+	 elif ( expr $(URL) : file:/ || expr /$(URL) : // ) >/dev/null; then \
 	    set -x ; cd $(UPCXX_TMPDIR) && ln -s $(URL:file:%=%) . ; \
 	 else \
 	    set -x ; cd $(UPCXX_TMPDIR) && $(WGET) $(URL) 2>&1 || ( cat wget-log 2> /dev/null ; exit 3 ) || exit $$? ; \

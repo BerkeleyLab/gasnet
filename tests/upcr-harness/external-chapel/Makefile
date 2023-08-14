@@ -44,7 +44,7 @@ CHAPEL_URL      ?= https://github.com/$(CHAPEL_GIT_REPO)/archive/$(CHAPEL_GIT_CO
 CHAPEL_ARCHIVE  ?= $(notdir $(CHAPEL_URL))
 chapel-download: force
 	rm -Rf $(CHAPEL_BLDDIR) $(CHAPEL_TMPDIR) && mkdir $(CHAPEL_TMPDIR)
-	if ( expr $(CHAPEL_URL) : file:/ || expr $(CHAPEL_URL) : / ) >/dev/null; then \
+	if ( expr $(CHAPEL_URL) : file:/ || expr /$(CHAPEL_URL) : // ) >/dev/null; then \
 	  set -x ; cd $(CHAPEL_TMPDIR) && ln -s $(CHAPEL_URL:file:%=%) . ; \
 	else \
 	  set -x ; cd $(CHAPEL_TMPDIR) && $(WGET) $(CHAPEL_URL) 2>&1 || ( cat wget-log 2> /dev/null ; exit 3 ) || exit $$? ; \

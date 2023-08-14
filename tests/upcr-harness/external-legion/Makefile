@@ -61,7 +61,7 @@ LEGION_URL      ?= https://github.com/$(LEGION_GIT_REPO)/archive/$(LEGION_GIT_CO
 LEGION_ARCHIVE  ?= $(notdir $(LEGION_URL))
 legion-download: force
 	rm -Rf $(LEGION_BLDDIR) $(LEGION_TMPDIR) && mkdir $(LEGION_TMPDIR)
-	if ( expr $(LEGION_URL) : file:/ || expr $(LEGION_URL) : / ) >/dev/null; then \
+	if ( expr $(LEGION_URL) : file:/ || expr /$(LEGION_URL) : // ) >/dev/null; then \
 	  set -x ; cd $(LEGION_TMPDIR) && ln -s $(LEGION_URL:file:%=%) . ; \
 	else \
 	  set -x ; cd $(LEGION_TMPDIR) && $(WGET) $(LEGION_URL) 2>&1 || ( cat wget-log 2> /dev/null ; exit 3 ) || exit $$? ; \
