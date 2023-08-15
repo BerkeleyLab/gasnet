@@ -979,6 +979,7 @@ typedef union {
 extern size_t gasnetc_xrc_preinit(const uint16_t *remote_lids);
 extern int gasnetc_xrc_init(void **shared_mem_p);
 #endif
+extern void gasnetc_check_inline_limit(int port_num, int send_wr);
 extern int gasnetc_connect_init(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
 extern int gasnetc_connect_fini(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
 #if GASNETC_IBV_SHUTDOWN
@@ -1019,7 +1020,6 @@ extern void gasnetc_sys_close_reqh(gex_Token_t);
 extern void gasnetc_sndrcv_quiesce(void);
 extern int gasnetc_sndrcv_shutdown(void);
 extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep);
-extern void gasnetc_sndrcv_init_inline(void);
 extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_start_thread(gex_Flags_t);
 extern void gasnetc_sndrcv_stop_thread(int block);

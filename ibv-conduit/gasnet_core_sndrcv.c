@@ -3214,6 +3214,46 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
   /* Init thread-local data */
   gasnetc_per_thread_setup();
 
+  // Allocate node->cep lookup table
+  { size_t size = gasneti_nodes*sizeof(gasnetc_cep_t *);
+    if (! ep->cep_table) {
+      ep->cep_table = (gasnetc_cep_t **)
+        gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, size);
+      gasneti_leak_aligned(ep->cep_table);
+    }
+    memset(ep->cep_table, 0, size);
+  }
+
+  // Determine the inline data limit given the QP parameters we will use.
+  {
+    const size_t orig_inline_limit = gasnetc_inline_limit;
+
+    for (int i = 0; i < gasnetc_num_ports; ++i) {
+      gasnetc_check_inline_limit(i, gasnetc_op_oust_pp);
+      if (gasnetc_use_srq) {
+        // Corresponds to a Request QP
+        gasnetc_check_inline_limit(i, gasnetc_am_oust_pp);
+      }
+    }
+
+    // warn on reduced inline limit
+    if ((orig_inline_limit != (size_t)-1) && (gasnetc_inline_limit < orig_inline_limit)) {
+      if (gasnet_getenv("GASNET_INLINESEND_LIMIT") != NULL)
+        gasneti_console_message("WARNING",
+             "Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d",
+                (int)orig_inline_limit, (int)gasnetc_inline_limit);
+    }
+
+    GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
+
+    gasnetc_am_inline_limit_sndrcv = MIN(gasnetc_inline_limit, sizeof(gasnetc_am_tmp_buf_t));
+  #if !GASNETC_PIN_SEGMENT
+    gasnetc_putinmove_limit_adjusted = gasnetc_putinmove_limit
+                                     ? (gasnetc_putinmove_limit + gasnetc_inline_limit)
+                                     : 0;
+  #endif
+  }
+
   return GASNET_OK;
 }
 
@@ -3266,15 +3306,6 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
     hca->num_qps++;
     gasneti_assert_uint(hca->num_qps ,<=, hca->max_qps);
   }
-}
-
-extern void gasnetc_sndrcv_init_inline(void) {
-  gasnetc_am_inline_limit_sndrcv = MIN(gasnetc_inline_limit, sizeof(gasnetc_am_tmp_buf_t));
-#if !GASNETC_PIN_SEGMENT
-  gasnetc_putinmove_limit_adjusted = gasnetc_putinmove_limit
-	  				? (gasnetc_putinmove_limit + gasnetc_inline_limit)
-					: 0;
-#endif
 }
 
 extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
