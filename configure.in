@@ -4790,17 +4790,9 @@ AC_DEFUN([GASNET_PMI_SPAWNER_CFLAGS], [
 
 have_pmi=no
 if test "$enable_pmi" != 'no'; then
-  # On a Cray EX the module is named 'cray-pmi', which is sufficiently unique:
-  expr ":${LOADEDMODULES}" : ".*:cray-pmi/" >/dev/null 2>&1
-  loaded_cray_pmi=$?  # 0 is success
-  # On a Cray XC the module is named 'pmi', which is insufficiently unique, so we look for
-  # both 'pmi' and 'craype'.
-  ( expr ":${LOADEDMODULES}" : ".*:pmi/" && \
-    expr ":${LOADEDMODULES}" : ".*:craype/" ) >/dev/null 2>&1
-  loaded_pmi_plus_craype=$?  # 0 is success
-  # Auto-detect Cray PMI prefix if either environment module loaded, *unless* non-Cray version requested
-  if ( test "$loaded_cray_pmi" = 0 || test "$loaded_pmi_plus_craype" = 0 ) && \
-     ( test "$using_pmi_version" = 'cray' || test -z "$using_pmi_version" ); then
+  # Auto-detect Cray PMI prefix, *unless* non-Cray version requested
+  if test -n "$CRAYPE_NETWORK_TARGET" &&
+   ( test "$using_pmi_version" = 'cray' || test -z "$using_pmi_version" ); then
     # Several places to look.
     for dir in `expr "x${CRAY_PMI_INCLUDE_OPTS}" : 'x-I\([[^ ]]*\)' 2>/dev/null` \
                `expr "x${CRAY_PMI_POST_LINK_OPTS}" : 'x-L\([[^ ]]*\)' 2>/dev/null` \
