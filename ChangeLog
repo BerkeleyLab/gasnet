@@ -49,6 +49,7 @@ GASNet-EX ChangeLog
   - bug4654: RFE: feature macros for optional GET_TI_* queries
   - bug4655: ucx: bad exits on Summit
   - bug4663: failure compiling pmi-spawner with PMIx 4.2.0 and higher
+  - bug4665: Cray PMI configure detection logic should be smarter 
 
 ----------------------------------------------------------------------
 2023-03-31: GASNet-EX 2023.3.0
