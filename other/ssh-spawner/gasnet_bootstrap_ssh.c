@@ -2537,9 +2537,8 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_ssh(int *argc_p, char *
     explicit_master = 1;
     spawn_args = "XX"; // unused, but avoids "may be used uninitialized" warnings
   } else {
-    spawner    = my_getenv(ENV_PREFIX "SPAWN_CONTROL");
     spawn_args = my_getenv(ENV_PREFIX "SPAWN_ARGS");
-    if (!spawner || !spawn_args || strcmp(spawner, "ssh") || (strlen(spawn_args) < 2)) {
+    if (!spawn_args || (strlen(spawn_args) < 2)) {
       return NULL;
     }
     gasnett_unsetenv(ENV_PREFIX "SPAWN_ARGS");

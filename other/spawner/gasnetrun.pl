@@ -28,8 +28,9 @@ my $exeindex = undef;
 my $envlist = undef;
 my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'};
 my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile") : ();
-my $spawner = $ENV{'GASNET_SPAWN_CONTROL'}; # from the wrapper script
 my $conduit = $ENV{'GASNET_SPAWN_CONDUIT'};
+my $spawner_var = 'GASNET_' . $conduit . '_SPAWNER';
+my $spawner = $ENV{$spawner_var};  # eventually either SSH or MPI, after PMI becomes MPI
 my $spawn_control;
 
 sub usage
@@ -143,7 +144,7 @@ sub fullpath($)
     if (!defined($spawner)) {
         usage "Option -spawner was not given and no default is set\n"
     }
-    $ENV{'GASNET_SPAWN_CONTROL'} = lc($spawner);
+    $ENV{$spawner_var} = lc($spawner);
     $spawn_control = $spawner = uc($spawner);
     if ($spawner eq 'MPI') {
         usage "Spawner is set to MPI, but MPI support was not compiled in\n"

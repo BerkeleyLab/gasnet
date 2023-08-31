@@ -19,6 +19,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_ARIES     1
 
+#define GASNETC_DEFAULT_SPAWNER  "pmi" // forced
+
 /* Aries supports only 24 bits of inst_id and we leverage that */
 #define GASNET_MAXNODES 0x1000000
 #define GASNETC_LOG2_MAXNODES 24

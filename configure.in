@@ -2835,6 +2835,7 @@ AC_DEFUN([CONDUIT_LDFLAGS],[
 ])
 dnl CONDUIT_SPAWNER
 dnl sets and substitutes GASNET_[CONDUIT_NAME]_SPAWNER_CONF
+dnl defines GASNETC_[CONDUIT_NAME]_SPAWNER_CONF
 AC_DEFUN([CONDUIT_SPAWNER],[
   pushdef([the_option],--with-[]CONDUIT_NAME[]-spawner)
   pushdef([the_variable],GASNET_[]CONDUIT_UPPERNAME[]_SPAWNER_CONF)
@@ -2862,6 +2863,7 @@ AC_DEFUN([CONDUIT_SPAWNER],[
   elif test "$gasnet_spawner_conf" = pmi; then
     force_pmi=yes
   fi
+  AC_DEFINE_UNQUOTED(GASNETC_[]CONDUIT_UPPERNAME[]_SPAWNER_CONF, "$gasnet_spawner_conf")
   the_variable=$gasnet_spawner_conf
   AC_SUBST(the_variable)
   unset gasnet_spawner_conf

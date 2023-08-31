@@ -20,6 +20,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_UCX 1
 
+#define GASNETC_DEFAULT_SPAWNER  GASNETC_UCX_SPAWNER_CONF 
+
 // PSHM and loopback support need to know largest Medium if larger than MAX(LUB{Request,Reply}Medium)
 #define GASNETC_MAX_MEDIUM_NBRHD GASNETC_MAX_MED_(0)
 

@@ -23,6 +23,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_IBV       1
 
+#define GASNETC_DEFAULT_SPAWNER  GASNETC_IBV_SPAWNER_CONF
+
 // Client-facing indications of multirail support:
 // GASNET_IBV_MULTIRAIL: 1/undef for enabled/disabled
 // GASNET_IBV_MAX_HCAS: positive integer (1 when multirail disabled)

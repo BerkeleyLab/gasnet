@@ -477,6 +477,7 @@
 #undef GASNETC_GNI_UDREG
 
 /* GASNet ofi-conduit settings */
+#undef GASNETC_OFI_SPAWNER_CONF
 #undef GASNETC_OFI_REFERENCE_EXTENDED
 #undef GASNETC_OFI_MAX_MEDIUM_DFLT
 #undef GASNETC_OFI_NUM_COMPLETIONS
@@ -493,9 +494,11 @@
 #undef GASNETC_HAVE_FI_HMEM_ROCR
 
 /* GASNet ucx-conduit settings */
+#undef GASNETC_UCX_SPAWNER_CONF
 #undef GASNETC_UCX_MAX_MEDIUM_DFLT
 
 /* GASNet ibv-conduit features and bug work-arounds */
+#undef GASNETC_IBV_SPAWNER_CONF
 #undef HAVE_IBV_SRQ
 #undef HAVE_IBV_TRANSPORT_TYPE
 #undef GASNETC_IBV_MAX_MEDIUM
