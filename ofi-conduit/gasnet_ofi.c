@@ -942,10 +942,16 @@ int gasnetc_ofi_init(void)
   // have been determined.  This is necessary because fi_getinfo() may read them.
   // NOTE: spawn via an ofi-based MPI may have read these even earlier!
 
-#if 0 // Disabled pending bug 4413
-  // Provider-independent:
-  gasnetc_setenv_uint("FI_UNIVERSE_SIZE", gasneti_nodes, 1);
-#endif
+  // Provider-independent FI_UNIVERSE_SIZE:
+  // Ideally, FI_UNIVERSE_SIZE should always match our process count unless is
+  // has already been set.
+  // However, due to bug 4413, we currently only set it on an "opt-in" basis.
+  {
+    int dflt = 0; // TODO: default to 1 when we can be sure bug 4413 is not applicable
+    if (gasneti_getenv_yesno_withdefault("GASNET_OFI_SET_UNIVERSE_SIZE", dflt)) {
+      gasnetc_setenv_uint("FI_UNIVERSE_SIZE", gasneti_nodes, 0 /* = no replacement */);
+    }
+  }
 
   // PSM2 provider:
   // In libfabric v1.6, the psm2 provider transitioned to using separate
