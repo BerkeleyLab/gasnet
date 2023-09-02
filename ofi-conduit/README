@@ -422,6 +422,14 @@ Recognized environment variables:
   Unless a different value was set using --with-ofi-max-medium=[value] at
   configure time, the default value is 8192.
 
+* GASNET_OFI_SET_UNIVERSE_SIZE - enable automatic setting of FI_UNIVERSE_SIZE
+  By default, ofi-conduit will *not* set the FI_UNIVERSE_SIZE environment
+  variable prior to initializing libfabric (see also "Bug 4413").  Setting
+  GASNET_OFI_SET_UNIVERSE_SIZE=1 allows ofi-conduit to set FI_UNIVERSE_SIZE
+  to the job size *if* it is not already set.  Under no circumstances does
+  ofi-conduit overwrite a pre-existing value of FI_UNIVERSE_SIZE.
+  The default value is 0 (do not attempt to set FI_UNIVERSE_SIZE).
+
 * GASNET_OFI_DEVICE
   By default, ofi-conduit will open and use the first device enumerated by
   libfabric as matching the specified provider and required capabilities.
@@ -561,6 +569,8 @@ Known problems:
   1.15.2.0 does not appear to have this problem.  In general, this is a
   supported variable in multiple providers, and is even *recommended* for use
   with verbs;ofi_rxm in runs with more than 256 processes.
+  Setting "GASNET_OFI_SET_UNIVERSE_SIZE=1" will allow ofi-conduit to set the
+  value of FI_UNIVERSE_SIZE to the job size, unless it has already been set.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4413
 

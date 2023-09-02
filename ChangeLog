@@ -25,6 +25,9 @@ GASNet-EX ChangeLog
   - Add initial/experimental support for the AWS Elastic Fabric Adapter via
     "efa" provider. Operation with this provider remains untuned and is not
     yet officially supported.
+  - Add `GASNET_OFI_SET_UNIVERSE_SIZE` environment variable to opt-in to
+    automatic setting of `FI_UNIVERSE_SIZE` to the job size.
+    This partially addresses Bug 4413.
 
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
@@ -44,6 +47,7 @@ GASNet-EX ChangeLog
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4363: ibv-conduit assertion failures regarding incorrect opcode
+  - bug4413: (partial fix) set FI_UNIVERSE_SIZE (conflicting provider requirements)
   - bug4594: UCX should not enable native atomics unconditionally
   - bug4598: ucx-conduit + ssh-spawner GASNET_FREEZE support is unusable
   - bug4654: RFE: feature macros for optional GET_TI_* queries
