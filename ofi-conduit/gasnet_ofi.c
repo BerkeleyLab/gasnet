@@ -463,6 +463,52 @@ int gasnetc_check_portable_conduit(void) {
   return !gasnetc_high_perf_prov;
 }
 
+// Check if the argument macthes the configured provider(s).
+// Considers the value of FI_PROVIDER (if any) in the generic case.
+// return:
+//   0 if the argument cannot be the eventually selected provider
+//   1 if the argument might be the eventually selected provider
+//   2 if the argument must be the eventually selected provider
+static int gasnetc_early_provider_check(const char *prov_name) {
+  // Argument cannot be "generic" nor may it contain a semi-colon
+  gasneti_assert(gasneti_strcasecmp(prov_name, "generic"));
+  gasneti_assert(strchr(prov_name,';') == NULL);
+
+  const char *provider = gasneti_getenv("FI_PROVIDER");
+  const char *provider_ident = _STRINGIFY(GASNETC_OFI_PROVIDER_IDENT);
+
+  if (gasneti_strcasecmp(provider_ident, "generic")) {
+    // Single-provider build
+    return gasneti_strcasecmp(prov_name, provider_ident) ? 0 : 2;
+  } else if (provider && provider[0]) {
+    // Generic build, constrained to one provider by FI_PROVIDER
+    char *delim = strchr(provider,';');
+    size_t len = delim ? (delim - provider) : strlen(provider);
+    return gasneti_strncasecmp(prov_name, provider, len) ? 0 : 2;
+  } else {
+    // Generic build, unconstrained
+    return 1;
+  }
+}
+
+// Compare library version (according to header) against a given value.
+// returns
+//   0 for equal
+//   1 for build is newer than given
+//  -1 for build is older than given
+static int gasnetc_header_version_cmp(unsigned int major, unsigned int minor, unsigned int revision) {
+  gasneti_assert_uint(major ,<=, 0xffff);
+  gasneti_assert_uint(minor ,<=, 0xffff);
+  gasneti_assert_uint(revision ,<=, 0xffff);
+  uint64_t given = FI_VERSION(major, minor);
+  uint64_t build = FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION);
+#ifdef FI_REVISION_VERSION
+  given = (given << 16) | revision;
+  build = (build << 16) | FI_REVISION_VERSION;
+#endif
+  return (build == given) ? 0 : ((build < given) ? -1 : 1);
+}
+
 // Reads any user-provided settings from the environment to avoid clogging up
 // the gasnetc_ofi_init() function with this code.
 // Runs after provier and domain selection to allow for provider-specific defaults
@@ -945,9 +991,16 @@ int gasnetc_ofi_init(void)
   // Provider-independent FI_UNIVERSE_SIZE:
   // Ideally, FI_UNIVERSE_SIZE should always match our process count unless is
   // has already been set.
-  // However, due to bug 4413, we currently only set it on an "opt-in" basis.
+  // However, due to bug 4413, we currently only set it on an "opt-in" basis if
+  // we may be using cxi provider prior to libfabric 1.15.2.0.
   {
-    int dflt = 0; // TODO: default to 1 when we can be sure bug 4413 is not applicable
+    int dflt = 1;
+#if GASNETI_ARCH_CRAYEX
+    if (gasnetc_early_provider_check("cxi") && (gasnetc_header_version_cmp(1,15,2) < 0)) {
+      // default should be 0 when cxi < 1.15.2.0 may be running
+      dflt = 0;
+    }
+#endif
     if (gasneti_getenv_yesno_withdefault("GASNET_OFI_SET_UNIVERSE_SIZE", dflt)) {
       gasnetc_setenv_uint("FI_UNIVERSE_SIZE", gasneti_nodes, 0 /* = no replacement */);
     }
