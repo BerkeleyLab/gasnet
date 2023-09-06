@@ -1504,7 +1504,7 @@ static void spawn_one_control(gex_Rank_t child_id, const char *cmdline, const ch
   } else if (pid == 0) {
     char *cmd =
         gasneti_sappendf(NULL,
-                         "cd %s; exec %s %s " ENV_PREFIX "SPAWN_CONTROL=ssh "
+                         "cd %s; exec %s %s " ENV_PREFIX GASNET_CORE_NAME_STR "_SPAWNER=ssh "
                                               ENV_PREFIX "SPAWN_ARGS='%c%s%c%d%c%d%c%s' "
                                               "%s",
                                       quote_arg(cwd),
