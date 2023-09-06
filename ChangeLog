@@ -28,6 +28,8 @@ GASNet-EX ChangeLog
   - Add `GASNET_OFI_SET_UNIVERSE_SIZE` environment variable to opt-in to
     automatic setting of `FI_UNIVERSE_SIZE` to the job size.
     This partially addresses Bug 4413.
+  - The recommendations regarding running MPI hybrid applications on the HPE
+    Slingshot-11 network have changed.  Please see the conduit README for details.
 
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
