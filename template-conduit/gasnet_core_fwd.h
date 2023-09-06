@@ -19,6 +19,10 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_<CONDUITNAME> 1
 
+// (###) If using gasneti_spawnerInit(), set to your GASNETC_<CONDUITNAME>_SPAWNER_CONF 
+// or to a double-quoted fixed vaule.  Otherwise leave undefined.
+//#define GASNETC_DEFAULT_SPAWNER  ###
+
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
 /* #define GASNET_PSHM 1 */ ###

@@ -22,6 +22,8 @@
 #define GASNET_CONDUIT_OFI 1
 #define GASNETC_EXTRA_CONFIG_INFO ",ofi_provider=" _STRINGIFY(GASNETC_OFI_PROVIDER_IDENT)
 
+#define GASNETC_DEFAULT_SPAWNER  GASNETC_OFI_SPAWNER_CONF
+
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
 #define GASNET_PSHM 1

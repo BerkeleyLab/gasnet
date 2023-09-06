@@ -19,6 +19,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_UDP       1
 
+//#define GASNETC_DEFAULT_SPAWNER  ###
+
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
   #define GASNET_PSHM 1

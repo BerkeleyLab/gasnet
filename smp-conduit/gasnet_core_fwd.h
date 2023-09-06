@@ -20,6 +20,8 @@
 
 #define GASNET_CONDUIT_SMP       1
 
+//#define GASNETC_DEFAULT_SPAWNER  ###
+
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
   #define GASNET_PSHM 1
