@@ -463,8 +463,8 @@ cmake-exe :: upcxx-install
 SYMPACK_URL?=https://github.com/symPACK/symPACK/archive/master.tar.gz
 SYMPACK_GIT_REPO?=#https://github.com/symPACK/symPACK.git # does not support archive?
 SYMPACK_GIT_COMMIT=master
-#SYMPACK_INPUT_PROBLEM=nasa2146
-SYMPACK_INPUT_PROBLEM=boneS10
+#SYMPACK_INPUT_PROBLEM?=nasa2146
+SYMPACK_INPUT_PROBLEM?=boneS10
 SYMPACK_INPUT_URL=https://bitbucket.org/berkeleylab/upcxx-extras/downloads/$(SYMPACK_INPUT_PROBLEM).tar.gz
 SYMPACK_DIR=$(HARNESS_WORKDIR)/sympack
 SYMPACK_DRIVER=run_sympack
