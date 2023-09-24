@@ -182,9 +182,8 @@ BENCHMARKS = lcals lulesh miniMD
 $(BENCHMARKS): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples/benchmarks/$@
 
 # directory examples/benchmarks/hpcc
-HPCC = stream stream-ep ra ra-atomics fft ptrans hpl
+HPCC = stream stream-ep ra ra-atomics ptrans
 $(HPCC): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples/benchmarks/hpcc
-chpl_flags_fft = --ieee-float
 chpl_flags_ra = -O -s useOn=true
 chpl_flags_ra-atomics = -O
 unexport $(addprefix chpl_flags_,$(HPCC))
