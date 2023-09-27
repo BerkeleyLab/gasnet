@@ -6114,15 +6114,30 @@ AC_SUBST(ENVCMD)
 NOASLR_LDFLAGS=
 case "$target_os" in
   darwin*)
-    # Darwin linker complains about symbols defined in multiple dynamic libs.
-    # This is a minor annoyance in some cases, however it becomes a fatal error
-    # when linking with the mpich libs.
     if test "$CC_FAMILY$CC_SUBFAMILY" = 'GNUNVIDIA'; then
       dash_Wl='-Xlinker '
     else
       dash_Wl='-Wl,'
     fi
-    LDFLAGS="$LDFLAGS ${dash_Wl}-multiply_defined,suppress"
+
+    tmp_ver=`expr "$target_os" : 'darwin\([[0-9]]*\)' 2>/dev/null`
+
+    # Darwin linker may complain about symbols defined in multiple dynamic libs.
+    # This is a minor annoyance in some cases, however it becomes a fatal error
+    # when linking with the mpich libs.
+    # The `-multiply_defined suppress` linker option has been documented as
+    # obsolete since Darwin 9 (MacOSX Leopard, Oct 2007) and has since (as of
+    # Apple clang 15 / macOS Ventura / Darwin 22) begun to generate linker
+    # warnings (see bug 4677).
+    # To detect such warnings, we could use GASNET_TRY_LDFLAG() if such existed.
+    # However, this OS version check should be sufficient:
+    AC_MSG_CHECKING([for -multiply_defined linker option])
+    if expr $tmp_ver \< 22 >/dev/null; then
+      AC_MSG_RESULT(yes)
+      LDFLAGS="$LDFLAGS ${dash_Wl}-multiply_defined,suppress"
+    else
+      AC_MSG_RESULT(no)
+    fi
 
     # Darwin 11 (MacOSX Lion) and newer use address-space randomization by default
     # But -no_pie is ignored (with a warning) on aarch64
