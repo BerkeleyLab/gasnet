@@ -110,7 +110,7 @@ extern int gasneti_strncasecmp(const char *s1, const char *s2, size_t n);
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
     ret = malloc(nbytes);
     if_pf (ret == NULL && nbytes > 0) 
-      gasneti_fatalerror("gasneti_malloc(%d) failed", (int)nbytes);
+      gasneti_fatalerror("gasneti_malloc(%" PRIuSZ ") failed", nbytes);
     return ret;
   }
   GASNETI_INLINE(_gasneti_malloc_allowfail) GASNETI_MALLOC
@@ -119,7 +119,7 @@ extern int gasneti_strncasecmp(const char *s1, const char *s2, size_t n);
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
     ret = malloc(nbytes);
     if_pf (ret == NULL && nbytes > 0) { /* allow a NULL return for out-of-memory */
-      GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%i)",(int)nbytes));
+      GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%" PRIuSZ ")",nbytes));
     }
     return ret;
   }
@@ -129,7 +129,7 @@ extern int gasneti_strncasecmp(const char *s1, const char *s2, size_t n);
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, (N*S));
     ret = calloc(N,S);
     if_pf (ret == NULL && N*S > 0) 
-      gasneti_fatalerror("gasneti_calloc(%d,%d) failed", (int)N, (int)S);
+      gasneti_fatalerror("gasneti_calloc(%" PRIuSZ ",%" PRIuSZ ") failed", N, S);
     return ret;
   }
   GASNETI_INLINE(_gasneti_realloc)
@@ -138,7 +138,7 @@ extern int gasneti_strncasecmp(const char *s1, const char *s2, size_t n);
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
     ret = realloc(ptr, nbytes);
     if_pf (ret == NULL && nbytes > 0) 
-      gasneti_fatalerror("gasneti_realloc(%d) failed", (int)nbytes);
+      gasneti_fatalerror("gasneti_realloc(%" PRIuSZ ") failed", nbytes);
     return ret;
   }
   GASNETI_INLINE(_gasneti_free)
