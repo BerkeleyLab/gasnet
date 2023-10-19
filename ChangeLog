@@ -33,6 +33,8 @@ GASNet-EX ChangeLog
 
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+  - Use of `GASNET_UCX_` or `UCX_GASNET_` to prefix UCX (non-GASNet) environment
+    variables has been removed.  It had never functioned as documented.
 
 * Portable UDP support (details in udp-conduit README)
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
@@ -56,6 +58,7 @@ GASNet-EX ChangeLog
   - bug4655: ucx: bad exits on Summit
   - bug4663: failure compiling pmi-spawner with PMIx 4.2.0 and higher
   - bug4665: Cray PMI configure detection logic should be smarter 
+  - bug4670: UCX environment personalized prefix not working as we document
 
 ----------------------------------------------------------------------
 2023-03-31: GASNet-EX 2023.3.0
