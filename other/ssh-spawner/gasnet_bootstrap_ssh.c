@@ -288,6 +288,10 @@ static void do_propagate_env(const char * keyname, int flags) {
   }
 }
 
+static const char* do_check_env_prefix_hook(const char *prefix) {
+  return master_env ? gasneti_check_env_prefix_helper(master_env, prefix) : NULL;
+}
+
 #if HAVE_SETPGID || HAVE_SETPGRP
   /* signals sent to entire process groups */
   #define pid_to_kill(pid) (-(pid))
@@ -1486,6 +1490,7 @@ static void do_connect(const char *spawn_args, int *argc_p, char ***argv_p)
 
   gasneti_getenv_hook = &do_getenv;
   gasneti_propagate_env_hook = &do_propagate_env;
+  gasneti_check_env_prefix_hook = &do_check_env_prefix_hook;
   envcmd = my_getenv_withdefault(ENV_PREFIX "ENVCMD", "env");
 
   myname = myrank;
@@ -2609,6 +2614,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_ssh(int *argc_p, char *
 
   gasneti_getenv_hook = &do_getenv;
   gasneti_propagate_env_hook = &do_propagate_env;
+  gasneti_check_env_prefix_hook = &do_check_env_prefix_hook;
   *nodes_p  = nranks;
   *mynode_p = myrank;
 

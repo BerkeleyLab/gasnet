@@ -1525,6 +1525,22 @@ extern const char* AMUDP_SPMDgetenvMaster(const char *keyname) {
   return NULL; // not found
 }
 
+extern const char *AMUDP_check_env_prefix(const char* prefix) {
+  if (!AMUDP_SPMDMasterEnvironment) {
+    AMX_Err("called AMUDP_env_prefix before AMUDP_SPMDStartup()");
+    return NULL;
+  }
+
+  char *p = AMUDP_SPMDMasterEnvironment;
+  if (!prefix) return NULL;
+  int len = strlen(prefix);
+  while (*p) {
+    if (!strncmp(prefix, p, len)) return p;
+    p += strlen(p) + 1;
+  }
+  return NULL; // not found
+}
+
 extern char *AMUDP_getenv_prefixed(const char *basekey) {
   char key[3][255];
   const char *val[3];
