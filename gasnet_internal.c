@@ -1482,6 +1482,9 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
   return result;
 }
 
+// Used in some conduits to coordinate user-provided exit code across layers
+gasneti_atomic_t gasneti_exit_code = gasneti_atomic_init(0);
+
 /* ------------------------------------------------------------------------------------ */
 /* Bits for conduits which want/need to override pthread_create() */
 

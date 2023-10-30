@@ -89,7 +89,8 @@ void check_early_finalize(void) {
       gasneti_console0_message("WARNING","%s",message);
 
     gasneti_flush_streams();
-    gasneti_killmyprocess(0);
+    int exitcode = (int)gasneti_atomic_read(&gasneti_exit_code, 0);
+    gasneti_killmyprocess(exitcode);
   }
 #endif
 }

@@ -71,6 +71,9 @@ extern void gasneti_decode_args(int *argc, char ***argv);
 /* extract exit coordination timeout from environment vars (with defaults) */
 extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double dflt_factor, double lower_bound);
 
+// Used in some conduits to coordinate user-provided exit code across layers
+extern gasneti_atomic_t gasneti_exit_code;
+
 /* Safe memory allocation/deallocation 
    Beware - in debug mode, gasneti_malloc/gasneti_calloc/gasneti_free are NOT
    compatible with malloc/calloc/free
