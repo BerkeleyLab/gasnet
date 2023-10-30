@@ -590,7 +590,7 @@ static int gasnetc_init(
   /*
    * Initialize UCX
    */
-  status = ucp_config_read("GASNET", NULL, &config);
+  status = ucp_config_read(NULL, NULL, &config);
   if (status != UCS_OK) {
     GASNETI_RETURN_ERRFR(RESOURCE, "Fail to read UCX config: %s",
                          ucs_status_string(status));
