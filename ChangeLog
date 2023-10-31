@@ -50,6 +50,7 @@ GASNet-EX ChangeLog
     range of conditions.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4172: crash in ucx-conduit atexit handlers when mpi interop is enabled
   - bug4363: ibv-conduit assertion failures regarding incorrect opcode
   - bug4413: (partial fix) set FI_UNIVERSE_SIZE (conflicting provider requirements)
   - bug4594: UCX should not enable native atomics unconditionally

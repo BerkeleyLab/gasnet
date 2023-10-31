@@ -2835,7 +2835,7 @@ gasnetc_shutdown(void) {
 
 gasneti_atomic_t gasnetc_exit_running = gasneti_atomic_init(0);		/* boolean used by GASNETC_IS_EXITING */
 
-static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
+                     /* gasneti_exit_code holds value to _exit() with */
 static gasneti_atomic_t gasnetc_exit_reds = gasneti_atomic_init(0);	/* count of reduce requests */
 static gasneti_atomic_t gasnetc_exit_dist = gasneti_atomic_init(0);	/* OR of reduce distances */
 static gasneti_atomic_t gasnetc_exit_reqs = gasneti_atomic_init(0);	/* count of remote exit requests */
@@ -2930,7 +2930,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
       gasnetc_sndrcv_poll(0);
       if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
     }
-    exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
+    exitcode = gasneti_atomic_read(&gasneti_exit_code, GASNETI_ATOMIC_RMB_PRE);
   }
 #endif
 
@@ -2946,7 +2946,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
       gasnetc_sndrcv_poll(0); 
       if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
     } while (!(distance & gasneti_atomic_read(&gasnetc_exit_dist, 0)));
-    exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
+    exitcode = gasneti_atomic_read(&gasneti_exit_code, GASNETI_ATOMIC_RMB_PRE);
   }
 
 #if GASNET_PSHM
@@ -2973,9 +2973,9 @@ static void gasnetc_exit_reduce_reqh(gex_Token_t token,
   gasneti_atomic_val_t distance = arg1;
   gasneti_atomic_val_t prevcode;
   do {
-    prevcode = gasneti_atomic_read(&gasnetc_exit_code, 0);
+    prevcode = gasneti_atomic_read(&gasneti_exit_code, 0);
   } while ((exitcode > prevcode) &&
-           !gasneti_atomic_compare_and_swap(&gasnetc_exit_code, prevcode, exitcode, 0));
+           !gasneti_atomic_compare_and_swap(&gasneti_exit_code, prevcode, exitcode, 0));
   if (distance) {
   #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
     /* atomic OR via ADD since no bit will be set more than once */
@@ -3087,7 +3087,7 @@ static int gasnetc_get_exit_role(int64_t timeout_us)
 /* gasnetc_exit_head
  *
  * All exit paths pass through here as the first step.
- * This function ensures that gasnetc_exit_code is written only once
+ * This function ensures that gasneti_exit_code is written only once
  * by the first call.
  * It also lets the handler for remote exit requests know if a local
  * request has already begun.
@@ -3105,7 +3105,7 @@ static int gasnetc_exit_head(int exitcode) {
 
   if (retval) {
     /* Store the exit code for later use */
-    gasneti_atomic_set(&gasnetc_exit_code, exitcode, GASNETI_ATOMIC_WMB_POST);
+    gasneti_atomic_set(&gasneti_exit_code, exitcode, GASNETI_ATOMIC_WMB_POST);
   }
 
   return retval;
@@ -3146,7 +3146,7 @@ static void gasnetc_exit_now(int exitcode) {
  */
 static void gasnetc_exit_tail(void) GASNETI_NORETURN;
 static void gasnetc_exit_tail(void) {
-  gasnetc_exit_now((int)gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE));
+  gasnetc_exit_now((int)gasneti_atomic_read(&gasneti_exit_code, GASNETI_ATOMIC_RMB_PRE));
   /* NOT REACHED */
 }
 
@@ -3160,7 +3160,7 @@ static void gasnetc_exit_tail(void) {
  * DOES NOT RETURN
  */
 static void gasnetc_exit_sighandler(int sig) {
-  int exitcode = (int)gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
+  int exitcode = (int)gasneti_atomic_read(&gasneti_exit_code, GASNETI_ATOMIC_RMB_PRE);
   static gasneti_atomic_t once = gasneti_atomic_init(1);
   gasnetc_exit_in_signal = 1;
 
@@ -3339,7 +3339,7 @@ static void gasnetc_exit_body(void) {
 #endif
 
   /* read exit code, stored by first caller to gasnetc_exit_head() */
-  exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
+  exitcode = gasneti_atomic_read(&gasneti_exit_code, GASNETI_ATOMIC_RMB_PRE);
 
   /* Establish a last-ditch signal handler in case of failure. */
   alarm(0);
@@ -3414,7 +3414,7 @@ static void gasnetc_exit_body(void) {
   // Timed reduction failed. So make a second attempt at a coordinated shutdown.
   // This has two global communication steps each with their own timeout interval
 
-  exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
+  exitcode = gasneti_atomic_read(&gasneti_exit_code, GASNETI_ATOMIC_RMB_PRE);
   GASNETC_EXIT_STATE("Exitcode reduction timed-out");
 
   /* Determine our role (leader or member) in the coordination of this shutdown */
