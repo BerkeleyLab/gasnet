@@ -423,12 +423,11 @@ Recognized environment variables:
   configure time, the default value is 8192.
 
 * GASNET_OFI_SET_UNIVERSE_SIZE - enable automatic setting of FI_UNIVERSE_SIZE
-  By default, ofi-conduit will *not* set the FI_UNIVERSE_SIZE environment
-  variable prior to initializing libfabric (see also "Bug 4413").  Setting
-  GASNET_OFI_SET_UNIVERSE_SIZE=1 allows ofi-conduit to set FI_UNIVERSE_SIZE
-  to the job size *if* it is not already set.  Under no circumstances does
-  ofi-conduit overwrite a pre-existing value of FI_UNIVERSE_SIZE.
-  The default value is 0 (do not attempt to set FI_UNIVERSE_SIZE).
+  Setting GASNET_OFI_SET_UNIVERSE_SIZE=1 *allows* ofi-conduit to set
+  FI_UNIVERSE_SIZE to the job size *if* it is not already set.
+  Under no circumstances does ofi-conduit overwrite a pre-existing value.
+  The default value is 1, unless using a libfabric version older than 1.15.2.0
+  together with the "cxi" or "generic" provider (due to bug 4413).
 
 * GASNET_OFI_DEVICE
   By default, ofi-conduit will open and use the first device enumerated by
@@ -492,11 +491,10 @@ Recognized environment variables:
   behavior of the underlying providers it relies upon.  Libfabric documentation
   encourages users to set this high enough to prevent internal CQ overruns for
   non-scalable communication patterns, but not so high as to waste
-  provider-internal memory.  Unfortunately at the time of this writing the
-  effect appears to be highly provider-specific, ranging from no apparent
-  effect on some providers (sockets), to the intended scaling effect on others
-  (verbs), and even outright crashes on some versions of other providers (cxi).
-  See "Bug 4413" in the "Known problems" for more information.
+  provider-internal memory.
+  See "GASNET_OFI_SET_UNIVERSE_SIZE" documentation for information on when
+  this value is set automatically by ofi-conduit.  Most notably, ofi-conduit
+  will not overwrite a value set by the user.
 
 * FI_PSM2_LOCK_LEVEL - This variable only applies to the psm2 provider where
   it controls the internal locking state of the provider and can be set to the
@@ -562,17 +560,6 @@ Known problems:
   This includes otherwise benign calls to gasnet_AMPoll().
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4267
-
-* Bug 4413
-  At least cxi provider in libfabric 1.15.0.0 is known to crash at
-  initialization if the environment variable "FI_UNIVERSE_SIZE" is set, though
-  1.15.2.0 does not appear to have this problem.  In general, this is a
-  supported variable in multiple providers, and is even *recommended* for use
-  with verbs;ofi_rxm in runs with more than 256 processes.
-  Setting "GASNET_OFI_SET_UNIVERSE_SIZE=1" will allow ofi-conduit to set the
-  value of FI_UNIVERSE_SIZE to the job size, unless it has already been set.
-  The most up-to-date information on this bug is maintained at:
-    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4413
 
 * Bugs 4420 and 4503
   At least verbs;ofi_rxm and cxi providers are known to fail when using
