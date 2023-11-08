@@ -82,7 +82,7 @@ void check_early_finalize(void) {
     // We cannot complete this client request, so just warn and hard-exit the process
     static char message[] = 
       "GASNet mpi-spawner noticed that MPI has been finalized by the client. The process will now exit.";
-    if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE",message);
+    if (gasneti_spawn_verbose) gasneti_console_message("EXIT STATE","%s",message);
     if (gasneti_getenv_yesno_withdefault("GASNET_QUIET",0))
       GASNETI_TRACE_PRINTF(I,("*** WARNING: %s",message));
     else
