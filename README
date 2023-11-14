@@ -216,8 +216,9 @@ normal distribution.  If you think you need it, contact us at gasnet-devel@lbl.g
     * HPE Cray EX with Slingshot-11 (200Gbps) NICs: --with-ofi-provider=cxi
     * HPE Cray EX with BOTH NIC types: --with-ofi-provider=generic
 
-  On Linux clusters with Intel Omni-Path networks, we recommend the following
-  configure arguments to avoid using ibv-conduit over an emulated libibverbs:
+  On Linux clusters with Omni-Path networks from Intel or Cornelis Networks, we
+  recommend the following configure arguments to avoid using ibv-conduit over
+  an emulated libibverbs:
     --disable-ibv --enable-ofi --with-ofi-provider=psm2
 
   On Linux InfiniBand clusters with InfiniPath HCAs from PathScale/QLogic or
@@ -449,7 +450,7 @@ ucx-conduit: Unified Communication X framework [EXPERIMENTAL]
 ofi-conduit: Open Fabrics Interfaces (most providers)
  GASNet over the Open Fabrics Interface framework (libfabric).
  This conduit is functionally complete but not yet carefully tuned for performance.
- With the exception of HPE Slingshot and Intel Omni-Path networks (where ofi-conduit
+ With the exception of Slingshot and Omni-Path networks (where ofi-conduit
  is either the best or only option and considered "native"), users are advised to
  use other conduits compatible with their hardware.
 
@@ -468,7 +469,7 @@ ibv-conduit: InfiniBand Verbs
 ofi-conduit: Open Fabrics Interfaces (select providers/networks)
  GASNet over the Open Fabrics Interface framework (libfabric).
  This conduit is functionally complete but not yet carefully tuned for performance.
- On HPE Slingshot and Intel Omni-Path networks, ofi-conduit is either the best
+ On Slingshot and Omni-Path networks, ofi-conduit is either the best
  or only option available.  On only those systems, ofi-conduit is categorized as a
  native, high-performance conduit.
 

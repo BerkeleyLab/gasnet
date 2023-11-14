@@ -46,8 +46,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   from NVIDIA (formerly Mellanox).
   HCAs from other vendors have not been tested or have failed validation.
 
-  While ibv-conduit may work on Intel Omni-Path (OPA) HCAs, we instead
-  recommend use of ofi-conduit with the psm2 provider on such systems.
+  While ibv-conduit may work on Omni-Path (OPA) HCAs from Intel or Cornelis
+  Networks, we currently recommend use of ofi-conduit with the psm2 provider
+  on such systems.
 
   While ibv-conduit may work on InfiniPath HCAs from PathScale/QLogic and
   True Scale HCAs from Intel, we instead recommend use of mpi-conduit on such

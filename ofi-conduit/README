@@ -32,7 +32,7 @@ The GASNet OFI conduit can run on any OFI provider that matches its
 requirements. However, at this time, it is recommended *only* for the
 following networks.
 
-  + Intel(R) Omni-Path Fabric, via the "psm2" provider
+  + Intel or Cornelis Networks Omni-Path fabric, via the "psm2" provider
   + HPE Slingshot-10 (100 Gb/s ConnectX-5 NIC), via the "verbs;ofi_rxm" provider
   + HPE Slingshot-11 (200 Gb/s Cassini NIC), via the "cxi" provider
 
@@ -570,7 +570,7 @@ Known problems:
 
 * Bug 4422
   By default, multi-threaded applications run on a single core when using psm2
-  provider (for Intel Omni-Path networks).  There are two known work-arounds
+  provider (for Omni-Path networks).  There are two known work-arounds
   available:
   + The undesired pinning to a single core will not take place if the process
     is already pinned to a strict subset of the host's CPU cores.  In many
@@ -707,7 +707,7 @@ Known problems:
 
   The psm2 provider has the property that each process may only open
   the network adapter once.  If you wish to use MPI and GASNet in the same
-  application on the Intel Omni-Path fabric, then there are two options:
+  application on the Omni-Path (OPA) fabric, then there are two options:
     1. GASNet may be configured to use an alternative transport.
        Options include mpi- and udp-conduits.
     2. MPI may be configured to use an alternative transport (most likely TCP).
