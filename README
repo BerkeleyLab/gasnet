@@ -444,7 +444,7 @@ mpi-conduit: MPI (Message Passing Interface)
 ucx-conduit: Unified Communication X framework [EXPERIMENTAL]
  GASNet over the Unified Communication X framework (UCX).
  This conduit is currently experimental, and is not yet carefully tuned for performance.
- It has only been validated on Mellanox InfiniBand devices starting from ConnectX-5.
+ It has only been validated on NVIDIA/Mellanox InfiniBand devices starting from ConnectX-5.
 
 ofi-conduit: Open Fabrics Interfaces (most providers)
  GASNet over the Open Fabrics Interface framework (libfabric).
@@ -516,11 +516,11 @@ Platforms where GASNet and Berkeley UPC have been successfully tested include:
       OS/Architecture/compiler/ABI: network conduits
       ----------------------------------------------
     * Linux/x86-Ethernet/{gcc,clang}32: smp, mpi, udp
-    * Linux/x86-Mellanox/gcc/32:     smp, mpi, udp, ibv
+    * Linux/x86-InfiniBand/gcc/32:     smp, mpi, udp, ibv
     * Linux/x86/IntelC/32:           smp, mpi, udp
     * Linux/x86/PortlandGroupC/32:   smp, mpi, udp
     * Linux/x86_64-Ethernet/{gcc,clang,PGI}/{32,64}: smp, mpi, udp, ofi
-    * Linux/x86_64-Mellanox/{gcc,clang,PathScale,NVHPC,IntelC,Intel oneAPI}/64: smp, mpi, udp, ibv
+    * Linux/x86_64-InfiniBand/{gcc,clang,PathScale,NVHPC,IntelC,Intel oneAPI}/64: smp, mpi, udp, ibv
     * Linux/x86_64-Omni-Path/gcc/64: smp, mpi, udp, ofi
     * Linux/x86_64/x86-Open64/64:   smp, udp, #
 
