@@ -32,7 +32,7 @@ The GASNet OFI conduit can run on any OFI provider that matches its
 requirements. However, at this time, it is recommended *only* for the
 following networks.
 
-  + Intel(R) Omni-Path Fabric, via the "psm2" provider
+  + Intel or Cornelis Networks Omni-Path fabric, via the "psm2" provider
   + HPE Slingshot-10 (100 Gb/s ConnectX-5 NIC), via the "verbs;ofi_rxm" provider
   + HPE Slingshot-11 (200 Gb/s Cassini NIC), via the "cxi" provider
 
@@ -81,7 +81,7 @@ The fi_info command installed with libfabric can be used to query the available
 OFI providers on your system.  It is worth noting that the available providers
 on a cluster compute node may differ from those on a front-end node.
 
-Users with Mellanox InfiniBand hardware should use the GASNet ibv-conduit,
+Users with NVIDIA/Mellanox InfiniBand hardware should use the GASNet ibv-conduit,
 rather than ofi-conduit with the verbs OFI provider, as the former may provide
 better performance.
 
@@ -570,7 +570,7 @@ Known problems:
 
 * Bug 4422
   By default, multi-threaded applications run on a single core when using psm2
-  provider (for Intel Omni-Path networks).  There are two known work-arounds
+  provider (for Omni-Path networks).  There are two known work-arounds
   available:
   + The undesired pinning to a single core will not take place if the process
     is already pinned to a strict subset of the host's CPU cores.  In many
@@ -641,7 +641,7 @@ Known problems:
     [3] #9  0x0000148e9e82e9c4 in cuda_gdrcopy_from_dev (handle=<optimized out>, hostptr=<optimized out>, devptr=<optimized out>, len=<optimized out>) at src/hmem_cuda_gdrcopy.c:291
     [3] #10 0x0000148e9e82d5dd in cuda_copy_from_dev (device=<optimized out>, dst=<optimized out>, src=<optimized out>, size=<optimized out>) at src/hmem_cuda.c:176
     [3] #11 0x0000148e9e82c1ed in ofi_copy_from_hmem (size=4, src=<optimized out>,
-  If one experiences crashes similar to the backtrace above with Nvida GPUs and
+  If one experiences crashes similar to the backtrace above with NVIDIA GPUs and
   the Slingshot-11 network, check if the command `rpm -qa libfabric` reports a
   version containing "SSHOT2.0.0".  If it does, then this bug is present and the
   only known work-around for a user is to set `FI_HMEM_CUDA_USE_GDRCOPY=no` in
@@ -707,7 +707,7 @@ Known problems:
 
   The psm2 provider has the property that each process may only open
   the network adapter once.  If you wish to use MPI and GASNet in the same
-  application on the Intel Omni-Path fabric, then there are two options:
+  application on the Omni-Path (OPA) fabric, then there are two options:
     1. GASNet may be configured to use an alternative transport.
        Options include mpi- and udp-conduits.
     2. MPI may be configured to use an alternative transport (most likely TCP).

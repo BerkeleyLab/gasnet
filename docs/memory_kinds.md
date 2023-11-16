@@ -94,12 +94,12 @@ All current memory kinds implementation work is limited to two types of devices:
 2. Devices with the HIP API, which should include all AMD GPUs supported by AMD ROCm.
    Please consult the ROCm documentation for information on supported devices.
 
-Support is further limited to the following, and only when running drivers with
-support for PCIe peer-to-peer communication:  
+Support is further limited to the following conduit/network combinations, and
+only when running drivers with support for PCIe peer-to-peer communication:  
 
-  + ibv-conduit on Linux over Mellanox InfiniBand hardware  
-  + ucx-conduit on Linux over Mellanox InfiniBand hardware  
-  + ofi-conduit (`verbs` provider) on Linux over Mellanox InfiniBand hardware  
+  + ibv-conduit on Linux over NVIDIA/Mellanox InfiniBand hardware  
+  + ucx-conduit on Linux over NVIDIA/Mellanox InfiniBand hardware  
+  + ofi-conduit (`verbs` provider) on Linux over NVIDIA/Mellanox InfiniBand hardware  
   + ofi-conduit (`verbs` provider) on HPE Cray EX systems using Slingshot-10 NICs  
   + ofi-conduit (`cxi` provider) on HPE Cray EX systems using Slingshot-11 NICs  
   + ofi-conduit *may* work with other providers and/or networks, but the
@@ -256,7 +256,7 @@ GASNet-EX to perform such transfers.
 For the most up-to-date information on this issue see
 [bug 4149](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4149)
 
-## Small Gets into CUDA memory on Mellanox InfiniBand hardware
+## Small Gets into CUDA memory on supported InfiniBand hardware
 
 As documented
 [here](https://github.com/linux-rdma/rdma-core/blob/master/providers/mlx5/man/mlx5dv_create_qp.3.md)
@@ -267,13 +267,13 @@ eventually completed by a `memcpy()` to the original destination when the
 completion queue entry is reaped.  This `memcpy()` fails (with a `SIGSEGV`)
 when the destination is device memory.
 
-As noted in Mellanox's documentation, setting `MLX5_SCATTER_TO_CQE=0` in the
+As noted in the vendor's documentation, setting `MLX5_SCATTER_TO_CQE=0` in the
 environment disables this undesired behavior.  We hope to be able to provide a
 better solution (automatic and specific to device memory Gets) in a future
 release.
 
 This issue has been seen to impact ibv-, ucx- and ofi-conduits running over
-Mellanox InfiniBand hardware, but not on *every* system.  Because this
+supported InfiniBand hardware, but not on *every* system.  Because this
 work-around may increase the latency of all small RMA Gets, including those
 into host memory, it is recommended that you set `MLX5_SCATTER_TO_CQE=0` only
 if your system exhibits this issue.
@@ -306,7 +306,7 @@ will not define `GEX_MK_CLASS_*`.
 
 ## OFI/InfiniBand and CUDA memory
 
-When using ofi-conduit and the `verbs` provider over Mellanox InfiniBand
+When using ofi-conduit and the `verbs` provider over supported InfiniBand
 hardware, RMA Puts with their source in CUDA device memory may crash with a
 `SIGSEGV` due to incorrect algorithm selection inside libfabric.
 
@@ -326,11 +326,11 @@ For the most up-to-date information on this second issue see
 
 ## OFI/Slingshot-10 and CUDA memory
 
-Because the Slingshot-10 network uses a Mellanox InfiniBand HCA and libfabric's
+Because the Slingshot-10 network uses an InfiniBand HCA and libfabric's
 `verbs` provider, such systems are impacted by two of the known issues described
 above.
 
-1.  Small Gets into CUDA memory on Mellanox InfiniBand hardware  
+1.  Small Gets into CUDA memory on supported InfiniBand hardware  
     The work around of setting `MLX5_SCATTER_TO_CQE=0` is effective.
 
 2.  OFI/InfiniBand and CUDA memory  

@@ -216,8 +216,9 @@ normal distribution.  If you think you need it, contact us at gasnet-devel@lbl.g
     * HPE Cray EX with Slingshot-11 (200Gbps) NICs: --with-ofi-provider=cxi
     * HPE Cray EX with BOTH NIC types: --with-ofi-provider=generic
 
-  On Linux clusters with Intel Omni-Path networks, we recommend the following
-  configure arguments to avoid using ibv-conduit over an emulated libibverbs:
+  On Linux clusters with Omni-Path networks from Intel or Cornelis Networks, we
+  recommend the following configure arguments to avoid using ibv-conduit over
+  an emulated libibverbs:
     --disable-ibv --enable-ofi --with-ofi-provider=psm2
 
   On Linux InfiniBand clusters with InfiniPath HCAs from PathScale/QLogic or
@@ -444,12 +445,12 @@ mpi-conduit: MPI (Message Passing Interface)
 ucx-conduit: Unified Communication X framework [EXPERIMENTAL]
  GASNet over the Unified Communication X framework (UCX).
  This conduit is currently experimental, and is not yet carefully tuned for performance.
- It has only been validated on Mellanox InfiniBand devices starting from ConnectX-5.
+ It has only been validated on NVIDIA/Mellanox InfiniBand devices starting from ConnectX-5.
 
 ofi-conduit: Open Fabrics Interfaces (most providers)
  GASNet over the Open Fabrics Interface framework (libfabric).
  This conduit is functionally complete but not yet carefully tuned for performance.
- With the exception of HPE Slingshot and Intel Omni-Path networks (where ofi-conduit
+ With the exception of Slingshot and Omni-Path networks (where ofi-conduit
  is either the best or only option and considered "native"), users are advised to
  use other conduits compatible with their hardware.
 
@@ -468,7 +469,7 @@ ibv-conduit: InfiniBand Verbs
 ofi-conduit: Open Fabrics Interfaces (select providers/networks)
  GASNet over the Open Fabrics Interface framework (libfabric).
  This conduit is functionally complete but not yet carefully tuned for performance.
- On HPE Slingshot and Intel Omni-Path networks, ofi-conduit is either the best
+ On Slingshot and Omni-Path networks, ofi-conduit is either the best
  or only option available.  On only those systems, ofi-conduit is categorized as a
  native, high-performance conduit.
 
@@ -516,11 +517,11 @@ Platforms where GASNet and Berkeley UPC have been successfully tested include:
       OS/Architecture/compiler/ABI: network conduits
       ----------------------------------------------
     * Linux/x86-Ethernet/{gcc,clang}32: smp, mpi, udp
-    * Linux/x86-Mellanox/gcc/32:     smp, mpi, udp, ibv
+    * Linux/x86-InfiniBand/gcc/32:     smp, mpi, udp, ibv
     * Linux/x86/IntelC/32:           smp, mpi, udp
     * Linux/x86/PortlandGroupC/32:   smp, mpi, udp
     * Linux/x86_64-Ethernet/{gcc,clang,PGI}/{32,64}: smp, mpi, udp, ofi
-    * Linux/x86_64-Mellanox/{gcc,clang,PathScale,NVHPC,IntelC,Intel oneAPI}/64: smp, mpi, udp, ibv
+    * Linux/x86_64-InfiniBand/{gcc,clang,PathScale,NVHPC,IntelC,Intel oneAPI}/64: smp, mpi, udp, ibv
     * Linux/x86_64-Omni-Path/gcc/64: smp, mpi, udp, ofi
     * Linux/x86_64/x86-Open64/64:   smp, udp, #
 
