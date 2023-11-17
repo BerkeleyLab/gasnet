@@ -2971,6 +2971,8 @@ extern const char* gasneti_check_env_prefix_helper(const char *environ, const ch
   return NULL;
 }
 
+extern const char** environ;
+
 extern const char* gasneti_check_env_prefix(const char *prefix) {
   gasneti_assert(prefix);
   gasneti_assert(NULL == strchr(prefix, '='));
