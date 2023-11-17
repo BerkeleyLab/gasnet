@@ -59,6 +59,7 @@ GASNet-EX ChangeLog
   - bug4655: ucx: bad exits on Summit
   - bug4663: failure compiling pmi-spawner with PMIx 4.2.0 and higher
   - bug4665: Cray PMI configure detection logic should be smarter 
+  - bug4669: Some GASNET_OFI_DEVICE_* and GASNET_IBV_PORTS_* settings ignored
   - bug4670: UCX environment personalized prefix not working as we document
 
 ----------------------------------------------------------------------

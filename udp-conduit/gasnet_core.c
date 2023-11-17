@@ -243,6 +243,7 @@ static int gasnetc_init(
     gasneti_init_done = 1; /* enable early to allow tracing */
 
     gasneti_getenv_hook = (/* cast drops const */ gasneti_getenv_fn_t*)&AMUDP_SPMDgetenvMaster;
+    gasneti_check_env_prefix_hook = &AMUDP_check_env_prefix;
     gasneti_mynode = AMUDP_SPMDMyProc();
     gasneti_nodes = AMUDP_SPMDNumProcs();
 
