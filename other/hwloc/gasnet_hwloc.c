@@ -129,7 +129,7 @@ char *check_suffixed(const char *prefix)
 {
   size_t prefix_len = strlen(prefix);
   char *keyname = gasneti_malloc(prefix_len + 3); // 3: '_' + digit + '\0'
-  strncpy(keyname, prefix, prefix_len);
+  strncpy(keyname, prefix, prefix_len+1);
   keyname[prefix_len] = '_';
   keyname[prefix_len+2] = '\0';
 
