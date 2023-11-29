@@ -4793,7 +4793,7 @@ AC_DEFUN([GASNET_PMI_SPAWNER_CFLAGS], [
 have_pmi=no
 if test "$enable_pmi" != 'no'; then
   # Auto-detect Cray PMI prefix, *unless* non-Cray version requested
-  if test -n "$CRAYPE_NETWORK_TARGET" &&
+  if ( test -n "$CRAYPE_NETWORK_TARGET" || test "$GASNET_PLATFORM" = crayex ) &&
    ( test "$using_pmi_version" = 'cray' || test -z "$using_pmi_version" ); then
     # Several places to look.
     for dir in `expr "x${CRAY_PMI_INCLUDE_OPTS}" : 'x-I\([[^ ]]*\)' 2>/dev/null` \
