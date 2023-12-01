@@ -496,6 +496,17 @@ Recognized environment variables:
   this value is set automatically by ofi-conduit.  Most notably, ofi-conduit
   will not overwrite a value set by the user.
 
+* FI_MR_CACHE_MAX_{SIZE,COUNT} - These libfabric variables control the cache
+  of memory registrations used in some providers.  These settings are not
+  directly consumed by GASNet ofi-conduit, but affect the behavior of some
+  underlying providers it relies upon.
+  When using a provider known to experience degraded RMA performance with the
+  defaults, ofi-conduit may set these values to "-1" to remove all limits on
+  the memory registration cache.
+  See Bug 4676 under "Known problems" for information on when these variables
+  are set by ofi-conduit.  Most notably, ofi-conduit will not overwrite a value
+  set by the user.
+
 * FI_PSM2_LOCK_LEVEL - This variable only applies to the psm2 provider where
   it controls the internal locking state of the provider and can be set to the
   following three values:
@@ -692,6 +703,25 @@ Known problems:
   The most up-to-date information on this bug, including known work-arounds,
   is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4652
+
+* Bug 4676
+  It is known that the default values of the FI_MR_CACHE_MAX_COUNT and
+  FI_MR_CACHE_MAX_SIZE environment variables can adversely impact RMA
+  performance when using the cxi or verbs providers.  Therefore, by default
+  when configured to use either of these two providers (or the "generic"
+  provider with FI_PROVIDER set to "cxi" or "verbs") ofi-conduit will set these
+  variables to "-1" in order to remove the limits on the memory registration
+  cache.  However, the conduit will never overwrite a user-provided setting.
+  To request the libfabric default values for either variable, one may set
+  them to an empty string, which instructs ofi-conduit to unset the variable.
+  Note that if libfabric is initialized prior to ofi-conduit, such as by an
+  libfabric-based MPI used for job launch, then neither the automatic behavior
+  nor the use of an empty string to suppress it will occur early enough to
+  have the desired effect.  In such cases, it is recommended to set these two
+  environment variables to "-1" manually (to remove the limits) or to leave them
+  unset (to use libfabric's default values).
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4676
 
 * See docs/memory_kinds.md in the GASNet-EX sources for current information
   regarding known issues with respect to memory kinds support in ofi-conduit.

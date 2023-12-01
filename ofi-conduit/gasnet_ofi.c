@@ -993,6 +993,36 @@ int gasnetc_ofi_init(void)
   // have been determined.  This is necessary because fi_getinfo() may read them.
   // NOTE: spawn via an ofi-based MPI may have read these even earlier!
 
+  // Provider-independent FI_MR_CACHE_MAX_{SIZE,COUNT}:
+  // The defaults are known to have a negative impact on many applications
+  // when using cxi or verbs providers (bug 4676).
+  // To avoid unforeseen problems on conduits not known to demonstrate the
+  // performance issue, we set these variables only for these two providers.
+  // In particular, we do not set these for the "generic" provider case unless
+  // `FI_PROVIDER` has been set to ensure one of those two will be selected.
+  if (gasnetc_early_provider_check("cxi")   == GASNETC_EARLY_PROVIDER_YES ||
+      gasnetc_early_provider_check("verbs") == GASNETC_EARLY_PROVIDER_YES) {
+    gasnetc_setenv_string("FI_MR_CACHE_MAX_SIZE",  "-1", 0 /* = no replacement */);
+    gasnetc_setenv_string("FI_MR_CACHE_MAX_COUNT", "-1", 0 /* = no replacement */);
+  }
+  // Implement our "opt-out" behavior of converting empty values for these two
+  // variables to unset.  Otherwise libfabric use of `strtol()` parses empty
+  // strings as `0`, resulting in disabling the cache!
+  // We do this unconditionally, to avoid letting a user's "defensive" setting
+  // do harm for a provider using the cache but not in our allow-list.
+  { const char *vars[] =  { "FI_MR_CACHE_MAX_SIZE",
+                            "FI_MR_CACHE_MAX_COUNT", };
+    size_t count = sizeof(vars) / sizeof(vars[0]);
+    for (size_t i = 0; i < count; ++i) {
+      const char *var = vars[i];
+      const char *val = gasneti_getenv(var);
+      if (val && !val[0]) {
+        gasneti_unsetenv(var);
+        GASNETI_TRACE_PRINTF(I, ("Converting empty %s in environment to unset", var));
+      }
+    }
+  }
+
   // Provider-independent FI_UNIVERSE_SIZE:
   // Ideally, FI_UNIVERSE_SIZE should always match our process count unless is
   // has already been set.
