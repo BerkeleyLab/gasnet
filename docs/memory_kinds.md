@@ -33,6 +33,11 @@ request from gasnet-staff@lbl.gov:
 
 For brevity, this will be referenced as simply "the API Proposal".
 
+The majority of this document will address only "CUDA_UVA" and "HIP" memory
+kinds.  For information regarding other experimental memory kinds, see the
+[Experimental Memory Kinds](#markdown-header-experimental-memory-kinds)
+section.
+
 # General Usage
 
 By default, the `configure` script does not enable support for
@@ -397,6 +402,61 @@ HPE Cray EX systems with Slingshot-11:
 
 Eventual minimum requirements may be lower than on the platforms listed above, or
 possibly higher.
+
+# Experimental Memory Kinds
+
+## oneAPI Level Zero "ZE" Kind
+
+Currently there is experimental support for the "oneAPI Level Zero" API of Intel
+GPUs, which is known as the "ZE" kind.  There are known correctness issues,
+the performance has yet to be characterized or tuned, and there are multiple
+quality-of-implementation issues to be addressed before this support can be
+recommended for use in production.
+
+One notable aspect of the experimental status is that the kind-specific members
+in `gex_MK_Create_args_t` are subject to change in future releases.
+
+We advise contacting us at gasnet-staff@lbl.gov if you wish to use the ZE kind.
+
+Support for the ZE kind is only present in ofi-conduit, and has only been tested
+with the `cxi` provider for HPE Cray EX systems using Slingshot-11 NICs.  It has
+*not* been tested with ofi-conduit using the 'verbs' libfabric provider for
+Slingshot-10 or other networks using NVIDIA/Mellanox InfiniBand hardware.  
+We encourage reports of success or failure with other libfabric providers.
+
+There currently is no ZE memory kind support in ibv- or ucx-conduits.
+We are seeking access to InfiniBand-connected clusters of nodes with Intel GPUs
+to enable work on ibv- and ucx-conduits, and on the `verbs` provider for
+ofi-conduit.  
+Please contact us if you can provide such access.
+
+Configure options and environment variables to enable and configure the ZE kind
+are analogous to those for CUDA-UVA and HIP, and behave as described earlier
+under [General Usage](#markdown-header-general-usage):
+
+  + `--enable-kind-ze[=probe]`
+  + `--with-ze-home=...` or `ZE_HOME`
+  + `--with-ze-cflags=...` or `ZE_CFLAGS`
+  + `--with-ze-libs=...` or `ZE_LIBS`
+  + `--with-ze-ldflags=...` or `ZE_LDFLAGS`
+
+### Minimum System Requirements for the ZE Kind
+
+Testing of the ZE kind and Slingshot-11 networks has shown the vendor-provided
+kernel with SUSE Linux Enterprise Server 15 SP4 (aka "SLES 15.4") to be usable.
+However, when using the kernel provided with SLES 15.3, all calls to
+`gex_EP_BindSegment()` with ZE device memory segments fail.  
+We encourage reports of success or failure with other kernel versions.
+
+### Known Issues with the ZE Memory Kind
+
+As of the time of writing, testing has shown 32KiB to be the largest device
+memory segment size which can successfully be used with the ZE kind and the
+ofi-conduit `cxi` provider.  Larger sizes fail in `gex_EP_BindSegment()`,
+with a verbose message indicating that the problem appears to be this known
+issue.  We encourage reports of success with larger device segments.
+For the most up-to-date information on this issue see
+[PLACEHOLDER FOR BUGZILLA URL]  
 
 # Implementation Status Summary
 

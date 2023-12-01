@@ -1931,6 +1931,17 @@ int gasnetc_ep_bindsegment(gasneti_EP_t i_ep, gasneti_Segment_t segment)
           break;
         #endif
 
+        #if GASNET_HAVE_MK_CLASS_ZE
+        case GEX_MK_CLASS_ZE:
+          attr.iface = FI_HMEM_ZE;
+          attr.device.ze = (int)(uintptr_t)i_mk->_mk_conduit;
+          c_ep->device_only_segment = 1;
+          #ifdef FI_HMEM_DEVICE_ONLY
+            flags |= FI_HMEM_DEVICE_ONLY;
+          #endif
+          break;
+        #endif
+
         default:
           gasneti_unreachable_error(("undefined or unsupported gex_MK_Class_t value: %d", mk_class));
           break;
@@ -1952,6 +1963,13 @@ int gasnetc_ep_bindsegment(gasneti_EP_t i_ep, gasneti_Segment_t segment)
             gasneti_console_message("WARNING",
                                     "Unexpected error %d (%s) from %s() when binding segment [%p, %p) to EP %d",
                                     ret, fi_strerror(-ret), reg_fn, segment->_addr, segment->_ub, i_ep->_index);
+          #if GASNET_HAVE_MK_CLASS_ZE
+            if ((attr.iface == FI_HMEM_ZE) && (ret == -EFAULT) && (segsize > 32768)) {
+              gasneti_console_message("NOTICE",
+                                      "This failure looks like a known issue in ZE memory kinds support.  "
+                                      "See docs/memory_kinds.md in the GASNet-EX sources for more information.");
+            }
+          #endif
         }
         // TODO: can we do better sorting out failure modes?
         return GASNET_ERR_RESOURCE;
@@ -2604,8 +2622,8 @@ gasnetc_rdma_put_non_bulk(gex_TM_t tm, gex_Rank_t rank, void* dest_addr, void* s
 
     PERIODIC_RMA_POLL();
 
-#if GASNET_HAVE_MK_CLASS_CUDA_UVA
-    // CUDA device memory precludes bounce buffers and (at least currently) use of FI_INJECT
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA || GASNET_HAVE_MK_CLASS_ZE
+    // CUDA and ZE device memory preclude bounce buffers and (at least currently) use of FI_INJECT
     if (c_ep->device_only_segment) goto block_anyways;
 #endif
 
@@ -2898,6 +2916,12 @@ int gasnetc_mk_create_hook(
       #if GASNET_HAVE_MK_CLASS_HIP
       case GEX_MK_CLASS_HIP:
         // No device needed for HIP
+        break;
+      #endif
+
+      #if GASNET_HAVE_MK_CLASS_ZE
+      case GEX_MK_CLASS_ZE:
+        kind->_mk_conduit = (void*)(uintptr_t)gasneti_mk_ze_device_ordinal(args->gex_args.gex_class_ze.gex_zeDevice, 0);
         break;
       #endif
 

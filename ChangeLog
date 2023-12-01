@@ -21,6 +21,12 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* Memory Kinds (support for non-host memory)
+  - This release adds *experimental* memory kinds support for the oneAPI Level
+    Zero API of Intel GPUs to ofi-conduit with the cxi libfabric provider (for
+    the Slingshot-11 network on HPE Cray EX systems).
+  See docs/memory_kinds.md for more information on the status of Memory Kinds.
+
 * Libfabric (details in ofi-conduit README)
   - Add initial/experimental support for the AWS Elastic Fabric Adapter via
     "efa" provider. Operation with this provider remains untuned and is not
