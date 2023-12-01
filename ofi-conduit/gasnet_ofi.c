@@ -466,9 +466,12 @@ int gasnetc_check_portable_conduit(void) {
 // Check if the argument macthes the configured provider(s).
 // Considers the value of FI_PROVIDER (if any) in the generic case.
 // return:
-//   0 if the argument cannot be the eventually selected provider
-//   1 if the argument might be the eventually selected provider
-//   2 if the argument must be the eventually selected provider
+//   NO:    0 if the argument cannot be the eventually selected provider
+//   MAYBE: 1 if the argument might be the eventually selected provider
+//   YES:   2 if the argument must be the eventually selected provider
+#define GASNETC_EARLY_PROVIDER_NO    0
+#define GASNETC_EARLY_PROVIDER_MAYBE 1
+#define GASNETC_EARLY_PROVIDER_YES   2
 static int gasnetc_early_provider_check(const char *prov_name) {
   // Argument cannot be "generic" nor may it contain a semi-colon
   gasneti_assert(gasneti_strcasecmp(prov_name, "generic"));
@@ -479,15 +482,17 @@ static int gasnetc_early_provider_check(const char *prov_name) {
 
   if (gasneti_strcasecmp(provider_ident, "generic")) {
     // Single-provider build
-    return gasneti_strcasecmp(prov_name, provider_ident) ? 0 : 2;
+    return gasneti_strcasecmp(prov_name, provider_ident) ? GASNETC_EARLY_PROVIDER_NO
+                                                         : GASNETC_EARLY_PROVIDER_YES;
   } else if (provider && provider[0]) {
     // Generic build, constrained to one provider by FI_PROVIDER
     char *delim = strchr(provider,';');
     size_t len = delim ? (delim - provider) : strlen(provider);
-    return gasneti_strncasecmp(prov_name, provider, len) ? 0 : 2;
+    return gasneti_strncasecmp(prov_name, provider, len) ? GASNETC_EARLY_PROVIDER_NO
+                                                         : GASNETC_EARLY_PROVIDER_YES;
   } else {
     // Generic build, unconstrained
-    return 1;
+    return GASNETC_EARLY_PROVIDER_MAYBE;
   }
 }
 
