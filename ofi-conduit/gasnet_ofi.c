@@ -466,9 +466,12 @@ int gasnetc_check_portable_conduit(void) {
 // Check if the argument macthes the configured provider(s).
 // Considers the value of FI_PROVIDER (if any) in the generic case.
 // return:
-//   0 if the argument cannot be the eventually selected provider
-//   1 if the argument might be the eventually selected provider
-//   2 if the argument must be the eventually selected provider
+//   NO:    0 if the argument cannot be the eventually selected provider
+//   MAYBE: 1 if the argument might be the eventually selected provider
+//   YES:   2 if the argument must be the eventually selected provider
+#define GASNETC_EARLY_PROVIDER_NO    0
+#define GASNETC_EARLY_PROVIDER_MAYBE 1
+#define GASNETC_EARLY_PROVIDER_YES   2
 static int gasnetc_early_provider_check(const char *prov_name) {
   // Argument cannot be "generic" nor may it contain a semi-colon
   gasneti_assert(gasneti_strcasecmp(prov_name, "generic"));
@@ -479,15 +482,17 @@ static int gasnetc_early_provider_check(const char *prov_name) {
 
   if (gasneti_strcasecmp(provider_ident, "generic")) {
     // Single-provider build
-    return gasneti_strcasecmp(prov_name, provider_ident) ? 0 : 2;
+    return gasneti_strcasecmp(prov_name, provider_ident) ? GASNETC_EARLY_PROVIDER_NO
+                                                         : GASNETC_EARLY_PROVIDER_YES;
   } else if (provider && provider[0]) {
     // Generic build, constrained to one provider by FI_PROVIDER
     char *delim = strchr(provider,';');
     size_t len = delim ? (delim - provider) : strlen(provider);
-    return gasneti_strncasecmp(prov_name, provider, len) ? 0 : 2;
+    return gasneti_strncasecmp(prov_name, provider, len) ? GASNETC_EARLY_PROVIDER_NO
+                                                         : GASNETC_EARLY_PROVIDER_YES;
   } else {
     // Generic build, unconstrained
-    return 1;
+    return GASNETC_EARLY_PROVIDER_MAYBE;
   }
 }
 
@@ -987,6 +992,36 @@ int gasnetc_ofi_init(void)
   // Setup various environment variables quite early, before the provider may
   // have been determined.  This is necessary because fi_getinfo() may read them.
   // NOTE: spawn via an ofi-based MPI may have read these even earlier!
+
+  // Provider-independent FI_MR_CACHE_MAX_{SIZE,COUNT}:
+  // The defaults are known to have a negative impact on many applications
+  // when using cxi or verbs providers (bug 4676).
+  // To avoid unforeseen problems on conduits not known to demonstrate the
+  // performance issue, we set these variables only for these two providers.
+  // In particular, we do not set these for the "generic" provider case unless
+  // `FI_PROVIDER` has been set to ensure one of those two will be selected.
+  if (gasnetc_early_provider_check("cxi")   == GASNETC_EARLY_PROVIDER_YES ||
+      gasnetc_early_provider_check("verbs") == GASNETC_EARLY_PROVIDER_YES) {
+    gasnetc_setenv_string("FI_MR_CACHE_MAX_SIZE",  "-1", 0 /* = no replacement */);
+    gasnetc_setenv_string("FI_MR_CACHE_MAX_COUNT", "-1", 0 /* = no replacement */);
+  }
+  // Implement our "opt-out" behavior of converting empty values for these two
+  // variables to unset.  Otherwise libfabric use of `strtol()` parses empty
+  // strings as `0`, resulting in disabling the cache!
+  // We do this unconditionally, to avoid letting a user's "defensive" setting
+  // do harm for a provider using the cache but not in our allow-list.
+  { const char *vars[] =  { "FI_MR_CACHE_MAX_SIZE",
+                            "FI_MR_CACHE_MAX_COUNT", };
+    size_t count = sizeof(vars) / sizeof(vars[0]);
+    for (size_t i = 0; i < count; ++i) {
+      const char *var = vars[i];
+      const char *val = gasneti_getenv(var);
+      if (val && !val[0]) {
+        gasneti_unsetenv(var);
+        GASNETI_TRACE_PRINTF(I, ("Converting empty %s in environment to unset", var));
+      }
+    }
+  }
 
   // Provider-independent FI_UNIVERSE_SIZE:
   // Ideally, FI_UNIVERSE_SIZE should always match our process count unless is
