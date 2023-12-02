@@ -94,7 +94,21 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasneti_console_message("gasnetc_init","about to spawn..."); 
   #endif
 
-  gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
+  const char *force_spawner = NULL;
+#if HAVE_PMI_CRAY_H
+  // On a system with Cray PMI, we want to avoid initializing the MPI library
+  // by default despite `srun` being the launch utility for both MPI and PMI.
+  // So, a little extra logic here overrides the normal precedence of MPI over
+  // PMI in gasneti_spawnerInit().
+  const char *spawn_control = gasneti_getenv("GASNET_OFI_SPAWNER"); // just testing for unset/empty
+  // Following line is a *temporary* fall-back to the legacy variable:
+  if (!spawn_control || !spawn_control[0]) spawn_control = gasneti_getenv("GASNET_SPAWN_CONTROL");
+  if (!spawn_control || !spawn_control[0]) {
+    force_spawner = "PMI";
+    gasneti_envstr_display("GASNET_OFI_SPAWNER", "PMI", 1);
+  }
+#endif
+  gasneti_spawner = gasneti_spawnerInit(argc, argv, force_spawner, &gasneti_nodes, &gasneti_mynode);
   if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
   // bug 4597: freeze following process spawning and environment propagation
