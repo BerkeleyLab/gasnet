@@ -48,6 +48,11 @@ GASNet-EX ChangeLog
 * Portable MPI support (details in mpi-conduit README)
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
 
+* Platform support/portability
+  - Configure will no longer add `-multiply_defined,suppress` to `LDFLAGS` on
+    macOS Ventura and newer (bug 4677).  Users may reintroduce it via
+    `--with-ldflags=`, if necessary.
+
 * GASNet-EX Spec v0.17: (details in docs/GASNet-EX.txt)
   - Add new `GASNET_SUPPORTS_TI_*` feature macros
 
@@ -68,6 +73,7 @@ GASNet-EX ChangeLog
   - bug4669: Some GASNET_OFI_DEVICE_* and GASNET_IBV_PORTS_* settings ignored
   - bug4670: UCX environment personalized prefix not working as we document
   - bug4676: (partial fix) ofi-conduit RMA performance issues (cxi & verbs providers)
+  - bug4677: Linker warnings from Xcode 15
 
 ----------------------------------------------------------------------
 2023-03-31: GASNet-EX 2023.3.0
