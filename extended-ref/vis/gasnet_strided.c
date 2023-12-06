@@ -36,7 +36,7 @@
      a. Compute contiguity parameters for each side O(sl)
   7. Select non-trivial algorithm (logic allows conduit override)
      - dual linear contiguity > MAX_CHUNK => indiv put/get (gasnete_{put,get})
-     - peer linear contiguity > MAX_CHUNK => remote contig (gasnete_{put,get})
+     - (unimplemented) peer linear contiguity > MAX_CHUNK => remote contig (gasnete_{put,get})
      - (off by default) Ref Indexed
      - (off by default) Ref Vector 
      - if metadata + MIN_CHUNKS*elemsz fits in MaxMedium => AM Pipeline 
@@ -614,6 +614,7 @@ void gasnete_strided_unpack_all(void *addr, const size_t strides[],
 
 /*---------------------------------------------------------------------------------*/
 /* simple gather put, remotely contiguous */
+/* NOTE: The remotecontig implementations for strided are outdated and not currently functional */
 #ifndef GASNETE_PUTS_GATHER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
 gex_Event_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
