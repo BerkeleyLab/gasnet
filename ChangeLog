@@ -37,6 +37,12 @@ GASNet-EX ChangeLog
   - The recommendations regarding running MPI hybrid applications on the HPE
     Slingshot-11 network have changed.  Please see the conduit README for details.
 
+* InfiniBand Verbs (details in ibv-conduit README)
+  - Calls to `gex_MK_Create()` for CUDA UVA or HIP memory kinds will no longer
+    fail if the necessary kernel support cannot be positively identified, and
+    a subsequent `gex_Segment_Create()` will fail instead if the driver support
+    is absent.
+
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
   - Use of `GASNET_UCX_` or `UCX_GASNET_` to prefix UCX (non-GASNet) environment

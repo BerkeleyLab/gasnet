@@ -741,6 +741,34 @@ enum gasnetc_segreg {
   gasnetc_segreg_create
 };
 
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA
+  // Returns non-zero if should suggest missing driver as a reason for failure.
+  static int gasnetc_check_cuda_uva_driver(void) {
+  #if !PLATFORM_OS_LINUX
+    return 0;
+  #else
+    // Look for GDR support.
+    // Adapted from the GDR checking logic in Open MPI.
+    return access("/sys/kernel/mm/memory_peers/nv_mem/version", F_OK);
+  #endif
+  }
+#endif
+
+#if GASNET_HAVE_MK_CLASS_HIP
+  // Returns non-zero if should suggest missing driver as a reason for failure.
+  static int gasnetc_check_hip_driver(void) {
+  #if !PLATFORM_OS_LINUX
+    return 0;
+  #elif GASNETI_HIP_PLATFORM_NVIDIA
+    // Look for GDR support.
+    return access("/sys/kernel/mm/memory_peers/nv_mem/version", F_OK);
+  #else
+    // Look for AMD ROCmRDMA support (AMD Kernel Fusion Driver == amdkfd).
+    return access("/sys/kernel/mm/memory_peers/amdkfd/version", F_OK);
+  #endif
+  }
+#endif
+
 static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which, int why, gex_MK_Class_t mk_class)
 {
   const char *descr = "";
@@ -776,7 +804,11 @@ static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which,
     case GEX_MK_CLASS_CUDA_UVA:
       descr = " CUDA_UVA";
       if (why == EFAULT) {
-        hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+        if (gasnetc_check_cuda_uva_driver()) {
+          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+        } else {
+          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+        }
       }
       break;
     #endif
@@ -785,7 +817,11 @@ static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which,
     case GEX_MK_CLASS_HIP:
       descr = " HIP";
       if (why == EFAULT) {
-        hint1 = "\n        This could be caused by exhaustion of BAR resources.  See memory_kinds.md release notes.";
+        if (gasnetc_check_hip_driver()) {
+          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+        } else {
+          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+        }
       }
       break;
     #endif
