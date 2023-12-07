@@ -932,7 +932,6 @@ int gasnetc_ofi_init(void)
                                            operation context parameter */
   /* addr_format: expected address format for AV/CM calls */
   hints->addr_format        = FI_FORMAT_UNSPEC;
-  hints->tx_attr->op_flags  = FI_DELIVERY_COMPLETE;
   hints->ep_attr->type      = FI_EP_RDM; /* Reliable datagram */
   /* Threading mode is set by the configure script to FI_THREAD_DOMAIN if
    * using the psm2 provider and FI_THREAD_SAFE otherwise*/
@@ -1315,6 +1314,7 @@ int gasnetc_ofi_init(void)
     hints->caps |= FI_HMEM;
   }
 #endif
+  hints->tx_attr->op_flags = FI_DELIVERY_COMPLETE;
 
   // We do not support FI_CONTEXT for an RMA endpoint due to many-to-one iop.
   // However, we must set the bit as a work-around for psm2 provider in libfabric < 1.10 (bug 4567)
@@ -1369,6 +1369,14 @@ int gasnetc_ofi_init(void)
   /* Allocate a new active endpoint for AM operations buffer */
   hints->caps     = FI_MSG | FI_MULTI_RECV;
   hints->mode     = FI_CONTEXT;
+  // FI_INJECT_COMPLETE is the better semantic fit for sending AMs.
+  // However, we provide an undocumented means to restore the legacy
+  // use of FI_DELIVERY_COMPLETE.
+  if (gasneti_getenv_yesno_withdefault("GASNET_OFI_AM_USE_DELIVERY_COMPLETE", 0)) {
+    hints->tx_attr->op_flags = FI_DELIVERY_COMPLETE;
+  } else {
+    hints->tx_attr->op_flags = FI_INJECT_COMPLETE;
+  }
 
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &gasnetc_msg_info);
   GASNETC_OFI_CHECK_RET(ret, "fi_getinfo() failed querying for MSG endpoints");
