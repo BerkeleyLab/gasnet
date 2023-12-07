@@ -1378,9 +1378,14 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 + Bug 3838
   When using On-Demand Paging (ODP), it has been observed that certain
   patterns of many small RMA operations (as seen in GASNet's testvis) may lead
-  to communications "locking up" such that RMA operations issued do not complete
-  and eventually new RMA operations cannot be initiated.
-  If you use ODP and experience hangs from an application with many fine-grained
+  either to crashes or to communications "locking up" such that RMA operations
+  issued do not complete and eventually new RMA operations cannot be initiated.
+  Crashes typically produce a message containing the text
+      snd status=2(local QP operation error)
+  and
+      aborting on reap of failed send
+  though other messages may be possible.
+  If you use ODP and experience crashes or hangs from an application with many
   RMA operations, then you should retry with ODP disabled (see On-Demand Paging
   (ODP) Support section).
   The most up-to-date information on this bug is maintained at:
