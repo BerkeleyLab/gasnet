@@ -42,6 +42,8 @@ GASNet-EX ChangeLog
     fail if the necessary kernel support cannot be positively identified, and
     a subsequent `gex_Segment_Create()` will fail instead if the driver support
     is absent.
+  - Will now attempt to maximize the `RLIMIT_MEMLOCK` limit of processes by
+    default. Set `GASNET_MAXIMIZE_MEMLOCK=0` to disable the new behavior.
 
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`

@@ -1943,6 +1943,11 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* report hca/port properties */
   gasnetc_hca_report();
 
+  // Attempt to maximize pinned memory limit (if any) before allocating any IBV resources
+#ifdef RLIMIT_MEMLOCK
+  gasnett_maximize_rlimit(RLIMIT_MEMLOCK, "RLIMIT_MEMLOCK");
+#endif
+
   /* get a pd for the QPs, SRQ and memory registration */
   GASNETC_FOR_ALL_HCA(hca) {
     hca->pd = ibv_alloc_pd(hca->handle);

@@ -639,6 +639,13 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   process with the largest size when memory is exhausted.  Use of the
   following parameters allows one to bound, or to eliminate, this probe.
 
+  + GASNET_MAXIMIZE_MEMLOCK
+    This gives a boolean: "1" to enable or "0" to disable an attempt to raise
+    the process's "RLIMIT_MEMLOCK" value to the maximum permitted value.
+    This may be necessary to ensure sufficient memory can be pinned for RMA.
+    If this attempt fails, it will do so without any warning or error.
+    The default is "1".
+
   + GASNET_PHYSMEM_MAX
     If set, this parameter is used to determine the maximum amount of memory
     ibv-conduit may pin.  This limits how large the GASNet segment can be, and
