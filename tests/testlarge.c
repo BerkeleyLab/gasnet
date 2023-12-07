@@ -557,21 +557,21 @@ int main(int argc, char **argv)
     int use_device = 0;
 
     if (use_cuda_uva) {
-      MSG0("***NOTICE***: Using EXPERIMENTAL support for CUDA UVA memory kind (local %s, remote %s)",
+      MSG0("***NOTICE***: Using EXPERIMENTAL/UNTUNED support for CUDA UVA memory kind (local %s, remote %s)",
            (use_loc_gpu ? "GPU" : "host"), (use_rem_gpu ? "GPU" : "host"));
       args.gex_class = GEX_MK_CLASS_CUDA_UVA;
       args.gex_args.gex_class_cuda_uva.gex_CUdevice = 0;
       use_device = 1;
     }
     if (use_hip) {
-      MSG0("***NOTICE***: Using EXPERIMENTAL support for HIP memory kind (local %s, remote %s)",
+      MSG0("***NOTICE***: Using EXPERIMENTAL/UNTUNED support for HIP memory kind (local %s, remote %s)",
            (use_loc_gpu ? "GPU" : "host"), (use_rem_gpu ? "GPU" : "host"));
       args.gex_class = GEX_MK_CLASS_HIP;
       args.gex_args.gex_class_hip.gex_hipDevice = 0;
       use_device = 1;
     }
     if (use_ze) {
-      MSG0("***NOTICE***: Using EXPERIMENTAL support for ZE memory kind (local %s, remote %s)",
+      MSG0("***NOTICE***: Using EXPERIMENTAL/UNTUNED support for ZE memory kind (local %s, remote %s)",
            (use_loc_gpu ? "GPU" : "host"), (use_rem_gpu ? "GPU" : "host"));
     #if GASNET_HAVE_MK_CLASS_ZE
       if (! test_open_ze_device(0, &args)) {
