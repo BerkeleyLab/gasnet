@@ -357,6 +357,7 @@ int main(int argc, char **argv)
     int use_hip = 0;
     int use_ze = 0;
 #endif
+    int use_host = 1;
     int help = 0;   
 
     /* call startup */
@@ -408,32 +409,37 @@ int main(int argc, char **argv)
         ++arg;
         if (argc > arg) { segsz = gasnett_parse_int(argv[arg], 1024*1024); arg++; }
         else help = 1;
-#if GASNET_HAVE_MK_CLASS_CUDA_UVA
-      // UNDOCUMENTED
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+  #if GASNET_HAVE_MK_CLASS_CUDA_UVA
       } else if (!strcmp(argv[arg], "-cuda-uva")) {
         use_cuda_uva = 1;
         use_hip = 0;
         use_ze = 0;
+        use_host = 0;
         ++arg;
-#endif
-#if GASNET_HAVE_MK_CLASS_HIP
-      // UNDOCUMENTED
+  #endif
+  #if GASNET_HAVE_MK_CLASS_HIP
       } else if (!strcmp(argv[arg], "-hip")) {
         use_hip = 1;
         use_cuda_uva = 0;
         use_ze = 0;
+        use_host = 0;
         ++arg;
-#endif
-#if GASNET_HAVE_MK_CLASS_ZE
-      // UNDOCUMENTED
+  #endif
+  #if GASNET_HAVE_MK_CLASS_ZE
       } else if (!strcmp(argv[arg], "-ze")) {
         use_cuda_uva = 0;
         use_hip = 0;
         use_ze = 1;
+        use_host = 0;
         ++arg;
-#endif
-#if GASNET_HAVE_MK_CLASS_MULTIPLE
-      // UNDOCUMENTED
+  #endif
+      } else if (!strcmp(argv[arg], "-host")) {
+        use_cuda_uva = 0;
+        use_hip = 0;
+        use_ze = 0;
+        use_host = 1;
+        ++arg;
       } else if (!strcmp(argv[arg], "-local-gpu")) {
         use_loc_gpu = 1;
         ++arg;
@@ -458,6 +464,12 @@ int main(int argc, char **argv)
     if (argc > arg) { maxsz = gasnett_parse_int(argv[arg], 1); arg++; }
     if (!maxsz) maxsz = 2*1024*1024; /* 2 MB default */
     if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
+
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+    if (use_host) {
+       use_loc_gpu = use_rem_gpu = 0;
+    }
+#endif
 
     if (!max_step) max_step = maxsz;
     if (!min_payload) min_payload = 16;
@@ -487,6 +499,39 @@ int main(int argc, char **argv)
     }
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, segsz));
 
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+  #define KIND_USAGE_BEGIN \
+        "\n" \
+        "  Memory kind selection (last-used has precedence):\n" \
+        "    -host         Test host memory, aka GEX_MK_CLASS_HOST (default)\n"
+  #define KIND_USAGE_END \
+        "  Memory kind buffer location (ignored with -host):\n" \
+        "    Local buffer location  (last-used has precedence):\n" \
+        "      -local-host   Local buffer is in host memory (default)\n" \
+        "      -local-gpu    Local buffer is in GPU memory\n" \
+        "    Remote buffer location  (last-used has precedence):\n" \
+        "      -remote-host  Remote buffer is in host memory\n" \
+        "      -remote-gpu   Remote buffer is in GPU memory (default)"
+#else
+  #define KIND_USAGE_BEGIN       // empty
+  #define KIND_USAGE_END         // empty
+#endif
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA
+  #define KIND_USAGE_CUDA_UVA    "    -cuda-uva     Test GEX_MK_CLASS_CUDA_UVA\n"
+#else
+  #define KIND_USAGE_CUDA_UVA    // empty
+#endif
+#if GASNET_HAVE_MK_CLASS_HIP
+  #define KIND_USAGE_HIP         "    -hip          Test GEX_MK_CLASS_HIP\n"
+#else
+  #define KIND_USAGE_HIP         // empty
+#endif
+#if GASNET_HAVE_MK_CLASS_ZE
+  #define KIND_USAGE_ZE          "    -ze           Test GEX_MK_CLASS_ZE\n"
+#else
+  #define KIND_USAGE_ZE          // empty
+#endif
+
     test_init("testlarge",1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The '-in' or '-out' option selects whether the initiator-side\n"
                "   memory is in the GASNet segment or not (default is 'in').\n"
@@ -504,6 +549,11 @@ int main(int argc, char **argv)
                "    The default is the minimum necessary to complete the tests.\n"
                "  The '-lbufs N' option is valid only with '-out' and sets the number of\n"
                "    distinct local (initiator-side) buffers to cycle through (default is 1)."
+               KIND_USAGE_BEGIN
+               KIND_USAGE_CUDA_UVA
+               KIND_USAGE_HIP
+               KIND_USAGE_ZE
+               KIND_USAGE_END
               );
     if (help || argc > arg) test_usage();
     
