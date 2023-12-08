@@ -413,7 +413,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       if (networkdepth <= 0) networkdepth = AMUDP_DEFAULT_NETWORKDEPTH;
     }
     if (networkdepth > AMUDP_MAX_NETWORKDEPTH) { // provide useful error message
-      AMX_FatalErr("NETWORKDEPTH must be <= %d", AMUDP_MAX_NETWORKDEPTH);
+      AMX_FatalErr(AMX_ENV_PREFIX_STR "_NETWORKDEPTH must be <= %d", AMUDP_MAX_NETWORKDEPTH);
     }
 
     if (nproc == 0) { /* default to read from args */
