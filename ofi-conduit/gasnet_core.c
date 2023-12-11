@@ -100,9 +100,12 @@ static int gasnetc_init( gex_Client_t            *client_p,
   // by default despite `srun` being the launch utility for both MPI and PMI.
   // So, a little extra logic here overrides the normal precedence of MPI over
   // PMI in gasneti_spawnerInit().
-  const char *spawn_control = gasneti_getenv("GASNET_SPAWN_CONTROL"); // not a user knob.  thus not logged
+  const char *spawn_control = gasneti_getenv("GASNET_OFI_SPAWNER"); // just testing for unset/empty
+  // Following line is a *temporary* fall-back to the legacy variable:
+  if (!spawn_control || !spawn_control[0]) spawn_control = gasneti_getenv("GASNET_SPAWN_CONTROL");
   if (!spawn_control || !spawn_control[0]) {
     force_spawner = "PMI";
+    gasneti_envstr_display("GASNET_OFI_SPAWNER", "PMI", 1);
   }
 #endif
   gasneti_spawner = gasneti_spawnerInit(argc, argv, force_spawner, &gasneti_nodes, &gasneti_mynode);
@@ -345,7 +348,7 @@ extern int gasnetc_ep_bindsegment_hook(
 /* ------------------------------------------------------------------------------------ */
 int gasnetc_exit_in_progress = 0;
 
-static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);     /* value to _exit() with */
+/* gasneti_exit_code holds value to _exit() with */
 
 static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
 
@@ -381,7 +384,7 @@ static int gasnetc_exit_init(void) {
  * DOES NOT RETURN
  */
 static void gasnetc_exit_sighandler(int sig) {
-  int exitcode = (int)gasneti_atomic_read(&gasnetc_exit_code, 0);
+  int exitcode = (int)gasneti_atomic_read(&gasneti_exit_code, 0);
   static gasneti_atomic_t once = gasneti_atomic_init(1);
 
 #if GASNET_DEBUG
@@ -492,7 +495,7 @@ static int gasnetc_exit_coordinate(int exitcode) {
 
 extern void gasnetc_exit(int exitcode) {
   gasnetc_exit_in_progress = 1;
-  gasneti_atomic_set(&gasnetc_exit_code, exitcode, GASNETI_ATOMIC_REL);
+  gasneti_atomic_set(&gasneti_exit_code, exitcode, GASNETI_ATOMIC_REL);
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);

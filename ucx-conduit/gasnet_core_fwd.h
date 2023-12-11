@@ -20,6 +20,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_UCX 1
 
+#define GASNETC_DEFAULT_SPAWNER  GASNETC_UCX_SPAWNER_CONF 
+
 // PSHM and loopback support need to know largest Medium if larger than MAX(LUB{Request,Reply}Medium)
 #define GASNETC_MAX_MEDIUM_NBRHD GASNETC_MAX_MED_(0)
 
@@ -49,6 +51,7 @@
   // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
 #define GASNET_HAVE_MK_CLASS_CUDA_UVA (GASNETI_MK_CLASS_CUDA_UVA_ENABLED && !GASNET_SEGMENT_EVERYTHING)
 #define GASNET_HAVE_MK_CLASS_HIP (GASNETI_MK_CLASS_HIP_ENABLED && !GASNET_SEGMENT_EVERYTHING)
+//#define GASNET_HAVE_MK_CLASS_ZE GASNETI_MK_CLASS_ZE_ENABLED
 
   /* uncomment if your conduit has "private" threads which might run conduit
      code and/or the client's AM handlers, even under GASNET_SEQ.

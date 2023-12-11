@@ -43,11 +43,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   Nearly all InfiniBand cards (known as Host Channel Adapters, or HCAs)
   have support for Open Fabrics Verbs, available from www.openfabrics.org
   or from the HCA or OS vendor.  We have tested numerous InfiniBand HCAs
-  from Mellanox.  HCAs from other vendors have not been validated or have
-  failed validation.
+  from NVIDIA (formerly Mellanox).
+  HCAs from other vendors have not been tested or have failed validation.
 
-  While ibv-conduit may work on Intel Omni-Path (OPA) HCAs, we instead
-  recommend use of ofi-conduit with the psm2 provider on such systems.
+  While ibv-conduit may work on Omni-Path (OPA) HCAs from Intel or Cornelis
+  Networks, we currently recommend use of ofi-conduit with the psm2 provider
+  on such systems.
 
   While ibv-conduit may work on InfiniPath HCAs from PathScale/QLogic and
   True Scale HCAs from Intel, we instead recommend use of mpi-conduit on such
@@ -638,6 +639,13 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   process with the largest size when memory is exhausted.  Use of the
   following parameters allows one to bound, or to eliminate, this probe.
 
+  + GASNET_MAXIMIZE_MEMLOCK
+    This gives a boolean: "1" to enable or "0" to disable an attempt to raise
+    the process's "RLIMIT_MEMLOCK" value to the maximum permitted value.
+    This may be necessary to ensure sufficient memory can be pinned for RMA.
+    If this attempt fails, it will do so without any warning or error.
+    The default is "1".
+
   + GASNET_PHYSMEM_MAX
     If set, this parameter is used to determine the maximum amount of memory
     ibv-conduit may pin.  This limits how large the GASNet segment can be, and
@@ -1117,16 +1125,16 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
 @ Section: On-Demand Paging (ODP) Support @
 
-   Recent Mellanox HCAs (ConnectX-4 and newer) support a feature known as
-   On-Demand Paging (ODP).  Where this support is available, ibv-conduit
+   Recent NVIDIA/Mellanox HCAs (ConnectX-4 and newer) support a feature known
+   as On-Demand Paging (ODP).  Where this support is available, ibv-conduit
    can use it to reduce resource pressure on physical memory.  By default,
    ibv-conduit will attempt to warn at runtime if this support does not
    appear to be available despite having either the required software or
-   hardware.  If you are using Mellanox Connect4-X HCAs or newer and
+   hardware.  If you are using NVIDIA/Mellanox Connect4-X HCAs or newer and
    ibv-conduit warns about missing ODP support, we recommend that you
-   install the latest "Mellanox OFED" (aka MLNX_OFED) distribution,
-   available for download from Mellanox.  Mellanox provides documentation
-   on installing the software and upgrading the HCA firmware (if needed).
+   install the latest "MLNX_OFED" distribution, available for download from
+   NVIDIA.  NVIDIA provides documentation on installing the software and
+   upgrading the HCA firmware (if needed).
 
    At configure time, ibv-conduit does not know the hardware, firmware, or
    driver versions on the compute nodes and cannot, in general, assume the
@@ -1353,7 +1361,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   regarding the recommended work-around(s).
 
 + Bug 3816
-  When using Mellanox On-Demand Paging (ODP), it is possible that abnormal exits
+  When using On-Demand Paging (ODP), it is possible that abnormal exits
   (SIGKILL or _exit(), in particular) may lead to leaking memory at the system
   level, requiring a reboot to reclaim the lost memory.  In extreme cases, the
   cumulative effect of many leaks could eventually lead to the Linux
@@ -1368,11 +1376,16 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   regarding the recommended work-around(s).
 
 + Bug 3838
-  When using Mellanox On-Demand Paging (ODP), it has been observed that certain
+  When using On-Demand Paging (ODP), it has been observed that certain
   patterns of many small RMA operations (as seen in GASNet's testvis) may lead
-  to communications "locking up" such that RMA operations issued do not complete
-  and eventually new RMA operations cannot be initiated.
-  If you use ODP and experience hangs from an application with many fine-grained
+  either to crashes or to communications "locking up" such that RMA operations
+  issued do not complete and eventually new RMA operations cannot be initiated.
+  Crashes typically produce a message containing the text
+      snd status=2(local QP operation error)
+  and
+      aborting on reap of failed send
+  though other messages may be possible.
+  If you use ODP and experience crashes or hangs from an application with many
   RMA operations, then you should retry with ODP disabled (see On-Demand Paging
   (ODP) Support section).
   The most up-to-date information on this bug is maintained at:

@@ -1,10 +1,10 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testhip.c $
- * Copyright (c) 2021, The Regents of the University of California
+/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testze.c $
+ * Copyright (c) 2022, The Regents of the University of California
  *
- * Description: test of GEX_MK_CLASS_HIP
+ * Description: test of GEX_MK_CLASS_ZE
  *
  * This test verifies correctness of gex_MK_Create() for the device class
- * GEX_MK_CLASS_HIP.  This includes checking the expected behavior of builds
+ * GEX_MK_CLASS_ZE.  This includes checking the expected behavior of builds
  * both with and without configure-time enable of support for this device
  * class.
  */
@@ -13,10 +13,6 @@
 #include <gasnet_mk.h>
 #include <gasnet_coll.h>
 
-#if GASNET_HAVE_MK_CLASS_HIP
-  #include <hip/hip_runtime.h>
-#endif
-
 static size_t len = 0;
 #ifndef TEST_SEGSZ
 #define TEST_SEGSZ_EXPR (2*len)
@@ -24,14 +20,9 @@ static size_t len = 0;
 
 #include <test.h>
 
-#define check_hipcall(op) do {                 \
-  int _retval = (op);                           \
-  if_pf(_retval) {                              \
-    FATALERR(#op": %s(%i)",                     \
-             hipGetErrorName(_retval),          \
-             _retval);                          \
-  }                                             \
-} while (0)
+#if GASNET_HAVE_MK_CLASS_ZE
+  #include "zekind.h"
+#endif
 
 static gex_Client_t  myclient;
 static gex_EP_t      myep;
@@ -42,15 +33,9 @@ static gex_Rank_t    nranks;
 
 static uint8_t *cmp_buffer;
 
-#if GASNET_HAVE_MK_CLASS_HIP
+#if GASNET_HAVE_MK_CLASS_ZE
 static int equalDH(uint8_t *d_ptr, uint8_t *h_ptr, size_t len) {
-  hipMemcpyDtoH(cmp_buffer, (hipDeviceptr_t)d_ptr, len);
-  int result = !memcmp(cmp_buffer, h_ptr, len);
-  if (!result) {
-    // Restore expected content to avoid cascading failures
-    hipMemcpyHtoD((hipDeviceptr_t)d_ptr, h_ptr, len);
-  }
-  return result;
+  return 1; // UNIMPLEMENTED!
 }
 #endif
 
@@ -59,7 +44,7 @@ static int equalDH(uint8_t *d_ptr, uint8_t *h_ptr, size_t len) {
     if (! equalDH(d_ptr,h_ptr,len)) {             \
        ERR(label " verification failed"); \
     } else {                                      \
-       MSG(label " verification passed"); \
+       MSG(label " verification NOT IMPLEMENTED"); \
     }                                             \
   } while (0)
 
@@ -78,12 +63,12 @@ int main(int argc, char **argv)
   int seed = 0;
   int rc;
 
-  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testhip", &argc, &argv, 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testze", &argc, &argv, 0));
 
-  test_init("testhip", 0, "[options] (size) (seed)\n"
+  test_init("testze", 0, "[options] (size) (seed)\n"
                " Segment allocation options:\n"
-               "     -client-seg:  Test client-allocated GPU segment (default)\n"
-               "     -gasnet-seg:  Test GASNet-allocated GPU segment\n"
+               "     -client-seg:  Test client-allocated device segment (default)\n"
+               "     -gasnet-seg:  Test GASNet-allocated device segment\n"
                " size      length of segment\n"
                " seed      seed for PRNG\n");
 
@@ -128,29 +113,15 @@ int main(int argc, char **argv)
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
-  MSG0("Running HIP non-local xfer tests with size %lu, PRNG seed %d, and %s-allocated GPU segment",
+  MSG0("Running oneAPI Level Zero non-local xfer tests with size %lu, PRNG seed %d, and %s-allocated device segment",
        (unsigned long)len, seed, client_segment ? "client" : "GASNet");
 
-  const char *hvd = getenv("HIP_VISIBLE_DEVICES"); // Intentionally NOT gasnet_getenv()
-  if (hvd) {
-    MSG("HIP_VISIBLE_DEVICES='%s'", hvd);
+  const char *zeam = getenv("ZE_AFFINITY_MASK"); // Intentionally NOT gasnet_getenv()
+  if (zeam) {
+    MSG("ZE_AFFINITY_MASK='%s'", zeam);
   } else {
-    MSG("HIP_VISIBLE_DEVICES is unset");
+    MSG("ZE_AFFINITY_MASK is unset");
   }
-  const char *rvd = getenv("ROCR_VISIBLE_DEVICES"); // Intentionally NOT gasnet_getenv()
-  if (rvd) {
-    MSG("ROCR_VISIBLE_DEVICES='%s'", rvd);
-  } else {
-    MSG("ROCR_VISIBLE_DEVICES is unset");
-  }
-#ifdef __HIP_PLATFORM_NVIDIA__
-  const char *cvd = getenv("CUDA_VISIBLE_DEVICES"); // Intentionally NOT gasnet_getenv()
-  if (cvd) {
-    MSG("CUDA_VISIBLE_DEVICES='%s'", cvd);
-  } else {
-    MSG("CUDA_VISIBLE_DEVICES is unset");
-  }
-#endif
 
   TEST_BCAST(&seed, 0, &seed, sizeof(seed));
   TEST_SRAND(seed);
@@ -167,20 +138,31 @@ int main(int argc, char **argv)
   gex_MK_Create_args_t args;
 
   args.gex_flags = 0;
-  args.gex_class = GEX_MK_CLASS_HIP;
-  args.gex_args.gex_class_hip.gex_hipDevice = 0;
+  args.gex_class = GEX_MK_CLASS_ZE;
+  args.gex_args.gex_class_ze.gex_zeDevice = NULL;
+  args.gex_args.gex_class_ze.gex_zeContext = NULL;
+  args.gex_args.gex_class_ze.gex_zeMemoryOrdinal = 0;
 
-#if GASNET_HAVE_MK_CLASS_HIP
+#if GASNET_HAVE_MK_CLASS_ZE
   {
     if (GASNET_HAVE_MK_CLASS_MULTIPLE != 1) {
        ERR("Invalid GASNET_HAVE_MK_CLASS_MULTIPLE");
     }
     test_static_assert(GASNET_MAXEPS >= 2);
 
-    int count;
-    hipInit(0);
-    if (hipGetDeviceCount(&count) || !count) {
-      MSG("GEX_MK_CLASS_HIP: skipped - could not find a HIP device");
+    int count = 0;
+
+    ze_result_t result = zeInit(0);
+    if (result) {
+      MSG("GEX_MK_CLASS_ZE: skipped - initialization failed (%d)", (int)result);
+    } else {
+      count = test_open_ze_device(0, &args);
+      if (!count) {
+        MSG("GEX_MK_CLASS_ZE: skipped - could not find a GPU device");
+      }
+    }
+      
+    if (!count) {
       // If this lack of a device is NOT a collective property, then we want
       // to at least balance the collective operations (to avoid hanging).
       // However, at least one peer will fail a gex_EP_QueryBoundSegmentNB().
@@ -189,16 +171,16 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_EP_PublishBoundSegment(myteam, NULL, 0, 0) );
       for (int i = 0; i < 4; ++i) BARRIER(); // currently exactly one per case
     } else {
-      MSG("hipGetDeviceCount reports %d devices", count);
+      MSG("device enumeration found %d GPU devices", count);
+      ze_device_handle_t device = args.gex_args.gex_class_ze.gex_zeDevice;
+      ze_context_handle_t context = args.gex_args.gex_class_ze.gex_zeContext;
 
       uint8_t *client_gpu1 = NULL;
       uint8_t *client_gpu2 = NULL;
       if (client_segment) {
-        hipDeviceptr_t dptr;
-        check_hipcall( hipMalloc((void **)&dptr, TEST_SEGSZ_REQUEST) );
-        client_gpu1 = (uint8_t *) dptr;
-        check_hipcall( hipMalloc((void **)&dptr, TEST_SEGSZ_REQUEST) );
-        client_gpu2 = (uint8_t *) dptr;
+        ze_device_mem_alloc_desc_t aDesc = {ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC,};
+        check_zecall( zeMemAllocDevice( context, &aDesc, TEST_SEGSZ_REQUEST, 64, device, (void**)&client_gpu1 ) );
+        check_zecall( zeMemAllocDevice( context, &aDesc, TEST_SEGSZ_REQUEST, 64, device, (void**)&client_gpu2 ) );
       }
 
       // Create and Destroy a kind
@@ -213,31 +195,11 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_MK_Create(&kind, myclient, &args, 0) );
       assert_always(kind != GEX_MK_INVALID);
 
-      // If multiple devices are available, call hipSetDevice() to switch
-      int curr_dev, tmp_dev;
-      if (count > 1) {
-        check_hipcall( hipSetDevice(1) );
-        curr_dev = 1;
-      } else {
-        curr_dev = 0;
-      }
-
       // Create the first GPU segment
       gex_Segment_t d_segment1 = GEX_SEGMENT_INVALID;
       GASNET_Safe( gex_Segment_Create(&d_segment1, myclient, client_gpu1, TEST_SEGSZ_REQUEST, kind, 0));
       uint8_t *loc_gpu1 = gex_Segment_QueryAddr(d_segment1);
       if (client_segment) assert_always(loc_gpu1 == client_gpu1);
-
-      // Confirm the gex_Segment_Create() did NOT change the current device
-      check_hipcall( hipGetDevice(&tmp_dev) );
-      assert_always(tmp_dev == curr_dev);
-
-      // If GASNet performed allocation, check that it did so on the proper device
-      if (!client_segment) {
-        hipPointerAttribute_t attr;
-        check_hipcall( hipPointerGetAttributes(&attr, loc_gpu1) );
-        assert_always(attr.device == 0);
-      }
 
       // Create first GPU endpoint and bind its segment
       GASNET_Safe( gex_EP_Create(&gpu1_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
@@ -249,13 +211,6 @@ int main(int argc, char **argv)
       GASNET_Safe( gex_Segment_Create(&d_segment2, myclient, client_gpu2, TEST_SEGSZ_REQUEST, kind, 0));
       uint8_t *loc_gpu2 = gex_Segment_QueryAddr(d_segment2);
       if (client_segment) assert_always(loc_gpu2 == client_gpu2);
-      check_hipcall( hipGetDevice(&tmp_dev) );
-      assert_always(tmp_dev == curr_dev);
-      if (!client_segment) {
-        hipPointerAttribute_t attr;
-        check_hipcall( hipPointerGetAttributes(&attr, loc_gpu2) );
-        assert_always(attr.device == 0);
-      }
       GASNET_Safe( gex_EP_Create(&gpu2_ep, myclient, GEX_EP_CAPABILITY_RMA, 0));
       GASNET_Safe( gex_EP_BindSegment(gpu2_ep, d_segment2, 0) );
       GASNET_Safe( gex_EP_PublishBoundSegment(myteam, &gpu2_ep, 1, 0) );
@@ -323,7 +278,7 @@ int main(int argc, char **argv)
       gex_RMA_GetBlocking(LG2_RG2, loc_gpu2+len, peer, rem_gpu2, len, 0);
       CHECK_DEVICE("Case 4b", loc_gpu2+len, array2, len);
 
-      if (!test_errs) MSG("GEX_MK_CLASS_HIP: success");
+      if (!test_errs) MSG("GEX_MK_CLASS_ZE: success");
     }
 
     // TODO: once supported: Destroy Segments, Kinds and Endpoints; free GPU memory
@@ -333,7 +288,7 @@ int main(int argc, char **argv)
     gex_System_SetVerboseErrors(0);
     int rc = gex_MK_Create(&kind, myclient, &args, 0);
     assert_always(rc == GASNET_ERR_BAD_ARG);
-    MSG("GEX_MK_CLASS_HIP: correct failure due to missing support");
+    MSG("GEX_MK_CLASS_ZE: correct failure due to missing support");
   }
 #endif
 

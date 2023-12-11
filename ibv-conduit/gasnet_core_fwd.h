@@ -23,6 +23,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_IBV       1
 
+#define GASNETC_DEFAULT_SPAWNER  GASNETC_IBV_SPAWNER_CONF
+
 // Client-facing indications of multirail support:
 // GASNET_IBV_MULTIRAIL: 1/undef for enabled/disabled
 // GASNET_IBV_MAX_HCAS: positive integer (1 when multirail disabled)
@@ -72,6 +74,7 @@
   // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
 #define GASNET_HAVE_MK_CLASS_CUDA_UVA (GASNETI_MK_CLASS_CUDA_UVA_ENABLED && GASNET_SEGMENT_FAST)
 #define GASNET_HAVE_MK_CLASS_HIP (GASNETI_MK_CLASS_HIP_ENABLED && GASNET_SEGMENT_FAST)
+//#define GASNET_HAVE_MK_CLASS_ZE GASNETI_MK_CLASS_ZE_ENABLED
 
   /* uncomment if your conduit has "private" threads which might run conduit
      code and/or the client's AM handlers, even under GASNET_SEQ.

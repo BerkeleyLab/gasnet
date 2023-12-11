@@ -21,6 +21,10 @@ size_t maxsz = 0;
 #endif
 #include "test.h"
 
+#if GASNET_HAVE_MK_CLASS_ZE
+  #include "zekind.h"
+#endif
+
 #define GASNET_HEADNODE 0
 #define PRINT_LATENCY 0
 #define PRINT_THROUGHPUT 1
@@ -447,7 +451,9 @@ int main(int argc, char **argv)
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
     int use_cuda_uva = 0;
     int use_hip = 0;
+    int use_ze = 0;
 #endif
+    int use_host = 1;
     int help = 0;   
    
     /* call startup */
@@ -495,22 +501,37 @@ int main(int argc, char **argv)
         ++arg;
         if (argc > arg) { segsz = gasnett_parse_int(argv[arg], 1024*1024); arg++; }
         else help = 1;
-#if GASNET_HAVE_MK_CLASS_CUDA_UVA
-      // UNDOCUMENTED
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+  #if GASNET_HAVE_MK_CLASS_CUDA_UVA
       } else if (!strcmp(argv[arg], "-cuda-uva")) {
         use_cuda_uva = 1;
         use_hip = 0;
+        use_ze = 0;
+        use_host = 0;
         ++arg;
-#endif
-#if GASNET_HAVE_MK_CLASS_HIP
-      // UNDOCUMENTED
+  #endif
+  #if GASNET_HAVE_MK_CLASS_HIP
       } else if (!strcmp(argv[arg], "-hip")) {
         use_hip = 1;
         use_cuda_uva = 0;
+        use_ze = 0;
+        use_host = 0;
         ++arg;
-#endif
-#if GASNET_HAVE_MK_CLASS_MULTIPLE
-      // UNDOCUMENTED
+  #endif
+  #if GASNET_HAVE_MK_CLASS_ZE
+      } else if (!strcmp(argv[arg], "-ze")) {
+        use_cuda_uva = 0;
+        use_hip = 0;
+        use_ze = 1;
+        use_host = 0;
+        ++arg;
+  #endif
+      } else if (!strcmp(argv[arg], "-host")) {
+        use_cuda_uva = 0;
+        use_hip = 0;
+        use_ze = 0;
+        use_host = 1;
+        ++arg;
       } else if (!strcmp(argv[arg], "-local-gpu")) {
         use_loc_gpu = 1;
         ++arg;
@@ -536,6 +557,12 @@ int main(int argc, char **argv)
     if (!maxsz) maxsz = 2048; /* 2 KB default */
     if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
 
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+    if (use_host) {
+       use_loc_gpu = use_rem_gpu = 0;
+    }
+#endif
+
     max_payload = maxsz;
     if (!max_step) max_step = maxsz;
 
@@ -555,6 +582,39 @@ int main(int argc, char **argv)
     }
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, segsz));
 
+#if GASNET_HAVE_MK_CLASS_MULTIPLE
+  #define KIND_USAGE_BEGIN \
+        "\n" \
+        "  Memory kind selection (last-used has precedence):\n" \
+        "    -host         Test host memory, aka GEX_MK_CLASS_HOST (default)\n"
+  #define KIND_USAGE_END \
+        "  Memory kind buffer location (ignored with -host):\n" \
+        "    Local buffer location  (last-used has precedence):\n" \
+        "      -local-host   Local buffer is in host memory (default)\n" \
+        "      -local-gpu    Local buffer is in GPU memory\n" \
+        "    Remote buffer location  (last-used has precedence):\n" \
+        "      -remote-host  Remote buffer is in host memory\n" \
+        "      -remote-gpu   Remote buffer is in GPU memory (default)"
+#else
+  #define KIND_USAGE_BEGIN       // empty
+  #define KIND_USAGE_END         // empty
+#endif
+#if GASNET_HAVE_MK_CLASS_CUDA_UVA
+  #define KIND_USAGE_CUDA_UVA    "    -cuda-uva     Test GEX_MK_CLASS_CUDA_UVA\n"
+#else
+  #define KIND_USAGE_CUDA_UVA    // empty
+#endif
+#if GASNET_HAVE_MK_CLASS_HIP
+  #define KIND_USAGE_HIP         "    -hip          Test GEX_MK_CLASS_HIP\n"
+#else
+  #define KIND_USAGE_HIP         // empty
+#endif
+#if GASNET_HAVE_MK_CLASS_ZE
+  #define KIND_USAGE_ZE          "    -ze           Test GEX_MK_CLASS_ZE\n"
+#else
+  #define KIND_USAGE_ZE          // empty
+#endif
+
     test_init("testsmall",1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The '-in' or '-out' option selects whether the initiator-side\n"
                "   memory is in the GASNet segment or not (default is 'in').\n"
@@ -567,7 +627,12 @@ int main(int argc, char **argv)
                "   nodes communicate with each other, while all other nodes sit idle.\n"
                "  The '-minsz N' option sets the minimum transfer size tested (default is 1).\n"
                "  The '-max-step N' option selects the maximum step between transfer sizes,\n"
-               "    which by default advance by doubling until maxsz is reached.\n"
+               "    which by default advance by doubling until maxsz is reached."
+               KIND_USAGE_BEGIN
+               KIND_USAGE_CUDA_UVA
+               KIND_USAGE_HIP
+               KIND_USAGE_ZE
+               KIND_USAGE_END
               );
     if (help || argc > arg) test_usage();
 
@@ -619,17 +684,27 @@ int main(int argc, char **argv)
     int use_device = 0;
 
     if (use_cuda_uva) {
-      MSG0("***NOTICE***: Using EXPERIMENTAL support for CUDA UVA memory kind (local %s, remote %s)",
+      MSG0("***NOTICE***: Using EXPERIMENTAL/UNTUNED support for CUDA UVA memory kind (local %s, remote %s)",
            (use_loc_gpu ? "GPU" : "host"), (use_rem_gpu ? "GPU" : "host"));
       args.gex_class = GEX_MK_CLASS_CUDA_UVA;
       args.gex_args.gex_class_cuda_uva.gex_CUdevice = 0;
       use_device = 1;
     }
     if (use_hip) {
-      MSG0("***NOTICE***: Using EXPERIMENTAL support for HIP memory kind (local %s, remote %s)",
+      MSG0("***NOTICE***: Using EXPERIMENTAL/UNTUNED support for HIP memory kind (local %s, remote %s)",
            (use_loc_gpu ? "GPU" : "host"), (use_rem_gpu ? "GPU" : "host"));
       args.gex_class = GEX_MK_CLASS_HIP;
       args.gex_args.gex_class_hip.gex_hipDevice = 0;
+      use_device = 1;
+    }
+    if (use_ze) {
+      MSG0("***NOTICE***: Using EXPERIMENTAL/UNTUNED support for ZE memory kind (local %s, remote %s)",
+           (use_loc_gpu ? "GPU" : "host"), (use_rem_gpu ? "GPU" : "host"));
+    #if GASNET_HAVE_MK_CLASS_ZE
+      if (! test_open_ze_device(0, &args)) {
+        FATALERR("GEX_MK_CLASS_ZE: could not find a GPU device");
+      }
+    #endif
       use_device = 1;
     }
 

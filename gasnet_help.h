@@ -1632,8 +1632,18 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
   #define GASNETI_MK_CLASS_HIP_CONFIG nomk_class_hip
 #endif
 
+#if GASNET_HAVE_MK_CLASS_ZE
+  #undef GASNET_HAVE_MK_CLASS_ZE
+  #define GASNET_HAVE_MK_CLASS_ZE 1
+  #define GASNETI_MK_CLASS_ZE_CONFIG mk_class_ze
+#else
+  #undef GASNET_HAVE_MK_CLASS_ZE
+  #define GASNETI_MK_CLASS_ZE_CONFIG nomk_class_ze
+#endif
+
 #if GASNET_HAVE_MK_CLASS_CUDA_UVA || \
-    GASNET_HAVE_MK_CLASS_HIP   // || GASNET_HAVE_MK_CLASS_[FOO]
+    GASNET_HAVE_MK_CLASS_HIP || \
+    GASNET_HAVE_MK_CLASS_ZE   // || GASNET_HAVE_MK_CLASS_[FOO]
   #define GASNET_HAVE_MK_CLASS_MULTIPLE 1
 #endif
 

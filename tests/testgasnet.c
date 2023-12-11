@@ -753,7 +753,7 @@ void doit(int partner, int *partnerseg) {
       lval_u64 = 0;                                      \
       for (size_t i=0; i < sizeof(var); i++) {           \
         lval_u64 <<= 8;                                  \
-        lval_u64 |= *(((uint8_t*)(&(var)+1)) - 1 - i);   \
+        lval_u64 |= *(((uint8_t*)(&(var)+1)) - (i + 1)); \
       }                                                  \
     } while (0)
   #else

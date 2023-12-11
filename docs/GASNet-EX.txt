@@ -3862,6 +3862,7 @@ typedef enum {
     GEX_MK_CLASS_HOST,      // "normal" memory (eg GEX_MK_HOST)
     GEX_MK_CLASS_CUDA_UVA,  // CUDA UVA memory     [since 2020.11.0]
     GEX_MK_CLASS_HIP,       // HIP device memory   [since 2021.9.0]
+    GEX_MK_CLASS_ZE,        // oneAPI Level Zero device memory [EXPERIMENTAL]
     ???
 } gex_MK_Class_t;
 
@@ -3878,6 +3879,11 @@ typedef struct {
         struct {// HIP device memory [since 2021.9.0]
             int                    gex_hipDevice;
         }                    gex_class_hip;
+        struct {// oneAPI Level Zero device memory [EXPERIMENTAL]
+            void*                  gex_zeDevice;
+            void*                  gex_zeContext;
+            uint32_t               gex_zeMemoryOrdinal;
+        }                    gex_class_ze;
     }                    gex_args;
 } gex_MK_Create_args_t;
 
