@@ -456,7 +456,7 @@ ofi-conduit `cxi` provider.  Larger sizes fail in `gex_EP_BindSegment()`,
 with a verbose message indicating that the problem appears to be this known
 issue.  We encourage reports of success with larger device segments.
 For the most up-to-date information on this issue see
-[PLACEHOLDER FOR BUGZILLA URL]  
+[bug 4679](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4679)
 
 # Implementation Status Summary
 
