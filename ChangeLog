@@ -56,6 +56,10 @@ GASNet-EX ChangeLog
 * Portable MPI support (details in mpi-conduit README)
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
 
+* Cray XC uGNI (details in aries-conduit README)
+  - This conduit is now DEPRECATED and will be removed in a future release
+    (see aries-conduit/README).
+
 * Platform support/portability
   - Configure will no longer add `-multiply_defined,suppress` to `LDFLAGS` on
     macOS Ventura and newer (bug 4677).  Users may reintroduce it via

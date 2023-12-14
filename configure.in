@@ -4161,6 +4161,9 @@ if test "$enabled_aries" = yes; then
 fi
 CONDUIT_END([test "$enabled_aries$have_aries" = yesyes])
 AM_CONDITIONAL(USE_ARIES_CONDUIT, test "$enabled_aries$have_aries" = yesyes)
+if test "$enabled_aries$have_aries" = yesyes; then
+  GASNET_MSG_WARN([aries-conduit has been deprecated.  Please see the aries-conduit README for more information.])
+fi
 
 
 #--------------------------------------------------------------------------------------------------------
