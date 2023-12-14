@@ -5601,7 +5601,7 @@ cat >>$CONDUIT_LIST <<EOF
 EOF
 MK_OUTPUT(cuda_uva, GPUs with NVIDIA CUDA API (cuda-uva))
 MK_OUTPUT(hip,      GPUs with AMD HIP API (hip))
-MK_OUTPUT(ze,       GPUs with Intel oneAPI (ze) *EXPERIMENTAL*)
+MK_OUTPUT(ze,       GPUs with Intel oneAPI *EXPERIMENTAL* (ze))
 
 dnl GASNET_TOOLSONLY_FALSE_END
 ########################################################################
