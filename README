@@ -73,6 +73,7 @@ Other documentation:
 Contents of this file:
  * Introduction
  * Building and Installing GASNet
+ * Manual control over compile and link flags
  * Basic Usage Information
  * Conduit Status
  * Launching/Running GASNet Applications
