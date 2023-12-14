@@ -4032,7 +4032,7 @@ AM_CONDITIONAL(USE_IBV_CONDUIT, test "$enabled_ibv$have_ibv" = yesyes)
 #--------------------------------------------------------------------------------------------------------
 # Aries Conduit
 
-CONDUIT_BEGIN(aries,yes,[Cray XC Aries conduit (aries)])
+CONDUIT_BEGIN(aries,yes,[Cray XC Aries conduit *DEPRECATED* (aries)])
 CONDUIT_DISALLOW_SEGMENT(everything)
 # gni only supported on compute node linux for now (cnl)
 case "$target" in
