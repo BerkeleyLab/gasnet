@@ -7,8 +7,6 @@ GASNet-EX is the next generation of the GASNet-1 communication system.
 The GASNet interfaces are being redesigned to accommodate the emerging
 needs of exascale supercomputing, providing communication services to a
 variety of PGAS programming models on current and future HPC architectures.
-This upgrade is being done over the next several years as part of the DOE
-Exascale Computing Program (ECP).
 
 GASNet-EX is a work-in-progress.
 Many features remain to be specified, implemented, and/or tuned.
@@ -56,6 +54,9 @@ Other documentation:
  * For GASNet licensing and usage terms, see license.txt.
  * For documentation on a particular GASNet conduit, see the README file in the
    conduit directory (also installed as README-<conduit> in the docs directory).
+ * For documentation on job spawning mechanisms, see the README file in the
+   corresponding other/*-spawner directory (also installed as README-*-spawner
+   in the docs directory).
  * For documentation on the communication-independent GASNet-tools library,
    see README-tools.
  * Additional information, including the GASNet specification and our bug
@@ -70,8 +71,10 @@ Other documentation:
 Contents of this file:
  * Introduction
  * Building and Installing GASNet
+ * Manual control over compile and link flags
  * Basic Usage Information
  * Conduit Status
+ * Launching/Running GASNet Applications
  * Single-node Development Options
  * Supported Platforms
  * Recognized Environment Variables
@@ -472,6 +475,45 @@ ofi-conduit: Open Fabrics Interfaces (select providers/networks)
  On Slingshot and Omni-Path networks, ofi-conduit is either the best
  or only option available.  On only those systems, ofi-conduit is categorized as a
  native, high-performance conduit.
+
+Launching/Running GASNet Applications
+=====================================
+
+This section provides pointers to information regarding the configuration
+and use of the job spawning mechanisms provided in GASNet.
+
+Often, runtimes or frameworks which are clients of GASNet provide their own
+utilities for application launch (aka spawning).  Users of such utilities should
+refer to their respective documentation for advice which is specific to the
+client.  However, the information referenced in this section most often remains
+relevant to configuration.
+
+smp-conduit:
+ This conduit uses a conduit-specific spawning mechanism.
+ See smp-conduit/README for documentation.
+
+udp-conduit:
+ This conduit offers a choice among several conduit-specific spawning mechanisms.
+ See udp-conduit/README for documentation.
+
+mpi-conduit:
+ This conduit uses MPI for job spawning.
+ In addition to the documentation for the `mpirun` (or equivalent) specific to
+ your MPI implementation, see mpi-conduit/README and other/mpi-spawner/README
+ for documentation.
+
+aries-conduit:
+ By default, this conduit uses PMI for spawning, though MPI is also an option.
+ See aries-conduit/README and other/pmi-spawner/README for documentation.
+
+ibv-conduit, ofi-conduit and ucx-conduit:
+ These conduits can use ssh, MPI or PMI for spawning.
+ For documentation, see the individual *-conduit/README files, as well as the files
+ other/ssh-spawner/README, other/mpi-spawner/README and other/pmi-spawner/README
+
+In the text above, document locations are given as those in the GASNet sources.
+When installed, they are located in $prefix/share/doc/GASNet as README-[topic],
+where [topic] may be a conduit such as "ibv" or a spawner such as "ssh-spawner".
 
 Single-node Development Options
 ===============================

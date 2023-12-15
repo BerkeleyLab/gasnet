@@ -723,6 +723,15 @@ Known problems:
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4676
 
+* CXI provider and large procs-per-node (includes bugs 4478 and 4480)
+  There have been observations of multiple failure modes early in startup when
+  using the "cxi" provider with 128 or more processes per node.  These include
+  fatal errors (see bug 4480) and in some cases hangs (see bug 4478).
+  The most up-to-date information on these issues is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4478
+  and
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4480
+
 * See docs/memory_kinds.md in the GASNet-EX sources for current information
   regarding known issues with respect to memory kinds support in ofi-conduit.
 

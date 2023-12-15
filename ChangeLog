@@ -19,7 +19,7 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX-YY-ZZ: PENDING
+2023-12-15: GASNet-EX 2023.9.0
 
 * Memory Kinds (support for non-host memory)
   - This release adds *experimental* memory kinds support for the oneAPI Level
@@ -36,6 +36,10 @@ GASNet-EX ChangeLog
     This partially addresses Bug 4413.
   - The recommendations regarding running MPI hybrid applications on the HPE
     Slingshot-11 network have changed.  Please see the conduit README for details.
+  - ofi-conduit now defaults to setting envvars FI_MR_CACHE_MAX_COUNT and
+    FI_MR_CACHE_MAX_SIZE for cxi and verbs providers, partially addressing bug 4676.
+  - Active message injections now use tx_addr flag FI_INJECT_COMPLETE
+  - Transmit CQs now use cq_attr FI_CQ_FORMAT_CONTEXT instead of FI_CQ_FORMAT_DATA
 
 * InfiniBand Verbs (details in ibv-conduit README)
   - Calls to `gex_MK_Create()` for CUDA UVA or HIP memory kinds will no longer
@@ -46,23 +50,37 @@ GASNet-EX ChangeLog
     default. Set `GASNET_MAXIMIZE_MEMLOCK=0` to disable the new behavior.
 
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
+  - `GEX_FLAG_AD_FAVOR_*` flags passed to `gex_AD_Create()` now guide
+    algorithmic selection of atomic operations.
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
   - Use of `GASNET_UCX_` or `UCX_GASNET_` to prefix UCX (non-GASNet) environment
     variables has been removed.  It had never functioned as documented.
+  - Fix a packaging error that omitted the conduit license file in previous releases.
 
 * Portable UDP support (details in udp-conduit README)
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+  - Improve warning messages about environment variables to more uniformly
+    reference the GASNET_-prefixed variable name.
 
 * Portable MPI support (details in mpi-conduit README)
   - Support for optional `GEX_TI_{ENTRY,IS_REQ,IS_LONG}` in `gex_Token_Info()`
+  - Finalize MPI more cautiously at exit, in case the client has already done so.
+
+* Cray XC uGNI (details in aries-conduit README)
+  - This conduit is now DEPRECATED and will be removed in a future release
+    (see aries-conduit/README).
 
 * Platform support/portability
+  - configure no longer requires the `cray-pmi` module to be loaded on HPE
+    Cray EX systems, although the underlying dependency on Cray PMI remains.
   - Configure will no longer add `-multiply_defined,suppress` to `LDFLAGS` on
     macOS Ventura and newer (bug 4677).  Users may reintroduce it via
     `--with-ldflags=`, if necessary.
+  - mpi-spawner: Finalize MPI more cautiously at exit, in case the client has already done so.
 
 * GASNet-EX Spec v0.17: (details in docs/GASNet-EX.txt)
   - Add new `GASNET_SUPPORTS_TI_*` feature macros
+  - Add constants and data type for experimental oneAPI Level Zero "ZE" memory kind.
 
 * General and Misc.
   - New options to `testlarge` and `testsmall` enable testing a wider
@@ -357,6 +375,7 @@ have our sincere thanks for making this milestone possible.
   - Allow mixing of root and leaf events in array-based NB event APIs.
   - Add GEX_FLAG_PEER_NEVER_{SELF,NBRHD}
   - Add gex_System_QueryHiddenAMConcurrencyLevel()
+  - Add constants and data type for "HIP" memory kind
 
 * GASNet tools (spec v1.18): (details in README-tools)
   - Add gasnett_assume, for exposing annotations to guide optimization
@@ -551,6 +570,7 @@ have our sincere thanks for making this milestone possible.
     + GEX_CLIENT_INVALID
     + GEX_EP_INVALID
     + GEX_MK_INVALID
+  - Add constants and data type for "CUDA UVA" memory kind
 
 ----------------------------------------------------------------------
 2020-10-30: GASNet-EX 2020.10.0 Release
