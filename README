@@ -7,8 +7,6 @@ GASNet-EX is the next generation of the GASNet-1 communication system.
 The GASNet interfaces are being redesigned to accommodate the emerging
 needs of exascale supercomputing, providing communication services to a
 variety of PGAS programming models on current and future HPC architectures.
-This upgrade is being done over the next several years as part of the DOE
-Exascale Computing Program (ECP).
 
 GASNet-EX is a work-in-progress.
 Many features remain to be specified, implemented, and/or tuned.
