@@ -1127,6 +1127,10 @@ extern void gasneti_envint_display(const char *_key, int64_t _val, int _is_dflt,
 extern void gasneti_envstr_display(const char *_key, const char *_val, int _is_dflt);
 extern void gasneti_envdbl_display(const char *_key, double _val, int _is_dflt);
 
+// Search environment(s) for existance of any variable with the given prefix
+// Returns an arbitary "VAR=VAL" string if any matches found, or NULL otherwise.
+extern const char* gasneti_check_env_prefix(const char *_prefix);
+
 extern const char *gasneti_tmpdir(void);
 
 /* Custom (spawner- or conduit-specific) supplement to gasneti_getenv
@@ -1135,6 +1139,12 @@ extern const char *gasneti_tmpdir(void);
 typedef char *(gasneti_getenv_fn_t)(const char *_keyname);
 extern gasneti_getenv_fn_t *gasneti_getenv_hook;
 
+// Custom (spawner- or conduit-specific) supplement to gasneti_check_env_prefix
+// If set to non-NULL this has precedence over gasneti_globalEnv.
+typedef const char *(gasneti_check_env_prefix_fn_t)(const char *_prefix);
+extern gasneti_check_env_prefix_fn_t *gasneti_check_env_prefix_hook;
+// Helper for implementing a gasneti_check_env_prefix_hook
+extern const char* gasneti_check_env_prefix_helper(const char *_environ, const char *_prefix);
 
 /* ------------------------------------------------------------------------------------ */
 /* Attempt to maximize allowable cpu and memory resource limits for this

@@ -15,13 +15,15 @@
   #error "VAPI-conduit is no longer supported"
 #endif
 
-#define GASNET_CORE_VERSION      2.12
+#define GASNET_CORE_VERSION      2.13
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         IBV
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
 #define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_IBV       1
+
+#define GASNETC_DEFAULT_SPAWNER  GASNETC_IBV_SPAWNER_CONF
 
 // Client-facing indications of multirail support:
 // GASNET_IBV_MULTIRAIL: 1/undef for enabled/disabled
@@ -72,6 +74,7 @@
   // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
 #define GASNET_HAVE_MK_CLASS_CUDA_UVA (GASNETI_MK_CLASS_CUDA_UVA_ENABLED && GASNET_SEGMENT_FAST)
 #define GASNET_HAVE_MK_CLASS_HIP (GASNETI_MK_CLASS_HIP_ENABLED && GASNET_SEGMENT_FAST)
+//#define GASNET_HAVE_MK_CLASS_ZE GASNETI_MK_CLASS_ZE_ENABLED
 
   /* uncomment if your conduit has "private" threads which might run conduit
      code and/or the client's AM handlers, even under GASNET_SEQ.
@@ -99,6 +102,15 @@
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
    */
 /* #define GASNETC_GET_HANDLER 1 */
+
+  /* uncomment each line for which your conduit supports the
+     corresponding token info query.
+  */
+#define GASNET_SUPPORTS_TI_SRCRANK 1
+#define GASNET_SUPPORTS_TI_EP 1
+#define GASNET_SUPPORTS_TI_ENTRY 1
+#define GASNET_SUPPORTS_TI_IS_REQ 1
+#define GASNET_SUPPORTS_TI_IS_LONG 1
 
   /* uncomment for each {Request,Reply} X {Medium,Long} pair for which your
      conduit implements the corresponding gasnetc_AM_{Prepare,Commit}*().

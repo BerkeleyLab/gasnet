@@ -60,7 +60,7 @@ MPI_TESTS = $(MPI1_TESTS) $(MPI2_TESTS)
 # tests that can be built in any mode
 # in order of most useful execution
 # NOTE: if you add a test here that is expected to pass on all conduits,
-#   please also add it to upcr-harness/gasnet-tests/harness.conf
+#   please also add it to harness/gasnet-tests/harness.conf
 testprograms_seq =      \
         testgasnet      \
         testlegacy      \
@@ -105,8 +105,10 @@ testprograms_seq =      \
         testtmpair      \
         testreadonly    \
         testalltoall    \
+        testtoken       \
         testcudauva     \
         testhip         \
+        testze          \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
 
@@ -416,6 +418,9 @@ testcudauva_extracflags = @CUDA_UVA_CFLAGS@
 
 # some tests need hip_runtime.h other related options
 testhip_extracflags = @HIP_CFLAGS@
+
+# some tests need ze_api.h other related options
+testze_extracflags = @ZE_CFLAGS@
 
 # delay function, used by multiple tests
 # need to deliberately exclude and disable optimization for this object file to prevent breaking delay

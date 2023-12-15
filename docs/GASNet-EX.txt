@@ -40,7 +40,7 @@
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 16
+#define GEX_SPEC_VERSION_MINOR 17
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -72,27 +72,36 @@
 
 // Hybrid/transitional client support:
 //
+// All clients must initialize GASNet using *either* the legacy
+// gasnet_init()/gasnet_attach() calls *or* the new gex_Client_Init() call
+// described in a subsequent section.
+//
 // Clients who are incrementally adopting GASNet-EX may have a period of time
-// when they are using both GASNet-1 and GASNet-EX APIs in the same process. 
-// Such clients should initialize GASNet using *either* the legacy 
-// gasnet_init()/gasnet_attach() calls, or the new gex_Client_Init() call
-// (described in a subsequent section).
+// when they are using deprecated GASNet-1 calls (see below).  A process using
+// such deprecated calls must enable legacy support, which is done implicitly
+// when a process calls gasnet_init() or explicitly when a caller passes the
+// GEX_FLAG_USES_GASNET1 flag to gex_Client_Init().
+//
+// The following functions from GASNet-1 have been deprecated in favor of new
+// GASNet-EX equivalents. These `gasnet_`-prefixed deprecated functions shall
+// only be invoked if legacy support has been enabled.
+// + gasnet_AMRequest*()
+// + gasnet_get*(), including bulk, non-bulk, value-based and VIS
+// + gasnet_put*(), including bulk, non-bulk, value-based and VIS
+// + gasnet_memset*()
+// NOTE: This list is subject to expansion as new GASNet-EX APIs are
+// implemented which displace less-capable GASNet-1 APIs.
 //
 // Note that gasnet_init()/gasnet_attach() may only be called once per process,
-// and currently only one client per process can use GASNet-1 APIs.
+// and currently only one client per process can use the deprecated GASNet-1
+// functions listed above.
 //
-// Hybrid/transitional clients who initialize using gex_Client_Init() should
-// pass the following flag to that function to request the use of GASNet-1 services.
-// 
 #define GEX_FLAG_USES_GASNET1 ((gex_Flags_t)???)
 
-// The following API allows jobs that initialize GASNet for legacy support to
-// access the key GASNet-EX objects created explicitly by gex_Client_Init(), or
-// implicitly by gasnet_init()/gasnet_attach().  The types and usage of these
-// objects are described below.  Initialization for legacy support is either of
-// the following:
-// + Initialization using the legacy gasnet_init()/gasnet_attach() APIs
-// + Initialization using gex_Client_Init() with GEX_FLAG_USES_GASNET1
+// The following API allows jobs that enable legacy support (as described
+// immediately above) to access the key GASNet-EX objects created explicitly by
+// gex_Client_Init(), or implicitly by gasnet_init()/gasnet_attach().  The types
+// and usage of these objects are described below.
 //
 // This call is defined in gasnet.h (not gasnetex.h).
 //
@@ -1686,16 +1695,39 @@ typedef struct {
 typedef [some integer type] gex_TI_t;
 
 // REQUIRED: All implementations must support these queries:
-#define GEX_TI_SRCRANK       ((gex_TI_t)???)
-#define GEX_TI_EP            ((gex_TI_t)???)
+#define GEX_TI_SRCRANK       ((gex_TI_t)???)     # required since spec v0.1
+#define GEX_TI_EP            ((gex_TI_t)???)     # required since spec v0.1
 
 // OPTIONAL: Some implementations might not support these queries:
-#define GEX_TI_ENTRY         ((gex_TI_t)???)
-#define GEX_TI_IS_REQ        ((gex_TI_t)???)
-#define GEX_TI_IS_LONG       ((gex_TI_t)???)
+#define GEX_TI_ENTRY         ((gex_TI_t)???)     # optional since spec v0.1
+#define GEX_TI_IS_REQ        ((gex_TI_t)???)     # optional since spec v0.1
+#define GEX_TI_IS_LONG       ((gex_TI_t)???)     # optional since spec v0.1
 
 // Convenience: all defined queries (Required and Optional)
-#define GEX_TI_ALL           ((gex_TI_t)???)
+#define GEX_TI_ALL           ((gex_TI_t)???)     # required since spec v0.1
+
+// Support indicators for Optional token into queries
+// Available since spec v0.17
+//
+// GASNET_SUPPORTS_TI_* preprocessor identifiers are defined to 1 or undefined
+// to indicate whether (or not, respectively) the implementation of
+// gex_Token_Info() supports the corresponding query for all valid tokens.
+//
+// When any of these is defined for an Optional query, it is an indication that
+// the current implementation of the current conduit supports the
+// corresponding query.  However, it is not a guarantee of such support in
+// other conduits or in future releases of the current conduit.
+//
+// When any of these is undefined, the implementation is still permitted to
+// support the query conditionally.  For instance, the shared-memory transport
+// may support an Optional query that is not supported for AMs travelling
+// outside of the shared-memory nbrhd, or vice-versa.
+
+#define GASNET_SUPPORTS_TI_SRCRANK      1
+#define GASNET_SUPPORTS_TI_EP           1
+#define GASNET_SUPPORTS_TI_ENTRY        1 or undefined
+#define GASNET_SUPPORTS_TI_IS_REQ       1 or undefined
+#define GASNET_SUPPORTS_TI_IS_LONG      1 or undefined
 
 // Takes a token, address of client-allocated gex_Token_Info_t, and a mask.
 // The mask is a bit-wise OR of GEX_TI_* constants, which indicates which
@@ -3830,6 +3862,7 @@ typedef enum {
     GEX_MK_CLASS_HOST,      // "normal" memory (eg GEX_MK_HOST)
     GEX_MK_CLASS_CUDA_UVA,  // CUDA UVA memory     [since 2020.11.0]
     GEX_MK_CLASS_HIP,       // HIP device memory   [since 2021.9.0]
+    GEX_MK_CLASS_ZE,        // oneAPI Level Zero device memory [EXPERIMENTAL]
     ???
 } gex_MK_Class_t;
 
@@ -3846,6 +3879,11 @@ typedef struct {
         struct {// HIP device memory [since 2021.9.0]
             int                    gex_hipDevice;
         }                    gex_class_hip;
+        struct {// oneAPI Level Zero device memory [EXPERIMENTAL]
+            void*                  gex_zeDevice;
+            void*                  gex_zeContext;
+            uint32_t               gex_zeMemoryOrdinal;
+        }                    gex_class_ze;
     }                    gex_args;
 } gex_MK_Create_args_t;
 

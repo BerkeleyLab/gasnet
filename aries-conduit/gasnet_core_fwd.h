@@ -19,6 +19,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_ARIES     1
 
+#define GASNETC_DEFAULT_SPAWNER  "pmi" // forced
+
 /* Aries supports only 24 bits of inst_id and we leverage that */
 #define GASNET_MAXNODES 0x1000000
 #define GASNETC_LOG2_MAXNODES 24
@@ -47,6 +49,7 @@
   // uncomment for each MK_CLASS which the conduit supports. leave commented otherwise
 //#define GASNET_HAVE_MK_CLASS_CUDA_UVA GASNETI_MK_CLASS_CUDA_UVA_ENABLED
 //#define GASNET_HAVE_MK_CLASS_HIP GASNETI_MK_CLASS_HIP_ENABLED
+//#define GASNET_HAVE_MK_CLASS_ZE GASNETI_MK_CLASS_ZE_ENABLED
 
   /* uncomment if your conduit has "private" threads which might run conduit
      code and/or the client's AM handlers, even under GASNET_SEQ.
@@ -67,6 +70,15 @@
 #if 0
 #define GASNETC_GET_HANDLER 1
 #endif
+
+  /* uncomment each line for which your conduit supports the
+     corresponding token info query.
+  */
+#define GASNET_SUPPORTS_TI_SRCRANK 1
+#define GASNET_SUPPORTS_TI_EP 1
+#define GASNET_SUPPORTS_TI_ENTRY 1
+#define GASNET_SUPPORTS_TI_IS_REQ 1
+#define GASNET_SUPPORTS_TI_IS_LONG 1
 
   /* uncomment for each {Request,Reply} X {Medium,Long} pair for which your
      conduit implements the corresponding gasnetc_AM_{Prepare,Commit}*().

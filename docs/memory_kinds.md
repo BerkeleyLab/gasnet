@@ -33,6 +33,11 @@ request from gasnet-staff@lbl.gov:
 
 For brevity, this will be referenced as simply "the API Proposal".
 
+The majority of this document will address only "CUDA_UVA" and "HIP" memory
+kinds.  For information regarding other experimental memory kinds, see the
+[Experimental Memory Kinds](#markdown-header-experimental-memory-kinds)
+section.
+
 # General Usage
 
 By default, the `configure` script does not enable support for
@@ -94,12 +99,12 @@ All current memory kinds implementation work is limited to two types of devices:
 2. Devices with the HIP API, which should include all AMD GPUs supported by AMD ROCm.
    Please consult the ROCm documentation for information on supported devices.
 
-Support is further limited to the following, and only when running drivers with
-support for PCIe peer-to-peer communication:  
+Support is further limited to the following conduit/network combinations, and
+only when running drivers with support for PCIe peer-to-peer communication:  
 
-  + ibv-conduit on Linux over Mellanox InfiniBand hardware  
-  + ucx-conduit on Linux over Mellanox InfiniBand hardware  
-  + ofi-conduit (`verbs` provider) on Linux over Mellanox InfiniBand hardware  
+  + ibv-conduit on Linux over NVIDIA/Mellanox InfiniBand hardware  
+  + ucx-conduit on Linux over NVIDIA/Mellanox InfiniBand hardware  
+  + ofi-conduit (`verbs` provider) on Linux over NVIDIA/Mellanox InfiniBand hardware  
   + ofi-conduit (`verbs` provider) on HPE Cray EX systems using Slingshot-10 NICs  
   + ofi-conduit (`cxi` provider) on HPE Cray EX systems using Slingshot-11 NICs  
   + ofi-conduit *may* work with other providers and/or networks, but the
@@ -256,7 +261,7 @@ GASNet-EX to perform such transfers.
 For the most up-to-date information on this issue see
 [bug 4149](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4149)
 
-## Small Gets into CUDA memory on Mellanox InfiniBand hardware
+## Small Gets into CUDA memory on supported InfiniBand hardware
 
 As documented
 [here](https://github.com/linux-rdma/rdma-core/blob/master/providers/mlx5/man/mlx5dv_create_qp.3.md)
@@ -267,13 +272,13 @@ eventually completed by a `memcpy()` to the original destination when the
 completion queue entry is reaped.  This `memcpy()` fails (with a `SIGSEGV`)
 when the destination is device memory.
 
-As noted in Mellanox's documentation, setting `MLX5_SCATTER_TO_CQE=0` in the
+As noted in the vendor's documentation, setting `MLX5_SCATTER_TO_CQE=0` in the
 environment disables this undesired behavior.  We hope to be able to provide a
 better solution (automatic and specific to device memory Gets) in a future
 release.
 
 This issue has been seen to impact ibv-, ucx- and ofi-conduits running over
-Mellanox InfiniBand hardware, but not on *every* system.  Because this
+supported InfiniBand hardware, but not on *every* system.  Because this
 work-around may increase the latency of all small RMA Gets, including those
 into host memory, it is recommended that you set `MLX5_SCATTER_TO_CQE=0` only
 if your system exhibits this issue.
@@ -306,7 +311,7 @@ will not define `GEX_MK_CLASS_*`.
 
 ## OFI/InfiniBand and CUDA memory
 
-When using ofi-conduit and the `verbs` provider over Mellanox InfiniBand
+When using ofi-conduit and the `verbs` provider over supported InfiniBand
 hardware, RMA Puts with their source in CUDA device memory may crash with a
 `SIGSEGV` due to incorrect algorithm selection inside libfabric.
 
@@ -326,11 +331,11 @@ For the most up-to-date information on this second issue see
 
 ## OFI/Slingshot-10 and CUDA memory
 
-Because the Slingshot-10 network uses a Mellanox InfiniBand HCA and libfabric's
+Because the Slingshot-10 network uses an InfiniBand HCA and libfabric's
 `verbs` provider, such systems are impacted by two of the known issues described
 above.
 
-1.  Small Gets into CUDA memory on Mellanox InfiniBand hardware  
+1.  Small Gets into CUDA memory on supported InfiniBand hardware  
     The work around of setting `MLX5_SCATTER_TO_CQE=0` is effective.
 
 2.  OFI/InfiniBand and CUDA memory  
@@ -397,6 +402,61 @@ HPE Cray EX systems with Slingshot-11:
 
 Eventual minimum requirements may be lower than on the platforms listed above, or
 possibly higher.
+
+# Experimental Memory Kinds
+
+## oneAPI Level Zero "ZE" Kind
+
+Currently there is experimental support for the "oneAPI Level Zero" API of Intel
+GPUs, which is known as the "ZE" kind.  There are known correctness issues,
+the performance has yet to be characterized or tuned, and there are multiple
+quality-of-implementation issues to be addressed before this support can be
+recommended for use in production.
+
+One notable aspect of the experimental status is that the kind-specific members
+in `gex_MK_Create_args_t` are subject to change in future releases.
+
+We advise contacting us at gasnet-staff@lbl.gov if you wish to use the ZE kind.
+
+Support for the ZE kind is only present in ofi-conduit, and has only been tested
+with the `cxi` provider for HPE Cray EX systems using Slingshot-11 NICs.  It has
+*not* been tested with ofi-conduit using the 'verbs' libfabric provider for
+Slingshot-10 or other networks using NVIDIA/Mellanox InfiniBand hardware.  
+We encourage reports of success or failure with other libfabric providers.
+
+There currently is no ZE memory kind support in ibv- or ucx-conduits.
+We are seeking access to InfiniBand-connected clusters of nodes with Intel GPUs
+to enable work on ibv- and ucx-conduits, and on the `verbs` provider for
+ofi-conduit.  
+Please contact us if you can provide such access.
+
+Configure options and environment variables to enable and configure the ZE kind
+are analogous to those for CUDA-UVA and HIP, and behave as described earlier
+under [General Usage](#markdown-header-general-usage):
+
+  + `--enable-kind-ze[=probe]`
+  + `--with-ze-home=...` or `ZE_HOME`
+  + `--with-ze-cflags=...` or `ZE_CFLAGS`
+  + `--with-ze-libs=...` or `ZE_LIBS`
+  + `--with-ze-ldflags=...` or `ZE_LDFLAGS`
+
+### Minimum System Requirements for the ZE Kind
+
+Testing of the ZE kind and Slingshot-11 networks has shown the vendor-provided
+kernel with SUSE Linux Enterprise Server 15 SP4 (aka "SLES 15.4") to be usable.
+However, when using the kernel provided with SLES 15.3, all calls to
+`gex_EP_BindSegment()` with ZE device memory segments fail.  
+We encourage reports of success or failure with other kernel versions.
+
+### Known Issues with the ZE Memory Kind
+
+As of the time of writing, testing has shown 32KiB to be the largest device
+memory segment size which can successfully be used with the ZE kind and the
+ofi-conduit `cxi` provider.  Larger sizes fail in `gex_EP_BindSegment()`,
+with a verbose message indicating that the problem appears to be this known
+issue.  We encourage reports of success with larger device segments.
+For the most up-to-date information on this issue see
+[bug 4679](https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4679)
 
 # Implementation Status Summary
 

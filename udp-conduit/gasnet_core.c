@@ -243,6 +243,7 @@ static int gasnetc_init(
     gasneti_init_done = 1; /* enable early to allow tracing */
 
     gasneti_getenv_hook = (/* cast drops const */ gasneti_getenv_fn_t*)&AMUDP_SPMDgetenvMaster;
+    gasneti_check_env_prefix_hook = &AMUDP_check_env_prefix;
     gasneti_mynode = AMUDP_SPMDMyProc();
     gasneti_nodes = AMUDP_SPMDNumProcs();
 
@@ -626,11 +627,21 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_ep = gasneti_THUNK_EP;
   result |= GEX_TI_EP;
 
-#if 0 // TODO-EX: need to implement this
-  /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
-  info->gex_entry = ###;
-  result |= GEX_TI_ENTRY;
-#endif
+  if (mask & (GEX_TI_ENTRY|GEX_TI_IS_REQ|GEX_TI_IS_LONG)) {
+      handler_t index;
+      amudp_category_t category;
+      int is_req;
+      gasneti_assert_zeroret(AMUDP_GetTokenInfo(token,&index,&category,&is_req));
+
+      info->gex_entry = gasneti_import_ep(gasneti_THUNK_EP)->_amtbl + index;
+      result |= GEX_TI_ENTRY;
+
+      info->gex_is_req = is_req;
+      result |= GEX_TI_IS_REQ;
+
+      info->gex_is_long = (category == amudp_Long);
+      result |= GEX_TI_IS_LONG;
+  }
 
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
