@@ -110,10 +110,23 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   can disable this thread by configuring GASNet with the flag
   '--disable-ibv-rcv-thread'.  It is recommended that one NOT
   use this option, but instead disable the thread at runtime
-  (see Runtime Configuration section).  If the extra thread will
-  never be needed, disabling it at build time will yield a small
-  reduction in latencies by allowing some locking operations to
-  compile away.
+  (see Runtime Configuration section).
+  See also documentation on 'GASNET_RCV_THREAD*' environment variables.
+
+
+  Ibv-conduit can provide optional asynchronous processing of RMA
+  operation completions on initiators by spawning an extra thread that remains
+  blocked pending completion of outstanding RMA ops.  One can disable this
+  thread by configuring GASNet with the flag '--disable-ibv-snd-thread'.  It is
+  recommended that one NOT use this option, but instead disable the thread at
+  runtime (see Runtime Configuration section).
+  See also documentation on 'GASNET_SND_THREAD*' environment variables.
+
+  In a SEQ build of ibv-conduit, enabling either or both the receive or send
+  progress thread introduces some overheads for thread serialization.  If
+  neither of the extra thread will be needed, one may disable *both* at build
+  time to yield a small reduction in latencies by allowing these thread
+  serialization operations to compile away in a SEQ build.
 
   By default, each ibv-conduit process in a GASNet job will open at most
   one Host Channel Adapter (HCA).  To allow a process to utilize more
@@ -566,7 +579,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   + GASNET_RCV_THREAD
     This gives a boolean: "0" to disable, or "1" to enable, the use of an
-    extra thread per-HCA port to block waiting for an Active Message Request
+    extra thread per-HCA to block waiting for an Active Message Request
     or Reply to arrive.  This allows ibv-conduit to remain attentive
     to incoming AM traffic even while the application is not making any
     calls to GASNet.  The down side is that when this thread wakes it
@@ -622,6 +635,30 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     If serialization of calls to `ibv_poll_cq()` was disabled at configure
     time via `--disable-ibv-serialize-poll-cq`, then this setting is ignored
     and the behavior is equivalent to "unserialized".
+
+  + GASNET_SND_THREAD
+    This gives a boolean: "0" to disable, or "1" to enable, the use of an extra
+    thread per-HCA to block waiting for send completion events.  This
+    allows ibv-conduit to progress RMA and some AM send operations even when no
+    application threads are actively making calls into the GASNet library.  The
+    down side is that when this thread wakes it must contend for CPU resources
+    and for locks.  Therefore, for an application that is calling GASNet
+    sufficiently often, use of this thread may INCREASE running time.  However,
+    on an SMP where an otherwise idle processor is available the use of this
+    thread can REDUCE running time by relieving the application threads of the
+    burden of servicing completion events.
+    Note that if '--disable-ibv-snd-thread' was specified at build time
+    then the extra thread is unavailable and this environment variable
+    is ignored.
+    Currently the default is disabled (0), but this is subject to change.
+
+  + GASNET_SND_THREAD_RATE
+    Analogous to GASNET_RCV_THREAD_RATE, but for the thread enabled by
+    `GASNET_SND_THREAD`.
+
+  + GASNET_SND_THREAD_POLL_MODE
+    Analogous to GASNET_RCV_THREAD_POLL_MODE, but for the thread enabled by
+    `GASNET_SND_THREAD`.
 
   Pinnable memory probe configuration:
   -----------------------------------

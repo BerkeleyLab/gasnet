@@ -44,6 +44,7 @@ size_t                                  gasnetc_get_stripe_sz, gasnetc_get_strip
   size_t				gasnetc_putinmove_limit;
 #endif
 int					gasnetc_use_rcv_thread = GASNETC_USE_RCV_THREAD;
+int					gasnetc_use_snd_thread = GASNETC_USE_SND_THREAD;
 #if GASNETC_FH_OPTIONAL
   int					gasnetc_use_firehose = 1;
 #endif
@@ -66,6 +67,10 @@ int					gasnetc_num_qps;
 #if GASNETC_USE_RCV_THREAD && GASNETC_SERIALIZE_POLL_CQ
 int                                     gasnetc_rcv_thread_poll_serialize = -1;
 int                                     gasnetc_rcv_thread_poll_exclusive = -1;
+#endif
+#if GASNETC_USE_SND_THREAD && GASNETC_SERIALIZE_POLL_CQ
+int                                     gasnetc_snd_thread_poll_serialize = -1;
+int                                     gasnetc_snd_thread_poll_exclusive = -1;
 #endif
 
 #if GASNETC_PIN_SEGMENT
@@ -1764,6 +1769,32 @@ static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
 }
 #endif /* GASNETC_USE_RCV_THREAD */
 
+#if GASNETC_USE_SND_THREAD
+static void gasnetc_snd_thread(struct ibv_wc *comp_p, void *arg)
+{
+  gasnetc_hca_t * const hca = (gasnetc_hca_t *)arg;
+
+  gasneti_assert(gasnetc_use_snd_thread);
+
+  gasneti_assert((comp_p->opcode == IBV_WC_SEND) ||
+                 (comp_p->opcode == IBV_WC_RDMA_WRITE) ||
+                 (comp_p->opcode == IBV_WC_RDMA_READ) ||
+             //  (comp_p->opcode == IBV_WC_COMP_SWAP) ||
+                 (comp_p->opcode == IBV_WC_FETCH_ADD) ||
+                 (comp_p->status != IBV_WC_SUCCESS));
+
+  if_pf (comp_p->status != IBV_WC_SUCCESS) {
+    gasnetc_dump_cqs(comp_p, hca, 0);
+    gasneti_fatalerror("aborting on reap of failed snd");
+  }
+  else {
+    gasnetc_snd_reap_one(comp_p, hca GASNETC_COLLECT_ONE);
+    gasneti_sync_writes();
+    GASNETC_STAT_EVENT(SND_REAP_THR);
+  }
+}
+#endif /* GASNETC_USE_SND_THREAD */
+
 #if GASNETC_PIN_SEGMENT
 /*
  * ###############################################################
@@ -2962,7 +2993,11 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
   GASNETC_FOR_ALL_HCA(hca) {
     const int rqst_count = gasnetc_use_srq ? gasnetc_am_rqst_per_qp : 0;
     const int cqe_count = hca->qps * (gasnetc_op_oust_per_qp + rqst_count);
-    vstat = gasnetc_create_cq(hca->handle, cqe_count, &hca->snd_cq, &act_size, NULL);
+    gasnetc_progress_thread_t *snd_thread = NULL;
+  #if GASNETC_USE_SND_THREAD
+    if (gasnetc_use_snd_thread) snd_thread = &hca->snd_thread;
+  #endif
+    vstat = gasnetc_create_cq(hca->handle, cqe_count, &hca->snd_cq, &act_size, snd_thread);
     GASNETC_IBV_CHECK(vstat, "from gasnetc_create_cq(snd_cq)");
     GASNETI_TRACE_PRINTF(I, ("Send CQ length: requested=%d actual=%d", (int)cqe_count, (int)act_size));
     gasneti_assert(act_size >= cqe_count);
@@ -3267,6 +3302,13 @@ extern int gasnetc_sndrcv_shutdown(void) {
     }
   #endif
 
+  #if GASNETC_USE_SND_THREAD
+    if (gasnetc_use_snd_thread) {
+      rc = ibv_destroy_comp_channel(hca->snd_thread.compl);
+      GASNETC_IBV_CHECK(rc, "from ibv_destroy_comp_chanel(snd_thread)");
+    }
+  #endif
+
     gasnetc_unpin_unmap(hca, &hca->snd_reg);
     gasnetc_unpin_unmap(hca, &hca->rcv_reg);
   }
@@ -3275,8 +3317,9 @@ extern int gasnetc_sndrcv_shutdown(void) {
 }
 #endif
 
-#if GASNETC_USE_RCV_THREAD
+#if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
 extern void gasnetc_sndrcv_start_thread(void) {
+  #if GASNETC_USE_RCV_THREAD
   if (gasnetc_use_rcv_thread) {
     int rcv_max_rate = gasneti_getenv_int_withdefault("GASNET_RCV_THREAD_RATE", 0, 0);
     gasnetc_hca_t *hca;
@@ -3309,9 +3352,42 @@ extern void gasnetc_sndrcv_start_thread(void) {
       gasnetc_spawn_progress_thread(&hca->rcv_thread);
     }
   }
+  #endif
+  #if GASNETC_USE_SND_THREAD
+  if (gasnetc_use_snd_thread) {
+    int snd_max_rate = gasneti_getenv_int_withdefault("GASNET_SND_THREAD_RATE", 0, 0);
+    gasnetc_hca_t *hca;
+
+    GASNETC_FOR_ALL_HCA(hca) {
+      /* spawn the SND thread */
+      hca->snd_thread.fn = gasnetc_snd_thread;
+      hca->snd_thread.fn_arg = hca;
+      if (snd_max_rate > 0) {
+        hca->snd_thread.min_ns = ((uint64_t)1E9) / snd_max_rate;
+      }
+    #if GASNETC_SERIALIZE_POLL_CQ
+      gasneti_assert(!gasnetc_snd_thread_poll_exclusive ||
+                     !gasnetc_snd_thread_poll_serialize); // mutually exclusive
+      if (gasnetc_snd_thread_poll_exclusive) {
+        hca->snd_thread.exclusive_poll = &hca->poll_cq_semas.snd;
+      #if (GASNETC_IB_MAX_HCAS > 1)
+        // Remove thread contention in the AMPoll path.
+        // Note that this cannot safetly be done sooner, due to the
+        // communication in startup logic prior to spawning this thread.
+        gasnetc_snd_poll_multi_hcas = 0;
+      #endif
+      } else if (gasnetc_snd_thread_poll_serialize) {
+        hca->snd_thread.serialize_poll = &hca->poll_cq_semas.snd;
+      }
+    #endif
+      gasnetc_spawn_progress_thread(&hca->snd_thread);
+    }
+  }
+  #endif
 }
 
 extern void gasnetc_sndrcv_stop_thread(int block) {
+  #if GASNETC_USE_RCV_THREAD
   if (gasnetc_use_rcv_thread) {
     gasnetc_hca_t *hca;
 
@@ -3322,6 +3398,20 @@ extern void gasnetc_sndrcv_stop_thread(int block) {
       }
     }
   }
+  #endif
+
+  #if GASNETC_USE_SND_THREAD
+  if (gasnetc_use_snd_thread) {
+    gasnetc_hca_t *hca;
+
+    GASNETC_FOR_ALL_HCA(hca) {
+      /* stop the SND thread if we have started it */
+      if (hca->snd_thread.fn == gasnetc_snd_thread) {
+        gasnetc_stop_progress_thread(&hca->snd_thread, block);
+      }
+    }
+  }
+  #endif
 }
 #endif
 

@@ -24,6 +24,12 @@ GASNet-EX ChangeLog
 * Memory Kinds (support for non-host memory)
   - Memory Kinds support for AMD GPUs extended to ROCm-6 (bug 4686)
 
+* InfiniBand Verbs (details in ibv-conduit README)
+  - A new send progress thread can be enabled to process completion events
+    related to communication injection, potentially reducing the cost of
+    `gasnet_AMPoll()` calls by application threads.  See the ibv-conduit README
+    for information on the `GASNET_SND_THREAD*` family of environment variables.
+
 * General and Misc.
   - Disable "threadinfo-opt" by default on aarch64 (Linux and macOS)
 
