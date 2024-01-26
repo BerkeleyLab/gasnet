@@ -1719,6 +1719,9 @@ static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
 
   gasneti_assert(gasnetc_use_rcv_thread);
 
+  gasneti_assert((comp_p->opcode == IBV_WC_RECV) ||
+                 (comp_p->status != IBV_WC_SUCCESS));
+
   if_pf (comp_p->status != IBV_WC_SUCCESS) {
     gasnetc_dump_cqs(comp_p, hca, 0);
     gasneti_fatalerror("aborting on reap of failed AM recv");

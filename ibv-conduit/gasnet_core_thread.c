@@ -92,8 +92,6 @@ static void * gasnetc_progress_thread(void *arg)
     }
 
     if (rc == 1) {
-      gasneti_assert((comp.opcode == IBV_WC_RECV) ||
-		     (comp.status != IBV_WC_SUCCESS));
       (fn)(&comp, fn_arg);
 
       /* Throttle thread's rate */
