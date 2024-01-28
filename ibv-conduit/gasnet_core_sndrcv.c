@@ -1034,12 +1034,9 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid)
   if_pt (qpi == 0) {
  #if 0
     /* Select by largest space avail */
-    uint32_t space, best_space;
-    int i;
-    qpi = 0;
-    best_space = gasnetc_sema_read(GASNETC_CEP_SQ_SEMA(ceps+0));
-    for (i = 1; i < gasnetc_num_qps; ++i) {
-      space = gasnetc_sema_read(GASNETC_CEP_SQ_SEMA(ceps+1));
+    uint32_t best_space = gasnetc_sema_read(GASNETC_CEP_SQ_SEMA(ceps+0));
+    for (int i = 1; i < gasnetc_num_qps; ++i) {
+      uint32_t space = gasnetc_sema_read(GASNETC_CEP_SQ_SEMA(ceps+i));
       if (space > best_space) {
         best_space = space;
         qpi = i;
