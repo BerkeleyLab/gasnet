@@ -22,6 +22,7 @@ GASNet-EX ChangeLog
 20XX-YY-ZZ: PENDING
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4682: ibv: rare failure of bogus assertion
   - bug4683: GASNET_FREEZE ignored by udp-conduit with ssh spawn
 
 ----------------------------------------------------------------------
