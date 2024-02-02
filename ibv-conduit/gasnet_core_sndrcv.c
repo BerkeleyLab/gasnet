@@ -628,9 +628,10 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 
 
 #if GASNETC_SND_REAP_COLLECT
-  #define _GASNETC_COLLECT_BBUF(_test,_bbuf) do { \
+  #define GASNETC_COLLECT_BBUF(_bbuf) do { \
       void *_tmp = (void*)(_bbuf);                \
-      _test((_tmp != NULL) && !gasnetc_maybe_restore_spare_reply_bbuf(_tmp)) { \
+      gasneti_assert(_tmp != NULL);               \
+      if (!gasnetc_maybe_restore_spare_reply_bbuf(_tmp)) { \
         gasnetc_lifo_link(bbuf_tail, _tmp);   \
         bbuf_tail = _tmp;                         \
       }                                           \
@@ -654,9 +655,10 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     }                                    \
   } while(0)
 #else
-  #define _GASNETC_COLLECT_BBUF(_test,_bbuf) do {          \
+  #define GASNETC_COLLECT_BBUF(bbuf) do {          \
       void *_tmp = (void*)(_bbuf);                         \
-      _test((_tmp != NULL) && !gasnetc_maybe_restore_spare_reply_bbuf(_tmp)) { \
+      gasneti_assert(_tmp != NULL);                        \
+      if (!gasnetc_maybe_restore_spare_reply_bbuf(_tmp)) { \
         gasnetc_lifo_push(&gasnetc_bbuf_freelist,_tmp); \
       }                                                    \
     } while(0)
@@ -670,11 +672,6 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     } while(0)
   #define GASNETC_FREE_FHS()	do {} while (0)
 #endif
-
-#define GASNETC_ALWAYS(X) gasneti_assert(X); if(1)
-#define GASNETC_COLLECT_BBUF(_bbuf) _GASNETC_COLLECT_BBUF(GASNETC_ALWAYS,(_bbuf))
-#define GASNETC_COLLECT_BBUF_IF(_bbuf) _GASNETC_COLLECT_BBUF(if,(_bbuf))
-  
 
 #if HAVE_IBV_WC_STATUS_STR
   #define gasnetc_ibv_wc_status_str(status) ibv_wc_status_str(status)
@@ -964,7 +961,9 @@ static int gasnetc_snd_reap(int limit) {
 	    if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
 	    }
-	    GASNETC_COLLECT_BBUF_IF(sreq->am_buff);
+            if (sreq->am_buff) {
+              GASNETC_COLLECT_BBUF(sreq->am_buff);
+            }
 	    break;
 
 	  case GASNETC_OP_ATOMIC:
