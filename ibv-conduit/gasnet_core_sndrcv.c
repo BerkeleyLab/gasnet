@@ -655,7 +655,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     }                                    \
   } while(0)
 #else
-  #define GASNETC_COLLECT_BBUF(bbuf) do {          \
+  #define GASNETC_COLLECT_BBUF(_bbuf) do {          \
       void *_tmp = (void*)(_bbuf);                         \
       gasneti_assert(_tmp != NULL);                        \
       if (!gasnetc_maybe_restore_spare_reply_bbuf(_tmp)) { \
