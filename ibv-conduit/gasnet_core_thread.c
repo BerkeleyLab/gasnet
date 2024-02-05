@@ -54,6 +54,7 @@ static void * gasnetc_progress_thread(void *arg)
   void (* const fn)(struct ibv_wc *, void *)= pthr_p->fn;
   void * const fn_arg                       = pthr_p->fn_arg;
   const uint64_t thread_rate_ns             = pthr_p->thread_rate.ns;
+  const uint64_t keep_alive_ns              = pthr_p->keep_alive.ns;
   gasnetc_atomic_t * const serialize_poll   = pthr_p->serialize_poll;
   int fd = compl_hndl->fd;
   fd_set readfds;
@@ -75,6 +76,8 @@ static void * gasnetc_progress_thread(void *arg)
   pthread_cleanup_push(my_cleanup, arg);
 
   my_cancel_disable();
+
+  gasneti_assert_uint(pthr_p->keep_alive.timestamp ,==, 0);
 
   while (!pthr_p->done) {
     struct ibv_wc comp;
@@ -110,10 +113,31 @@ static void * gasnetc_progress_thread(void *arg)
         }
         pthr_p->thread_rate.timestamp = gasneti_ticks_now();
       }
+
+      // Now "active".  So cancel any keep-alive interval.
+      pthr_p->keep_alive.timestamp = 0;
     } else if (rc == 0) {
       struct ibv_cq * the_cq;
       void *the_ctx;
       int rc;
+
+      // Keep alive?
+      if (keep_alive_ns) {
+        uint64_t prev = pthr_p->keep_alive.timestamp;
+        uint64_t now = gasneti_ticks_now();
+        if (! prev) {
+          // Start a new keep-alive interval
+          pthr_p->keep_alive.timestamp = now;
+          continue;
+        } else {
+          // Check for expiration of the keep-alive interval
+          uint64_t elapsed = gasneti_ticks_to_ns(now - prev);
+          if (elapsed < keep_alive_ns) continue;
+        }
+        // Keep-alive interval has expired.
+        // Ensure we start a *new* one when we next wake:
+        pthr_p->keep_alive.timestamp = 0;
+      }
 
       /* block for event on the empty CQ */
       my_cancel_enable();

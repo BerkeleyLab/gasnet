@@ -607,6 +607,17 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     NOTE: A future release may implement GASNET_RCV_THREAD_LOAD to
     impose a limit on the *fraction* of time the thread spends awake.
 
+  + GASNET_RCV_THREAD_IDLE
+    If GASNET_RCV_THREAD is enabled, then this setting can be used to
+    ensure that the AM receive thread will not sleep until some minimum
+    time interval (in nanoseconds) has passed without processing any
+    new events from the receive completion queue.
+    If the value is zero (the default), then the thread will sleep as soon
+    as a poll of the completion queue fails to return a new event.  If this
+    setting has a positive value, then the thread will continue attempting
+    to poll the completion queue until at least the specified interval (in
+    nanoseconds) has passed with no event arrivals on the completion queue.
+
   + GASNET_RCV_THREAD_POLL_MODE
     If GASNET_RCV_THREAD is enabled, then this setting determines if/how the
     AM receive thread participates in the serialization of calls to
@@ -654,6 +665,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   + GASNET_SND_THREAD_RATE
     Analogous to GASNET_RCV_THREAD_RATE, but for the thread enabled by
+    `GASNET_SND_THREAD`.
+
+  + GASNET_SND_THREAD_IDLE
+    Analogous to GASNET_RCV_THREAD_IDLE, but for the thread enabled by
     `GASNET_SND_THREAD`.
 
   + GASNET_SND_THREAD_POLL_MODE

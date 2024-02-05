@@ -474,6 +474,10 @@ typedef struct {
       uint64_t                ns;
       uint64_t                timestamp;
     } thread_rate;
+    struct {
+      uint64_t                ns;
+      uint64_t                timestamp;
+    } keep_alive;
     struct ibv_cq *         cq;
     struct ibv_comp_channel *compl;
     volatile int            done;

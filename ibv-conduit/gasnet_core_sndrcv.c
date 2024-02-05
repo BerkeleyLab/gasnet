@@ -3331,6 +3331,7 @@ extern void gasnetc_sndrcv_start_thread(void) {
       if (rcv_max_rate > 0) {
         hca->rcv_thread.thread_rate.ns = ((uint64_t)1E9) / rcv_max_rate;
       }
+    hca->rcv_thread.keep_alive.ns = gasneti_getenv_int_withdefault("GASNET_RCV_THREAD_IDLE", 0, 0);
     #if GASNETC_SERIALIZE_POLL_CQ
       gasneti_assert(!gasnetc_rcv_thread_poll_exclusive ||
                      !gasnetc_rcv_thread_poll_serialize); // mutually exclusive
@@ -3365,6 +3366,7 @@ extern void gasnetc_sndrcv_start_thread(void) {
       if (snd_max_rate > 0) {
         hca->snd_thread.thread_rate.ns = ((uint64_t)1E9) / snd_max_rate;
       }
+    hca->snd_thread.keep_alive.ns = gasneti_getenv_int_withdefault("GASNET_SND_THREAD_IDLE", 0, 0);
     #if GASNETC_SERIALIZE_POLL_CQ
       gasneti_assert(!gasnetc_snd_thread_poll_exclusive ||
                      !gasnetc_snd_thread_poll_serialize); // mutually exclusive
