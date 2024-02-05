@@ -3329,7 +3329,7 @@ extern void gasnetc_sndrcv_start_thread(void) {
       hca->rcv_thread.fn = gasnetc_rcv_thread;
       hca->rcv_thread.fn_arg = hca;
       if (rcv_max_rate > 0) {
-        hca->rcv_thread.min_ns = ((uint64_t)1E9) / rcv_max_rate;
+        hca->rcv_thread.thread_rate.ns = ((uint64_t)1E9) / rcv_max_rate;
       }
     #if GASNETC_SERIALIZE_POLL_CQ
       gasneti_assert(!gasnetc_rcv_thread_poll_exclusive ||
@@ -3363,7 +3363,7 @@ extern void gasnetc_sndrcv_start_thread(void) {
       hca->snd_thread.fn = gasnetc_snd_thread;
       hca->snd_thread.fn_arg = hca;
       if (snd_max_rate > 0) {
-        hca->snd_thread.min_ns = ((uint64_t)1E9) / snd_max_rate;
+        hca->snd_thread.thread_rate.ns = ((uint64_t)1E9) / snd_max_rate;
       }
     #if GASNETC_SERIALIZE_POLL_CQ
       gasneti_assert(!gasnetc_snd_thread_poll_exclusive ||

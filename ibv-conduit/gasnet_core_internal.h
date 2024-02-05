@@ -470,8 +470,10 @@ typedef struct {
   typedef struct {
     /* Initialized by create_cq or spawn_progress_thread: */
     pthread_t               thread_id;
-    uint64_t                prev_time;
-    uint64_t                min_ns;
+    struct {
+      uint64_t                ns;
+      uint64_t                timestamp;
+    } thread_rate;
     struct ibv_cq *         cq;
     struct ibv_comp_channel *compl;
     volatile int            done;
