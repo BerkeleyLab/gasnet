@@ -1114,6 +1114,10 @@ extern int                      gasnetc_num_ports;
 #if GASNETC_DYNAMIC_CONNECT
   extern gasnetc_sema_t         gasnetc_zero_sema;
 #endif
+#if (GASNETC_IB_MAX_HCAS > 1)
+  extern int gasnetc_snd_poll_multi_hcas;
+  extern int gasnetc_rcv_poll_multi_hcas;
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* Small (inline) helper functions */

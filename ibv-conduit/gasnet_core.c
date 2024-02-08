@@ -175,6 +175,8 @@ static unsigned int gasnetc_fh_maxsize    = 131072;
 
 #if (GASNETC_IB_MAX_HCAS > 1)
 int		gasnetc_num_hcas = 1;
+int             gasnetc_snd_poll_multi_hcas;
+int             gasnetc_rcv_poll_multi_hcas;
 #endif
 gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 uintptr_t	gasnetc_max_msg_sz;
@@ -1524,6 +1526,8 @@ static void gasnetc_probe_ports(int max_ports) {
 
 #if (GASNETC_IB_MAX_HCAS > 1)
   gasnetc_num_hcas = hca_count;
+  gasnetc_snd_poll_multi_hcas = (gasnetc_num_hcas > 1);
+  gasnetc_rcv_poll_multi_hcas = (gasnetc_num_hcas > 1);
 #endif
   gasnetc_num_ports = port_count;
   gasnetc_port_tbl  = gasneti_realloc(port_tbl, port_count * sizeof(gasnetc_port_info_t));

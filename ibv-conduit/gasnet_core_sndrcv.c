@@ -872,14 +872,16 @@ static int gasnetc_snd_reap(int limit) {
     const firehose_request_t *fh_ptrs[GASNETC_SND_REAP_LIMIT * GASNETC_MAX_FH];
   #endif
 
-  #if GASNETC_IB_MAX_HCAS > 1
+  gasnetc_hca_t *hca;
+#if GASNETC_IB_MAX_HCAS > 1
+  if (gasnetc_snd_poll_multi_hcas) {
     GASNETC_WEAK_COUNTER_DECL(index, 0);
     int tmp = GASNETC_WEAK_COUNTER_READ(index);
     GASNETC_WEAK_COUNTER_WRITE(index, ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1);
-    gasnetc_hca_t *hca = &gasnetc_hca[tmp];
-  #else
-    gasnetc_hca_t *hca = &gasnetc_hca[0];
-  #endif
+    hca = &gasnetc_hca[tmp];
+  } else
+#endif
+  hca = &gasnetc_hca[0];
 
   gasneti_assert(limit <= GASNETC_SND_REAP_LIMIT);
 
@@ -1337,14 +1339,17 @@ void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI
 }
 
 void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG) {
-  #if GASNETC_IB_MAX_HCAS > 1
+  gasnetc_hca_t *hca;
+#if GASNETC_IB_MAX_HCAS > 1
+  if (gasnetc_rcv_poll_multi_hcas) {
     GASNETC_WEAK_COUNTER_DECL(index, 0);
     int tmp = GASNETC_WEAK_COUNTER_READ(index);
     GASNETC_WEAK_COUNTER_WRITE(index, ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1);
-    gasnetc_hca_t *hca = &gasnetc_hca[tmp];
-  #else
-    gasnetc_hca_t *hca = &gasnetc_hca[0];
-  #endif
+    hca = &gasnetc_hca[tmp];
+  } else
+#endif
+  hca = &gasnetc_hca[0];
+
     gasnetc_poll_rcv_hca(ep, hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
   #if GASNET_PSHM
     gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
