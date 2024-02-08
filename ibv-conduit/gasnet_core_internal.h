@@ -386,9 +386,11 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context GASNET
 /* ------------------------------------------------------------------------------------ */
 
 #if (GASNETC_IB_MAX_HCAS > 1)
+  extern int gasnetc_num_hcas;
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < gasnetc_num_hcas; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[gasnetc_num_hcas]; ++p)
 #else
+  #define gasnetc_num_hcas (1)
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < 1; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[1]; ++p)
 #endif
@@ -1100,7 +1102,6 @@ extern int              gasnetc_qp_retry_count;
 #endif
 
 /* Global variables */
-extern int		gasnetc_num_hcas;
 extern gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 extern uintptr_t	gasnetc_max_msg_sz;
 extern size_t   	gasnetc_put_stripe_sz, gasnetc_put_stripe_split;

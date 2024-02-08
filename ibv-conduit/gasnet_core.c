@@ -173,7 +173,9 @@ static unsigned int gasnetc_fh_maxsize    = 131072;
 
 /* ------------------------------------------------------------------------------------ */
 
+#if (GASNETC_IB_MAX_HCAS > 1)
 int		gasnetc_num_hcas = 1;
+#endif
 gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 uintptr_t	gasnetc_max_msg_sz;
 int		gasnetc_qp_rd_atom;
@@ -1520,7 +1522,9 @@ static void gasnetc_probe_ports(int max_ports) {
   gasnetc_clear_ports();
   ibv_free_device_list(hca_list);
 
+#if (GASNETC_IB_MAX_HCAS > 1)
   gasnetc_num_hcas = hca_count;
+#endif
   gasnetc_num_ports = port_count;
   gasnetc_port_tbl  = gasneti_realloc(port_tbl, port_count * sizeof(gasnetc_port_info_t));
   gasneti_leak(gasnetc_port_tbl);
