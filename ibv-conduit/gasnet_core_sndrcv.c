@@ -3286,6 +3286,12 @@ extern void gasnetc_sndrcv_start_thread(void) {
                      !gasnetc_rcv_thread_poll_serialize); // mutually exclusive
       if (gasnetc_rcv_thread_poll_exclusive) {
         hca->rcv_thread.exclusive_poll = &hca->poll_cq_semas.rcv;
+      #if (GASNETC_IB_MAX_HCAS > 1)
+        // Remove thread contention in the AMPoll path.
+        // Note that this cannot safetly be done sooner, because AM-based comms
+        // are used in startup logic prior to spawning this thread.
+        gasnetc_rcv_poll_multi_hcas = 0;
+      #endif
       } else if (gasnetc_rcv_thread_poll_serialize) {
         hca->rcv_thread.serialize_poll = &hca->poll_cq_semas.rcv;
       }

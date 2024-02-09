@@ -1527,7 +1527,7 @@ static void gasnetc_probe_ports(int max_ports) {
 #if (GASNETC_IB_MAX_HCAS > 1)
   gasnetc_num_hcas = hca_count;
   gasnetc_snd_poll_multi_hcas = (gasnetc_num_hcas > 1);
-  gasnetc_rcv_poll_multi_hcas = (gasnetc_num_hcas > 1);
+  gasnetc_rcv_poll_multi_hcas = (gasnetc_num_hcas > 1); // rcv thread may override later
 #endif
   gasnetc_num_ports = port_count;
   gasnetc_port_tbl  = gasneti_realloc(port_tbl, port_count * sizeof(gasnetc_port_info_t));
