@@ -5466,7 +5466,11 @@ if test "$enable_mk_hip" != "no"; then
       hipError_t res;
       res = hipMalloc(&addr, 1024);
       res = hipPointerGetAttributes(&attr, addr);
+    #if HIP_VERSION_MAJOR < 6
       int bad = (attr.memoryType != hipMemoryTypeDevice) || attr.isManaged;
+    #else
+      int bad = (attr.type != hipMemoryTypeDevice) || attr.isManaged;
+    #endif
     ], [ : ], [ have_mk_hip=no; GASNET_ERR_SAVE() ])
 
     GASNET_POPVAR(LIBS)
