@@ -158,7 +158,15 @@ static int gasneti_MK_Segment_Create_hip(
     hipPointerAttribute_t attr;
     gasneti_check_hipcall(hipPointerGetAttributes(&attr, addr));
 
-    if (attr.memoryType != hipMemoryTypeDevice) {
+    enum hipMemoryType memoryType;
+  #if HIP_VERSION_MAJOR < 6
+    // Deprecated since 5.5 and removed in 6.0
+    memoryType = attr.memoryType;
+  #else
+    // Present since 5.5
+    memoryType = attr.type;
+  #endif
+    if (memoryType != hipMemoryTypeDevice) {
       gasneti_fatalerror("Invalid call to gex_Segment_Create(HIP) with non-device memory");
     }
     if (attr.isManaged) {

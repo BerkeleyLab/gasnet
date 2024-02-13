@@ -21,9 +21,13 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* Memory Kinds (support for non-host memory)
+  - Memory Kinds support for AMD GPUs extended to ROCm-6 (bug 4686)
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4682: ibv: rare failure of bogus assertion
   - bug4683: GASNET_FREEZE ignored by udp-conduit with ssh spawn
+  - bug4686: Configure failure with ROCm 6
 
 ----------------------------------------------------------------------
 2023-12-15: GASNet-EX 2023.9.0
