@@ -230,7 +230,6 @@ static void gasnetc_free_aligned(void *ptr) {
 }
 
 #define GASNETC_SREQS_GROWTHCNT 32 /* sreq list always grown by this size increment */
-static int gasnetc_snd_reap(int);
 
 static void gasnetc_free_sreqs(void *_ptr) {
   gasnetc_sreq_t *ptr = (gasnetc_sreq_t *)_ptr;
@@ -862,7 +861,7 @@ void gasnetc_dump_cqs(struct ibv_wc *comp, gasnetc_hca_t *hca, const int is_snd)
 }
 
 /* Try to pull completed entries (if any) from the send CQ(s). */
-static int gasnetc_snd_reap(int limit) {
+int gasnetc_snd_reap(int limit) {
   int count;
   struct ibv_wc comp;
   #if GASNETC_SND_REAP_COLLECT
@@ -1354,16 +1353,6 @@ void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG) {
   #if GASNET_PSHM
     gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
   #endif
-}
-
-void gasnetc_do_poll(int poll_rcv, int poll_snd GASNETI_THREAD_FARG) {
-  const gasnetc_EP_t ep = gasnetc_ep0; // TODO-EX: replace this via args
-  if (poll_rcv) {
-    gasnetc_poll_rcv_all(ep, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
-  }
-  if (poll_snd) {
-    (void)gasnetc_snd_reap(GASNETC_SND_REAP_LIMIT);
-  }
 }
 
 /* helper for allocation of a send request structure */

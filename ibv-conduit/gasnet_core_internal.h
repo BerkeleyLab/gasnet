@@ -1008,7 +1008,18 @@ extern void gasnetc_snd_post_common(
 
 extern void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG);
 extern void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG);
-extern void gasnetc_do_poll(int poll_rcv, int poll_snd GASNETI_THREAD_FARG);
+extern int gasnetc_snd_reap(int limit);
+
+GASNETI_INLINE(gasnetc_do_poll)
+void gasnetc_do_poll(int poll_rcv, int poll_snd GASNETI_THREAD_FARG) {
+  const gasnetc_EP_t ep = gasnetc_ep0; // TODO-EX: replace this via args
+  if (poll_rcv) {
+    gasnetc_poll_rcv_all(ep, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
+  }
+  if (poll_snd) {
+    (void)gasnetc_snd_reap(GASNETC_SND_REAP_LIMIT);
+  }
+}
 #define gasnetc_poll_rcv()    gasnetc_do_poll(1,0 GASNETI_THREAD_PASS)
 #define gasnetc_poll_snd()    gasnetc_do_poll(0,1 GASNETI_THREAD_PASS)
 #define gasnetc_poll_both()   gasnetc_do_poll(1,1 GASNETI_THREAD_PASS)
