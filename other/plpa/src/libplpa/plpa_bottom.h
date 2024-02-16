@@ -69,15 +69,15 @@ typedef struct { PLPA_NAME(bitmask_t) bitmask[PLPA_BITMASK_NUM_ELEMENTS]; } PLPA
 
 /* Public macro to set a bit in a PLPA cpu set */
 #define PLPA_CPU_SET(num, cpuset) \
-    (cpuset)->bitmask[PLPA_CPU_BYTE(num)] |= (1 << PLPA_CPU_BIT(num))
+    (cpuset)->bitmask[PLPA_CPU_BYTE(num)] |= (1UL << PLPA_CPU_BIT(num))
 
 /* Public macro to clear a bit in a PLPA cpu set */
 #define PLPA_CPU_CLR(num, cpuset) \
-    (cpuset)->bitmask[PLPA_CPU_BYTE(num)] &= ~(1 << PLPA_CPU_BIT(num))
+    (cpuset)->bitmask[PLPA_CPU_BYTE(num)] &= ~(1UL << PLPA_CPU_BIT(num))
 
 /* Public macro to test if a bit is set in a PLPA cpu set */
 #define PLPA_CPU_ISSET(num, cpuset) \
-    (0 != ((cpuset)->bitmask[PLPA_CPU_BYTE(num)] & (1 << PLPA_CPU_BIT(num))))
+    (0 != ((cpuset)->bitmask[PLPA_CPU_BYTE(num)] & (1UL << PLPA_CPU_BIT(num))))
 
 /***************************************************************************/
 
