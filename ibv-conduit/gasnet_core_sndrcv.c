@@ -1029,7 +1029,7 @@ int gasnetc_snd_reap(int limit) {
     if (GASNETC_POLL_CQ_TRYDOWN_SND(hca)) break; // another thread is polling this CQ
     int rc = ibv_poll_cq(hca->snd_cq, 1, &comp);
     GASNETC_POLL_CQ_UP_SND(hca);
-    if_pt (rc == 0) break; // CQ empty - we are done
+    if (rc == 0) break; // CQ empty - we are done
     gasnetc_snd_reap_one(&comp, hca GASNETC_COLLECT_MANY);
   }
 
@@ -1305,10 +1305,8 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, const int limit, gasnetc_rbuf_t 
     if (GASNETC_POLL_CQ_TRYDOWN_RCV(hca)) break;
     int rc = ibv_poll_cq(hca->rcv_cq, 1, &comp);
     GASNETC_POLL_CQ_UP_RCV(hca);
-    if_pt (rc == 0) {
-      /* CQ empty - we are done */
-      break;
-    } else if_pt (rc == 1) {
+    if (rc == 0) break; // CQ empty - we are done
+    if_pt (rc == 1) {
       if_pt (comp.status == IBV_WC_SUCCESS) {
       #if GASNETC_DYNAMIC_CONNECT && !GASNETC_USE_CONN_THREAD
         if_pf (comp.wr_id & 1) {
