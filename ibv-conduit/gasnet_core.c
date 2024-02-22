@@ -62,6 +62,10 @@ GASNETI_IDENT(gasnetc_IdentString_MaxHCAs, "$GASNetIbvMaxHCAs: " _STRINGIFY(GASN
   GASNETI_IDENT(gasnetc_IdentString_ConnThread, "$GASNetIbvConnThread: 1 $");
 #endif
 
+#if GASNETC_SERIALIZE_POLL_CQ
+  GASNETI_IDENT(gasnetc_IdentString_SerializeCqPoll, "$GASNetIbvSerializeCqPoll: 1 $");
+#endif
+
 int gex_System_QueryHiddenAMConcurrencyLevel(void) {
 #if !GASNETC_USE_RCV_THREAD
   gasneti_assert(! gasnetc_use_rcv_thread);
