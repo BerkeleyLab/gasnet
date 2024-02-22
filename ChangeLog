@@ -32,6 +32,10 @@ GASNet-EX ChangeLog
   - bug4683: GASNET_FREEZE ignored by udp-conduit with ssh spawn
   - bug4686: Configure failure with ROCm 6
   - bug4688: Incorrect CPU mask computation on 64-bit systems
+  - bug 4689: GASNET_GET_THREADINFO() assumed non-NULL in
+    `test{gasnet,legacy}.c`
+  - bug 4690: no actual multi-threaded coverage in PAR builds of
+    `test{gasnet,legacy}.c`
 
 ----------------------------------------------------------------------
 2023-12-15: GASNet-EX 2023.9.0
