@@ -590,8 +590,8 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     thread can REDUCE running time by relieving the application thread
     of the burden of servicing incoming AM Requests and Replies.
     Note that if '--disable-ibv-rcv-thread' was specified at build time
-    then the extra thread is unavailable and this environment variable
-    is ignored.
+    then the extra thread is unavailable and any use of this environment
+    variable to enable the thread is a fatal error.
     Currently the default is disabled (0), but this is subject to change.
     NOTE: In releases prior to GASNet 1.18.2 the AM receive thread was
     unavailable for ibv-conduit, but that is no longer the case.
