@@ -602,7 +602,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     This may be used to limit interference between the AM receive thread
     and the main application thread(s), while providing some network
     attentiveness when the application is not making GASNet calls.
-    A non-zero value gives the maximum rate in wake-ups per second.
+    A non-zero value gives the desired maximum rate in wake-ups per second.
+    However, see "Bug 4691" in the Known Problems section for information
+    on when this limit may not be well enforced.
     The default value is 0, which means no limit is imposed.
     NOTE: A future release may implement GASNET_RCV_THREAD_LOAD to
     impose a limit on the *fraction* of time the thread spends awake.
@@ -1505,6 +1507,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   The most up-to-date information on this issue is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4658
 
++ Bug 4691
+  Currently, the logic for GASNET_RCV_THREAD_RATE and GASNET_SND_THREAD_RATE
+  may fail to limit the wake-ups per second under certain conditions, including
+  under heavy load when application thread(s) are also actively polling.
+  The most up-to-date information on this issue is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4691
 
 + See the GASNet Bugzilla server for details on other known bugs:
   https://gasnet-bugs.lbl.gov/
