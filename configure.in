@@ -3866,6 +3866,17 @@ if test "$enabled_ibv" = yes; then
         AC_DEFINE(GASNETC_IBV_RCV_THREAD)
       fi
 
+    GASNET_IF_ENABLED_WITH_AUTO(ibv-snd-thread, [See ibv-conduit/README (enabled by default if pthreads available)], 
+      [enabled_ibv_snd_thread=yes
+       if test "$have_pthread" = no; then
+         AC_MSG_ERROR([--enable-ibv-snd-thread requires pthread support but pthreads $pthread_reason])
+       fi],
+      [enabled_ibv_snd_thread=no],
+      [enabled_ibv_snd_thread=$have_pthread])
+      if test "$enabled_ibv_snd_thread" = yes; then
+        AC_DEFINE(GASNETC_IBV_SND_THREAD)
+      fi
+
     GASNET_IF_ENABLED_WITH_AUTO(ibv-conn-thread, [See ibv-conduit/README (enabled by default if pthreads available)], 
       [enabled_ibv_conn_thread=yes
        if test "$have_pthread" = no; then
@@ -4025,7 +4036,7 @@ fi
 AC_SUBST(IBV_CFLAGS)
 AC_SUBST(IBV_LDFLAGS)
 AC_SUBST(IBV_LIBS)
-AM_CONDITIONAL(IBV_SEQ_THREADS, test "$enabled_ibv_rcv_thread$enabled_ibv_conn_thread" != nono)
+AM_CONDITIONAL(IBV_SEQ_THREADS, test "$enabled_ibv_rcv_thread$enabled_ibv_snd_thread$enabled_ibv_conn_thread" != nonono)
 CONDUIT_END([test "$enabled_ibv$have_ibv" = yesyes])
 AM_CONDITIONAL(USE_IBV_CONDUIT, test "$enabled_ibv$have_ibv" = yesyes)
 

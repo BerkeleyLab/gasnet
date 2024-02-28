@@ -142,6 +142,13 @@ extern gasneti_atomic_t gasnetc_exit_running;
   #define GASNETC_USE_RCV_THREAD 0
 #endif
 
+// GASNETC_USE_SND_THREAD enables a progress thread for reaping send completions
+#if GASNETC_IBV_SND_THREAD
+  #define GASNETC_USE_SND_THREAD 1
+#else
+  #define GASNETC_USE_SND_THREAD 0
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* Measures of concurency
  *
@@ -437,6 +444,10 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context GASNET
     extern int gasnetc_rcv_thread_poll_serialize;
     extern int gasnetc_rcv_thread_poll_exclusive;
   #endif
+  #if GASNETC_USE_SND_THREAD
+    extern int gasnetc_snd_thread_poll_serialize;
+    extern int gasnetc_snd_thread_poll_exclusive;
+  #endif
 #else
   #define GASNETC_POLL_CQ_UP(sema_p)        do {} while (0)
   #define GASNETC_POLL_CQ_TRYDOWN(sema_p)   (0)
@@ -459,8 +470,14 @@ typedef struct {
   typedef struct {
     /* Initialized by create_cq or spawn_progress_thread: */
     pthread_t               thread_id;
-    uint64_t                prev_time;
-    uint64_t                min_ns;
+    struct {
+      uint64_t                ns;
+      uint64_t                timestamp;
+    } thread_rate;
+    struct {
+      uint64_t                ns;
+      uint64_t                timestamp;
+    } keep_alive;
     struct ibv_cq *         cq;
     struct ibv_comp_channel *compl;
     volatile int            done;
@@ -539,6 +556,11 @@ typedef struct {
  #if GASNETI_THREADINFO_OPT
   gasnet_threadinfo_t       rcv_threadinfo;
  #endif
+#endif
+
+#if GASNETC_USE_SND_THREAD
+  /* Snd thread */
+  gasnetc_progress_thread_t snd_thread;
 #endif
 
 #if GASNETC_SERIALIZE_POLL_CQ
@@ -1069,6 +1091,7 @@ extern const char *     gasnetc_connectfile_out;
 extern int              gasnetc_connectfile_out_base;
 
 extern int		gasnetc_use_rcv_thread;
+extern int		gasnetc_use_snd_thread;
 extern int		gasnetc_am_credits_slack;
 extern int		gasnetc_alloc_qps;    /* Number of QPs per node in gasnetc_ceps[] */
 extern int		gasnetc_num_qps;      /* How many QPs to use per peer */
