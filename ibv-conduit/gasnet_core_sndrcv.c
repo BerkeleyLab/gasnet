@@ -1034,9 +1034,6 @@ int gasnetc_snd_reap(int limit) {
   }
 
   if (count) {
-    // push out our OP_FREE writes
-    gasneti_sync_writes();
-
     // Release any firehoses and bounce buffers we've collected
     GASNETC_COLLECT_FINALIZE();
 
@@ -1787,7 +1784,6 @@ static void gasnetc_snd_thread(struct ibv_wc *comp_p, void *arg)
   }
   else {
     gasnetc_snd_reap_one(comp_p, hca GASNETC_COLLECT_ONE);
-    gasneti_sync_writes();
     GASNETC_STAT_EVENT(SND_REAP_THR);
   }
 }
