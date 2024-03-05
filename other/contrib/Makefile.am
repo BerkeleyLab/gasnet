@@ -23,7 +23,9 @@ EXTRA_DIST = $(dotpl_DATA) \
 dotpldir = $(bindir)
 dotpl_DATA = gasnet_trace.pl
 
-bin_SCRIPTS = gasnet_trace
+bin_SCRIPTS = \
+	gasnet_trace \
+	ident
 
 all-local: $(bin_SCRIPTS) $(dotpl_DATA)
 
