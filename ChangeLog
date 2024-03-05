@@ -36,6 +36,7 @@ GASNet-EX ChangeLog
 
 * General and Misc.
   - Disable "threadinfo-opt" by default on aarch64 (Linux and macOS)
+  - Install a script implementation of the `ident` utility in $prefix/bin
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4682: ibv: rare failure of bogus assertion
