@@ -55,8 +55,15 @@ GASNETI_IDENT(gasnetc_IdentString_MaxHCAs, "$GASNetIbvMaxHCAs: " _STRINGIFY(GASN
 #if GASNETC_USE_RCV_THREAD
   GASNETI_IDENT(gasnetc_IdentString_RcvThread, "$GASNetIbvRcvThread: 1 $");
 #endif
+#if GASNETC_USE_SND_THREAD
+  GASNETI_IDENT(gasnetc_IdentString_SndThread, "$GASNetIbvSndThread: 1 $");
+#endif
 #if GASNETC_USE_CONN_THREAD
   GASNETI_IDENT(gasnetc_IdentString_ConnThread, "$GASNetIbvConnThread: 1 $");
+#endif
+
+#if GASNETC_SERIALIZE_POLL_CQ
+  GASNETI_IDENT(gasnetc_IdentString_SerializeCqPoll, "$GASNetIbvSerializeCqPoll: 1 $");
 #endif
 
 int gex_System_QueryHiddenAMConcurrencyLevel(void) {
@@ -173,7 +180,11 @@ static unsigned int gasnetc_fh_maxsize    = 131072;
 
 /* ------------------------------------------------------------------------------------ */
 
+#if (GASNETC_IB_MAX_HCAS > 1)
 int		gasnetc_num_hcas = 1;
+int             gasnetc_snd_poll_multi_hcas;
+int             gasnetc_rcv_poll_multi_hcas;
+#endif
 gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 uintptr_t	gasnetc_max_msg_sz;
 int		gasnetc_qp_rd_atom;
@@ -954,10 +965,31 @@ static int gasnetc_load_settings(void) {
     }
   }
 #endif
+  gasnetc_use_snd_thread = gasneti_getenv_yesno_withdefault("GASNET_SND_THREAD", 0);
+#if GASNETC_USE_SND_THREAD && GASNETC_SERIALIZE_POLL_CQ
+  if (gasnetc_use_snd_thread) {
+    tmp = gasneti_getenv_withdefault("GASNET_SND_THREAD_POLL_MODE", "SERIALIZED");
+    if (! gasneti_strcasecmp(tmp, "EXCLUSIVE")) {
+      gasnetc_snd_thread_poll_serialize = 0;
+      gasnetc_snd_thread_poll_exclusive = 1;
+    } else if (! gasneti_strcasecmp(tmp, "UNSERIALIZED")) {
+      gasnetc_snd_thread_poll_serialize = 0;
+      gasnetc_snd_thread_poll_exclusive = 0;
+    } else if (! gasneti_strcasecmp(tmp, "SERIALIZED")) {
+      gasnetc_snd_thread_poll_serialize = 1;
+      gasnetc_snd_thread_poll_exclusive = 0;
+    } else {
+      gasneti_fatalerror("GASNET_RCV_THREAD_POLL_MODE \"%s\" is not valid", tmp);
+    }
+  }
+#endif
 
   /* Verify correctness/sanity of values */
   if (gasnetc_use_rcv_thread && !GASNETC_USE_RCV_THREAD) {
     gasneti_fatalerror("AM receive thread enabled by environment variable GASNET_RCV_THREAD, but was disabled at GASNet build time");
+  }
+  if (gasnetc_use_snd_thread && !GASNETC_USE_SND_THREAD) {
+    gasneti_fatalerror("send progress thread enabled by environment variable GASNET_SND_THREAD, but was disabled at GASNet build time");
   }
 #if GASNETC_FH_OPTIONAL
   gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
@@ -1520,7 +1552,11 @@ static void gasnetc_probe_ports(int max_ports) {
   gasnetc_clear_ports();
   ibv_free_device_list(hca_list);
 
+#if (GASNETC_IB_MAX_HCAS > 1)
   gasnetc_num_hcas = hca_count;
+  gasnetc_snd_poll_multi_hcas = (gasnetc_num_hcas > 1); // snd thread may override later
+  gasnetc_rcv_poll_multi_hcas = (gasnetc_num_hcas > 1); // rcv thread may override later
+#endif
   gasnetc_num_ports = port_count;
   gasnetc_port_tbl  = gasneti_realloc(port_tbl, port_count * sizeof(gasnetc_port_info_t));
   gasneti_leak(gasnetc_port_tbl);
@@ -2496,8 +2532,8 @@ extern int gasnetc_attach_primary(void) {
   /* ensure extended API is initialized across nodes */
   gasneti_bootstrapBarrier_am();
 
-#if GASNETC_USE_RCV_THREAD
-  /* Start AM receive thread, if applicable */
+#if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
+  /* Start progress thread(s), if applicable */
   gasnetc_sndrcv_start_thread();
 #endif
 

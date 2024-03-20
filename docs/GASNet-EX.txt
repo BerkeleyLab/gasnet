@@ -40,7 +40,7 @@
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 17
+#define GEX_SPEC_VERSION_MINOR 18 // work-in-progress, not "closed"
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -54,7 +54,7 @@
 //
 // This is the spec version for the GASNet Tools
 #define GASNETT_SPEC_VERSION_MAJOR 1
-#define GASNETT_SPEC_VERSION_MINOR 20
+#define GASNETT_SPEC_VERSION_MINOR 21 // work-in-progress, not "closed"
 
 //
 // Relationship to GASNet-1 APIs:

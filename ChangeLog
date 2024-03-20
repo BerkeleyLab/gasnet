@@ -19,6 +19,36 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+20XX-YY-ZZ: PENDING
+
+* Memory Kinds (support for non-host memory)
+  - Memory Kinds support for AMD GPUs extended to ROCm-6 (bug 4686)
+
+* InfiniBand Verbs (details in ibv-conduit README)
+  - A new send progress thread can be enabled to process completion events
+    related to communication injection, potentially reducing the cost of
+    `gasnet_AMPoll()` calls by application threads.  See the ibv-conduit README
+    for information on the `GASNET_SND_THREAD*` family of environment variables.
+  - The receive and send progress threads can now be kept active for some period
+    of time while their completion queues test as empty.  See the ibv-conduit
+    README for information on the `GASNET_RCV_THREAD_IDLE` and
+    `GASNET_SND_THREAD_IDLE` environment variables.
+
+* General and Misc.
+  - Disable "threadinfo-opt" by default on aarch64 (Linux and macOS)
+  - Install a script implementation of the `ident` utility in $prefix/bin
+
+* Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4682: ibv: rare failure of bogus assertion
+  - bug4683: GASNET_FREEZE ignored by udp-conduit with ssh spawn
+  - bug4686: Configure failure with ROCm 6
+  - bug4688: Incorrect CPU mask computation on 64-bit systems
+  - bug 4689: GASNET_GET_THREADINFO() assumed non-NULL in
+    `test{gasnet,legacy}.c`
+  - bug 4690: no actual multi-threaded coverage in PAR builds of
+    `test{gasnet,legacy}.c`
+
+----------------------------------------------------------------------
 2023-12-15: GASNet-EX 2023.9.0
 
 * Memory Kinds (support for non-host memory)

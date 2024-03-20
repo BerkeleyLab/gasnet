@@ -1313,6 +1313,8 @@ static int conn_snd_poll(void)
 
 static void gasnetc_conn_thread(struct ibv_wc *comp_p, void *arg /* unused */)
 {
+  gasneti_assert((comp_p->opcode == IBV_WC_RECV) ||
+                 (comp_p->status != IBV_WC_SUCCESS));
   if_pf (comp_p->status != IBV_WC_SUCCESS) {
     gasneti_fatalerror("aborting on reap of failed UD recv");
   }
