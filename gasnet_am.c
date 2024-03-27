@@ -12,11 +12,15 @@
 extern void gasneti_defaultAMHandler(gex_Token_t token) {
   gex_Token_Info_t info;
   info.gex_srcrank = GEX_RANK_INVALID; // to print -1 if query were to fail
-  gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+  gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK | GEX_TI_ENTRY);
   gex_Rank_t srcnode = info.gex_srcrank;
-  gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index "
+  if (rc & GEX_TI_ENTRY) gasneti_assert(info.gex_entry);
+  gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index%s "
                      "with no associated AM handler function registered", 
-                     (int)gasneti_mynode, (int)gasneti_nodes, (int)srcnode);
+                     (int)gasneti_mynode, (int)gasneti_nodes, (int)srcnode,
+                     (rc & GEX_TI_ENTRY)
+                         ? gasneti_dynsprintf(" %d", (int)(uintptr_t)info.gex_entry->gex_cdata)
+                         : "");
 }
 /* ------------------------------------------------------------------------------------ */
 
@@ -252,7 +256,7 @@ extern int gasneti_amtbl_init(gasneti_EP_t i_ep) {
     output[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
     output[i].gex_flags = GASNETI_FLAG_AM_ANY;
     output[i].gex_fnptr = gasneti_defaultAMHandler;
-    output[i].gex_cdata = NULL;
+    output[i].gex_cdata = (void *)(uintptr_t)i;
     output[i].gex_name  = fnname;
   }
   gasneti_mutex_init(&i_ep->_amtbl_lock);
