@@ -83,6 +83,7 @@ chapel-unpack-tgz:   force
 
 ifneq ($(strip $(CHPL_COMM_DEBUG)),)
 CHPL_GASNET_MORE_CFG_OPTIONS += --enable-debug
+CHAPEL_MAKE_RUNTIME_ARGS += DEBUG=1 WARNINGS=1 ASSERTS=1
 endif
 CHAPEL_MAKE_ARGS += CHPL_GASNET_MORE_CFG_OPTIONS="$(CHPL_GASNET_MORE_CFG_OPTIONS)"
 
@@ -131,6 +132,8 @@ _chapel: force
 	mkdir -p "$(CHAPEL_HOME)"
 	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && (                       \
 	  env $(CONFIG_ENV) $(CHAPEL_BUILD_ENV) ./configure --chpl-home="$(CHAPEL_HOME)" && \
+	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) $(MAKE) $(CHAPEL_MAKE_ARGS) compiler &&     \
+	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) $(MAKE) $(CHAPEL_MAKE_ARGS) $(CHAPEL_MAKE_RUNTIME_ARGS) runtime && \
 	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) $(MAKE) $(CHAPEL_MAKE_ARGS) all             \
 	) >> $(LOGFILE) 2>&1
 	if test "$(CHAPEL_HOME)" != "$(CHAPEL_BLDDIR)"; then \
