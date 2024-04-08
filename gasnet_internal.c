@@ -526,6 +526,8 @@ gex_Segment_t gasneti_export_segment(gasneti_Segment_t _real_segment) {
 }
 #endif
 
+const gasnet_seginfo_t gasneti_null_segment = {0};
+
 // TODO-EX: probably need to add to a per-client container of some sort
 gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
