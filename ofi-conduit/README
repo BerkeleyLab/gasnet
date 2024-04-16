@@ -824,7 +824,10 @@ The OFI community is working on increasing the number of providers that can supp
   `FI_INJECT` could be used to achieve synchronous completion of small Puts
   in the same manner that ibv-conduit utilizes inline sends.
 
-* Implement native support for Negotiated-Payload Active Message (NPAM)
+* Extend native support for Negotiated-Payload Active Message (NPAM) Medium
+  to enable xfers larger than Max Medium.
+
+* Implement native support for Negotiated-Payload Active Message (NPAM) Long?
 
 * Eliminate a buffer copy for AM Medium (and AM Long below the RMA threshold)
   by using (iov_count > 1) on providers which support it, along with the
