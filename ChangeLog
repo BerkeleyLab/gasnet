@@ -40,6 +40,12 @@ GASNet-EX ChangeLog
     README for information on the `GASNET_RCV_THREAD_IDLE` and
     `GASNET_SND_THREAD_IDLE` environment variables.
 
+* Portable UDP support (details in udp-conduit README)
+  - Correct the behavior of the `dest_addr` of Long AMs when `nbytes==0`
+
+* Portable MPI support (details in mpi-conduit README)
+  - Correct the behavior of the `dest_addr` of Long AMs when `nbytes==0`
+
 * General and Misc.
   - Disable "threadinfo-opt" by default on aarch64 (Linux and macOS)
   - Install a script implementation of the `ident` utility in $prefix/bin
@@ -54,6 +60,7 @@ GASNet-EX ChangeLog
     `test{gasnet,legacy}.c`
   - bug 4690: no actual multi-threaded coverage in PAR builds of
     `test{gasnet,legacy}.c`
+  - bug4709: Incorrect behavior with zero-byte Longs (udp and mpi conduits)
 
 ----------------------------------------------------------------------
 2023-12-15: GASNet-EX 2023.9.0
