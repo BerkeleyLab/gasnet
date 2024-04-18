@@ -183,7 +183,8 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 // The following are conditionally permitted in handler context, the condition being the 
 // caller must be within an AMRequest handler and not holding a handler-safe lock:
 //
-// gasnet_AMReply*(), gex_AM_Reply*() gex_AM_{Prepare,Commit}Reply*(), gex_AM_SrcDesc*()
+// gasnet_AMReply*(), gex_AM_Reply*()
+// gex_AM_{Prepare,Commit,Cancel}Reply*(), gex_AM_SrcDesc*()
 //
 // The following are conditionally permitted in handler context, the condition
 // being that the 'flags' argument must include GEX_FLAG_IMMEDIATE:
@@ -2156,9 +2157,9 @@ int gex_AM_ReplyShort[M](
 // It is important to note that in the interval between a Prepare and Commit,
 // the client is bound by the same restrictions as in an Active Message Reply
 // handler (ie all communication calls are prohibited).  Prepare/commit pairs
-// do not nest.  Additionally, the Prepare returns a thread-specific object
-// that must be consumed (exactly once) by a Commit in the same thread. Calls
-// to Prepare are permitted in the same places as the corresponding
+// do not nest.  Additionally, the Prepare returns a thread-specific object that
+// must be consumed (exactly once) by a Commit or Cancel in the same thread.
+// Calls to Prepare are permitted in the same places as the corresponding
 // fixed-payload AM injection call.
 //
 // Currently the semantics of the least_payload==0 case are unspecified.
@@ -2167,14 +2168,14 @@ int gex_AM_ReplyShort[M](
 // Opaque type for AM Source Descriptor
 // Used in negotiated-payload AM calls:
 //   Produced by (returned from) gex_AM_Prepare*()
-//   Consumed by (passed to) gex_AM_Commit*()
+//   Consumed by (passed to) gex_AM_Commit*() or gex_AM_Cancel*()
 typedef ... gex_AM_SrcDesc_t;
 
 // Predefined value of type gex_AM_SrcDesc_t
 // Guaranteed to be zero.
 // May be returned by gex_AM_Prepare*() when the GEX_FLAG_IMMEDIATE flag 
 // was passed, but required resources are not available.
-// Must not be passed to gex_AM_Commit*() calls or the
+// Must not be passed to gex_AM_Commit*() or gex_AM_Cancel*(), or the
 // gex_AM_SrcDesc*() queries.
 #define GEX_AM_SRCDESC_NO_OP ((gex_AM_SrcDesc_t)0)
 
@@ -2220,7 +2221,7 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //   + An opaque scalar type (with accessors) described above
 //   + This is thread-specific value
 //   + This object is "consumed" by (cannot be used after) the
-//     Commit call
+//     gex_AM_Commit* or gex_AM_Cancel* calls
 // ARGUMENTS:
 //  gex_TM_t tm, gex_Rank_t rank [REQUEST ONLY]
 //   + These arguments name the destination of an AMRequest
@@ -2381,6 +2382,44 @@ extern void gex_AM_CommitReplyLong[M](
                 size_t           nbytes,
                 void             *dest_addr
                 [,arg0, ... ,argM-1]);
+
+//
+// gex_AM_Cancel calls [EXPERIMENTAL]
+//
+// Cancel a gex_AM_SrcDesc_t without initiating communication
+//
+// The `sd` argument to `gex_AM_Cancel<XXX>()` must be the return from a call to
+// the corresponding (i.e. same `<XXX>`) `gex_AM_Prepare<XXX>()`.
+//
+// This call is valid only after a Prepare without a following successful
+// Commit (or Cancel), and enables the client to elect not to perform the
+// communication described by the Prepare.  This call "consumes" the 'sd',
+// meaning that after return it is no longer a valid argument to any GASNet
+// API call.
+//
+// Any resources allocated by the Prepare call are released.  In particular, if
+// the Prepare call allocated a buffer (client_buf == NULL), then any accesses
+// to that buffer by the client after a Cancel will yield undefined behavior.
+//
+// The contents of the location named by the 'lc_opt' argument (if any) to the
+// Prepare call was undefined since return from the Prepare call and remains so
+// upon return from this call.
+//
+// Currently, `flags` is reserved and must be zero.
+//
+// Returns 0 on success, non-zero on error
+extern int gex_AM_CancelRequestMedium(
+                gex_AM_SrcDesc_t     sd,
+                gex_Flags_t          flags);
+extern int gex_AM_CancelReplyMedium(
+                gex_AM_SrcDesc_t     sd,
+                gex_Flags_t          flags);
+extern int gex_AM_CancelRequestLong(
+                gex_AM_SrcDesc_t     sd,
+                gex_Flags_t          flags);
+extern int gex_AM_CancelReplyLong(
+                gex_AM_SrcDesc_t     sd,
+                gex_Flags_t          flags);
 
 
 //
