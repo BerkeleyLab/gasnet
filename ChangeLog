@@ -46,6 +46,10 @@ GASNet-EX ChangeLog
 * Portable MPI support (details in mpi-conduit README)
   - Correct the behavior of the `dest_addr` of Long AMs when `nbytes==0`
 
+* GASNet-EX Spec v0.18: (details in docs/GASNet-EX.txt)
+  - Specification for AM Longs has been clarified to explicitly permit
+    `nbytes==0` even when the destination EP lacks a bound segment.
+
 * General and Misc.
   - Disable "threadinfo-opt" by default on aarch64 (Linux and macOS)
   - Install a script implementation of the `ident` utility in $prefix/bin

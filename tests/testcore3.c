@@ -77,7 +77,6 @@ int main(int argc, char **argv) {
   };
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcore3", &argc, &argv, 0));
-  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
 
   test_init("testcore3", 0, "[no argument]");
@@ -91,6 +90,18 @@ int main(int argc, char **argv) {
   next = (mynode + 1) % nnodes;
   prev = (mynode + nnodes - 1) % nnodes;
 
+  BARRIER();
+
+  // Test once prior to binding segments to the endpoints
+  // addr_tbl[0] == nextseg == prevseg trivially (all NULL)
+  testAMSrcAddr();
+
+  BARRIER();
+
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+
+  // Test again with a bound segment and intialized addr_tbl[0], nextseg and prevseg
+  // (though they are all still NULL for GASNET_SEGMENT_EVERTHING)
   addr_tbl[0] = myseg = TEST_MYSEG();
   nextseg = TEST_SEG(next);
   prevseg = TEST_SEG(prev);

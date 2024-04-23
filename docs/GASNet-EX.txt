@@ -1824,6 +1824,14 @@ extern gex_TI_t gex_Token_Info(
 //   memory regions overlap, behavior is undefined. High-quality implementations
 //   may choose to diagnose such errors.
 //
+// NOTE 5: Longs and Bound Segments
+//
+//   In general, the 'tm' and 'rank' arguments to Long Request/Reply calls must
+//   name a destination EP with a bound segment known to the initiator, where
+//   "known" means the segment was created with gex_Segment_Attach() or was
+//   published to the initiator.  However, for the special case of 'nbytes == 0`,
+//   no bound segment is required.
+//
 // Other arguments behave as in the analogous GASNet-1 functions.
 // Misc semantic strengthening:
 // * dest_addr for Long is guaranteed to be passed to the handler as provided
