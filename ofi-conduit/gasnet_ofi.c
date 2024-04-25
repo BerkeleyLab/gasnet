@@ -2826,7 +2826,7 @@ out_imm_inject:
             gasneti_assert(bytes_to_copy <= ofi_bbuf_size);
             buf_container = buffs[i];
             gasneti_lifo_push(&bbuf_ctxt->bbuf_list, buf_container);
-            memcpy(buf_container->buf, (void*)src_ptr, bytes_to_copy);
+            GASNETI_MEMCPY(buf_container->buf, (void*)src_ptr, bytes_to_copy);
 
             OFI_INJECT_RETRY_IMM(&gasnetc_ofi_locks.rdma_tx,
                                  OFI_WRITE(c_ep, buf_container->buf, bytes_to_copy,
