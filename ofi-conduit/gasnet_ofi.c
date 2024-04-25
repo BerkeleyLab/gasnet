@@ -1747,7 +1747,7 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
             args = (gex_AM_Arg_t *)header->buf.long_buf.data;
             addr = header->buf.long_buf.dest_ptr;
             nbytes = cq_data;
-            memcpy(addr, header->buf.long_buf.data + data_offset, nbytes);
+            GASNETI_MEMCPY_SAFE_EMPTY(addr, header->buf.long_buf.data + data_offset, nbytes);
             GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, token, args, numargs, addr, nbytes);
             break;
         default:
@@ -2646,7 +2646,7 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
     size_t len = sizeof(gex_AM_Arg_t)*numargs;
     if(len + nbytes < long_rma_threshold) {
         // Pack the payload if it's small enough
-        memcpy(sendbuf->buf.long_buf.data + len, source_addr, nbytes);
+        GASNETI_MEMCPY_SAFE_EMPTY(sendbuf->buf.long_buf.data + len, source_addr, nbytes);
         len += nbytes;
         sendbuf->type = OFI_AM_LONG_MEDIUM;
     } else if (flags & GEX_FLAG_IMMEDIATE) {
