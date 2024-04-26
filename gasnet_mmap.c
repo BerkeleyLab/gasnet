@@ -1844,7 +1844,7 @@ int gasneti_segment_map(
       segbase = segment_p->addr;
     #endif
       gasneti_assert_uint(segsize ,<=, segment_p->size);
-      if (GASNET_PSHM || (segment_p->size != segsize) || (segment_p->addr != segbase)) {
+      if (GASNETI_PSHM_P || (segment_p->size != segsize) || (segment_p->addr != segbase)) {
         munmap_fn(segment_p->addr, segment_p->size);
         gasneti_bug3480_fence();
 #if GASNETI_PSHM_MAP_FIXED_IGNORED

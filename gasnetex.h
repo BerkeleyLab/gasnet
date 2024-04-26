@@ -182,12 +182,11 @@ GASNETI_BEGIN_NOWARN
 #include <gasnet_ratomic_fwd.h>
 
 /* GASNET_PSHM = GASNet conduit is using PSHM */
-#if defined(GASNET_PSHM) && (GASNET_PSHM != 1)
-  #error bad defn of GASNET_PSHM
-#elif defined(GASNET_PSHM)
+#ifdef GASNET_PSHM
+  #undef GASNET_PSHM
+  #define GASNET_PSHM 1
   #define GASNETI_PSHM_P 1
 #else
-  #define GASNET_PSHM 0
   #define GASNETI_PSHM_P 0
 #endif
 
