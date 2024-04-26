@@ -309,12 +309,6 @@ static int32_t const _strided_helper_havepartial = (int32_t)sizeof(_strided_help
 #error GASNETE_LOOPING_DIMS must be <= GASNETI_META_MAX
 #endif
 
-#if GASNET_DEBUG
-#define GASNETE_IS_DEBUG 1
-#else
-#define GASNETE_IS_DEBUG 0
-#endif
-
 #define GASNETE_1STRIDED_HELPER(stridelevels, countiter, p1base, stride1iter) do { \
     _STRIDED_HELPER_DECLARE_NO2;                                                   \
     void *_dummy2 = NULL;                                                          \
@@ -381,7 +375,7 @@ static int32_t const _strided_helper_havepartial = (int32_t)sizeof(_strided_help
       }                                                                \
       uint8_t const *_p1_truebase = *_pp1base;                         \
       uint8_t const *_p2_truebase = *_pp2base;                         \
-      if (GASNETE_IS_DEBUG &&                                           \
+      if (GASNETI_DEBUG_P &&                                           \
         _STRIDED_HELPER_HAVEPARTIAL && _strided_addr_already_offset) { \
         for (size_t _d = 0; _d < _stridelevels; _d++) {                \
          _p1_truebase -= (ptrdiff_t)_strided_init[_d] * stride1iter(_d); \
