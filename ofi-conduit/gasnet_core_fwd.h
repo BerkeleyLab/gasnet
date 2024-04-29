@@ -34,6 +34,7 @@
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
   #define GASNET_ALIGNED_SEGMENTS   0 /* user or PSHM disabled segment alignment */
 #else
+  // No known reason this shouldn't work, but it has never been tested.
   #define GASNET_ALIGNED_SEGMENTS   0
 #endif
 
