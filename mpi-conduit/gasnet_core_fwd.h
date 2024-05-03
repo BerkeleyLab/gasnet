@@ -153,11 +153,7 @@
 
   /* enable usage correctness checking on HSL's and no-interrupt sections */
 #ifndef GASNETC_HSL_ERRCHECK
-  #if GASNET_DEBUG
-    #define GASNETC_HSL_ERRCHECK 1
-  #else
-    #define GASNETC_HSL_ERRCHECK 0
-  #endif
+  #define GASNETC_HSL_ERRCHECK GASNETI_DEBUG_P
 #endif
 
 /*  override default error values to use those defined by AMMPI */

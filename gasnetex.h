@@ -65,8 +65,10 @@
 #ifdef GASNET_DEBUG
   #undef GASNET_DEBUG
   #define GASNET_DEBUG 1
+  #define GASNETI_DEBUG_P 1
   #define GASNETI_DEBUG_CONFIG debug
 #else
+  #define GASNETI_DEBUG_P 0
   #define GASNETI_DEBUG_CONFIG nodebug
 #endif
 
@@ -180,10 +182,12 @@ GASNETI_BEGIN_NOWARN
 #include <gasnet_ratomic_fwd.h>
 
 /* GASNET_PSHM = GASNet conduit is using PSHM */
-#if defined(GASNET_PSHM) && (GASNET_PSHM != 1)
-  #error bad defn of GASNET_PSHM
-#elif !defined(GASNET_PSHM)
-  #define GASNET_PSHM 0
+#ifdef GASNET_PSHM
+  #undef GASNET_PSHM
+  #define GASNET_PSHM 1
+  #define GASNETI_PSHM_P 1
+#else
+  #define GASNETI_PSHM_P 0
 #endif
 
 /* GASNETI_CONDUIT_THREADS = GASNet conduit has one or more private threads
