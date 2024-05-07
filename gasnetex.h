@@ -861,6 +861,30 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 
 
 /* ------------------------------------------------------------------------------------ */
+/* progress threads */
+
+// default trivial implementation
+#ifndef gex_System_QueryProgressThreads
+  #define gex_System_QueryProgressThreads gasneti_query_progress_threads
+#endif
+
+typedef struct {
+  const char *     gex_device_list;
+  unsigned int     gex_thread_roles;
+  void *           (*gex_progress_fn) (void *);
+  void *           gex_progress_arg;
+} gex_ProgressThreadInfo_t;
+
+#define GEX_THREAD_ROLE_RCV             (1U << 0)
+#define GEX_THREAD_ROLE_SND             (1U << 1)
+
+extern int gex_System_QueryProgressThreads(
+            gex_Client_t                     _client,
+            unsigned int                    *_count_p,
+            const gex_ProgressThreadInfo_t **_info_p,
+            gex_Flags_t                      _flags);
+
+/* ------------------------------------------------------------------------------------ */
 /* conditional and internal flags (others in gasnet_fwd.h) */
 
 #define GEX_FLAG_PEER_NEVER_NBRHD       (1U << 14)
