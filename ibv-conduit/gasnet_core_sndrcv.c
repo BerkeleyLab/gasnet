@@ -73,6 +73,11 @@ int                                     gasnetc_snd_thread_poll_serialize = -1;
 int                                     gasnetc_snd_thread_poll_exclusive = -1;
 #endif
 
+// TODO: multi-client will need this to be per-client
+#define GASNETC_MAX_PROGRESS_THREADS (GASNET_IBV_MAX_HCAS * (GASNETC_USE_RCV_THREAD + GASNETC_USE_SND_THREAD))
+static unsigned int gasnetc_progress_thread_count;
+static gex_ProgressThreadInfo_t gasnetc_progress_thread_info[GASNETC_MAX_PROGRESS_THREADS+1]; // +1 avoid potential errors on 0
+
 #if GASNETC_PIN_SEGMENT
   // Rkeys for non-primordial remote EPs
   // One dense array per ep_index, allocated lazily
@@ -3312,7 +3317,24 @@ extern int gasnetc_sndrcv_shutdown(void) {
 #endif
 
 #if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
-extern void gasnetc_sndrcv_start_thread(void) {
+int gasnetc_query_progress_threads(
+            gex_Client_t                     e_client,
+            unsigned int                    *count_p,
+            const gex_ProgressThreadInfo_t **info_p,
+            gex_Flags_t                      flags)
+{
+  // Leverage conduit-independent version for common error checks
+  int result = gasneti_query_progress_threads(e_client,count_p,info_p,flags);
+  if (result) return (result);
+
+  *count_p = gasnetc_progress_thread_count;
+  *info_p = gasnetc_progress_thread_count ? gasnetc_progress_thread_info : NULL;
+
+  return GASNET_OK;
+}
+
+extern void gasnetc_sndrcv_start_thread(gex_Flags_t init_flags) {
+  int defer = !!(init_flags & GEX_FLAG_DEFER_THREADS);
   #if GASNETC_USE_RCV_THREAD
   if (gasnetc_use_rcv_thread) {
     int rcv_max_rate = gasneti_getenv_int_withdefault("GASNET_RCV_THREAD_RATE", 0, 0);
@@ -3344,7 +3366,16 @@ extern void gasnetc_sndrcv_start_thread(void) {
     #if GASNETI_THREADINFO_OPT
       hca->rcv_threadinfo = NULL;
     #endif
-      gasnetc_spawn_progress_thread(&hca->rcv_thread);
+      if (defer) {
+        gex_ProgressThreadInfo_t *p = &gasnetc_progress_thread_info[gasnetc_progress_thread_count++];
+        gasneti_assert_uint(gasnetc_progress_thread_count, <=, GASNETC_MAX_PROGRESS_THREADS);
+        p->gex_device_list = hca->hca_id;
+        p->gex_thread_roles = GEX_THREAD_ROLE_RCV;
+        p->gex_progress_fn = &gasnetc_progress_thread;
+        p->gex_progress_arg = &hca->rcv_thread;
+      } else {
+        gasnetc_spawn_progress_thread(&hca->rcv_thread);
+      }
     }
   }
   #endif
@@ -3376,7 +3407,16 @@ extern void gasnetc_sndrcv_start_thread(void) {
         hca->snd_thread.serialize_poll = &hca->poll_cq_semas.snd;
       }
     #endif
-      gasnetc_spawn_progress_thread(&hca->snd_thread);
+      if (defer) {
+        gex_ProgressThreadInfo_t *p = &gasnetc_progress_thread_info[gasnetc_progress_thread_count++];
+        gasneti_assert_uint(gasnetc_progress_thread_count, <=, GASNETC_MAX_PROGRESS_THREADS);
+        p->gex_device_list = hca->hca_id;
+        p->gex_thread_roles = GEX_THREAD_ROLE_SND;
+        p->gex_progress_fn = &gasnetc_progress_thread;
+        p->gex_progress_arg = &hca->snd_thread;
+      } else {
+        gasnetc_spawn_progress_thread(&hca->snd_thread);
+      }
     }
   }
   #endif

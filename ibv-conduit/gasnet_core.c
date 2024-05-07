@@ -2461,7 +2461,7 @@ gasnetc_prereg_list(int *count_p) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach_primary(void) {
+extern int gasnetc_attach_primary(gex_Flags_t flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
@@ -2554,7 +2554,7 @@ extern int gasnetc_attach_primary(void) {
 
 #if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
   /* Start progress thread(s), if applicable */
-  gasnetc_sndrcv_start_thread();
+  gasnetc_sndrcv_start_thread(flags);
 #endif
 
   return GASNET_OK;
@@ -2799,7 +2799,7 @@ extern int gasnetc_Client_Init(
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
-    if (GASNET_OK != gasnetc_attach_primary())
+    if (GASNET_OK != gasnetc_attach_primary(flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
     /* ensure everything is initialized across all nodes */

@@ -46,7 +46,7 @@ static void my_cleanup(void *arg) {
   #define my_cancel_deferred() ((void)0)
 #endif
 
-static void * gasnetc_progress_thread(void *arg)
+void * gasnetc_progress_thread(void *arg)
 {
   gasnetc_progress_thread_t * const pthr_p  = arg;
   struct ibv_cq * const cq_hndl             = pthr_p->cq;
@@ -58,6 +58,11 @@ static void * gasnetc_progress_thread(void *arg)
   gasnetc_atomic_t * const serialize_poll   = pthr_p->serialize_poll;
   int fd = compl_hndl->fd;
   fd_set readfds;
+
+  gasneti_assert(! pthr_p->started);
+  pthr_p->thread_id = pthread_self();
+  gasneti_sync_writes();
+  pthr_p->started = 1;
 
   /* Setup completion channel for non-blocking access.
    * This way pthread_cancel() never needs to interrupt ibv calls.
@@ -222,8 +227,10 @@ gasnetc_spawn_progress_thread(gasnetc_progress_thread_t *pthr_p)
 extern void
 gasnetc_stop_progress_thread(gasnetc_progress_thread_t *pthr_p, int block)
 {
+  if (! pthr_p->started) return; // nothing (yet) to stop
+  gasneti_sync_reads();
   pthread_t tid = pthr_p->thread_id;
-  if (pthread_self() == tid) return; /* no suicides */
+  if (pthread_equal(pthread_self(), tid)) return; // no suicides
   if (pthr_p->done) return; /* no "over kill" */
   pthr_p->done = 1;
   gasneti_sync_writes();

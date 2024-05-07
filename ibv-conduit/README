@@ -16,6 +16,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ Section: Known Problems @
 @ Section: Core API @
 @ Section: Extended API @
+@ Section: Progress Threads Support @
 @ Section: GEX_FLAG_IMMEDIATE Support @
 @ Section: Graceful exits @
 @ Section: References @
@@ -1683,6 +1684,29 @@ Notes for myself for extended API:
   followed by a PUT, for small enough sizes.  This is not currently
   implemented.
   
+@ Section: Progress Threads Support
+
+As documented with the `GASNET_RCV_THREAD*` and `GASNET_SND_THREAD*` family of
+environment variables, ibv-conduit provides receive and send progress threads,
+with each process optionally having one of each for each HCAs used.
+
+Ibv-conduit supports use of `gex_Client_Init()` flag `GEX_FLAG_DEFER_THREADS` to
+defer starting these threads.  See `docs/GASNet-EX.txt` for documentation on
+`gex_System_QueryProgressThreads()` for information on how the client should
+start the progress threads when using this flag.
+
+This support includes two implementation-defined behaviors:
+
++ It is permitted for the process to exit (normally or abnormally) prior to the
+  client starting all deferred progress threads.  This relaxes the "undefined
+  behavior" in the conduit-independent documentation.
+
++ The names in the `gex_device_list` field of the structure describing each
+  progress thread take the same form as environment variables such as
+  `GASNET_IBV_PORTS`, except that they will not include any optional port number
+  component.  Examples include "mlx5_0" and "mlx6_2".  These are notably the
+  same identifiers used by hwloc to name "OpenFabrics" devices.
+
 @ Section: GEX_FLAG_IMMEDIATE Support
 
 The following summarizes the current state of support for GEX_FLAG_IMMEDIATE.

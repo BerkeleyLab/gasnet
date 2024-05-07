@@ -98,6 +98,11 @@
   #define GASNETI_CONDUIT_THREADS 1
 #endif
 
+// Conduit-specific implementation of gex_System_QueryProgressThreads()
+#if GASNETC_IBV_RCV_THREAD || GASNETC_IBV_SND_THREAD
+  #define gex_System_QueryProgressThreads gasnetc_query_progress_threads
+#endif
+
 #if GASNETC_IBV_RCV_THREAD
   #define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL 1
 #else
