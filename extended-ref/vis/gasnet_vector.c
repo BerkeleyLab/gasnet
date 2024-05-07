@@ -579,7 +579,7 @@ void gasnete_putv_AMPipeline_reqh_inner(gex_Token_t token,
   void *addr, size_t nbytes,
   void *iop) {
   gex_EP_t ep;
-  void *rptr = gasnete_token_segbase(token, &ep);
+  uintptr_t rptr = (uintptr_t)gasnete_token_segbase(token, &ep);
   #if GASNET_DEBUG
     gasneti_EP_t i_ep = gasneti_import_ep(ep);
   #endif
@@ -587,14 +587,14 @@ void gasnete_putv_AMPipeline_reqh_inner(gex_Token_t token,
   uint8_t const * const buf_end = pbuf + nbytes;
   do {
     gasneti_assert_ptr(pbuf ,<, buf_end);
-    GASNETI_VIS_VLIDE_DECODE(pbuf, (uintptr_t)rptr, rptr);
+    GASNETI_VIS_VLIDE_DECODE(pbuf, rptr, rptr);
     shortlen_t len;
     gasneti_assert_ptr(pbuf+sizeof(len) ,<, buf_end);
     GASNETI_MEMCPY(&len, pbuf, sizeof(len));
     pbuf += sizeof(len);
     gasneti_assert_ptr(pbuf+len ,<=, buf_end);
-    gasneti_assert(gasneti_in_local_fullsegment(i_ep, rptr, len));
-    GASNETI_MEMCPY(rptr, pbuf, len);
+    gasneti_assert(gasneti_in_local_fullsegment(i_ep, (void *)rptr, len));
+    GASNETI_MEMCPY((void *)rptr, pbuf, len);
     pbuf += len;
   } while (pbuf < buf_end);
   gasneti_assert_ptr(pbuf ,==, buf_end);
@@ -665,20 +665,20 @@ void gasnete_getv_AMPipeline_reqh_inner(gex_Token_t token,
   uint8_t * pmeta = addr;
   uint8_t * meta_end = pmeta + nbytes;
   gex_EP_t ep;  
-  void *rptr = gasnete_token_segbase(token, &ep);
+  uintptr_t rptr = (uintptr_t)gasnete_token_segbase(token, &ep);
   #if GASNET_DEBUG
     gasneti_EP_t i_ep = gasneti_import_ep(ep);
   #endif  
   do {
     gasneti_assert_ptr(pmeta ,<, meta_end);  
-    GASNETI_VIS_VLIDE_DECODE(pmeta, (uintptr_t)rptr, rptr);
+    GASNETI_VIS_VLIDE_DECODE(pmeta, rptr, rptr);
     shortlen_t len;
     gasneti_assert_ptr(pmeta+sizeof(len) ,<=, meta_end);
     GASNETI_MEMCPY(&len, pmeta, sizeof(len));
     pmeta += sizeof(len);
     gasneti_assert_ptr(pdata+len ,<=, data_end); 
-    gasneti_assert(gasneti_in_local_fullsegment(i_ep, rptr, len));    
-    GASNETI_MEMCPY(pdata, rptr, len);
+    gasneti_assert(gasneti_in_local_fullsegment(i_ep, (void *)rptr, len));    
+    GASNETI_MEMCPY(pdata, (void *)rptr, len);
     pdata += len;
   } while (pmeta < meta_end);
   gasneti_assert_ptr(pmeta ,==, meta_end);

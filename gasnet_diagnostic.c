@@ -1696,7 +1696,9 @@ static void vlide_test(void) {
      p = output_buffer;
      for (i = 0; i < entries; i++) {
        uint8_t * const oldp = p;
-       VLIDE_DECODE(p, (valint_t)oldval, newval);
+       valint_t tmp; // tmp used to silence strict-aliasing warnings from gcc
+       VLIDE_DECODE(p, (valint_t)oldval, tmp);
+       newval = (val_t)tmp;
        gasneti_assert_always_ptr(p ,>, oldp);     // sanity check
        gasneti_assert_always_ptr(p ,<=, oldp+10); // sanity check
 
