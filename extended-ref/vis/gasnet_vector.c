@@ -22,6 +22,12 @@
   #define GASNETI_VIS_VLIDE_DECODE GASNETI_VLIDE_DECODE_TRIVIAL
 #endif
 
+// whether Vector AMPipeline should respect MAXCHUNK and fall-back to RMA of individual chunks
+// enabled for conduits with native RMA, disabled for amref conduits
+#ifndef GASNETI_VECTOR_USE_RMA
+#define GASNETI_VECTOR_USE_RMA (!GASNETE_USING_REF_EXTENDED_GET && !GASNETE_USING_REF_EXTENDED_PUT)
+#endif
+
 typedef uint16_t shortlen_t;
 #define SHORTLEN_MAX ((shortlen_t)-1)
 
@@ -315,6 +321,15 @@ void gasneti_AMpipeline_incremental(
   size_t const maxrequest = gex_AM_MaxRequestMedium(tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
                                                    (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
                                                    request_args);
+
+  // Defer queue:
+  #if GASNETE_VIS_NPAM && GASNETI_VECTOR_USE_RMA
+    gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
+    gasneti_vector_pair_t *defer_buf = td->defer_buf;
+    size_t                 defer_sz  = td->defer_sz;
+    size_t                 defer_cnt = 0;
+  #endif
+
   // Pack buffer tracking:
   #if GASNETE_VIS_NPAM == 0
     uint8_t * const pack_buf = gasnete_visbuf_malloc(maxrequest); // packing buffer
@@ -397,9 +412,46 @@ void gasneti_AMpipeline_incremental(
     }
       
     size_t contig_sz = MIN(lvec.gex_len,rvec.gex_len);
+  #if GASNETI_VECTOR_USE_RMA
     if (contig_sz > (isget?gasnete_vis_get_maxchunk:gasnete_vis_put_maxchunk)) { // use NBI RMA
-      if (isget) GASNETE_GET_INDIV(tm,rank,lvec.gex_addr,rvec.gex_addr,contig_sz);
-      else       GASNETE_PUT_INDIV(tm,rank,rvec.gex_addr,lvec.gex_addr,contig_sz,GEX_EVENT_GROUP);
+      if (!GASNETE_VIS_NPAM || !pack_p) {
+        // safe to inject right now
+        if (isget) GASNETE_GET_INDIV(tm,rank,lvec.gex_addr,rvec.gex_addr,contig_sz);
+        else       GASNETE_PUT_INDIV(tm,rank,rvec.gex_addr,lvec.gex_addr,contig_sz,GEX_EVENT_GROUP);
+      } else { // must defer RMA injection to outside NPAM Prepare/Commit interval
+        gasneti_assert(GASNETE_VIS_NPAM);
+        #if GASNETE_VIS_NPAM
+          if_pf (defer_cnt >= defer_sz) { // need to alloc/grow defer queue
+            if_pf (defer_sz == 0) { // first use this thread
+              gasneti_assert(defer_cnt == 0);
+              #ifndef GASNETI_VECTOR_DEFER_INITIAL
+              #define GASNETI_VECTOR_DEFER_INITIAL 8
+              #endif
+              defer_buf = gasneti_malloc(sizeof(gasneti_vector_pair_t)*GASNETI_VECTOR_DEFER_INITIAL);
+              defer_sz = GASNETI_VECTOR_DEFER_INITIAL;
+            } else {
+              defer_sz <<= 1; 
+              defer_buf = gasneti_realloc(defer_buf, sizeof(gasneti_vector_pair_t)*defer_sz);
+            }
+            td->defer_buf = defer_buf; 
+            td->defer_sz = defer_sz;
+          }
+          gasneti_assert_uint(defer_cnt ,<, defer_sz);
+          // save deferred RMA
+          gasneti_vector_pair_t * const pdef = &defer_buf[defer_cnt++];
+          pdef->lptr = lvec.gex_addr;
+          pdef->rptr = rvec.gex_addr;
+          pdef->sz = contig_sz;
+          // DRAIN_DEFERRED performs deferred RMA injection, in reverse order to improve cache locality
+          #define DRAIN_DEFERRED() do { \
+            while (defer_cnt) { \
+              gasneti_vector_pair_t * pdef = &defer_buf[--defer_cnt]; \
+              if (isget) GASNETE_GET_INDIV(tm,rank,pdef->lptr,pdef->rptr,pdef->sz); \
+              else       GASNETE_PUT_INDIV(tm,rank,pdef->rptr,pdef->lptr,pdef->sz,GEX_EVENT_GROUP); \
+            } \
+          } while (0)
+        #endif
+      }
   
       pack_rvec = NULL;  // break any prior packed rvec    
       if (isget && savedlst_pos) { // break any current savedlst entry
@@ -410,7 +462,9 @@ void gasneti_AMpipeline_incremental(
         savedlst_pos->gex_len -= lvec.gex_len;
         savedlst_pos = NULL;
       }
-    } else { // pack into AM buffer
+    } else
+  #endif // GASNETI_VECTOR_USE_RMA
+    { // pack into AM buffer
       
       // check if current buffer is full
       // TODO conservative: ignoring ptr compression and partial pack entry in pack_rvec
@@ -422,6 +476,9 @@ void gasneti_AMpipeline_incremental(
                                           visop, savedlst_idx, savedlst_offset
                                           GASNETI_THREAD_PASS);
           pack_p = NULL;
+          #if GASNETI_VECTOR_USE_RMA && GASNETE_VIS_NPAM
+            DRAIN_DEFERRED();
+          #endif
       }
       
       if (isget && !savedlst_pos) {
@@ -514,6 +571,9 @@ void gasneti_AMpipeline_incremental(
                                     sd, pack_buf, (pack_p-pack_buf),
                                     visop, savedlst_idx, savedlst_offset
                                     GASNETI_THREAD_PASS);
+    #if GASNETI_VECTOR_USE_RMA && GASNETE_VIS_NPAM
+      DRAIN_DEFERRED();
+    #endif
   }
   if (isget) {
     // trailing decrement of visop->packetcnt (that might end up freeing the visop!)
