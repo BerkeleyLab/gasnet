@@ -986,10 +986,26 @@ static int gasnetc_load_settings(void) {
 
   /* Verify correctness/sanity of values */
   if (gasnetc_use_rcv_thread && !GASNETC_USE_RCV_THREAD) {
-    gasneti_fatalerror("AM receive thread enabled by environment variable GASNET_RCV_THREAD, but was disabled at GASNet build time");
+    if (! gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+      gasneti_console_message("WARNING",
+                  "AM receive thread enabled by environment variable\n"
+          "        GASNET_RCV_THREAD, but was disabled at GASNet build time.\n"
+          "        To suppress this message, either unset GASNET_RCV_THREAD, set\n"
+          "        GASNET_QUIET=1, or reconfigure with --enable-ibv-rcv-thread.\n"
+          "        (see ibv-conduit's README for more information).");
+    }
+    gasnetc_use_rcv_thread = 0;
   }
   if (gasnetc_use_snd_thread && !GASNETC_USE_SND_THREAD) {
-    gasneti_fatalerror("send progress thread enabled by environment variable GASNET_SND_THREAD, but was disabled at GASNet build time");
+    if (! gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+      gasneti_console_message("WARNING",
+                  "send progress thread enabled by environment variable\n"
+          "        GASNET_SND_THREAD, but was disabled at GASNet build time.\n"
+          "        To suppress this message, either unset GASNET_SND_THREAD, set\n"
+          "        GASNET_QUIET=1, or reconfigure with --enable-ibv-snd-thread.\n"
+          "        (see ibv-conduit's README for more information).");
+    }
+    gasnetc_use_snd_thread = 0;
   }
 #if GASNETC_FH_OPTIONAL
   gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
