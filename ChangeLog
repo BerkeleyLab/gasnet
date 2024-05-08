@@ -23,6 +23,8 @@ GASNet-EX ChangeLog
 
 * Memory Kinds (support for non-host memory)
   - Memory Kinds support for AMD GPUs extended to ROCm-6 (bug 4686)
+  - Use of new option `--enable-memory-kinds=force` makes it an error if
+    `configure` cannot detect at least one supported memory kind.
 
 * Libfabric (details in ofi-conduit README)
   - Negotiated-Payload Active Message (NPAM) Mediums are implemented natively
