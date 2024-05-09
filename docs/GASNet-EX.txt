@@ -238,7 +238,7 @@ int gex_System_GetVerboseErrors();
 // Values other than 0 and 1 are currently reserved.
 void  gex_System_SetVerboseErrors(int enable);
 
-// Threads
+// Client Threads
 
 // The maximum number of live client threads permitted to enter GASNet.
 //
@@ -1405,9 +1405,23 @@ extern int gex_EP_PublishBoundSegment(
 // An integer constant, guaranteed to be 128 or less.
 #define GEX_AM_INDEX_BASE ???
 
+//
+// Conduit-internal progress threads
+//
+// A conduit may include one or more threads intended to provide asynchronous
+// progress.
+//
+// If present, a "receive progress thread" (or just "receive thread") is
+// intended to progress the reception of AMs, and consequently may run
+// client-provided handlers.
+//
+// If present, a "send progress thread" (or just "send thread") is intended to
+// perform internal actions to progress various in-flight communication
+// operations.  This thread will never run client-provided AM handler code.
+
 // Implementation-induced concurrency of AM handlers
 // This value (always defined) has a non-zero value iff the implementation
-// may run AM handlers on a thread not owned by the client 
+// may run AM handlers from a receive thread not owned by the client
 // (and in particular, concurrently with the client when no client
 // thread is inside a synchronous call to GASNet). 
 // Note this is orthogonal to SEQ/PAR/PARSYNC mode - in particular, in PAR
@@ -1417,7 +1431,8 @@ extern int gex_EP_PublishBoundSegment(
 
 // Returns the runtime value of AM concurrency level for the calling process
 // which may be more precise than the conservative static value provided by
-// GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
+// GASNET_HIDDEN_AM_CONCURRENCY_LEVEL.  In particular, this query is sensitive
+// to whether a conduit's receive thread(s) are enabled or disabled at run time.
 // Only valid after gex_Client_Init()
 // [Since spec v0.14]
 int gex_System_QueryHiddenAMConcurrencyLevel(void);
