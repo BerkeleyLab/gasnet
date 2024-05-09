@@ -190,6 +190,18 @@ GASNETI_BEGIN_NOWARN
   #define GASNETI_PSHM_P 0
 #endif
 
+// GASNET_RCV_THREAD = conduit is built with support for a "receive progress thread"
+#ifdef GASNET_RCV_THREAD
+  #undef GASNET_RCV_THREAD
+  #define GASNET_RCV_THREAD 1
+#endif
+
+// GASNET_SND_THREAD = conduit is built with support for a "send progress thread"
+#ifdef GASNET_SND_THREAD
+  #undef GASNET_SND_THREAD
+  #define GASNET_SND_THREAD 1
+#endif
+
 /* GASNETI_CONDUIT_THREADS = GASNet conduit has one or more private threads
                              which may be used to run conduit and/or client code */
 #if defined(GASNETI_CONDUIT_THREADS) && (GASNETI_CONDUIT_THREADS != 1)

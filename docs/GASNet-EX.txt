@@ -1554,6 +1554,37 @@ typedef struct {
 #define GEX_THREAD_ROLE_RCV ???
 #define GEX_THREAD_ROLE_SND ???
 
+// Preprocessor defines advertising configured progress thread support
+// [Since spec v0.18]
+
+// GASNET_RCV_THREAD is defined to 1 iff the current library build includes
+// support for a receive thread.  Because the user can typically use environment
+// variables to enable or disable launch of this thread, this does not indicate
+// with certainty that the thread will run.
+//
+// If the current conduit does not include any receive thread support, or it was
+// disabled at configure time, then GASNET_RCV_THREAD will be #undef.
+//
+// Clients which may set environment variables to request a receive thread
+// should make such logic conditional on this preprocessor identifier to avoid
+// conduit-specific warnings which may result when requesting a receive thread
+// which is not enabled.
+#define GASNET_RCV_THREAD 1 or #undef
+
+// GASNET_SND_THREAD is defined to 1 iff the current library build includes
+// support for a send thread.  Because the user can typically use environment
+// variables to enable or disable launch of this thread, this does not indicate
+// with certainty that the thread will run.
+//
+// If the current conduit does not include any send thread support, or it was
+// disabled at configure time, then GASNET_SND_THREAD will be #undef.
+//
+// Clients which may set environment variables to request a send thread should
+// make such logic conditional on this preprocessor identifier to avoid
+// conduit-specific warnings which may result when requesting a send thread
+// which is not enabled.
+#define GASNET_SND_THREAD 1 or #undef
+
 //
 // AM handlers
 //

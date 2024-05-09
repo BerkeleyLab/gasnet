@@ -987,6 +987,8 @@ static int gasnetc_load_settings(void) {
   /* Verify correctness/sanity of values */
   if (gasnetc_use_rcv_thread && !GASNETC_USE_RCV_THREAD) {
     if (! gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+      // NOTE: clients that set env var GASNET_RCV_THREAD should
+      // conditionalize that on `#if GASNET_RCV_THREAD` to avoid this warning.
       gasneti_console_message("WARNING",
                   "AM receive thread enabled by environment variable\n"
           "        GASNET_RCV_THREAD, but was disabled at GASNet build time.\n"
@@ -998,6 +1000,8 @@ static int gasnetc_load_settings(void) {
   }
   if (gasnetc_use_snd_thread && !GASNETC_USE_SND_THREAD) {
     if (! gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+      // NOTE: clients that set env var GASNET_SND_THREAD should
+      // conditionalize that on `#if GASNET_SND_THREAD` to avoid this warning.
       gasneti_console_message("WARNING",
                   "send progress thread enabled by environment variable\n"
           "        GASNET_SND_THREAD, but was disabled at GASNet build time.\n"
