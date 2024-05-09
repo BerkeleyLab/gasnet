@@ -1911,8 +1911,8 @@ static int gasnetc_init( gex_Client_t            *client_p,
     // improve the performance of libibverbs.
     // This setting must precede any ibv calls to be effective.
     int st = 1; // Assume the best
-  #if GASNETC_USE_RCV_THREAD
-    if (gasnetc_use_rcv_thread) st = 0;
+  #if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
+    if (gasnetc_use_rcv_thread || gasnetc_use_snd_thread) st = 0;
   #endif
   #if GASNETC_USE_CONN_THREAD
     if (!gasnetc_conn_dynamic) {
