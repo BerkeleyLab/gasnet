@@ -168,7 +168,9 @@ void * gasnetc_progress_thread(void *arg)
   }
 
   pthread_cleanup_pop(1);
-  return NULL;
+  pthread_exit(NULL);
+
+  return NULL; // unreachable
 }
 
 extern void
