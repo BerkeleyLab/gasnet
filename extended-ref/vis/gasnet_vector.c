@@ -242,7 +242,19 @@ void gasneti_AMpipeline_packetinject(
   gasneti_assert(packet_buf);
   gasneti_assert(packet_nbytes > 0);
   if (isget) {      
-    // theoretically possible these could exceed 32-bit, but not worth doubling arg overhead
+    // Assert that savedlst_idx and savedlst_offset each fit in a 32-bit AM arg
+    // It's theoretically possible these could exceed 32-bit, but not worth doubling arg overhead
+    // Details:
+    // * savedlst_offset could only exceed 32-bit for reference conduits that disable RMA 
+    //   (GASNETI_VECTOR_USE_RMA==0), with a gex_VIS_VectorGet() metadata input where a 
+    //   single contiguous local chunk exceeds 2GiB.
+    // * savedlst_index could only exceed 32-bit with a gex_VIS_VectorGet() metadata input 
+    //   where the decomposed local chunk count (worst case `dstcount + srccount`, 
+    //   but more commonly `<= dstcount`) exceed 2 billion.
+    // Both limits could be avoided by adding two more AM handler arguments, wasting 16-byte
+    // of wire space for cases that (IMHO) should never arise in practice. 
+    // More complicated solutions that avoid adding packet overhead would incur additional 
+    // branches (overhead) in the critical-path packing loop.
     gasneti_assert_uint(savedlst_idx ,==, (gex_AM_Arg_t)savedlst_idx);
     gasneti_assert_uint(savedlst_offset ,==, (gex_AM_Arg_t)savedlst_offset);
     gasneti_weakatomic_increment(&(visop->packetcnt), 0 /* no fence needed */);
