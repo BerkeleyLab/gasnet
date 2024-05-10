@@ -1876,7 +1876,7 @@ typedef [some integer type] gex_TI_t;
 // Support indicators for Optional token into queries
 // Available since spec v0.17
 //
-// GASNET_SUPPORTS_TI_* preprocessor identifiers are defined to 1 or undefined
+// GASNET_SUPPORTS_TI_* preprocessor identifiers are defined to 1 or #undef
 // to indicate whether (or not, respectively) the implementation of
 // gex_Token_Info() supports the corresponding query for all valid tokens.
 //
@@ -1885,16 +1885,16 @@ typedef [some integer type] gex_TI_t;
 // corresponding query.  However, it is not a guarantee of such support in
 // other conduits or in future releases of the current conduit.
 //
-// When any of these is undefined, the implementation is still permitted to
+// When any of these is #undef, the implementation is still permitted to
 // support the query conditionally.  For instance, the shared-memory transport
 // may support an Optional query that is not supported for AMs travelling
 // outside of the shared-memory nbrhd, or vice-versa.
 
 #define GASNET_SUPPORTS_TI_SRCRANK      1
 #define GASNET_SUPPORTS_TI_EP           1
-#define GASNET_SUPPORTS_TI_ENTRY        1 or undefined
-#define GASNET_SUPPORTS_TI_IS_REQ       1 or undefined
-#define GASNET_SUPPORTS_TI_IS_LONG      1 or undefined
+#define GASNET_SUPPORTS_TI_ENTRY        1 or #undef
+#define GASNET_SUPPORTS_TI_IS_REQ       1 or #undef
+#define GASNET_SUPPORTS_TI_IS_LONG      1 or #undef
 
 // Takes a token, address of client-allocated gex_Token_Info_t, and a mask.
 // The mask is a bit-wise OR of GEX_TI_* constants, which indicates which
@@ -2148,7 +2148,7 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 
 // Native implementation indicators for negotiated-payload active messages
 // GASNET_NATIVE_NP_ALLOC_{REQ,REP}_{MEDIUM,LONG} symbols are defined to 1 or
-// undefined to indicate whether (or not, respectively) the implementation
+// #undef to indicate whether (or not, respectively) the implementation
 // of negotiated-payload AM Request/Reply Medium/Long (with a GASNet-allocated
 // source buffer, i.e., initiated with client_buf == NULL) for the network
 // transport of the current conduit are "native". This is a performance hint
@@ -2161,10 +2161,10 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 // these only denote the behavior of the network transport (AM to peers outside
 // the caller's nbrhd). The shared-memory transport for all conduits always 
 // provides native behavior for Medium requests and replies.
-#define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM  1 or undefined
-#define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM  1 or undefined
-#define GASNET_NATIVE_NP_ALLOC_REQ_LONG    1 or undefined
-#define GASNET_NATIVE_NP_ALLOC_REP_LONG    1 or undefined
+#define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM  1 or #undef
+#define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM  1 or #undef
+#define GASNET_NATIVE_NP_ALLOC_REQ_LONG    1 or #undef
+#define GASNET_NATIVE_NP_ALLOC_REP_LONG    1 or #undef
 
 //
 // gex_AM_Prepare calls
