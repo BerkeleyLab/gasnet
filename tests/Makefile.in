@@ -106,6 +106,7 @@ testprograms_seq =      \
         testreadonly    \
         testalltoall    \
         testtoken       \
+        testprogthr     \
         testcudauva     \
         testhip         \
         testze          \

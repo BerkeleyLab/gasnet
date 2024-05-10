@@ -190,6 +190,18 @@ GASNETI_BEGIN_NOWARN
   #define GASNETI_PSHM_P 0
 #endif
 
+// GASNET_RCV_THREAD = conduit is built with support for a "receive progress thread"
+#ifdef GASNET_RCV_THREAD
+  #undef GASNET_RCV_THREAD
+  #define GASNET_RCV_THREAD 1
+#endif
+
+// GASNET_SND_THREAD = conduit is built with support for a "send progress thread"
+#ifdef GASNET_SND_THREAD
+  #undef GASNET_SND_THREAD
+  #define GASNET_SND_THREAD 1
+#endif
+
 /* GASNETI_CONDUIT_THREADS = GASNet conduit has one or more private threads
                              which may be used to run conduit and/or client code */
 #if defined(GASNETI_CONDUIT_THREADS) && (GASNETI_CONDUIT_THREADS != 1)
@@ -859,6 +871,30 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
   #define gex_AM_SrcDescSize(sd)               ((size_t)gasneti_import_srcdesc(sd)->_size)
 #endif
 
+
+/* ------------------------------------------------------------------------------------ */
+/* progress threads */
+
+// default trivial implementation
+#ifndef gex_System_QueryProgressThreads
+  #define gex_System_QueryProgressThreads gasneti_query_progress_threads
+#endif
+
+typedef struct {
+  const char *     gex_device_list;
+  unsigned int     gex_thread_roles;
+  void *           (*gex_progress_fn) (void *);
+  void *           gex_progress_arg;
+} gex_ProgressThreadInfo_t;
+
+#define GEX_THREAD_ROLE_RCV             (1U << 0)
+#define GEX_THREAD_ROLE_SND             (1U << 1)
+
+extern int gex_System_QueryProgressThreads(
+            gex_Client_t                     _client,
+            unsigned int                    *_count_p,
+            const gex_ProgressThreadInfo_t **_info_p,
+            gex_Flags_t                      _flags);
 
 /* ------------------------------------------------------------------------------------ */
 /* conditional and internal flags (others in gasnet_fwd.h) */

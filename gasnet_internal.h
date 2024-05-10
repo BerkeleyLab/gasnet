@@ -901,6 +901,15 @@ extern int gasneti_VerboseErrors;
  } while (0)
 
 /* ------------------------------------------------------------------------------------ */
+/* Trivial handling of defered-start progress threads */
+
+extern int gasneti_query_progress_threads(
+            gex_Client_t                     e_client,
+            unsigned int                    *count_p,
+            const gex_ProgressThreadInfo_t **info_p,
+            gex_Flags_t                      flags);
+
+/* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */
 
 extern const char *gasneti_format_host_detect(void);

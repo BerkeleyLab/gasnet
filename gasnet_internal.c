@@ -1750,6 +1750,38 @@ static void gasneti_check_architecture(void) { // check for bad build configurat
 }
 
 /* ------------------------------------------------------------------------------------ */
+/* Trivial handling of defered-start progress threads
+ */
+
+int gasneti_query_progress_threads(
+            gex_Client_t                     e_client,
+            unsigned int                    *count_p,
+            const gex_ProgressThreadInfo_t **info_p,
+            gex_Flags_t                      flags)
+{
+  // TODO: this enforcement will become incorrect for the multi-client case
+  static int have_run = 0;
+  if (have_run) {
+    gasneti_fatalerror("A client may make at most one call to gex_System_QueryProgressFunctions().");
+  } else {
+    have_run = 1;
+  }
+
+  GASNETI_CHECK_ERRR((! e_client), BAD_ARG, "client must be non-NULL");
+  gasneti_Client_t i_client = gasneti_import_client(e_client);
+  GASNETI_CHECK_ERRR((! count_p),  BAD_ARG, "count_p must be non-NULL");
+  GASNETI_CHECK_ERRR((! info_p),   BAD_ARG, "info_p must be non-NULL");
+  GASNETI_CHECK_ERRR((flags),      BAD_ARG, "flags argument must be zero");
+  GASNETI_CHECK_ERRR(!(gex_Client_QueryFlags(e_client) & GEX_FLAG_DEFER_THREADS),
+                     RESOURCE, "GEX_FLAG_DEFER_THREADS was not passed to gex_Client_Init");
+
+  *count_p = 0;
+  *info_p = NULL;
+
+  return GASNET_OK;
+}
+
+/* ------------------------------------------------------------------------------------ */
 /* Nodemap handling
  */
 

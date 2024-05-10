@@ -480,6 +480,7 @@ typedef struct {
     } keep_alive;
     struct ibv_cq *         cq;
     struct ibv_comp_channel *compl;
+    volatile int            started;
     volatile int            done;
     /* Initialized by client: */
     void                    (*fn)(struct ibv_wc *, void *);
@@ -981,7 +982,7 @@ extern int gasnetc_sndrcv_shutdown(void);
 extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_init_inline(void);
 extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep);
-extern void gasnetc_sndrcv_start_thread(void);
+extern void gasnetc_sndrcv_start_thread(gex_Flags_t);
 extern void gasnetc_sndrcv_stop_thread(int block);
 extern void gasnetc_sndrcv_poll(int handler_context);
 extern int gasnetc_rdma_put(
@@ -1048,6 +1049,7 @@ void gasnetc_do_poll(int poll_rcv, int poll_snd GASNETI_THREAD_FARG) {
 
 /* Routines in gasnet_core_thread.c */
 #if GASNETI_CONDUIT_THREADS
+extern void *gasnetc_progress_thread(void *arg);
 extern void gasnetc_spawn_progress_thread(gasnetc_progress_thread_t *pthr);
 extern void gasnetc_stop_progress_thread(gasnetc_progress_thread_t *pthr, int block);
 #endif
