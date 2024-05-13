@@ -129,6 +129,7 @@ int main(int argc, char **argv) {
     const char *roles_str;
     switch (info[i].gex_thread_roles) {
       case 0:
+        roles_str = "NONE";
         ERR("Unexpected gex_thread_roles == 0");
         break;
       case GEX_THREAD_ROLE_RCV:
