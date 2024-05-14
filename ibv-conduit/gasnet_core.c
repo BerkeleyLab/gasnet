@@ -1132,6 +1132,12 @@ static int gasnetc_load_settings(void) {
 #else
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               disabled at build time"));
 #endif
+#if GASNETC_USE_SND_THREAD
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_SND_THREAD               = %d (%sabled)", gasnetc_use_snd_thread,
+				gasnetc_use_snd_thread ? "en" : "dis"));
+#else
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_SND_THREAD               disabled at build time"));
+#endif
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_TIMEOUT               = %d (%g sec)", gasnetc_qp_timeout, 4.096e-6*(1<<gasnetc_qp_timeout)));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_RETRY_COUNT           = %d", gasnetc_qp_retry_count));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_RD_ATOM               = %d%s", gasnetc_qp_rd_atom,
@@ -3430,8 +3436,8 @@ static void gasnetc_exit_body(void) {
     }
   }
 
-#if GASNETC_USE_RCV_THREAD
-  /* Stop AM receive thread, if applicable (won't kill self) */
+#if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
+  // Stop progress thread(s), if applicable (won't kill self)
   gasnetc_sndrcv_stop_thread(0);
 #endif
 

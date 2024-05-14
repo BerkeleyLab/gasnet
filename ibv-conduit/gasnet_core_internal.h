@@ -166,7 +166,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
   #define GASNETC_CLI_PAR 0
 #endif
 
-#define GASNETC_ANY_PAR         (GASNETC_CLI_PAR || GASNETC_USE_RCV_THREAD)
+#define GASNETC_ANY_PAR         (GASNETC_CLI_PAR || GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD)
 
 /* ------------------------------------------------------------------------------------ */
 
