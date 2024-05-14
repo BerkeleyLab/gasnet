@@ -63,10 +63,14 @@ GASNet-EX ChangeLog
     other properties.
 
 * General and Misc.
+  - Off-node algorithms for non-contiguous vector RMA (i.e. `gex_VIS_Vector{Put,Get}*()`
+    AKA `gasnet_{putv,getv}_*()`) have been re-designed to leverage piecewise
+    RMA (now respecting GASNET_VIS_MAXCHUNK) and streamline transfer throughput.
   - Disable "threadinfo-opt" by default on aarch64 (Linux and macOS)
   - Install a script implementation of the `ident` utility in $prefix/bin
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug3421: putv/getv should respect GASNET_VIS_MAXCHUNK
   - bug3559: Fix GASNET_PSHM feature definition (predicate #defines)
   - bug4617: SEGV in remote firehose, NDEBUG and clang-16.0.0+
   - bug4682: ibv: rare failure of bogus assertion
