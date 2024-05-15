@@ -11,7 +11,7 @@ define([cv_prefix],[gasnet_cv_])
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2023])
 define([GASNET_RELEASE_VERSION_MINOR_D],[9])
-define([GASNET_RELEASE_VERSION_PATCH_D],[3])
+define([GASNET_RELEASE_VERSION_PATCH_D],[7])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
 define([GASNETEX_SPEC_VERSION_MINOR_D],[17])
@@ -5244,7 +5244,7 @@ GASNET_HELP_OUTPUT([
 Memory-kinds options:])
 
 GASNET_IF_ENABLED(memory-kinds,
-        [Prototype support for memory kinds (transfers to/from device memory).  Enables default auto-detection of all device type applicable to the target platform.  Individual --enable-kind-* options have precedence.],
+        [Prototype support for memory kinds (transfers to/from device memory).  Enables default auto-detection of all device type applicable to the target platform.  However, the individual --enable-kind-* options have precedence.  Use of --enable-memory-kinds=force makes failure to detect at least one supported kind fatal.],
         [enable_mk_default=probe], [enable_mk_default=no])
 
 # This is potentially used CUDA_UVA and by HIP
@@ -5589,6 +5589,10 @@ AC_SUBST(ZE_CFLAGS)
 AC_SUBST(ZE_LDFLAGS)
 AC_SUBST(ZE_LIBS)
 AM_CONDITIONAL(HAVE_MK_CLASS_ZE, test "$have_mk_ze" = "yes")
+
+if test "x$enable_memory_kinds$have_mk_cuda_uva$have_mk_hip$have_mk_ze" = "xforcenonono"; then
+  GASNET_MSG_ERROR([Memory kinds support enabled with --enable-memory-kinds=force, but no supported memory kind was found])
+fi
 
 AC_DEFUN([MK_OUTPUT],[
   pushdef([lowername],translit($1,'A-Z','a-z'))

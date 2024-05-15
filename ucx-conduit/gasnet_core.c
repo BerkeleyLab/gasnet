@@ -420,7 +420,7 @@ gasnetc_segment_exchange_aux(gasnetc_mem_info_t* mem_info)
   // local_buf is needed in case mem_info->buffer is shorter than rkey_max_size
   void * recv_buf = gasneti_malloc(rkey_max_size * gasneti_nodes);
   void * local_buf = gasneti_malloc(rkey_max_size);
-  memcpy(local_buf, mem_info->buffer, bsize);
+  GASNETI_MEMCPY(local_buf, mem_info->buffer, bsize);
   gasneti_bootstrapExchange(local_buf, rkey_max_size, recv_buf);
   gasneti_free(local_buf);
 

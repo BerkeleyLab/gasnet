@@ -23,6 +23,14 @@ GASNet-EX ChangeLog
 
 * Memory Kinds (support for non-host memory)
   - Memory Kinds support for AMD GPUs extended to ROCm-6 (bug 4686)
+  - Use of new option `--enable-memory-kinds=force` makes it an error if
+    `configure` cannot detect at least one supported memory kind.
+
+* Libfabric (details in ofi-conduit README)
+  - Negotiated-Payload Active Message (NPAM) Mediums are implemented natively
+    for ofi-conduit, replacing use of a portable reference implementation.
+    This was measured to improve bandwidth on the HPE Slingshot network when
+    using NPAM interfaces with a GASNet-allocated buffer.
 
 * InfiniBand Verbs (details in ibv-conduit README)
   - A new send progress thread can be enabled to process completion events
@@ -33,12 +41,38 @@ GASNet-EX ChangeLog
     of time while their completion queues test as empty.  See the ibv-conduit
     README for information on the `GASNET_RCV_THREAD_IDLE` and
     `GASNET_SND_THREAD_IDLE` environment variables.
+  - Previously, setting environment variable `GASNET_RCV_THREAD` to a true
+    value with a library build configured using `--disable-ibv-rcv-thread`
+    was a fatal error.  It now produces a suppressible warning.
+
+* Portable UDP support (details in udp-conduit README)
+  - Correct the behavior of the `dest_addr` of Long AMs when `nbytes==0`
+
+* Portable MPI support (details in mpi-conduit README)
+  - Correct the behavior of the `dest_addr` of Long AMs when `nbytes==0`
+
+* GASNet-EX Spec v0.18: (details in docs/GASNet-EX.txt)
+  - Specification for AM Longs has been clarified to explicitly permit
+    `nbytes==0` even when the destination EP lacks a bound segment.
+  - Preprocessor identifiers `GASNET_RCV_THREAD` and `GASNET_SND_THREAD`
+    are now available to indicate library builds with the respective
+    capabilities.
+  - New `GEX_FLAG_DEFER_THREADS` and `gex_System_QueryProgressThreads()`
+    provide a mechanism for a client to control launch of a conduit's
+    progress thread(s), enabling client control over CPU affinity, among
+    other properties.
 
 * General and Misc.
+  - Off-node algorithms for non-contiguous vector RMA (i.e. `gex_VIS_Vector{Put,Get}*()`
+    AKA `gasnet_{putv,getv}_*()`) have been re-designed to leverage piecewise
+    RMA (now respecting GASNET_VIS_MAXCHUNK) and streamline transfer throughput.
   - Disable "threadinfo-opt" by default on aarch64 (Linux and macOS)
   - Install a script implementation of the `ident` utility in $prefix/bin
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug3421: putv/getv should respect GASNET_VIS_MAXCHUNK
+  - bug3559: Fix GASNET_PSHM feature definition (predicate #defines)
+  - bug4617: SEGV in remote firehose, NDEBUG and clang-16.0.0+
   - bug4682: ibv: rare failure of bogus assertion
   - bug4683: GASNET_FREEZE ignored by udp-conduit with ssh spawn
   - bug4686: Configure failure with ROCm 6
@@ -47,6 +81,7 @@ GASNet-EX ChangeLog
     `test{gasnet,legacy}.c`
   - bug 4690: no actual multi-threaded coverage in PAR builds of
     `test{gasnet,legacy}.c`
+  - bug4709: Incorrect behavior with zero-byte Longs (udp and mpi conduits)
 
 ----------------------------------------------------------------------
 2023-12-15: GASNet-EX 2023.9.0

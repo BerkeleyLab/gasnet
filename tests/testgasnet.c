@@ -755,6 +755,16 @@ void doit(int partner, int *partnerseg) {
   gex_System_SetVerboseErrors(1);
   assert_always(gex_System_GetVerboseErrors());
 
+  gex_System_SetVerboseErrors(0);
+  { // Test expected failure from gex_System_QueryProgressThreads()
+    // in the absence of GEX_FLAG_DEFER_THREADS at init time
+    unsigned int count;
+    const gex_ProgressThreadInfo_t *data;
+    int rc = gex_System_QueryProgressThreads(myclient, &count, &data, 0);
+    assert_always(rc == GASNET_ERR_RESOURCE);
+  }
+  gex_System_SetVerboseErrors(1);
+ 
   /* width-independent computation of an integer variable with unknown unsigned type */
   #if PLATFORM_ARCH_LITTLE_ENDIAN
     #define compute_uint_val(lval_u64,var) do {          \
@@ -1107,6 +1117,9 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_HINT_ACCEL_AD,
     GEX_FLAG_HINT_ACCEL_COLL,
     GEX_FLAG_HINT_ACCEL_ALL,
+
+    GEX_FLAG_USES_GASNET1,
+    GEX_FLAG_DEFER_THREADS,
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
@@ -1171,6 +1184,11 @@ void doit0(int partner, int *partnerseg) {
   assert_arr_nonzero(gex_Flags_t, flags_ep); // No zero values
   // Not yet specified: assert_arr_unaliased(gex_Flags_t, flags_ep);
   assert_arr_all_val(gex_EP_Capabilities_t, flags_ep, GEX_FLAG_HINT_ACCEL_ALL); // ALL includes them all
+  static gex_Flags_t const flags_client[] = { // gex_Client_Init
+    GEX_FLAG_USES_GASNET1,
+    GEX_FLAG_DEFER_THREADS,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_client);
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;

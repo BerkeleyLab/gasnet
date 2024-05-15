@@ -76,6 +76,16 @@
 #define GASNET_HAVE_MK_CLASS_HIP (GASNETI_MK_CLASS_HIP_ENABLED && GASNET_SEGMENT_FAST)
 //#define GASNET_HAVE_MK_CLASS_ZE GASNETI_MK_CLASS_ZE_ENABLED
 
+  // define to 1 if your conduit has "private" thread(s) which can run AM handlers
+#if GASNETC_IBV_RCV_THREAD
+  #define GASNET_RCV_THREAD 1
+#endif
+
+  // define to 1 if your conduit has "private" thread(s) which progress sends of RMA and/or AM
+#if GASNETC_IBV_SND_THREAD
+  #define GASNET_SND_THREAD 1
+#endif
+
 #ifndef GASNETC_DYNAMIC_CONNECT
   #define GASNETC_DYNAMIC_CONNECT 1
 #endif
@@ -86,6 +96,11 @@
      this ensures locking is still done correctly, etc
    */
   #define GASNETI_CONDUIT_THREADS 1
+#endif
+
+// Conduit-specific implementation of gex_System_QueryProgressThreads()
+#if GASNETC_IBV_RCV_THREAD || GASNETC_IBV_SND_THREAD
+  #define gex_System_QueryProgressThreads gasnetc_query_progress_threads
 #endif
 
 #if GASNETC_IBV_RCV_THREAD

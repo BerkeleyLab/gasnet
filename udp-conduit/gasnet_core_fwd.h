@@ -51,6 +51,12 @@
 //#define GASNET_HAVE_MK_CLASS_HIP GASNETI_MK_CLASS_HIP_ENABLED
 //#define GASNET_HAVE_MK_CLASS_ZE GASNETI_MK_CLASS_ZE_ENABLED
 
+  // define to 1 if your conduit has "private" thread(s) which can run AM handlers
+//#define GASNET_RCV_THREAD 1
+
+  // define to 1 if your conduit has "private" thread(s) which progress sends of RMA and/or AM
+//#define GASNET_SND_THREAD 1
+
   /* uncomment if your conduit has "private" threads which might run conduit
      code and/or the client's AM handlers, even under GASNET_SEQ.
      this ensures locking is still done correctly, etc

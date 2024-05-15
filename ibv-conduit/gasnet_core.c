@@ -986,10 +986,30 @@ static int gasnetc_load_settings(void) {
 
   /* Verify correctness/sanity of values */
   if (gasnetc_use_rcv_thread && !GASNETC_USE_RCV_THREAD) {
-    gasneti_fatalerror("AM receive thread enabled by environment variable GASNET_RCV_THREAD, but was disabled at GASNet build time");
+    if (! gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+      // NOTE: clients that set env var GASNET_RCV_THREAD should
+      // conditionalize that on `#if GASNET_RCV_THREAD` to avoid this warning.
+      gasneti_console_message("WARNING",
+                  "AM receive thread enabled by environment variable\n"
+          "        GASNET_RCV_THREAD, but was disabled at GASNet build time.\n"
+          "        To suppress this message, either unset GASNET_RCV_THREAD, set\n"
+          "        GASNET_QUIET=1, or reconfigure with --enable-ibv-rcv-thread.\n"
+          "        (see ibv-conduit's README for more information).");
+    }
+    gasnetc_use_rcv_thread = 0;
   }
   if (gasnetc_use_snd_thread && !GASNETC_USE_SND_THREAD) {
-    gasneti_fatalerror("send progress thread enabled by environment variable GASNET_SND_THREAD, but was disabled at GASNet build time");
+    if (! gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+      // NOTE: clients that set env var GASNET_SND_THREAD should
+      // conditionalize that on `#if GASNET_SND_THREAD` to avoid this warning.
+      gasneti_console_message("WARNING",
+                  "send progress thread enabled by environment variable\n"
+          "        GASNET_SND_THREAD, but was disabled at GASNet build time.\n"
+          "        To suppress this message, either unset GASNET_SND_THREAD, set\n"
+          "        GASNET_QUIET=1, or reconfigure with --enable-ibv-snd-thread.\n"
+          "        (see ibv-conduit's README for more information).");
+    }
+    gasnetc_use_snd_thread = 0;
   }
 #if GASNETC_FH_OPTIONAL
   gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
@@ -1111,6 +1131,12 @@ static int gasnetc_load_settings(void) {
 				gasnetc_use_rcv_thread ? "en" : "dis"));
 #else
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               disabled at build time"));
+#endif
+#if GASNETC_USE_SND_THREAD
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_SND_THREAD               = %d (%sabled)", gasnetc_use_snd_thread,
+				gasnetc_use_snd_thread ? "en" : "dis"));
+#else
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_SND_THREAD               disabled at build time"));
 #endif
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_TIMEOUT               = %d (%g sec)", gasnetc_qp_timeout, 4.096e-6*(1<<gasnetc_qp_timeout)));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_RETRY_COUNT           = %d", gasnetc_qp_retry_count));
@@ -1911,8 +1937,8 @@ static int gasnetc_init( gex_Client_t            *client_p,
     // improve the performance of libibverbs.
     // This setting must precede any ibv calls to be effective.
     int st = 1; // Assume the best
-  #if GASNETC_USE_RCV_THREAD
-    if (gasnetc_use_rcv_thread) st = 0;
+  #if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
+    if (gasnetc_use_rcv_thread || gasnetc_use_snd_thread) st = 0;
   #endif
   #if GASNETC_USE_CONN_THREAD
     if (!gasnetc_conn_dynamic) {
@@ -2441,7 +2467,7 @@ gasnetc_prereg_list(int *count_p) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach_primary(void) {
+extern int gasnetc_attach_primary(gex_Flags_t flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
@@ -2534,7 +2560,7 @@ extern int gasnetc_attach_primary(void) {
 
 #if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
   /* Start progress thread(s), if applicable */
-  gasnetc_sndrcv_start_thread();
+  gasnetc_sndrcv_start_thread(flags);
 #endif
 
   return GASNET_OK;
@@ -2779,7 +2805,7 @@ extern int gasnetc_Client_Init(
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
-    if (GASNET_OK != gasnetc_attach_primary())
+    if (GASNET_OK != gasnetc_attach_primary(flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
     /* ensure everything is initialized across all nodes */
@@ -3410,8 +3436,8 @@ static void gasnetc_exit_body(void) {
     }
   }
 
-#if GASNETC_USE_RCV_THREAD
-  /* Stop AM receive thread, if applicable (won't kill self) */
+#if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
+  // Stop progress thread(s), if applicable (won't kill self)
   gasnetc_sndrcv_stop_thread(0);
 #endif
 

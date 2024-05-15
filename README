@@ -854,7 +854,7 @@ these aliases.
  which case we skip packing). The default is conduit-dependent.
 
 * GASNET_VIS_{PUT,GET}_MAXCHUNK - limits the max size of a contiguous chunk which
- will be packed by AM pipelining in a strided put/get or indexed put/get, respectively.
+ will be packed by AM pipelining in a strided/indexed/vector put or get, respectively.
  The chunk size may additionally be limited based on the size that will fit in one MaxMedium.
  The default value is conduit-specific.
 
