@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
   next_rank = (myrank + 1) % nranks;
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  gex_Event_Wait(gex_EP_QueryBoundSegmentNB(myteam, next_rank, &next_seg, NULL, NULL, 0));
+  next_seg = TEST_SEG(next_rank);
   gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
 
   // Perform some communication
