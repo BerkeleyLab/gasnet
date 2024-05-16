@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
     pthread_t tid;
     check_zeroret( pthread_create(&tid, NULL, info[i].gex_progress_fn, info[i].gex_progress_arg) );
     MSG("Created tid %p for %s on device(s) %s",
-        (void*)tid, roles_str, info[i].gex_device_list);
+        (void*)(uintptr_t)tid, roles_str, info[i].gex_device_list);
     sleep(1); // an attempt to yield
   }
 
