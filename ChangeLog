@@ -82,6 +82,7 @@ GASNet-EX ChangeLog
   - bug 4690: no actual multi-threaded coverage in PAR builds of
     `test{gasnet,legacy}.c`
   - bug4709: Incorrect behavior with zero-byte Longs (udp and mpi conduits)
+  - bug4712: gasneti_mutex operations crash in pthread_equal() on NetBSD + PAR/DEBUG
 
 ----------------------------------------------------------------------
 2023-12-15: GASNet-EX 2023.9.0
