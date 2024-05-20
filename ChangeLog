@@ -19,7 +19,7 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX-YY-ZZ: PENDING
+2024-05-23: GASNet-EX 2024.5.0
 
 * Memory Kinds (support for non-host memory)
   - Memory Kinds support for AMD GPUs extended to ROCm-6 (bug 4686)
