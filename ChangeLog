@@ -25,6 +25,7 @@ GASNet-EX ChangeLog
   - Memory Kinds support for AMD GPUs extended to ROCm-6 (bug 4686)
   - Use of new option `--enable-memory-kinds=force` makes it an error if
     `configure` cannot detect at least one supported memory kind.
+  See docs/memory_kinds_implementation.md for more info on the status of Memory Kinds.
 
 * Libfabric (details in ofi-conduit README)
   - Negotiated-Payload Active Message (NPAM) Mediums are implemented natively
@@ -63,12 +64,13 @@ GASNet-EX ChangeLog
     other properties.
   - The 'VIS Put Peer Completion' feature is now DEPRECATED and may be
     removed in a future release.
-  - The following functions and constants are no longer considered EXPERIMENTAL:
+  - The following functions, constants and type are no longer considered EXPERIMENTAL:
     + gex_System_QueryNbrhdInfo()
     + gex_System_QueryHostInfo()
     + gex_System_QueryMyPosition()
     + GEX_FLAG_AM_PREPARE_LEAST_CLIENT
     + GEX_FLAG_AM_PREPARE_LEAST_ALLOC
+    + gex_Addr_t
 
 * General and Misc.
   - Off-node algorithms for non-contiguous vector RMA (i.e. `gex_VIS_Vector{Put,Get}*()`
@@ -76,6 +78,19 @@ GASNet-EX ChangeLog
     RMA (now respecting GASNET_VIS_MAXCHUNK) and streamline transfer throughput.
   - Disable "threadinfo-opt" by default on aarch64 (Linux and macOS)
   - Install a script implementation of the `ident` utility in $prefix/bin
+  - Avoid an assertion regarding an unpublished segment when it would mask a more
+    informative bounds-checking failure.
+  - Reorganization of GASNet-EX and implementation documentation (docs directory):
+    + Added new file `memory_kinds.pdf`
+      Provides the memory kinds API documentation which was previously available
+      only upon request
+    + Added new file `implementation_defined.md`
+      Describes behaviors of this implemention which are outside the specification
+    + Renamed `memory_kinds.md` to `memory_kinds_implementation.md`
+      Describes the implemention status of the memory kinds (and related) APIs
+    + Updates to `GASNet-EX.txt` provide references to the documents above, and
+      remove a section which provided a summary of `memory_kinds.pdf`.
+    + Moved list of public header files from `README` to `GASNet-EX.txt`.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug3421: putv/getv should respect GASNET_VIS_MAXCHUNK
@@ -85,12 +100,11 @@ GASNet-EX ChangeLog
   - bug4683: GASNET_FREEZE ignored by udp-conduit with ssh spawn
   - bug4686: Configure failure with ROCm 6
   - bug4688: Incorrect CPU mask computation on 64-bit systems
-  - bug 4689: GASNET_GET_THREADINFO() assumed non-NULL in
-    `test{gasnet,legacy}.c`
-  - bug 4690: no actual multi-threaded coverage in PAR builds of
-    `test{gasnet,legacy}.c`
+  - bug4689: GASNET_GET_THREADINFO() assumed non-NULL in `test{gasnet,legacy}.c`
+  - bug4690: no actual multi-threaded coverage in PAR builds of `test{gasnet,legacy}.c`
   - bug4709: Incorrect behavior with zero-byte Longs (udp and mpi conduits)
   - bug4712: gasneti_mutex operations crash in pthread_equal() on NetBSD + PAR/DEBUG
+  - bug4716: Poor error behavior when hugetlbfs is requested, but unavailable
 
 ----------------------------------------------------------------------
 2023-12-15: GASNet-EX 2023.9.0
