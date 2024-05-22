@@ -9,11 +9,11 @@ GASNet-EX ChangeLog
 
   GASNet-EX currently implements the following conduits:
   - InfiniBand Verbs (ibv-conduit)
-  - Cray uGNI (aries-conduits)
   - Libfabric (ofi-conduit)
   - Shared-memory (smp-conduit)
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
+  - Cray uGNI (aries-conduits) [DEPRECATED]
   - Unified Communication X (ucx-conduit) [EXPERIMENTAL]
   Users wishing to use other retired conduits may need to download 
   the GASNet v1.x distribution from https://gasnet.lbl.gov.

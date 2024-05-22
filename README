@@ -460,9 +460,10 @@ ofi-conduit: Open Fabrics Interfaces (most providers)
 Native, high-performance conduits:
 ---------------------------------
 
-aries-conduit:  Cray XC Aries
+aries-conduit:  Cray XC Aries [DEPRECATED]
  The conduit of choice for GASNet on the Aries networks in Cray XC systems.
- Rigorously tested and supported.
+ This conduit is currently deprecated due to lack of machine access that
+ prevents testing. It is slated for removal in a future release.
 
 ibv-conduit: InfiniBand Verbs
  GASNet over the OpenFabrics Verbs API.
