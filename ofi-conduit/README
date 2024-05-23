@@ -1,6 +1,6 @@
 GASNet ofi-conduit documentation
 Copyright 2015-2017, Intel Corporation
-Portions copyright 2018-2023, The Regents of the University of California.
+Portions copyright 2018-2024, The Regents of the University of California.
 
 User Information:
 ----------------
@@ -103,8 +103,8 @@ provider with ofi-conduit should be considered experimental.
 
 The ofi-conduit includes support for memory kinds (`GEX_MK_CLASS_CUDA_UVA` and
 `GASNET_HAVE_MK_CLASS_HIP`) for certain providers and subject to minimum
-versions of libfabric.  See docs/memory_kinds.md in the GASNet-EX sources for
-details.
+versions of libfabric.  See docs/memory_kinds_implementation.md in the
+GASNet-EX sources for details.
 
 OFI provider requirements to run this conduit:
 -------------------------------------
@@ -732,8 +732,9 @@ Known problems:
   and
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4480
 
-* See docs/memory_kinds.md in the GASNet-EX sources for current information
-  regarding known issues with respect to memory kinds support in ofi-conduit.
+* See docs/memory_kinds_implementation.md in the GASNet-EX sources for current
+  information regarding known issues with respect to memory kinds support in
+  ofi-conduit.
 
 * See the GASNet Bugzilla server for details on additional known bugs:
   https://gasnet-bugs.lbl.gov/
@@ -824,7 +825,10 @@ The OFI community is working on increasing the number of providers that can supp
   `FI_INJECT` could be used to achieve synchronous completion of small Puts
   in the same manner that ibv-conduit utilizes inline sends.
 
-* Implement native support for Negotiated-Payload Active Message (NPAM)
+* Extend native support for Negotiated-Payload Active Message (NPAM) Medium
+  to enable xfers larger than Max Medium.
+
+* Implement native support for Negotiated-Payload Active Message (NPAM) Long?
 
 * Eliminate a buffer copy for AM Medium (and AM Long below the RMA threshold)
   by using (iov_count > 1) on providers which support it, along with the

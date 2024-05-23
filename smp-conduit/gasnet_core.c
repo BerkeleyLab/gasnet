@@ -550,7 +550,7 @@ static int gasnetc_init(
     tmp = gasneti_pshm_init(&gasnetc_bootstrapSNodeBroadcast, GASNETC_EXIT_DATA_SZ);
     if (!gasneti_mynode) {
       /* Relocate the pid table to shared space */
-      memcpy(tmp, gasnetc_exit_data, GASNETC_EXIT_DATA_SZ);
+      GASNETI_MEMCPY(tmp, gasnetc_exit_data, GASNETC_EXIT_DATA_SZ);
       gasneti_free(gasnetc_exit_data);
       gasneti_atomic_set(&tmp->master, 1, 0);
       gasneti_atomic_set(&tmp->exitcode, 0, 0);

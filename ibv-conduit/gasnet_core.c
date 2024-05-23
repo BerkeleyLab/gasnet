@@ -55,8 +55,15 @@ GASNETI_IDENT(gasnetc_IdentString_MaxHCAs, "$GASNetIbvMaxHCAs: " _STRINGIFY(GASN
 #if GASNETC_USE_RCV_THREAD
   GASNETI_IDENT(gasnetc_IdentString_RcvThread, "$GASNetIbvRcvThread: 1 $");
 #endif
+#if GASNETC_USE_SND_THREAD
+  GASNETI_IDENT(gasnetc_IdentString_SndThread, "$GASNetIbvSndThread: 1 $");
+#endif
 #if GASNETC_USE_CONN_THREAD
   GASNETI_IDENT(gasnetc_IdentString_ConnThread, "$GASNetIbvConnThread: 1 $");
+#endif
+
+#if GASNETC_SERIALIZE_POLL_CQ
+  GASNETI_IDENT(gasnetc_IdentString_SerializeCqPoll, "$GASNetIbvSerializeCqPoll: 1 $");
 #endif
 
 int gex_System_QueryHiddenAMConcurrencyLevel(void) {
@@ -173,7 +180,11 @@ static unsigned int gasnetc_fh_maxsize    = 131072;
 
 /* ------------------------------------------------------------------------------------ */
 
+#if (GASNETC_IB_MAX_HCAS > 1)
 int		gasnetc_num_hcas = 1;
+int             gasnetc_snd_poll_multi_hcas;
+int             gasnetc_rcv_poll_multi_hcas;
+#endif
 gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 uintptr_t	gasnetc_max_msg_sz;
 int		gasnetc_qp_rd_atom;
@@ -805,9 +816,9 @@ static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which,
       descr = " CUDA_UVA";
       if (why == EFAULT) {
         if (gasnetc_check_cuda_uva_driver()) {
-          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds_implementation.md release notes.";
         } else {
-          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds_implementation.md release notes.";
         }
       }
       break;
@@ -818,9 +829,9 @@ static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which,
       descr = " HIP";
       if (why == EFAULT) {
         if (gasnetc_check_hip_driver()) {
-          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds_implementation.md release notes.";
         } else {
-          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds_implementation.md release notes.";
         }
       }
       break;
@@ -954,10 +965,51 @@ static int gasnetc_load_settings(void) {
     }
   }
 #endif
+  gasnetc_use_snd_thread = gasneti_getenv_yesno_withdefault("GASNET_SND_THREAD", 0);
+#if GASNETC_USE_SND_THREAD && GASNETC_SERIALIZE_POLL_CQ
+  if (gasnetc_use_snd_thread) {
+    tmp = gasneti_getenv_withdefault("GASNET_SND_THREAD_POLL_MODE", "SERIALIZED");
+    if (! gasneti_strcasecmp(tmp, "EXCLUSIVE")) {
+      gasnetc_snd_thread_poll_serialize = 0;
+      gasnetc_snd_thread_poll_exclusive = 1;
+    } else if (! gasneti_strcasecmp(tmp, "UNSERIALIZED")) {
+      gasnetc_snd_thread_poll_serialize = 0;
+      gasnetc_snd_thread_poll_exclusive = 0;
+    } else if (! gasneti_strcasecmp(tmp, "SERIALIZED")) {
+      gasnetc_snd_thread_poll_serialize = 1;
+      gasnetc_snd_thread_poll_exclusive = 0;
+    } else {
+      gasneti_fatalerror("GASNET_RCV_THREAD_POLL_MODE \"%s\" is not valid", tmp);
+    }
+  }
+#endif
 
   /* Verify correctness/sanity of values */
   if (gasnetc_use_rcv_thread && !GASNETC_USE_RCV_THREAD) {
-    gasneti_fatalerror("AM receive thread enabled by environment variable GASNET_RCV_THREAD, but was disabled at GASNet build time");
+    if (! gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+      // NOTE: clients that set env var GASNET_RCV_THREAD should
+      // conditionalize that on `#if GASNET_RCV_THREAD` to avoid this warning.
+      gasneti_console_message("WARNING",
+                  "AM receive thread enabled by environment variable\n"
+          "        GASNET_RCV_THREAD, but was disabled at GASNet build time.\n"
+          "        To suppress this message, either unset GASNET_RCV_THREAD, set\n"
+          "        GASNET_QUIET=1, or reconfigure with --enable-ibv-rcv-thread.\n"
+          "        (see ibv-conduit's README for more information).");
+    }
+    gasnetc_use_rcv_thread = 0;
+  }
+  if (gasnetc_use_snd_thread && !GASNETC_USE_SND_THREAD) {
+    if (! gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+      // NOTE: clients that set env var GASNET_SND_THREAD should
+      // conditionalize that on `#if GASNET_SND_THREAD` to avoid this warning.
+      gasneti_console_message("WARNING",
+                  "send progress thread enabled by environment variable\n"
+          "        GASNET_SND_THREAD, but was disabled at GASNet build time.\n"
+          "        To suppress this message, either unset GASNET_SND_THREAD, set\n"
+          "        GASNET_QUIET=1, or reconfigure with --enable-ibv-snd-thread.\n"
+          "        (see ibv-conduit's README for more information).");
+    }
+    gasnetc_use_snd_thread = 0;
   }
 #if GASNETC_FH_OPTIONAL
   gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
@@ -1079,6 +1131,12 @@ static int gasnetc_load_settings(void) {
 				gasnetc_use_rcv_thread ? "en" : "dis"));
 #else
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               disabled at build time"));
+#endif
+#if GASNETC_USE_SND_THREAD
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_SND_THREAD               = %d (%sabled)", gasnetc_use_snd_thread,
+				gasnetc_use_snd_thread ? "en" : "dis"));
+#else
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_SND_THREAD               disabled at build time"));
 #endif
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_TIMEOUT               = %d (%g sec)", gasnetc_qp_timeout, 4.096e-6*(1<<gasnetc_qp_timeout)));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_RETRY_COUNT           = %d", gasnetc_qp_retry_count));
@@ -1520,7 +1578,11 @@ static void gasnetc_probe_ports(int max_ports) {
   gasnetc_clear_ports();
   ibv_free_device_list(hca_list);
 
+#if (GASNETC_IB_MAX_HCAS > 1)
   gasnetc_num_hcas = hca_count;
+  gasnetc_snd_poll_multi_hcas = (gasnetc_num_hcas > 1); // snd thread may override later
+  gasnetc_rcv_poll_multi_hcas = (gasnetc_num_hcas > 1); // rcv thread may override later
+#endif
   gasnetc_num_ports = port_count;
   gasnetc_port_tbl  = gasneti_realloc(port_tbl, port_count * sizeof(gasnetc_port_info_t));
   gasneti_leak(gasnetc_port_tbl);
@@ -1875,8 +1937,8 @@ static int gasnetc_init( gex_Client_t            *client_p,
     // improve the performance of libibverbs.
     // This setting must precede any ibv calls to be effective.
     int st = 1; // Assume the best
-  #if GASNETC_USE_RCV_THREAD
-    if (gasnetc_use_rcv_thread) st = 0;
+  #if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
+    if (gasnetc_use_rcv_thread || gasnetc_use_snd_thread) st = 0;
   #endif
   #if GASNETC_USE_CONN_THREAD
     if (!gasnetc_conn_dynamic) {
@@ -2405,7 +2467,7 @@ gasnetc_prereg_list(int *count_p) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach_primary(void) {
+extern int gasnetc_attach_primary(gex_Flags_t flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
@@ -2496,9 +2558,9 @@ extern int gasnetc_attach_primary(void) {
   /* ensure extended API is initialized across nodes */
   gasneti_bootstrapBarrier_am();
 
-#if GASNETC_USE_RCV_THREAD
-  /* Start AM receive thread, if applicable */
-  gasnetc_sndrcv_start_thread();
+#if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
+  /* Start progress thread(s), if applicable */
+  gasnetc_sndrcv_start_thread(flags);
 #endif
 
   return GASNET_OK;
@@ -2743,7 +2805,7 @@ extern int gasnetc_Client_Init(
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
-    if (GASNET_OK != gasnetc_attach_primary())
+    if (GASNET_OK != gasnetc_attach_primary(flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
     /* ensure everything is initialized across all nodes */
@@ -3374,8 +3436,8 @@ static void gasnetc_exit_body(void) {
     }
   }
 
-#if GASNETC_USE_RCV_THREAD
-  /* Stop AM receive thread, if applicable (won't kill self) */
+#if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
+  // Stop progress thread(s), if applicable (won't kill self)
   gasnetc_sndrcv_stop_thread(0);
 #endif
 

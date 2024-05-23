@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.1
+#define GASNET_CORE_VERSION      1.2
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         OFI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
@@ -34,6 +34,7 @@
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
   #define GASNET_ALIGNED_SEGMENTS   0 /* user or PSHM disabled segment alignment */
 #else
+  // No known reason this shouldn't work, but it has never been tested.
   #define GASNET_ALIGNED_SEGMENTS   0
 #endif
 
@@ -46,6 +47,12 @@
 #define GASNET_HAVE_MK_CLASS_CUDA_UVA (GASNETI_MK_CLASS_CUDA_UVA_ENABLED && GASNETC_HAVE_FI_HMEM_CUDA && !GASNET_SEGMENT_EVERYTHING)
 #define GASNET_HAVE_MK_CLASS_HIP (GASNETI_MK_CLASS_HIP_ENABLED && GASNETC_HAVE_FI_HMEM_ROCR && !GASNET_SEGMENT_EVERYTHING)
 #define GASNET_HAVE_MK_CLASS_ZE (GASNETI_MK_CLASS_ZE_ENABLED && GASNETC_HAVE_FI_HMEM_ZE && !GASNET_SEGMENT_EVERYTHING)
+
+  // define to 1 if your conduit has "private" thread(s) which can run AM handlers
+//#define GASNET_RCV_THREAD 1
+
+  // define to 1 if your conduit has "private" thread(s) which progress sends of RMA and/or AM
+//#define GASNET_SND_THREAD 1
 
   /* uncomment if your conduit has "private" threads which might run conduit
      code and/or the client's AM handlers, even under GASNET_SEQ.
@@ -83,8 +90,8 @@
      your conduit must provide the V-suffixed functions for any of these that
      are not defined.
    */
-/* #define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1 */
-/* #define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM 1 */
+#define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1
+#define GASNET_NATIVE_NP_ALLOC_REP_MEDIUM 1
 /* #define GASNET_NATIVE_NP_ALLOC_REQ_LONG 1 */
 /* #define GASNET_NATIVE_NP_ALLOC_REP_LONG 1 */
 

@@ -215,8 +215,6 @@ static int gasnetc_init(
     if (gasneti_init_done) 
       INITERR(NOT_INIT, "GASNet already initialized");
 
-    gasneti_freezeForDebugger();
-
     AMX_VerboseErrors = gasneti_VerboseErrors;
     AMUDP_SPMDkillmyprocess = gasneti_killmyprocess;
 
@@ -246,6 +244,8 @@ static int gasnetc_init(
     gasneti_check_env_prefix_hook = &AMUDP_check_env_prefix;
     gasneti_mynode = AMUDP_SPMDMyProc();
     gasneti_nodes = AMUDP_SPMDNumProcs();
+
+    gasneti_freezeForDebugger(); // must come after getenv_hook is set
 
 #if !GASNETI_CALIBRATE_TSC
     /* Must init timers after global env, and preferably before tracing */

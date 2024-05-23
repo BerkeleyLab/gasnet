@@ -526,6 +526,8 @@ gex_Segment_t gasneti_export_segment(gasneti_Segment_t _real_segment) {
 }
 #endif
 
+const gasnet_seginfo_t gasneti_null_segment = {0};
+
 // TODO-EX: probably need to add to a per-client container of some sort
 gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
@@ -1745,6 +1747,38 @@ static void gasneti_check_architecture(void) { // check for bad build configurat
     if (warning) gasneti_console0_message("WARNING", "%s", warning);
   }
   #endif
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* Trivial handling of defered-start progress threads
+ */
+
+int gasneti_query_progress_threads(
+            gex_Client_t                     e_client,
+            unsigned int                    *count_p,
+            const gex_ProgressThreadInfo_t **info_p,
+            gex_Flags_t                      flags)
+{
+  // TODO: this enforcement will become incorrect for the multi-client case
+  static int have_run = 0;
+  if (have_run) {
+    gasneti_fatalerror("A client may make at most one call to gex_System_QueryProgressFunctions().");
+  } else {
+    have_run = 1;
+  }
+
+  if (! e_client) GASNETI_RETURN_ERRR(BAD_ARG, "client must be non-NULL");
+  gasneti_Client_t i_client = gasneti_import_client(e_client);
+  if (! count_p)  GASNETI_RETURN_ERRR(BAD_ARG, "count_p must be non-NULL");
+  if (! info_p)   GASNETI_RETURN_ERRR(BAD_ARG, "info_p must be non-NULL");
+  if (flags)      GASNETI_RETURN_ERRR(BAD_ARG, "flags argument must be zero");
+  if (!(gex_Client_QueryFlags(e_client) & GEX_FLAG_DEFER_THREADS))
+                  GASNETI_RETURN_ERRR(RESOURCE, "GEX_FLAG_DEFER_THREADS was not passed to gex_Client_Init");
+
+  *count_p = 0;
+  *info_p = NULL;
+
+  return GASNET_OK;
 }
 
 /* ------------------------------------------------------------------------------------ */

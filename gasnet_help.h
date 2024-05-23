@@ -446,6 +446,7 @@ gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank)
 extern gasnet_seginfo_t *gasneti_seginfo;
 extern gasnet_seginfo_t *gasneti_seginfo_aux;
 extern gasnet_seginfo_t *gasneti_seginfo_tbl[GASNET_MAXEPS];
+extern const gasnet_seginfo_t gasneti_null_segment;
 
 // TODO: work towards dropping non-scalable seginfo tables
 GASNETI_INLINE(gasneti_client_seginfo)
@@ -454,7 +455,7 @@ const gasnet_seginfo_t *gasneti_client_seginfo(gex_TM_t _e_tm, gex_Rank_t _rank)
   gex_Rank_t _jobrank = _loc.gex_rank;
   gex_EP_Index_t _idx = _loc.gex_ep_index;
   gasnet_seginfo_t *_si_array = gasneti_seginfo_tbl[_idx];
-  gasneti_assert(_si_array);
+  if_pf (!_si_array) return &gasneti_null_segment;
   return _si_array + _jobrank;
 }
 GASNETI_INLINE(gasneti_aux_seginfo)
@@ -785,6 +786,9 @@ void gasneti_leaf_finish(gex_Event_t *_opt_val) {
       #define GASNETI_THREADINFO_OPT    0
     #elif PLATFORM_ARCH_POWERPC && \
           PLATFORM_OS_LINUX
+      #define GASNETI_THREADINFO_OPT    0
+    #elif PLATFORM_ARCH_AARCH64 && \
+          (PLATFORM_OS_LINUX || PLATFORM_OS_DARWIN)
       #define GASNETI_THREADINFO_OPT    0
     #endif
   #endif
