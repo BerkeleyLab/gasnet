@@ -3970,14 +3970,18 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 // End of section describing APIs provided by gasnet_coll.h
 //----------------------------------------------------------------------
 
-// [PROPOSED]
-// This section of this document covers APIs described in more detail in
-//   GASNet-EX API Proposal: Memory Kinds, Revision 2022.3.0
+//
+// Memory Kinds (Device memory support)
+//
+
+// This section summarizes APIs described in more detail in the following document:
+//
+//   GASNet-EX API: Memory Kinds
+//
+// Which should be available as memory_kinds.pdf as a sibling to this file.
 //
 // For functions, only prototypes and supported flags are provided here.
 // For function semantics, one should consult the document cited above.
-// Copies of the most recent revision of that document are available on
-// request from gasnet-staff@lbl.gov.
 
 int gex_Segment_Create(
             gex_Segment_t   *segment_p,  // OUT
@@ -4082,7 +4086,7 @@ void gex_MK_Destroy(
 // End of APIs provided by gasnet_mk.h
 // ****
 
-// End of "GASNet-EX API Proposal: Memory Kinds, Revision 2022.3.0" section
+// End of "Memory Kinds" section
 //----------------------------------------------------------------------
 
 // vim: syntax=c
