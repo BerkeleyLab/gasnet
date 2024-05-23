@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
   next_rank = (myrank + 1) % nranks;
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  gex_Event_Wait(gex_EP_QueryBoundSegmentNB(myteam, next_rank, &next_seg, NULL, NULL, 0));
+  next_seg = TEST_SEG(next_rank);
   gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
 
   // Perform some communication
@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
     pthread_t tid;
     check_zeroret( pthread_create(&tid, NULL, info[i].gex_progress_fn, info[i].gex_progress_arg) );
     MSG("Created tid %p for %s on device(s) %s",
-        (void*)tid, roles_str, info[i].gex_device_list);
+        (void*)(uintptr_t)tid, roles_str, info[i].gex_device_list);
     sleep(1); // an attempt to yield
   }
 

@@ -816,9 +816,9 @@ static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which,
       descr = " CUDA_UVA";
       if (why == EFAULT) {
         if (gasnetc_check_cuda_uva_driver()) {
-          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds_implementation.md release notes.";
         } else {
-          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds_implementation.md release notes.";
         }
       }
       break;
@@ -829,9 +829,9 @@ static const char *gasnetc_segreg_failed(size_t size, enum gasnetc_segreg which,
       descr = " HIP";
       if (why == EFAULT) {
         if (gasnetc_check_hip_driver()) {
-          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+          hint1 = "\n        This could be caused by lack of required driver support or by exhaustion of BAR1 resources.  See memory_kinds_implementation.md release notes.";
         } else {
-          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds.md release notes.";
+          hint1 = "\n        This could be caused by exhaustion of BAR1 resources.  See memory_kinds_implementation.md release notes.";
         }
       }
       break;

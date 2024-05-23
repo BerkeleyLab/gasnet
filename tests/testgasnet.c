@@ -756,12 +756,15 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_System_GetVerboseErrors());
 
   gex_System_SetVerboseErrors(0);
-  { // Test expected failure from gex_System_QueryProgressThreads()
+  static int queried_progress_threads = 0;
+  if (! queried_progress_threads) { // Multiple calls are UB
+    // Test expected failure from gex_System_QueryProgressThreads()
     // in the absence of GEX_FLAG_DEFER_THREADS at init time
     unsigned int count;
     const gex_ProgressThreadInfo_t *data;
     int rc = gex_System_QueryProgressThreads(myclient, &count, &data, 0);
     assert_always(rc == GASNET_ERR_RESOURCE);
+    queried_progress_threads = 1;
   }
   gex_System_SetVerboseErrors(1);
  

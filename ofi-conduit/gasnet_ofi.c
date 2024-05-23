@@ -2010,7 +2010,7 @@ int gasnetc_ep_bindsegment(gasneti_EP_t i_ep, gasneti_Segment_t segment)
             if ((attr.iface == FI_HMEM_ZE) && (ret == -EFAULT) && (segsize > 32768)) {
               gasneti_console_message("NOTICE",
                                       "This failure looks like a known issue in ZE memory kinds support.  "
-                                      "See docs/memory_kinds.md in the GASNet-EX sources for more information.");
+                                      "See docs/memory_kinds_implementation.md in the GASNet-EX sources for more information.");
             }
           #endif
         }
