@@ -57,6 +57,9 @@
 // Major and Minor versions of the GASNet-Tools specification.
 //
 // This is the spec version for the GASNet Tools
+//
+// For GASNet Tools API documentation see README-tools, located
+// at the top level of the GASNet-EX sources.
 #define GASNETT_SPEC_VERSION_MAJOR 1
 #define GASNETT_SPEC_VERSION_MINOR 21 // work-in-progress, not "closed"
 
@@ -591,7 +594,7 @@ typedef [some unsigned integer type] gex_RMA_Value_t;
 // Synonymous with SIZEOF_GASNET_REGISTER_VALUE_T
 #define SIZEOF_GEX_RMA_VALUE_T ...
 
-// gex_Addr_t [PROPOSED]
+// gex_Addr_t
 // Type which is suitable to hold both addresses and offsets.
 //
 // This is always an alias for `void*`, but is given a distinct type to make
