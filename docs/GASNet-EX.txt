@@ -3981,117 +3981,20 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 // Memory Kinds (Device memory support)
 //
 
-// This section summarizes APIs described in more detail in the following document:
+// GASNet-EX features support for communication involving memory segments
+// which are associated with various accellerator devices, e.g. HBM onboard GPUs.
+//
+// The API for this support is currently described in the following document:
 //
 //   GASNet-EX API: Memory Kinds
 //
-// Which should be available as memory_kinds.pdf as a sibling to this file.
+// which should be available in memory_kinds.pdf as a sibling to this file.
+
+// Implementation status of Memory Kinds support is described in the document:
 //
-// For functions, only prototypes and supported flags are provided here.
-// For function semantics, one should consult the document cited above.
-
-int gex_Segment_Create(
-            gex_Segment_t   *segment_p,  // OUT
-            gex_Client_t    client,
-            gex_Addr_t      address,
-            uintptr_t       length,
-            gex_MK_t        kind,
-            gex_Flags_t     flags);
-      // Valid flags:
-      //   NONE - zero is currently required
-
-void gex_Segment_Destroy(
-            gex_Segment_t   segment,
-            gex_Flags_t     flags);
-      // Valid flags:
-      //   NONE - zero is currently required
-
-int gex_EP_BindSegment(
-            gex_EP_t        ep,
-            gex_Segment_t   segment,
-            gex_Flags_t     flags);
-      // Valid flags:
-      //   NONE - zero is currently required
-
-typedef [some integer type] gex_EP_Capabilities_t;
-#define GEX_EP_CAPABILITY_{RMA,AM,VIS,COLL,AD,ALL} ???
-
-#define GEX_FLAG_HINT_ACCEL_{AD,COLL,ALL} ???
-
-// NOTE: implemented only by ibv, ofi and ucx conduits,
-// and only for capabilities == GEX_EP_CAPABILITY_RMA
-int gex_EP_Create(
-            gex_EP_t               *ep_p,        // OUT
-            gex_Client_t           client,
-            gex_EP_Capabilities_t  capabilities,
-            gex_Flags_t            flags);
-      // Valid flags:
-      //   NONE - zero is currently required
-
-// gex_MK_t is an opaque scalar handle to a Memory Kind (MK)
-typedef ... gex_MK_t;
-
-// GEX_MK_INVALID is a predefined constant guaranteed to have the value
-// zero and never alias a valid memory kind
-#define GEX_MK_INVALID ((gex_MK_t)0)
-
-// GEX_MK_HOST is a predefined constant for the "kind" for host memory
-#define GEX_MK_HOST ((gex_MK_t)???)
-
-// ****
-// The APIs in the remainder of this section are provided by gasnet_mk.h
-// ****
-
-// gex_MK_Class_t is enum naming available "classes" of memory kinds.
-// It includes at least the following values (in unspecified order):
-typedef enum {
-    GEX_MK_CLASS_HOST,      // "normal" memory (eg GEX_MK_HOST)
-    GEX_MK_CLASS_CUDA_UVA,  // CUDA UVA memory     [since 2020.11.0]
-    GEX_MK_CLASS_HIP,       // HIP device memory   [since 2021.9.0]
-    GEX_MK_CLASS_ZE,        // oneAPI Level Zero device memory [EXPERIMENTAL]
-    ???
-} gex_MK_Class_t;
-
-// The gex_MK_Create_args_t struct is passed to gex_MK_Create to create a
-// per-device instance of a memory kind of the given class, and includes
-// at least the following members (in unspecified order):
-typedef struct {
-    uint64_t            gex_flags; // Reserved.  Must be 0 currently.
-    gex_MK_Class_t      gex_class;
-    union {
-        struct {// CUDA UVA memory [since 2020.11.0]
-            int                    gex_CUdevice;
-        }                    gex_class_cuda_uva;
-        struct {// HIP device memory [since 2021.9.0]
-            int                    gex_hipDevice;
-        }                    gex_class_hip;
-        struct {// oneAPI Level Zero device memory [EXPERIMENTAL]
-            void*                  gex_zeDevice;
-            void*                  gex_zeContext;
-            uint32_t               gex_zeMemoryOrdinal;
-        }                    gex_class_ze;
-    }                    gex_args;
-} gex_MK_Create_args_t;
-
-int gex_MK_Create(
-            gex_MK_t                      *memkind_p, // OUT
-            gex_Client_t                  client,
-            const gex_MK_Create_args_t    *args,      // IN
-            gex_Flags_t                   flags       // Reserved.  Must be 0 currently.
-            );
-      // Valid flags:
-      //   NONE - zero is currently required
-
-void gex_MK_Destroy(
-            gex_MK_t                      memkind,
-            gex_Flags_t                   flags       // Reserved.  Must be 0 currently.
-            );
-      // Valid flags:
-      //   NONE - zero is currently required
-
-// ****
-// End of APIs provided by gasnet_mk.h
-// ****
+//   GASNet-EX Memory Kinds: Implementation Status
+//
+// which should be available in memory_kinds_implementation.md as a sibling to this file.
 
 // End of "Memory Kinds" section
 //----------------------------------------------------------------------
