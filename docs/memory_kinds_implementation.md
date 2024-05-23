@@ -496,26 +496,6 @@ This section describes the known limitations of each of the APIs introduced
 recently in order to support memory kinds.  Due to interaction among
 APIs, it is impossible to completely avoid forward references.
 
-## Renames:
-
-Some types, constants and functions have been renamed relative to their first
-appearances in the MK API (when it was known as "GASNet API Proposal:
-Multi-EP. Revision 2020.6.1"):
-
-  + `gex_Segment_EP_Bind()` is replaced by `gex_EP_SegmentBind()`
-  + `gex_MemKind_Create()` is replaced by `gex_MK_Create()`
-  + `gex_MemKind_Destroy()` is replaced by `gex_MK_Destroy()`
-  + `gex_MemKind_t` is replaced by `gex_MK_t`
-    - With the constant `GEX_MEMKIND_HOST` replaced by `GEX_MK_HOST`
-  + `gex_MemKind_Class_t` becomes `gex_MK_Class_t`
-    - With `GEX_MEMKIND_CLASS_` shortened `GEX_MK_CLASS_` in the naming of the
-      enum values
-  + `gex_MemKind_Create_args_t` to `gex_MK_Create_args_t`
-    - With `gex_mk_` shortened to `gex_` in naming of struct and union members
-
-The revisions 2020.11.0 and newer of the MK API use the names above, and
-the remainder of this section will utilize the new names exclusively.
-
 ## `gex_Segment_Attach()`
 
 The `gex_Segment_Attach()` call remains the only supported means by which to
@@ -613,8 +593,7 @@ Not implemented.
 
 ## `gex_MK_Create()`
 
-This API is implemented as described in the MK API (with some renames
-relative to their first appearance, as detailed earlier in this document), This
+This API is implemented as described in the MK API. This
 includes the conditional definition (defined to `1` or undefined) of
 `GASNET_HAVE_MK_CLASS_CUDA_UVA` and/or `GASNET_HAVE_MK_CLASS_HIP`, each of which
 is defined only when the respective headers and libs were located at configure
