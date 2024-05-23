@@ -3456,7 +3456,7 @@ int gex_AD_OpNBI_[DATATYPE](
         gex_Flags_t flags);
 
 //
-// VIS Put Peer Completion [EXPERIMENTAL]
+// VIS Put Peer Completion [DEPRECATED]
 //
 
 // The following call "arms" a peer completion callback that will 

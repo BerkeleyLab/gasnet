@@ -61,6 +61,8 @@ GASNet-EX ChangeLog
     provide a mechanism for a client to control launch of a conduit's
     progress thread(s), enabling client control over CPU affinity, among
     other properties.
+  - The 'VIS Put Peer Completion' feature is now DEPRECATED and may be
+    removed in a future release.
 
 * General and Misc.
   - Off-node algorithms for non-contiguous vector RMA (i.e. `gex_VIS_Vector{Put,Get}*()`
