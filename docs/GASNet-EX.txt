@@ -27,6 +27,48 @@
 // from early use, the design may change in non-trivial ways (to the degree
 // that client code may need to change).
 
+// Public Header Files
+//
+// The following public headers may be included in any order:
+//    gasnetex.h       : GASNet-EX API + Tools
+//    gasnet.h         : GASNet-1 API (also includes gasnetex.h)
+//    gasnet_fwd.h     : See below
+//    gasnet_ratomic.h : Remote Atomics API
+//    gasnet_vis.h     : Non-contiguous RMA (VIS) API
+//    gasnet_coll.h    : Collectives API
+//
+// No other `*.h` files appearing in the source distribution or install tree
+// are intended for direct inclusion by client code.
+
+// The `gasnet_fwd.h` header
+//
+// The gasnet_fwd.h provides a subset of `gasnetex.h`, for convenience of
+// clients who want a minimal header that is safe to include in their own
+// client's code.  It defines only preprocessor `#define` constants and
+// stand-alone `typedefs` for simple data types.  All preprocessor 
+// identifiers are in the `GEX_` or `_GEX_` namespace.
+//
+// `gasnet_fwd.h` contains at least the following type definitions:
+//
+//    `gex_Rank_t`
+//    `gex_EP_Index_t`
+//    `gex_Addr_t`
+//    `gex_Event_t`
+//    `gex_Flags_t`
+//    `gex_DT_t`
+//    `gex_OP_t`
+//    `gex_EP_Capabilities_t`
+//
+// and the following constants:
+//
+//    `GEX_RANK_INVALID`
+//    `GEX_EVENT_*`
+//    `GEX_FLAG_*`
+//    `GEX_DT_*`
+//    `GEX_OP_*`
+//    `GEX_EP_CAPABILITY_*`
+// The semantics of these identifiers are described in subsequent sections.
+
 //
 // Specification and release versioning:
 //
