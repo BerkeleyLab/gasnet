@@ -10,6 +10,10 @@
 //
 // Except where otherwise noted, all definitions in this document
 // are provided by gasnetex.h.
+//
+// See implementation_defined.md, a sibling to this file, for additional
+// features provided by the implementation hosted at https://gasnet.lbl.gov,
+// which are not required by this specification.
 
 // Document Conventions
 //
