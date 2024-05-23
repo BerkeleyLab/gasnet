@@ -63,6 +63,12 @@ GASNet-EX ChangeLog
     other properties.
   - The 'VIS Put Peer Completion' feature is now DEPRECATED and may be
     removed in a future release.
+  - The following functions and constants are no longer considered EXPERIMENTAL:
+    + gex_System_QueryNbrhdInfo()
+    + gex_System_QueryHostInfo()
+    + gex_System_QueryMyPosition()
+    + GEX_FLAG_AM_PREPARE_LEAST_CLIENT
+    + GEX_FLAG_AM_PREPARE_LEAST_ALLOC
 
 * General and Misc.
   - Off-node algorithms for non-contiguous vector RMA (i.e. `gex_VIS_Vector{Put,Get}*()`
