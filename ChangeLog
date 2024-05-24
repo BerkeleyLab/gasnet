@@ -13,13 +13,18 @@ GASNet-EX ChangeLog
   - Shared-memory (smp-conduit)
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
-  - Cray uGNI (aries-conduits) [DEPRECATED]
   - Unified Communication X (ucx-conduit) [EXPERIMENTAL]
   Users wishing to use other retired conduits may need to download 
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
+
+* Cray XC uGNI (aries-conduit)
+  - This conduit, deprecated since 2023.9.0, has been removed.
+  - Users of Cray XC systems are advised to use the renamed cross-configure
+    scripts `cross-configure-cray-xc-slurm` and `cross-configure-cray-xc-alps`,
+    which enable ofi-conduit with libfabric's "gni" provider.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4718 - Diagnose invalid segment binding to primordial endpoint
