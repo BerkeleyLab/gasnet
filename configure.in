@@ -5932,7 +5932,7 @@ if test "$HAVE_MMAP" != "0" ; then
      [ #include <sys/mman.h> ],[ void *junk = mmap(0, 0, 0, MAP_ANON, 0, 0); ],
      [ AC_DEFINE(HAVE_MAP_ANON) ] )
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
-  GASNET_IF_ENABLED(bug3480-workaround,[See Aries conduit README],[
+  GASNET_IF_ENABLED(bug3480-workaround,[See smp-conduit README],[
       AC_DEFINE(GASNETI_BUG3480_WORKAROUND)
       if test "$GASNETI_DISABLE_ALIGNED_SEGMENTS" != 1 && \
          test "$segconfig" != everything; then

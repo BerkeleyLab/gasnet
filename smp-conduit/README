@@ -46,8 +46,19 @@ Known problems:
 * Bug 3480
   It has been observed on Cray systems running CLE6 that following a call to
   munmap(), there may be a delay before the physical page frames are available
-  for reallocation.  For more details see aries-conduit/README (source), or
-  share/doc/gasnet/README-aries (installed).
+  for reallocation.  At startup GASNet normally tries to determine the largest
+  available mmap() region, which is then unmapped, leading to the possibility
+  that subsequent allocation of a large GASNet segment may fail if timing is
+  "just right".  The configure option --enable-bug3480-workaround will enable
+  retries and an additional barrier to prevent the failure mode described
+  above, at the cost of a small additional delay at startup.
+  In this release, the provided cross-configure-cray-* scripts AUTOMATICALLY
+  enable the work-around if CLE6 is detected.  If you do *not* desire the
+  work-around, then you may pass the option --disable-bug3480-workaround to
+  the cross-configure script.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3480
+  It is currently unknown if this problem is specific to Cray systems.
 
 * Bug 3727
   The smp-conduit support for remote atomics is limited to certain datatypes.
