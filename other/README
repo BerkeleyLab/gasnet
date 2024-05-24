@@ -94,8 +94,8 @@ PMI-SPAWNER
 
 The pmi-spawner directory contains an implementation of job-launch
 and GASNet communications bootstrapping using PMI.  It is optionally
-used by several GASNet for cluster-based systems, and unconditionally 
-by aries conduit.
+used by several GASNet for cluster-based systems and on the HPE
+Cray EX platform. 
 
 ------------------------------------------------------------------
 
