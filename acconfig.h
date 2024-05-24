@@ -472,11 +472,6 @@
 #undef GASNETC_HAVE_O_ASYNC
 #undef GASNETC_USE_SOCKETPAIR
 
-/* GASNet aries-conduit settings */
-#undef GASNETC_GNI_MAX_MEDIUM_DFLT
-#undef GASNETC_GNI_MULTI_DOMAIN
-#undef GASNETC_GNI_UDREG
-
 /* GASNet ofi-conduit settings */
 #undef GASNETC_OFI_SPAWNER_CONF
 #undef GASNETC_OFI_REFERENCE_EXTENDED
