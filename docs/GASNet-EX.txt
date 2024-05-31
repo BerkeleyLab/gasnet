@@ -1244,8 +1244,6 @@ gex_EP_Location_t gex_TM_TranslateRankToEP(
 
 //
 // Operations on gex_EP_t
-// NOTE: currently gex_Client_Init() is the only way to create an EP.
-// However, additional APIs for EP creation will be added.
 //
 
 // Query owning client
