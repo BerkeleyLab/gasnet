@@ -295,6 +295,13 @@ int gasneti_hwloc_init(void) {
   #else
     (void)hwloc_topology_set_flags(gasneti_hwloc_topology, HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM);
   #endif
+  // Enable inclusion (not free) of PCI and O/S devices
+  #if HWLOC_API_VERSION >= 0x00020000
+    hwloc_topology_set_type_filter(gasneti_hwloc_topology, HWLOC_OBJ_PCI_DEVICE, HWLOC_TYPE_FILTER_KEEP_ALL);
+    hwloc_topology_set_type_filter(gasneti_hwloc_topology, HWLOC_OBJ_OS_DEVICE, HWLOC_TYPE_FILTER_KEEP_ALL);
+  #else
+    hwloc_topology_set_flags(gasneti_hwloc_topology, HWLOC_TOPOLOGY_FLAG_IO_DEVICES);
+  #endif
   gasneti_hwloc_cpuset = hwloc_bitmap_alloc();
   if (!gasneti_hwloc_cpuset) {
     GASNETI_TRACE_PRINTF(I,("  failed: hwloc_bitmap_alloc() returned NULL"));
@@ -623,4 +630,234 @@ out_return_unsuffixed:
     }
   }
   return gasneti_getenv_withdefault(keyname, dflt_val);
+}
+
+#if USE_HWLOC_LIB && (HWLOC_API_VERSION >= 0x020000)
+// Helpers for pu_distance
+static int _gasneti_have_numa_latency = 0;
+static struct hwloc_distances_s *_gasneti_numa_latency;
+static struct hwloc_distances_s *gasneti_get_numa_latencies(void)
+{
+  if (!_gasneti_have_numa_latency) {
+    unsigned int nr = 1;
+  #if HWLOC_API_VERSION >= 0x00020100
+    int rc = hwloc_distances_get_by_name(gasneti_hwloc_topology, "NUMALatency", &nr, &_gasneti_numa_latency, 0);
+  #else
+    unsigned long kind = HWLOC_DISTANCES_KIND_FROM_OS | HWLOC_DISTANCES_KIND_MEANS_LATENCY;
+    int rc = hwloc_distances_get(gasneti_hwloc_topology, &nr, &_gasneti_numa_latency, kind, 0);
+  #endif
+    if ((rc < 0) || !nr) _gasneti_numa_latency = NULL;
+    _gasneti_have_numa_latency = 1;
+  }
+  return _gasneti_numa_latency;
+}
+static void gasneti_release_numa_latencies(void)
+{
+  if (_gasneti_numa_latency) {
+    hwloc_distances_release(gasneti_hwloc_topology, _gasneti_numa_latency);
+  }
+  _gasneti_numa_latency = NULL;
+  _gasneti_have_numa_latency = 0;
+}
+
+// Helper for gasneti_hwloc_distances()
+//
+// The return from this function is an unsigned 32-bit metric representing the
+// "distance" from a given PU (named by its physical/OS id) to the given 'obj'.
+//
+// The 'obj' argument is an hwloc object of "normal" or "io" type.
+//
+// Current metric:
+// + The upper eight bits are the number of levels one must traverse upward in
+//   the hwloc hierarchy, starting at the PU, to reach a level which "contains"
+//   the given device.  Depending on the node architecture, we've seen instances
+//   as near as L3 Cache and as distant as Machine.
+// + The lowest eight bits are the minimum of the distances taken from the hwloc
+//   "NUMALatency" table between the NUMA nodeset of the PU and that of the
+//   device connection point.
+//
+// TODO:
+//   + While hwloc reports the OS-provided PCI "linkspeed" for devices, we do
+//     not currently take this information in to account.
+//     Use of this information might break ties between devices connected at
+//     the same level, but via distinct PCI bus/bridge paths.
+//
+static uint32_t pu_distance(unsigned int pu_id, hwloc_obj_t obj)
+{
+  // "io" objects don't have a cpuset or nodeset, so map to a "normal" one above them
+  if (hwloc_obj_type_is_io(obj->type)) {
+    obj = hwloc_get_non_io_ancestor_obj(gasneti_hwloc_topology, obj);
+  }
+
+  // Find depth of the nearest common object relative to the PUs
+  unsigned int rel_depth = hwloc_get_type_depth(gasneti_hwloc_topology, HWLOC_OBJ_CORE) - obj->depth;
+  hwloc_obj_t common = obj;
+  while (common) {
+    if (hwloc_bitmap_isset(common->cpuset, pu_id)) break;
+    ++rel_depth;
+    common = common->parent;
+  }
+  uint32_t distance = rel_depth << 24;
+
+  hwloc_obj_t pu = hwloc_get_pu_obj_by_os_index(gasneti_hwloc_topology, pu_id);
+  if (! hwloc_bitmap_isincluded(pu->nodeset, obj->nodeset)) {
+    // PU's NUMA nodeset is not contained in that of the device connection
+    // point.  To avoid ties between cases in which the nodesets of devices are
+    // not equidistant, this logic adds a NUMA latency component to the
+    // distance.
+    //
+    // Why "isincluded" instead of "intersects"?
+    // Skipping the NUMA latency scoring when the PU and device connection point
+    // have intersecting nodesets could lead to omitting this metric when, for
+    // instance, the only intersection is HBM.  Since we assume transfers
+    // to/from DRAM (or caches) are the important metric, such omission would
+    // reduce the usefulness of the distance metric.
+    //
+    // Why use *minimum* latency between NUMA nodes of the PU and device?
+    // Alternatives such as maximum, mean or median could "mix" things like HBM
+    // in addition to DRAM.  If, for instance, only a subset of sockets have
+    // HBM, then their max/mean/median distance could appear greater than the
+    // others even if there are no other differences (where in this example we
+    // are assuming that high bandwidth comes at the expense of higher latency).
+    // TODO: can we take a mean over "fast" memories, perhaps via obj->subtype?
+    struct hwloc_distances_s *numa_latencies = gasneti_get_numa_latencies();
+    if (numa_latencies) {
+      // Distance values in SLIT table are 1-byte (0..255)
+      //  0-9     reserved
+      //  10      self (diagonal)
+      //  11-254  latency metric (off-diagonal)
+      //  255     unreachable
+      unsigned int min_distance = 256;
+      unsigned int i, j;
+      hwloc_bitmap_foreach_begin(i, pu->nodeset) {
+        hwloc_obj_t nnode1 = hwloc_get_numanode_obj_by_os_index(gasneti_hwloc_topology, i);
+        hwloc_bitmap_foreach_begin(j, obj->nodeset) {
+          hwloc_obj_t nnode2 = hwloc_get_numanode_obj_by_os_index(gasneti_hwloc_topology, j);
+          if (nnode1 == nnode2) continue; // self
+          uint64_t fwd, bwd;
+          int rc = hwloc_distances_obj_pair_values(numa_latencies, nnode1, nnode2, &fwd, &bwd);
+          if (rc || fwd == 255 || bwd == 255) continue; // Invalid or unreachable
+          unsigned int dist = (fwd + bwd) / 2; // mean, in case asymmetric
+          min_distance = MIN(min_distance, dist);
+        } hwloc_bitmap_foreach_end();
+      } hwloc_bitmap_foreach_end();
+      if (min_distance != 256) {
+        distance += min_distance;
+      }
+    }
+  }
+
+  GASNETI_TRACE_PRINTF(I,("    PU L#%u is in cpuset of %s L#%d, %d levels away, NUMALatency %d",
+                           pu->logical_index, hwloc_obj_type_string(common->type), common->logical_index,
+                           rel_depth, distance & 0xff));
+
+  gasneti_assert( distance ); // logic elsewhere assumes non-zero
+  return distance;
+}
+
+// Helper for gasneti_hwloc_distances()
+//
+// The return from this function is the mean over pu_distance()
+// for every PU in the process cpuset.
+// NOTE: making *one* pu_distance() call for the "process is INSIDE cpuset"
+// case (see trace logic below) did not prove to be an important optimization.
+static uint32_t proc_distance(hwloc_obj_t dev)
+{
+  hwloc_obj_t obj = hwloc_get_non_io_ancestor_obj(gasneti_hwloc_topology, dev);
+
+  if (GASNETI_TRACE_ENABLED(I)) {
+    GASNETI_TRACE_PRINTF(I,("  %s L#%d, connected at %s L#%d",
+                            hwloc_obj_type_string(dev->type), dev->logical_index,
+                            hwloc_obj_type_string(obj->type), obj->logical_index));
+
+    if (hwloc_bitmap_isincluded(gasneti_hwloc_cpuset, obj->cpuset)) {
+      GASNETI_TRACE_PRINTF(I,("  process is INSIDE cpuset of %s L#%d",
+                              hwloc_obj_type_string(obj->type), obj->logical_index));
+    } else {
+      GASNETI_TRACE_PRINTF(I,("  process %s cpuset of %s L#%d",
+                              (hwloc_bitmap_intersects(gasneti_hwloc_cpuset, obj->cpuset) ? "INTERSECTS" : "is OUTSIDE"),
+                              hwloc_obj_type_string(obj->type), obj->logical_index));
+    }
+  }
+
+  // Take the mean over all PUs in proc cpuset
+  uint32_t distance = 0;
+  uint64_t sum = 0;
+  unsigned int pu_id;
+  hwloc_bitmap_foreach_begin(pu_id, gasneti_hwloc_cpuset) {
+    sum += pu_distance(pu_id, obj);
+  } hwloc_bitmap_foreach_end();
+  distance = sum / hwloc_bitmap_weight(gasneti_hwloc_cpuset);
+
+  GASNETI_TRACE_PRINTF(I,("  distance 0x%08x", (unsigned int)distance));
+  return distance;
+}
+#endif //  USE_HWLOC_LIB && (HWLOC_API_VERSION >= 0x020000)
+
+int gasneti_hwloc_distances(int count, uint32_t *distances, const char **names, unsigned int flags)
+{
+#if USE_HWLOC_LIB && (HWLOC_API_VERSION >= 0x020000)
+  if (! gasneti_hwloc_is_init) return -1;
+
+  uint32_t *raw = (flags & GASNETI_HWLOC_DISTANCES_NORMALIZE)
+                      ? gasneti_malloc(count * sizeof(uint32_t)) // temporary
+                      : distances;                               // in-place
+
+  int retval = 0;
+  for (int i = 0; i < count; ++i) {
+    const char *name = names[i];
+    GASNETI_TRACE_PRINTF(I,("gasneti_hwloc_distances(%s): {", name));
+    // Try as a PCI ID string, and then as an OS device name
+    hwloc_obj_t obj = hwloc_get_pcidev_by_busidstring(gasneti_hwloc_topology, name);
+    if (!obj) {
+      while (NULL != (obj = hwloc_get_next_osdev(gasneti_hwloc_topology, obj))) {
+        if (strcmp(name,obj->name)) continue;
+        break;
+      }
+    }
+    if (obj) {
+      raw[i] = proc_distance(obj);
+      ++retval;
+    } else {
+      raw[i] = GASNETI_HWLOC_DISTANCE_UNKNOWN;
+      GASNETI_TRACE_PRINTF(I,("  not found"));
+    }
+    GASNETI_TRACE_PRINTF(I,("}"));
+  }
+
+  gasneti_release_numa_latencies();
+
+  // Optionally normalize raw distance values to yield 0-based ones
+  if (flags & GASNETI_HWLOC_DISTANCES_NORMALIZE) {
+    for (int i = 0; i < count; ++i) {
+      distances[i] = GASNETI_HWLOC_DISTANCE_UNKNOWN;
+    }
+    int remain = retval; // number of devices hwloc could find
+    for (int norm_dist = 0; remain; ++norm_dist) {
+      // Find lowest raw distance among unnormalized devices
+      uint32_t best = GASNETI_HWLOC_DISTANCE_UNKNOWN;
+      for (int i = 0; i < count; ++i) {
+        if (distances[i] == GASNETI_HWLOC_DISTANCE_UNKNOWN) {
+          best = MIN(best, raw[i]);
+        }
+      }
+      if (best == GASNETI_HWLOC_DISTANCE_UNKNOWN) break;
+      // Score the devices(s) with the current best distance
+      for (int i = 0; i < count; ++i) {
+        if (raw[i] == best) {
+          distances[i] = norm_dist;
+          remain--;
+        }
+      }
+      gasneti_assert_always(remain >= 0);  // else infinite loop!
+    }
+    gasneti_free(raw);
+  }
+
+  gasneti_assert_int(retval ,>=, 0);
+  return retval;
+#else
+  GASNETI_TRACE_PRINTF(I,("gasneti_hwloc_distances(0x%x) failure: libhwloc 2.0+ required", flags));
+  return -1;
+#endif
 }
