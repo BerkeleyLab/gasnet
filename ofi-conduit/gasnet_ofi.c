@@ -747,25 +747,76 @@ static void gasnetc_info_foreach(struct fi_info *info, gasnetc_info_visitor_t ca
   }
 }
 
+// Extract an hwloc device (PCI or O/S) name from a struct fi_info
+// Returned value belongs to the library and should be gasneti_free()ed
+//
+// Priority order (best to worst):
+// 1. PCI address of the "nic", if available
+//    This is the most precise naming available, and is notably the only option
+//    on this list which currently works with the cxi provider.
+// 2. Device attributes "name" field of the "nic"
+// 3. The "domain"
+//    This *may* be the same as #2, but can also have suffixes.
+//    For instance, the verbs provider may expose 'mlx5_0' and 'mlx5_0-xrc'
+//    as distinct "domain" names even though they are the same device.
+static const char* gasnetc_info_to_device(const struct fi_info *p)
+{
+  char *name;
+  if (p->nic &&
+      p->nic->bus_attr &&
+      p->nic->bus_attr->bus_type == FI_BUS_PCI) {
+    name = gasneti_sappendf(NULL, "%x:%x:%x.%x",
+                  p->nic->bus_attr->attr.pci.domain_id,
+                  p->nic->bus_attr->attr.pci.bus_id,
+                  p->nic->bus_attr->attr.pci.device_id,
+                  p->nic->bus_attr->attr.pci.function_id);
+  } else if (p->nic &&
+             p->nic->device_attr &&
+             p->nic->device_attr->name) {
+    name = gasneti_strdup(p->nic->device_attr->name);
+  } else {
+    name = gasneti_strdup(p->domain_attr->name);
+  }
+
+  return name;
+}
+
 // List available devices, grouped by provider from most to least preferred
+#define GASNETC_LIST_DEVICES_GROWTH 8
+static struct gasnetc_list_devices_state_s {
+  int count;
+  int alloc_count;
+  const char **provider_name;
+  const char **domain_name;
+  const char **device_name;
+} gasnetc_list_devices_state;
 static int gasnetc_list_devices_visitor(const struct fi_info *p, void *context)
 {
-  // This visitor adds one line to a multi-line message for each struct visted, with de-duplication
-  char **msg_p = (char **)context;
-  char *msg = *msg_p;
-  const char *prov_name = p->fabric_attr->prov_name;
-  const char *dev_name = p->domain_attr->name;
-  char line[128];
-  snprintf(line, sizeof(line)-1, "\n        %-16s %s", prov_name, dev_name);
-  if (!msg) {
-    *msg_p = gasneti_strdup(line);
-  } else if (!strstr(msg, line)) {
-    // append 'line' to 'msg'
-    size_t old_len = strlen(msg);
-    size_t new_len = old_len + strlen(line) + 1;
-    *msg_p = msg = gasneti_realloc(msg, new_len);
-    strcpy(msg + old_len, line);
+  // This visitor collects necessary data from each struct visited, with de-duplication
+  struct gasnetc_list_devices_state_s *state = context;
+
+  const char *provider_name = p->fabric_attr->prov_name;
+  const char *domain_name = p->domain_attr->name;
+  for (int i = 0; i < state->count; ++i) {
+    if (!strcmp(provider_name, state->provider_name[i]) &&
+        !strcmp(domain_name, state->domain_name[i])) {
+      return 0; // skip duplicate and continue traversal
+    }
   }
+
+  int idx = state->count++;
+  if (state->count > state->alloc_count) {
+    state->alloc_count += GASNETC_LIST_DEVICES_GROWTH;
+    size_t alloc_sz = sizeof(char *) * state->alloc_count;
+    state->provider_name = gasneti_realloc(state->provider_name, alloc_sz);
+    state->domain_name = gasneti_realloc(state->domain_name, alloc_sz);
+    state->device_name = gasneti_realloc(state->device_name, alloc_sz);
+  }
+
+  state->provider_name[idx] = provider_name;
+  state->domain_name[idx] = domain_name;
+  state->device_name[idx] = gasnetc_info_to_device(p);
+
   return 0; // continue traversal
 }
 static void gasnetc_list_devices(struct fi_info *hints)
@@ -777,11 +828,47 @@ static void gasnetc_list_devices(struct fi_info *hints)
     return;
   }
 
+  struct gasnetc_list_devices_state_s *state = &gasnetc_list_devices_state;
+  gasneti_assert(!state->count);
+
+  gasnetc_info_foreach(info, gasnetc_list_devices_visitor, state);
+
+  int count = state->count;
+
+  uint32_t *distances = gasneti_malloc(sizeof(uint32_t) * count);
+  if (0 > gasneti_hwloc_distances(count, distances, state->device_name, GASNETI_HWLOC_DISTANCES_NORMALIZE)) {
+    gasneti_free(distances);
+    distances = NULL;
+  }
+
   char *msg = NULL;
-  gasnetc_info_foreach(info, gasnetc_list_devices_visitor, &msg);
-  gasneti_console_message("INFO", "Detected the following provider and device pair(s)%s", msg);
-  gasneti_free(msg);
+  for (int i = 0; i < count; ++i) {
+    msg = gasneti_sappendf(msg, "\n        %-16s %-16s",
+                           state->provider_name[i], state->domain_name[i]);
+    if (distances) {
+      if (distances[i] == GASNETI_HWLOC_DISTANCE_UNKNOWN) {
+        msg = gasneti_sappendf(msg, " distance ranking unknown");
+      } else {
+        msg = gasneti_sappendf(msg, " distance ranking %d", 1 + (int)distances[i]);
+      }
+    }
+  }
   fi_freeinfo(info);
+
+  gasneti_console_message("INFO", "Detected the following provider and device pair(s)%s", msg);
+
+  gasneti_free(msg);
+  gasneti_free(distances);
+
+  for (int i = 0; i < state->count; ++i) {
+    gasneti_free((void*) state->device_name[i]);
+  }
+  gasneti_free(state->provider_name);
+  gasneti_free(state->domain_name);
+  gasneti_free(state->device_name);
+  state->alloc_count = 0;
+  state->count = 0;
+
   return;
 }
 
@@ -920,7 +1007,6 @@ int gasnetc_ofi_init(void)
   // constrain the device/domain if provided by the user
   (void) gasneti_hwloc_init(); // TODO: messages on error?
   gasnetc_ofi_device = gasneti_getenv_hwloc_withdefault("GASNET_OFI_DEVICE", "", "Socket");
-  (void) gasneti_hwloc_fini();
   if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
   hints->domain_attr->name = gasnetc_ofi_device;
 
@@ -1172,6 +1258,9 @@ int gasnetc_ofi_init(void)
   // the other hints, and the first match is not the one we want.
   hints->fabric_attr->prov_name = gasnetc_ofi_provider;
   hints->domain_attr->name = gasnetc_ofi_domain;
+
+  // With the provider now chosen, we are done with hwloc
+  (void) gasneti_hwloc_fini();
 
   // Check provider-specific minimum library versions (before checking modes)
   // REMINDER: these are documented in README and also enforced in configure.in
