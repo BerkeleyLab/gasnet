@@ -453,7 +453,7 @@ out_bad_intersect:
           "Failed to query hwloc for objects of type '%s' while processing environment variable '%s'.  "
           "You may set '%s_TYPE=none' to disable checks for suffixed variants of this variable.  "
           "Suppressing additional warnings, if any, for this error with additional variables.",
-          typestring, keyname, keyname), keyname;
+          typestring, keyname, keyname);
       did_intersect_warning = 1;
     }
     goto out;
