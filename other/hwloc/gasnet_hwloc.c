@@ -39,6 +39,19 @@
 #endif
 
 // ------------------------------------------------------------------------------------
+//
+// File-scope variables
+//
+
+static int gasneti_hwloc_is_init = 0;
+#if USE_HWLOC_LIB
+hwloc_topology_t gasneti_hwloc_topology;
+#endif
+#if USE_HWLOC_LIB || USE_HWLOC_UTILS
+gasneti_hwloc_cpuset_t gasneti_hwloc_cpuset = NULL;
+#endif
+
+// ------------------------------------------------------------------------------------
 #if USE_HWLOC_LIB || USE_HWLOC_UTILS
 //
 // Utilities specific to use of hwloc
@@ -244,6 +257,78 @@ static int check_op(const char **typestring_p, const char operator, const char* 
 }
 
 // ------------------------------------------------------------------------------------
+//
+// Initialization and finalization
+//
+
+int gasneti_hwloc_init(void) {
+  if (gasneti_hwloc_is_init) return 0;
+
+#if USE_HWLOC_LIB
+  if (hwloc_topology_init(&gasneti_hwloc_topology) < 0) {
+    // failed to initialize hwloc
+    goto fail_bad_topo;
+  }
+  // Enable "whole system" mode for uniform counting/naming
+  #if HWLOC_API_VERSION >= 0x020100 // since 2.1.0
+    (void)hwloc_topology_set_flags(gasneti_hwloc_topology, HWLOC_TOPOLOGY_FLAG_INCLUDE_DISALLOWED);
+  #else
+    (void)hwloc_topology_set_flags(gasneti_hwloc_topology, HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM);
+  #endif
+  gasneti_hwloc_cpuset = hwloc_bitmap_alloc();
+  if (!gasneti_hwloc_cpuset ||
+      (hwloc_topology_load(gasneti_hwloc_topology) < 0) ||
+      (hwloc_get_cpubind(gasneti_hwloc_topology, gasneti_hwloc_cpuset, HWLOC_CPUBIND_THREAD) < 0 )) {
+    // failed to query cpu binding from hwloc
+    goto fail_bad_cpuset;
+  }
+
+  goto success;
+
+fail_bad_cpuset:
+  hwloc_topology_destroy(gasneti_hwloc_topology);
+fail_bad_topo:
+  return 1;
+#elif USE_HWLOC_UTILS
+  // Note: gasneti_hwloc_cpuset_t is "char *" when using utils
+  gasneti_hwloc_cpuset = run_hwloc_cmd(GASNETI_HWLOC_BIND_PATH " --get" CLOSE_STDIN, NULL);
+  // It is sufficient here to validate that we have a hexadecimal value.
+  // `hwloc-calc` will perform stronger validation when we pass this as argument.
+  if (!gasneti_hwloc_cpuset ||
+      gasneti_hwloc_cpuset[0] != '0' ||
+      gasneti_hwloc_cpuset[1] != 'x' ||
+      !isxdigit(gasneti_hwloc_cpuset[2])) {
+    // failed to query cpu binding from hwloc
+    goto fail_bad_cpuset;
+  }
+
+  goto success;
+
+fail_bad_cpuset:
+  gasneti_free((void *)gasneti_hwloc_cpuset);
+  return 1;
+#endif
+
+success:
+  gasneti_hwloc_is_init = 1;
+  return 0;
+}
+
+int gasneti_hwloc_fini(void) {
+  if (!gasneti_hwloc_is_init) return 0;
+
+#if USE_HWLOC_LIB
+  if (gasneti_hwloc_cpuset) hwloc_bitmap_free(gasneti_hwloc_cpuset);
+  hwloc_topology_destroy(gasneti_hwloc_topology);
+#elif USE_HWLOC_UTILS
+  gasneti_free((void *)gasneti_hwloc_cpuset);
+#endif
+
+  gasneti_hwloc_is_init = 0;
+  return 0;
+}
+
+// ------------------------------------------------------------------------------------
 // gasneti_getenv_hwloc_withdefault()
 //
 // In the steps below "return the value of keyname from the environment" means:
@@ -275,8 +360,6 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
 #if USE_HWLOC_LIB || USE_HWLOC_UTILS
   // Define these early to avoid harmlss goto-bypasses-initialization warnings
   gasneti_hwloc_obj_type_t type = (gasneti_hwloc_obj_type_t)0;
-  gasneti_hwloc_cpuset_t cpuset = NULL;
-  int topo_is_init = 0;
 #endif
 
   char *suffix = NULL;
@@ -348,51 +431,22 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   // Note non-zero return indicates invalid dflt_type, not a user error
   gasneti_assert_zeroret( get_selector_type(&type, keyname, typestring, dflt_type) );
 
-  // Step 6a - query the current proc's cpu binding
-  #if USE_HWLOC_LIB
-    hwloc_topology_t topology;
-    if (hwloc_topology_init(&topology) < 0) {
-      // failed to initialize hwloc
-      goto out_bad_cpuset;
-    }
-    topo_is_init = 1;
-    // Enable "whole system" mode for uniform counting/naming
-    #if HWLOC_API_VERSION >= 0x020100 // since 2.1.0
-      (void)hwloc_topology_set_flags(topology, HWLOC_TOPOLOGY_FLAG_INCLUDE_DISALLOWED);
-    #else
-      (void)hwloc_topology_set_flags(topology, HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM);
-    #endif
-    cpuset = hwloc_bitmap_alloc();
-    if (!cpuset ||
-        (hwloc_topology_load(topology) < 0) ||
-        (hwloc_get_cpubind(topology, cpuset, HWLOC_CPUBIND_THREAD) < 0 )) {
-      // failed to query cpu binding from hwloc
-      goto out_bad_cpuset;
-    }
-  #else
-    // Note: gasneti_hwloc_cpuset_t is "char *" when using utils
-    cpuset = run_hwloc_cmd(GASNETI_HWLOC_BIND_PATH " --get" CLOSE_STDIN, NULL);
-    // It is sufficient here to validate that we have a hexadecimal value.
-    // `hwloc-calc` will perform stronger validation when we pass this as argument.
-    if (!cpuset || cpuset[0] != '0' || cpuset[1] != 'x' || !isxdigit(cpuset[2])) {
-      // failed to query cpu binding from hwloc
-      goto out_bad_cpuset;
-    }
-  #endif
-
-  // Step 6b - compute intersection between 'cpuset' and object(s) of 'type'
+  // Step 6 - compute intersection between 'cpuset' and object(s) of 'type'
+  if (! gasneti_hwloc_is_init) {
+    goto out_bad_hwloc;
+  }
   #if USE_HWLOC_LIB
   {
-    int count = hwloc_get_nbobjs_by_type(topology, type);
+    int count = hwloc_get_nbobjs_by_type(gasneti_hwloc_topology, type);
     if (count <= 0) {
       // EITHER there are no objects of the given type
       // OR type occurs at multiple levels (not a type suited to our purposes)
       goto out_bad_intersect;
     }
     for (int i = 0; i < count; ++i) {
-      hwloc_obj_t obj = hwloc_get_obj_by_type(topology, type, i);
+      hwloc_obj_t obj = hwloc_get_obj_by_type(gasneti_hwloc_topology, type, i);
       gasneti_assert(obj);
-      if (hwloc_bitmap_intersects(cpuset, obj->cpuset)) {
+      if (hwloc_bitmap_intersects(gasneti_hwloc_cpuset, obj->cpuset)) {
         suff_set_insert(i, div, mod);
       }
     }
@@ -401,7 +455,7 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   #else
   { 
     size_t len = 0;
-    char *cmd = gasneti_sappendf(NULL, GASNETI_HWLOC_CALC_PATH " --intersect %s %s" CLOSE_STDIN, type, cpuset);
+    char *cmd = gasneti_sappendf(NULL, GASNETI_HWLOC_CALC_PATH " --intersect %s %s" CLOSE_STDIN, type, gasneti_hwloc_cpuset);
     char *buf = run_hwloc_cmd(cmd, &len);
     gasneti_free(cmd);
     if (!buf || !buf[0]) {
@@ -431,16 +485,16 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   // Step 7 - query the environment with suffix
   goto try_suffix;
 
-out_bad_cpuset:
+out_bad_hwloc:
   {
-    static int did_cpuset_warning = 0;
-    if (!did_cpuset_warning) {
+    static int did_hwloc_warning = 0;
+    if (!did_hwloc_warning) {
       gasneti_console_message("WARNING",
           "Failed to query hwloc for cpuset (binding) while processing environment variable '%s'.  "
           "You may set '%s_TYPE=none' to disable checks for suffixed variants of this variable.  "
           "Suppressing additional warnings, if any, for this error with additional variables.",
           keyname, keyname);
-      did_cpuset_warning = 1;
+      did_hwloc_warning = 1;
     }
     goto out;
   }
@@ -494,13 +548,9 @@ out:
   if (typestring != orig_typestring) gasneti_free((void*)typestring);
   suff_set_free();
   gasneti_free(firstkey);
-  #if USE_HWLOC_LIB
-    if (cpuset) hwloc_bitmap_free(cpuset);
-    if (topo_is_init) hwloc_topology_destroy(topology);
-  #elif USE_HWLOC_UTILS
+  #if USE_HWLOC_UTILS
     // casts below discard const qualifiers to avoid warnings
     gasneti_free((void *)type);
-    gasneti_free((void *)cpuset);
   #endif
 
   // Return the suffixed variable's value if any, else use unsuffixed

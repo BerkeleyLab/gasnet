@@ -918,7 +918,9 @@ int gasnetc_ofi_init(void)
   if (!hints) gasneti_fatalerror("fi_allocinfo for hints failed\n");
 
   // constrain the device/domain if provided by the user
+  (void) gasneti_hwloc_init(); // TODO: messages on error?
   gasnetc_ofi_device = gasneti_getenv_hwloc_withdefault("GASNET_OFI_DEVICE", "", "Socket");
+  (void) gasneti_hwloc_fini();
   if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
   hints->domain_attr->name = gasnetc_ofi_device;
 

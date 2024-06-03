@@ -7,6 +7,12 @@
 #ifndef _GASNET_HWLOC_INTERNAL_H
 #define _GASNET_HWLOC_INTERNAL_H
 
+// Initialization of GASNet's hwloc subsystem.
+extern int gasneti_hwloc_init(void);
+
+// Finalization of GASNet's hwloc subsystem.
+extern int gasneti_hwloc_fini(void);
+
 // For a given keyname:
 // 1. Look for a hwloc object type in env var "[kename]_TYPE", or dflt_type if none.
 // 2. Find the current procs binding(s) for the given type

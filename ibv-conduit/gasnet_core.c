@@ -875,7 +875,9 @@ static int gasnetc_load_settings(void) {
     gasneti_console_message("WARNING", "GASNET_PORT_NUM set in environment, but ignored.  See gasnet/ibv-conduit/README.");
   }
 
+  (void) gasneti_hwloc_init(); // TODO: messages on error?
   gasnetc_ibv_ports = gasneti_getenv_hwloc_withdefault("GASNET_IBV_PORTS", GASNETC_DEFAULT_IBV_PORTS, "Socket");
+  (void) gasneti_hwloc_fini();
   gasnetc_ibv_ports_verbose = gasneti_getenv_int_withdefault("GASNET_IBV_PORTS_VERBOSE",1,0);
 
   #define GASNETC_ENVINT(program_var, env_key, default_val, minval, is_mem) do {     \
