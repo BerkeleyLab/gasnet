@@ -32,9 +32,9 @@ GASNet-EX ChangeLog
     and pmi-spawners, in addition to legacy fork-based job launch.
 
 * General and Misc.
-  - Support for libhwloc, used conditionally by ibv- and ofi-conduits, has
-    been updated to use a thread-scope query for the cpuset instead of
-    process-scope.  This addresses bug 4734.
+  - Support for hwloc, used conditionally by ibv- and ofi-conduits, now
+    defaults to thread-scope (not process-scope) for the cpuset query.
+    See GASNET_HWLOC_QUERY in the top-level GASNet README for details.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4718 - Diagnose invalid segment binding to primordial endpoint

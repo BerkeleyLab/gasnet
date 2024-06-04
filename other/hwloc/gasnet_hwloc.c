@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #if GASNETI_HAVE_HWLOC_LIB
   #include "hwloc.h"
@@ -264,6 +266,18 @@ static int check_op(const char **typestring_p, const char operator, const char* 
 int gasneti_hwloc_init(void) {
   if (gasneti_hwloc_is_init) return 0;
 
+  int cpubind_process;
+  const char *envval = gasneti_getenv_withdefault("GASNET_HWLOC_QUERY","thread");
+  if (! gasneti_strcasecmp(envval,"thread")) {
+    cpubind_process = 0;
+  } else if (! gasneti_strcasecmp(envval,"process")) {
+    cpubind_process = 1;
+  } else {
+    gasneti_fatalerror("GASNET_HWLOC_QUERY='%s' is not recognized", envval);
+  }
+
+  int result = 0; // assume success
+
 #if USE_HWLOC_LIB
   if (hwloc_topology_init(&gasneti_hwloc_topology) < 0) {
     // failed to initialize hwloc
@@ -276,9 +290,11 @@ int gasneti_hwloc_init(void) {
     (void)hwloc_topology_set_flags(gasneti_hwloc_topology, HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM);
   #endif
   gasneti_hwloc_cpuset = hwloc_bitmap_alloc();
+  hwloc_cpubind_flags_t cpubind_flags = cpubind_process ? HWLOC_CPUBIND_PROCESS
+                                                        : HWLOC_CPUBIND_THREAD;
   if (!gasneti_hwloc_cpuset ||
       (hwloc_topology_load(gasneti_hwloc_topology) < 0) ||
-      (hwloc_get_cpubind(gasneti_hwloc_topology, gasneti_hwloc_cpuset, HWLOC_CPUBIND_THREAD) < 0 )) {
+      (hwloc_get_cpubind(gasneti_hwloc_topology, gasneti_hwloc_cpuset, cpubind_flags) < 0 )) {
     // failed to query cpu binding from hwloc
     goto fail_bad_cpuset;
   }
@@ -291,7 +307,13 @@ fail_bad_topo:
   return 1;
 #elif USE_HWLOC_UTILS
   // Note: gasneti_hwloc_cpuset_t is "char *" when using utils
-  gasneti_hwloc_cpuset = run_hwloc_cmd(GASNETI_HWLOC_BIND_PATH " --get" CLOSE_STDIN, NULL);
+  const char *cmd;
+  if (cpubind_process) {
+    cmd = gasneti_dynsprintf(GASNETI_HWLOC_BIND_PATH " --pid %lu --get" CLOSE_STDIN, (unsigned long)getpid());
+  } else {
+    cmd = GASNETI_HWLOC_BIND_PATH " --get" CLOSE_STDIN;
+  }
+  gasneti_hwloc_cpuset = run_hwloc_cmd(cmd, NULL);
   // It is sufficient here to validate that we have a hexadecimal value.
   // `hwloc-calc` will perform stronger validation when we pass this as argument.
   if (!gasneti_hwloc_cpuset ||
