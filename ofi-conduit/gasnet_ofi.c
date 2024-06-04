@@ -924,9 +924,6 @@ int gasnetc_ofi_init(void)
 
   /* caps: fabric interface capabilities */
   hints->caps           = FI_RMA | FI_MSG | FI_MULTI_RECV;
-#if GASNET_HAVE_MK_CLASS_MULTIPLE
-  hints->caps          |= FI_HMEM;
-#endif
   /* mode: convey requirements for application to use fabric interfaces */
   hints->mode           = FI_CONTEXT;   /* fi_context is used for per
                                            operation context parameter */
@@ -977,14 +974,15 @@ int gasnetc_ofi_init(void)
   hints->domain_attr->mr_mode |= FI_MR_PROV_KEY;
 #endif
 
-  // If user has requested, list devices prior to adding FI_MR_HMEM which
-  // is optional (we eventually retry w/o it if it leads to no matches).
+  // If user has requested, list devices prior to adding FI_HMEM/FI_MR_HMEM which
+  // are optional (we eventually retry w/o if there are no matches with).
   if (gasneti_getenv_yesno_withdefault("GASNET_OFI_LIST_DEVICES", 0) &&
       gasneti_check_node_list("GASNET_OFI_LIST_DEVICES_NODES")) {
       gasnetc_list_devices(hints);
   }
 
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
+  hints->caps                 |= FI_HMEM;
   hints->domain_attr->mr_mode |= FI_MR_HMEM;
 #endif
 
