@@ -877,7 +877,6 @@ static int gasnetc_load_settings(void) {
 
   (void) gasneti_hwloc_init(); // TODO: messages on error?
   gasnetc_ibv_ports = gasneti_getenv_hwloc_withdefault("GASNET_IBV_PORTS", GASNETC_DEFAULT_IBV_PORTS, "Socket");
-  (void) gasneti_hwloc_fini();
   gasnetc_ibv_ports_verbose = gasneti_getenv_int_withdefault("GASNET_IBV_PORTS_VERBOSE",1,0);
 
   #define GASNETC_ENVINT(program_var, env_key, default_val, minval, is_mem) do {     \
@@ -1299,9 +1298,20 @@ static void gasnetc_list_ports(void) {
   hca_list = ibv_get_device_list(&num_hcas);
   char *msg = NULL;
 
+  const char **hca_names = gasneti_malloc(num_hcas * sizeof(char *));
+  for (int hca_num = 0; hca_num < num_hcas; ++hca_num) {
+    hca_names[hca_num] = ibv_get_device_name(hca_list[hca_num]);
+  }
+
+  uint32_t *hca_distances = gasneti_malloc(num_hcas * sizeof(uint32_t));
+  if (0 > gasneti_hwloc_distances(num_hcas, hca_distances, hca_names, GASNETI_HWLOC_DISTANCES_NORMALIZE)) {
+    gasneti_free(hca_distances);
+    hca_distances = NULL;
+  }
+
   int good_count = 0;
   for (int hca_num = 0; hca_num < num_hcas; ++hca_num) {
-    const char *hca_name = ibv_get_device_name(hca_list[hca_num]);
+    const char *hca_name = hca_names[hca_num];
 
 #if HAVE_IBV_TRANSPORT_TYPE
     if (hca_list[hca_num]->transport_type != IBV_TRANSPORT_IB) {
@@ -1361,7 +1371,15 @@ static void gasnetc_list_ports(void) {
         }
       }
 
-      msg = gasneti_sappendf(msg, "        %s:%d GOOD\n", hca_name, port_num);
+      const char *dist_msg = "";
+      if (hca_distances) {
+        if (hca_distances[hca_num] == GASNETI_HWLOC_DISTANCE_UNKNOWN) {
+          dist_msg = " - distance ranking unknown";
+        } else {
+          dist_msg = gasneti_dynsprintf(" - distance ranking %u", 1 + (unsigned int)hca_distances[hca_num]);
+        }
+      }
+      msg = gasneti_sappendf(msg, "        %s:%d GOOD%s\n", hca_name, port_num, dist_msg);
       ++good_count;
     }
     (void) ibv_close_device(hca_handle);
@@ -1377,6 +1395,8 @@ static void gasnetc_list_ports(void) {
     gasneti_console_message("INFO", "No IBV-compatible devices found\n");
   }
   gasneti_free(msg);
+  gasneti_free(hca_distances);
+  gasneti_free(hca_names);
 }
 
 /* Try to find up to *port_count_p ACTIVE ports, replacing w/ the actual count */
@@ -1990,6 +2010,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
       GASNETI_RETURN_ERRR(RESOURCE, "unable to open any HCA ports");
     }
   }
+
+  // Past probing of HCA ports, we are done with hwloc
+  (void) gasneti_hwloc_fini();
 
 #if GASNETC_HAVE_FENCED_PUTS
   gasnetc_use_fenced_puts = gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS",
