@@ -278,9 +278,15 @@ int gasneti_hwloc_init(void) {
 
   int result = 0; // assume success
 
+  gasneti_tick_t t1 = GASNETI_TICKS_NOW_IFENABLED(I);
+  GASNETI_TRACE_PRINTF(I,("gasneti_hwloc_init() {"));
+  GASNETI_TRACE_PRINTF(I,("  GASNET_HWLOC_QUERY = '%s'", envval));
 #if USE_HWLOC_LIB
-  if (hwloc_topology_init(&gasneti_hwloc_topology) < 0) {
+  GASNETI_TRACE_PRINTF(I,("  using libhwloc API version 0x%x", HWLOC_API_VERSION));
+  int rc = hwloc_topology_init(&gasneti_hwloc_topology);
+  if (rc < 0) {
     // failed to initialize hwloc
+    GASNETI_TRACE_PRINTF(I,("  failed: hwloc_topology_init() returned %d", rc));
     goto fail_bad_topo;
   }
   // Enable "whole system" mode for uniform counting/naming
@@ -290,13 +296,29 @@ int gasneti_hwloc_init(void) {
     (void)hwloc_topology_set_flags(gasneti_hwloc_topology, HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM);
   #endif
   gasneti_hwloc_cpuset = hwloc_bitmap_alloc();
+  if (!gasneti_hwloc_cpuset) {
+    GASNETI_TRACE_PRINTF(I,("  failed: hwloc_bitmap_alloc() returned NULL"));
+    goto fail_bad_cpuset;
+  }
+  rc = hwloc_topology_load(gasneti_hwloc_topology);
+  if (rc < 0) {
+    GASNETI_TRACE_PRINTF(I,("  failed: hwloc_topology_load() returned %d", rc));
+    goto fail_bad_cpuset;
+  }
   hwloc_cpubind_flags_t cpubind_flags = cpubind_process ? HWLOC_CPUBIND_PROCESS
                                                         : HWLOC_CPUBIND_THREAD;
-  if (!gasneti_hwloc_cpuset ||
-      (hwloc_topology_load(gasneti_hwloc_topology) < 0) ||
-      (hwloc_get_cpubind(gasneti_hwloc_topology, gasneti_hwloc_cpuset, cpubind_flags) < 0 )) {
-    // failed to query cpu binding from hwloc
+  rc = hwloc_get_cpubind(gasneti_hwloc_topology, gasneti_hwloc_cpuset, cpubind_flags);
+  if (rc < 0) {
+    GASNETI_TRACE_PRINTF(I,("  failed: hwloc_get_cpubind() returned %d", rc));
     goto fail_bad_cpuset;
+  }
+
+  if (GASNETI_TRACE_ENABLED(I)) {
+    size_t len = hwloc_bitmap_snprintf(NULL, 0, gasneti_hwloc_cpuset);
+    char *buf = gasneti_malloc(len+1);
+    hwloc_bitmap_snprintf(buf, len+1, gasneti_hwloc_cpuset);
+    GASNETI_TRACE_PRINTF(I,("  cpuset: %s", buf));
+    gasneti_free(buf);
   }
 
   goto success;
@@ -304,8 +326,10 @@ int gasneti_hwloc_init(void) {
 fail_bad_cpuset:
   hwloc_topology_destroy(gasneti_hwloc_topology);
 fail_bad_topo:
-  return 1;
+  result = 1;
+  goto done;
 #elif USE_HWLOC_UTILS
+  GASNETI_TRACE_PRINTF(I,("  using hwloc command-line utilities"));
   // Note: gasneti_hwloc_cpuset_t is "char *" when using utils
   const char *cmd;
   if (cpubind_process) {
@@ -321,19 +345,29 @@ fail_bad_topo:
       gasneti_hwloc_cpuset[1] != 'x' ||
       !isxdigit(gasneti_hwloc_cpuset[2])) {
     // failed to query cpu binding from hwloc
+    GASNETI_TRACE_PRINTF(I,("  failed to query 'hwloc-bind --get' for cpuset"));
     goto fail_bad_cpuset;
   }
 
+  GASNETI_TRACE_PRINTF(I,("  cpuset: %s", gasneti_hwloc_cpuset));
   goto success;
 
 fail_bad_cpuset:
   gasneti_free((void *)gasneti_hwloc_cpuset);
-  return 1;
+  result = 1;
+  goto done;
 #endif
 
 success:
+  gasneti_assert(result == 0); // success
   gasneti_hwloc_is_init = 1;
-  return 0;
+  // fall through
+
+done:
+  gasneti_tick_t t2 = GASNETI_TICKS_NOW_IFENABLED(I);
+  GASNETI_TRACE_PRINTF(I,("  initialized in %.3fus", gasneti_ticks_to_ns(t2-t1)/1000.0));
+  GASNETI_TRACE_PRINTF(I,("}"));
+  return result;
 }
 
 int gasneti_hwloc_fini(void) {
