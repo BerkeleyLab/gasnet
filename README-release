@@ -123,7 +123,6 @@ GASNet Release Procedure
   with both debug+stats+trace and ndebug configs, and all supported backend
   C compilers:
    HPE Cray EX: ofi (and mpi if time/allocation allows)
-   Cray XC: aries (and mpi if time/allocation allows)
    Linux-Ethernet: mpi, udp, ofi
    Linux-InfiniBand: mpi, ibv, ucx
    Linux-Omni-Path: ofi (plus mpi and ibv if time/allocation allows)

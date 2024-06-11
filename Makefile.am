@@ -26,7 +26,6 @@ CONDUITMODE_DIST_SUBDIRS =    	\
 	udp-conduit  		\
 	ibv-conduit 		\
 	ucx-conduit 		\
-	aries-conduit           \
 	ofi-conduit
 CONDUITMODE_headers = 		\
 	gasnetex.h           	\
