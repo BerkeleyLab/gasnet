@@ -188,9 +188,9 @@ compilers, including which GASNet conduits are supported.
 script in other/contrib/ and link it into your top-level source directory and
 invoke it in place of configure.  Example for the Cray XC with slurm:
      cd <path-to-gasnet-src>
-     ln -s other/contrib/cross-configure-cray-aries-slurm .
+     ln -s other/contrib/cross-configure-cray-xc-slurm .
      cd <your-build-dir>
-     <path-to-gasnet-src>/cross-configure-cray-aries-slurm (configure_options)
+     <path-to-gasnet-src>/cross-configure-cray-xc-slurm (configure_options)
 
   For cross-compilation support on platforms without scripts in other/contrib
 see the instructions in other/cross-configure-help.c.

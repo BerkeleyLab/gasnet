@@ -52,13 +52,13 @@ Known problems:
   "just right".  The configure option --enable-bug3480-workaround will enable
   retries and an additional barrier to prevent the failure mode described
   above, at the cost of a small additional delay at startup.
-  In this release, the provided cross-configure-cray-* scripts AUTOMATICALLY
+  In this release, the provided cross-configure-cray-xc-* scripts AUTOMATICALLY
   enable the work-around if CLE6 is detected.  If you do *not* desire the
   work-around, then you may pass the option --disable-bug3480-workaround to
   the cross-configure script.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3480
-  It is currently unknown if this problem is specific to Cray systems.
+  It is currently unknown if this problem is specific to Cray XC systems.
 
 * Bug 3727
   The smp-conduit support for remote atomics is limited to certain datatypes.
