@@ -1599,7 +1599,7 @@ static int gasneti_nativeOfiProvider(void) {
       GASNETI_IBV_DEVICES, // verbs or psm2 providers
       GASNETI_CXI_DEVICES  // cxi provider
       #if !GASNET_SEGMENT_EVERYTHING
-        GASNETI_GNI_DEVICES, // gni provider
+        , GASNETI_GNI_DEVICES // gni provider
       #endif
     };
     if (gasneti_probeInfiniBandHCAs() & GASNETI_HCA_TRUESCALE) {
