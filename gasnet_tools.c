@@ -2691,7 +2691,8 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
     gasneti_verboseenv_t *p;
     char tmpstr[255];
     char *displaystr = tmpstr;
-    int width = MAX(10,55 - strlen(key) - strlen(displayval));
+    int width = 55 - strlen(key) - strlen(displayval);
+    width = MAX(10, width);
     int len = snprintf(tmpstr, sizeof(tmpstr), "ENV parameter: %s = %s%*s\n", key, displayval, width, dflt);
     if (len >= sizeof(tmpstr)) { /* Too long for the static buffer */
       displaystr = malloc(len + 1);
