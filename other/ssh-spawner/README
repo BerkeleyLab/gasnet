@@ -233,3 +233,13 @@ using gethostbynname().
       compute nodes.
     - Unless the out-degree has been set to zero, compute nodes must
       able to resolve the hostnames of the other compute nodes.
+
+@ Section: Known Problems @
+
++ Use of the -E option to propagate environment variables currently
+  has two limitations:
+    - Will silently discard variables with non-conforming names.
+      Specifically, names must match '[A-Za-z_][A-Za-z0-9_]*'.
+    - Will silently discard variables with newline characters
+      in their value.
+  See Bug 4723 for the motivation behind these constraints.
