@@ -60,33 +60,34 @@
    In the interest of scalability the ssh processes are started up in a
    balanced N-ary tree, where N can be controlled at run time (via env
    var GASNET_SSH_OUT_DEGREE).  Typically we want this value to be
-   resonably large, since deep trees would result in multiple steps of
+   reasonably large, since deep trees would result in multiple steps of
    forwarding for standard I/O (which is performed entirely by the ssh
    processes at this point).  IF GASNETI_SSH_OUT_DEGREE is set to zero
-   then the tree effectively has inifinite out-degree and the tree of
+   then the tree effectively has infinite out-degree and the tree of
    control processes (defined below) is only one level deep.
 
    The leaf processes are assigned gasnet ranks ("rank processes"), while
-   internal nodes in the tree are known as "control proceses".  The root
+   internal nodes in the tree are known as "control processes".  The root
    of the tree is always a control process (even when running a single
    rank) and is also known as the "master process".  Each control process
    may have both rank processes and additional control processes as
-   children.  In normal use, there is a single control process per node.
+   children.  In normal use, there is a single control process per host.
 
-   NOTE: currently "normal use" is defined to include
-   listing each node at most once in GASNET_SSH_SERVERS (or equivalent),
-   because currently we start one control per entry in the node list.
-   It is planned to eliminate such duplication in the future.
+   NOTE: "normal use" is the default case in which the environment variable
+   GASNET_SSH_KEEPDUP is unset or "false" AND there are no uses of "multi-homed"
+   hosts.  With GASNET_SSH_KEEPDUP set to a "true" value OR multiple names for
+   the same host which cannot be de-duplicated, there will be one control
+   process for each time a given host is used from the list.
 
    In addition to the tree of ssh connections, there is a control socket
    created between each process and its parent (this is true for both
    the rank and control processes).  This socket is used for control
-   information, during startup.  For instance, the the environment and
+   information, during startup.  For instance, the environment and
    arguments are transferred over this socket.
 
    The control sockets are used to send each control process only a
    portion of the list of host names.  Rather than send the entire list,
-   each processs receives the hostnames of any children it may have.
+   each process receives the hostnames of any children it may have.
 
    The spawner is able to (in most cases) avoid orphaned processes
    by using TCP out-of-band data to generate a SIGURG.  The handler for
@@ -118,7 +119,7 @@
       void Fini(void);
       void Abort(int exitcode);
 
-   In the case of normal termination, all nodes should call
+   In the case of normal termination, all processes should call
    Fini() before they call exit().  In the event
    that gasnet is unable to arrange for an orderly shutdown, a call to
    Abort() will try to force all processes to exit
@@ -126,11 +127,10 @@
 
    To control the spawner, there are a few environment variables, all of
    which are processed only by the master process (which send the
-   relavent information on to the others via the control sockets).  See
+   relevant information on to the others via the control sockets).  See
    README for documentation on these variables.
 
    XXX: still to do
-   + Group same-node when appears multiple times in list
    + Give master its own rank children too?
    + Implement "custom" spawner in the spirit of udp-conduit.
    + Look at udp-conduit for things missing from this list. :-)
