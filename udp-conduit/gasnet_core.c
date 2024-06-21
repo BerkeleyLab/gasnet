@@ -74,9 +74,11 @@ void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   if_pf (retval) gasneti_fatalerror("failure in gasnetc_bootstrapExchange()");
 }
 
-#if GASNET_PSHM /* Used only in call to gasneti_pshm_init() */
-/* Naive (poorly scaling) "reference" implementation via gasnetc_bootstrapExchange() */
-static void gasnetc_bootstrapNbrhdBroadcast(void *src, size_t len, void *dest, int rootnode) {
+#if GASNET_PSHM // Currently used only in call to gasneti_pshm_init()
+// Naive (poorly scaling) "reference" SubsetBroadcast via AMUDP_SPMDAllGather()
+// Since every caller extracts the desired rootnode's contribution from an
+// AllGather, the NbrhdBroadcast and HostBroadcast are identical.
+static void gasnetc_bootstrapSubsetBroadcast(void *src, size_t len, void *dest, int rootnode) {
   void *tmp = gasneti_malloc(len * gasneti_nodes);
   gasneti_assert(NULL != src);
   if (gasneti_mynode != rootnode) {
@@ -87,6 +89,8 @@ static void gasnetc_bootstrapNbrhdBroadcast(void *src, size_t len, void *dest, i
   GASNETI_MEMCPY(dest, (void*)((uintptr_t)tmp + (len * rootnode)), len);
   gasneti_free(tmp);
 }
+#define gasnetc_bootstrapNbrhdBroadcast gasnetc_bootstrapSubsetBroadcast
+#define gasnetc_bootstrapHostBroadcast gasnetc_bootstrapSubsetBroadcast
 #endif
 
 #define INITERR(type, reason) do {                                      \

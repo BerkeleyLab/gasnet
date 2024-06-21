@@ -739,10 +739,12 @@ void gasnetc_pmi_allgather_on_smp_init(void) {
 }
 #endif
 
-static void bootstrapNbrhdBroadcast(void *src, size_t len, void *dest, int rootnode) {
+// Since every caller extracts the desired rootnode's contribution from an
+// AllGather, the NbrhdBroadcast and HostBroadcast are identical.
+static void bootstrapSubsetBroadcast(void *src, size_t len, void *dest, int rootnode) {
 #ifdef HAVE_PMI_GET_NUMPES_ON_SMP
     // Cray PMI gives us a means to validate our "host" size.
-    // The first NbrhdBroadcast seems as good as place as any to check.
+    // The first SubsetBroadcast seems as good as place as any to check.
     // TODO: add a function pointer to gasneti_spawnerfn_t for this type of validation
     static int once = 0;
     if (!once) {
@@ -909,7 +911,8 @@ static gasneti_spawnerfn_t const spawnerfn = {
   bootstrapBarrier,
   bootstrapExchange,
   bootstrapBroadcast,
-  bootstrapNbrhdBroadcast,
+  bootstrapSubsetBroadcast, // Nbrhd
+  bootstrapSubsetBroadcast, // Host
   bootstrapAlltoall,
   bootstrapAbort,
   bootstrapCleanup,
