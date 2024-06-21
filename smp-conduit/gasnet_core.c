@@ -403,7 +403,6 @@ static void gasnetc_join_children(void) {
   alarm(0);
 }
 
-#if GASNET_PSHM
 /* Broadcast usable prior to bring-up of PSHM
    This is used for the SNodeBcast fn in gasneti_pshm_init() */
 static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int root)
@@ -435,7 +434,6 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
     gasneti_assert(rc == len);
   }
 }
-#endif
 
 static int gasnetc_get_pshm_nodecount(void)
 {
