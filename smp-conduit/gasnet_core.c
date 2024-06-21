@@ -85,6 +85,8 @@ static int *gasnetc_fds = NULL;
 #define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR    0.1
 static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
+static int gasnetc_remoteexit_signal = SIGQUIT;
+
 static struct gasnetc_exit_data {
   gasneti_atomic_t master;
   gasneti_atomic_t exitcode;
@@ -101,16 +103,6 @@ static struct gasnetc_exit_data {
   #include <sys/prctl.h>
   static int gasnetc_use_pdeathsig = 0;
 #endif 
-
-#ifndef GASNETC_REMOTEEXIT_SIGNAL
-  #ifdef GASNETC_HAVE_O_ASYNC
-    #define GASNETC_REMOTEEXIT_SIGNAL  SIGIO
-  #elif defined(SIGURG)
-    #define GASNETC_REMOTEEXIT_SIGNAL  SIGURG
-  #else
-    #define GASNETC_REMOTEEXIT_SIGNAL  SIGUSR1
-  #endif
-#endif
 
 /* Retain a non-zero exit code (first one if possible) */
 static void gasnetc_set_exitcode(int exitcode) {
@@ -184,7 +176,7 @@ extern void gasnetc_fatalsignal_cleanup_callback(int sig) {
     tv.tv_sec = 1; tv.tv_usec = 0;
     select(0, NULL, NULL, NULL, &tv);
   }
-  gasnetc_signal_job(GASNETC_REMOTEEXIT_SIGNAL);
+  gasnetc_signal_job(gasnetc_remoteexit_signal);
 }
 
 static void gasnetc_exit_sighand(int sig_recvd) {
@@ -204,7 +196,7 @@ static void gasnetc_exit_sighand(int sig_recvd) {
       /* This signal indicates a non-collective exit */
       static int count = 0;
       switch (count++) {
-        case 0:  sig_to_send = GASNETC_REMOTEEXIT_SIGNAL; break;
+        case 0:  sig_to_send = gasnetc_remoteexit_signal; break;
         case 1:  sig_to_send = SIGTERM; break;
         default: sig_to_send = SIGKILL; break;
       }
@@ -302,8 +294,6 @@ static void gasnetc_fork_children(void) {
     gasneti_assert( rc >= 0 );
   }
 
-  gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, gasnetc_remote_exit_sighand);
-
   gasneti_mynode = 0; 
   for (i = 1; i < gasneti_nodes; i++) {
     int rc, fork_return;
@@ -348,7 +338,7 @@ static void gasnetc_fork_children(void) {
       #ifdef HAVE_PR_SET_PDEATHSIG
       if (gasnetc_use_pdeathsig) {
         /* Request generation of signal when parent exits */
-        prctl(PR_SET_PDEATHSIG, GASNETC_REMOTEEXIT_SIGNAL);
+        prctl(PR_SET_PDEATHSIG, gasnetc_remoteexit_signal);
       }
       #endif
       /* close unused end of pipes/sockets */
@@ -470,10 +460,15 @@ gasnetc_bootstrapInit_fork(int *argc, char ***argv, gex_Rank_t *nodes, gex_Rank_
 #if GASNET_PSHM
   gasneti_nodes = gasnetc_get_pshm_nodecount();
 
-  gasnetc_exittimeout =  gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
-                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,
-                                                 GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
-                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN);
+  #ifdef GASNETC_REMOTEEXIT_SIGNAL
+    gasnetc_remoteexit_signal = GASNETC_REMOTEEXIT_SIGNAL;
+  #elif defined(GASNETC_HAVE_O_ASYNC)
+    gasnetc_remoteexit_signal =  SIGIO;
+  #elif defined(SIGURG)
+    gasnetc_remoteexit_signal =  SIGURG;
+  #else
+    gasnetc_remoteexit_signal =  SIGUSR1;
+  #endif
 
   #if defined(HAVE_PR_SET_PDEATHSIG) && !defined(GASNETC_USE_SOCKETPAIR)
   {
@@ -572,6 +567,14 @@ static int gasnetc_init(
   }
   if (!gasnetc_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
+#if GASNET_PSHM
+  gasneti_reghandler(gasnetc_remoteexit_signal, gasnetc_remote_exit_sighand);
+  gasnetc_exittimeout =  gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
+                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,
+                                                 GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
+                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN);
+#endif
+
   gasneti_freezeForDebugger(); // bug 4596: must come AFTER worker process creation
 
   /* enable tracing */
@@ -603,27 +606,35 @@ static int gasnetc_init(
   }
 
 #if GASNET_PSHM
+  if (gasnetc_spawner == &fork_spawner) {
   #ifdef HAVE_PR_SET_PDEATHSIG
-  if (gasnetc_use_pdeathsig){
-    GASNETI_TRACE_PRINTF(C,("using PR_SET_PDEATHSIG for process control"));
-  }
+    if (gasnetc_use_pdeathsig){
+      GASNETI_TRACE_PRINTF(C,("using PR_SET_PDEATHSIG for process control"));
+    }
   #endif
   #ifdef GASNETC_USE_SOCKETPAIR
-  GASNETI_TRACE_PRINTF(C,("using SIGIO for process control"));
+    GASNETI_TRACE_PRINTF(C,("using SIGIO for process control"));
   #endif
+  }
 
   {
     struct gasnetc_exit_data *tmp;
 
     tmp = gasneti_pshm_init(gasnetc_spawner->SNodeBroadcast, GASNETC_EXIT_DATA_SZ);
-    if (!gasneti_mynode) {
-      /* Relocate the pid table to shared space */
+    if (gasnetc_spawner != &fork_spawner) {
+      // Fill-in the pid table in shared space
+      tmp->pid_tbl[gasneti_mynode] = getpid();
+    } else if (!gasneti_mynode) {
+      // Copy the pre-fork() pid table to shared space
       GASNETI_MEMCPY(tmp, gasnetc_exit_data, GASNETC_EXIT_DATA_SZ);
       gasneti_free(gasnetc_exit_data);
+    }
+    if (!gasneti_mynode) {
       gasneti_atomic_set(&tmp->master, 1, 0);
       gasneti_atomic_set(&tmp->exitcode, 0, 0);
     }
     gasnetc_exit_data = tmp;
+    gasnetc_spawner->Barrier();
   }
 
   // Done with bootstrap comms (if any) over gasnetc_fds[]
@@ -746,9 +757,6 @@ extern int gasnetc_attach_primary(void) {
   /* ensure extended API is initialized across nodes */
   gasnetc_spawner->Barrier();
 
-  // Done w/ bootstrap comms
-  gasnetc_spawner->Fini();
-
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -809,7 +817,7 @@ extern void gasnetc_exit(int exitcode) {
 
 #if GASNET_PSHM
   /* same goes for the remote exit signal */
-  gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, SIG_IGN);
+  gasneti_reghandler(gasnetc_remoteexit_signal, SIG_IGN);
   #ifdef HAVE_PR_SET_PDEATHSIG
   if (gasneti_mynode && gasnetc_use_pdeathsig) {
     /* Disable generation of signal when parent exits */
@@ -817,7 +825,7 @@ extern void gasnetc_exit(int exitcode) {
   }
   #endif
   #ifdef GASNETC_HAVE_O_ASYNC
-  {
+  if (gasnetc_fds) {
     /* Disable generation of SIGIO when parent or children exits */
     if (0 == gasneti_mynode) {
       int i;
