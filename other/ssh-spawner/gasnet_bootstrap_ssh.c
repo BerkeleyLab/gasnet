@@ -104,7 +104,7 @@
       void Barrier(void);
       void Exchange(void *src, size_t len, void *dest);
       void Broadcast(void *src, size_t len, void *dest, int rootnode);
-      void SNodeBroadcast(void *src, size_t len, void *dest, int rootnode);
+      void NbrhdBroadcast(void *src, size_t len, void *dest, int rootnode);
    
    Additionally, the following is useful (at least in ibv-conduit)
    for exchanging endpoint identifiers in a scalable manner:
@@ -2750,7 +2750,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
   }
 }
 
-static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootnode_arg) {
+static void bootstrapNbrhdBroadcast(void *src, size_t len, void *dest, int rootnode_arg) {
   char cmd0 = BOOTSTRAP_CMD_SNBCAST0;
   char cmd1 = BOOTSTRAP_CMD_SNBCAST1;
   const gex_Rank_t rootnode = rootnode_arg;
@@ -2780,7 +2780,7 @@ static gasneti_spawnerfn_t const spawnerfn = {
   bootstrapBarrier,
   bootstrapExchange,
   bootstrapBroadcast,
-  bootstrapSNodeBroadcast,
+  bootstrapNbrhdBroadcast,
   bootstrapAlltoall,
   bootstrapAbort,
   bootstrapCleanup,

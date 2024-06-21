@@ -387,8 +387,8 @@ static void gasnetc_join_children(void) {
 }
 
 /* Broadcast usable prior to bring-up of PSHM
-   This is used for the SNodeBcast fn in gasneti_pshm_init() */
-static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int root)
+   This is used for the NbrhdBcast fn in gasneti_pshm_init() */
+static void gasnetc_bootstrapNbrhdBroadcast(void *src, size_t len, void *dest, int root)
 {
   ssize_t rc;
   int i;
@@ -503,7 +503,7 @@ static gasneti_spawnerfn_t const fork_spawner = {
   gasnetc_bootstrapExchange,
   gasnetc_bootstrapBroadcast,
 #if GASNET_PSHM
-  gasnetc_bootstrapSNodeBroadcast,
+  gasnetc_bootstrapNbrhdBroadcast,
 #else
   NULL,
 #endif
@@ -614,7 +614,7 @@ static int gasnetc_init(
   {
     struct gasnetc_exit_data *tmp;
 
-    tmp = gasneti_pshm_init(gasnetc_spawner->SNodeBroadcast, GASNETC_EXIT_DATA_SZ);
+    tmp = gasneti_pshm_init(gasnetc_spawner->NbrhdBroadcast, GASNETC_EXIT_DATA_SZ);
     if (gasnetc_spawner != &fork_spawner) {
       // Fill-in the pid table in shared space
       tmp->pid_tbl[gasneti_mynode] = getpid();

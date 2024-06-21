@@ -292,7 +292,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
   gasneti_assert_always(err == MPI_SUCCESS);
 }
 
-static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootnode) {
+static void bootstrapNbrhdBroadcast(void *src, size_t len, void *dest, int rootnode) {
   check_early_finalize();
   int err;
 
@@ -325,7 +325,7 @@ static gasneti_spawnerfn_t const spawnerfn = {
   bootstrapBarrier,
   bootstrapExchange,
   bootstrapBroadcast,
-  bootstrapSNodeBroadcast,
+  bootstrapNbrhdBroadcast,
   bootstrapAlltoall,
   bootstrapAbort,
   bootstrapCleanup,

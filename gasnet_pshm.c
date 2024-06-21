@@ -84,7 +84,7 @@ void gasneti_pshm_prefault(void *addr, size_t len) {
   p[len-1] = 0;
 }
 
-void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_sz) {
+void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t nbrhdbcastfn, size_t aux_sz) {
   size_t vnetsz, mmapsz;
   int discontig = 0;
   gex_Rank_t i;
@@ -92,7 +92,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   gex_Rank_t j;
 #endif
 
-  gasneti_assert(snodebcastfn != NULL);  /* NULL snodebcastfn no longer supported */
+  gasneti_assert(nbrhdbcastfn != NULL);  /* NULL nbrhdbcastfn no longer supported */
 
   gasneti_assert_always_uint(gasneti_nodemap_local_count ,<=, GASNETI_PSHM_MAX_NODES);
     
@@ -188,7 +188,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
 
   /* setup vnet shared memory region for AM infrastructure and supernode barrier.
    */
-  gasnetc_pshmnet_region = gasneti_mmap_vnet(mmapsz, snodebcastfn);
+  gasnetc_pshmnet_region = gasneti_mmap_vnet(mmapsz, nbrhdbcastfn);
   gasneti_assert_always_uint((((uintptr_t)gasnetc_pshmnet_region) % GASNETI_PSHMNET_PAGESIZE) ,==, 0);
   if (gasnetc_pshmnet_region == NULL) {
     const int save_errno = errno;

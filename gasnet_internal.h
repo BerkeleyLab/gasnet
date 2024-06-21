@@ -439,7 +439,7 @@ typedef struct {
   gasneti_bootstrapBarrierfn_t Barrier;
   gasneti_bootstrapExchangefn_t Exchange;
   gasneti_bootstrapBroadcastfn_t Broadcast;
-  void (*SNodeBroadcast)(void *src, size_t len, void *dest, int rootnode);
+  void (*NbrhdBroadcast)(void *src, size_t len, void *dest, int rootnode);
   void (*Alltoall)(void *src, size_t len, void *dest);
   void (*Abort)(int exitcode);
   void (*Cleanup)(void);

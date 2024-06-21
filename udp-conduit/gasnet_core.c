@@ -76,7 +76,7 @@ void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
 
 #if GASNET_PSHM /* Used only in call to gasneti_pshm_init() */
 /* Naive (poorly scaling) "reference" implementation via gasnetc_bootstrapExchange() */
-static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootnode) {
+static void gasnetc_bootstrapNbrhdBroadcast(void *src, size_t len, void *dest, int rootnode) {
   void *tmp = gasneti_malloc(len * gasneti_nodes);
   gasneti_assert(NULL != src);
   if (gasneti_mynode != rootnode) {
@@ -294,7 +294,7 @@ static int gasnetc_init(
     }
 
     #if GASNET_PSHM
-      gasneti_pshm_init(&gasnetc_bootstrapSNodeBroadcast, 0);
+      gasneti_pshm_init(&gasnetc_bootstrapNbrhdBroadcast, 0);
     #endif
 
     //  Create first Client, EP and TM *here*, for use in subsequent bootstrap communication

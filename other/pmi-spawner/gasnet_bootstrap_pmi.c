@@ -739,10 +739,10 @@ void gasnetc_pmi_allgather_on_smp_init(void) {
 }
 #endif
 
-static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootnode) {
+static void bootstrapNbrhdBroadcast(void *src, size_t len, void *dest, int rootnode) {
 #ifdef HAVE_PMI_GET_NUMPES_ON_SMP
     // Cray PMI gives us a means to validate our "host" size.
-    // The first SNodeBroadcast seems as good as place as any to check.
+    // The first NbrhdBroadcast seems as good as place as any to check.
     // TODO: add a function pointer to gasneti_spawnerfn_t for this type of validation
     static int once = 0;
     if (!once) {
@@ -815,7 +815,7 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
 
-        // encoding rootnode allows all SNode's bcast concurrently
+        // encoding rootnode allows all roots to bcast concurrently
         do_kvs_key1('S', counter, rootnode);
 
         if (gasneti_mynode == rootnode) {
@@ -909,7 +909,7 @@ static gasneti_spawnerfn_t const spawnerfn = {
   bootstrapBarrier,
   bootstrapExchange,
   bootstrapBroadcast,
-  bootstrapSNodeBroadcast,
+  bootstrapNbrhdBroadcast,
   bootstrapAlltoall,
   bootstrapAbort,
   bootstrapCleanup,

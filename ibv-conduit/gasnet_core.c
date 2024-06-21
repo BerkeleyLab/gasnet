@@ -2284,7 +2284,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     }
 #endif
 
-    shared_mem = gasneti_pshm_init(&gasneti_bootstrapSNodeBroadcast, shared_size);
+    shared_mem = gasneti_pshm_init(&gasneti_bootstrapNbrhdBroadcast, shared_size);
   }
   #endif
 

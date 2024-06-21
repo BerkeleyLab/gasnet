@@ -1439,7 +1439,7 @@ static void spawner_test(void) {
 
   gasneti_spawner->Cleanup();
 
-  { // SNodeBroadcast
+  { // NbrhdBroadcast
     // We need a constant number of iterations for this collective call.
     // However, gasneti_nodemap_local_count is not always single-valued.
     // So this could double-test some roots
@@ -1447,19 +1447,19 @@ static void spawner_test(void) {
       gex_Rank_t root = gasneti_nodemap_local[i % gasneti_nodemap_local_count];
       for (size_t sz = 1; sz <= sizeof(datum_t); sz *= 2) {
         INIT_DATUM(my_datum, i, gasneti_mynode, sz);
-        gasneti_spawner->SNodeBroadcast(my_datum, sz, other_datum, root);
-        CHECK_DATUM(other_datum, i, root, sz, "SNodeBroadcast");
+        gasneti_spawner->NbrhdBroadcast(my_datum, sz, other_datum, root);
+        CHECK_DATUM(other_datum, i, root, sz, "NbrhdBroadcast");
       }
     }
   }
 
-  { // SNodeBroadcast (in-place)
+  { // NbrhdBroadcast (in-place)
     for (int i = 0; i < iters1; ++i) {
       gex_Rank_t root = gasneti_nodemap_local[i % gasneti_nodemap_local_count];
       for (size_t sz = 1; sz <= sizeof(datum_t); sz *= 2) {
         INIT_DATUM(other_datum, i, gasneti_mynode, sz);
-        gasneti_spawner->SNodeBroadcast(other_datum, sz, other_datum, root);
-        CHECK_DATUM(other_datum, i, root, sz, "SNodeBroadcast (in-place)");
+        gasneti_spawner->NbrhdBroadcast(other_datum, sz, other_datum, root);
+        CHECK_DATUM(other_datum, i, root, sz, "NbrhdBroadcast (in-place)");
       }
     }
   }
