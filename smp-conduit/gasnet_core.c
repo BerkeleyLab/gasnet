@@ -456,38 +456,17 @@ static int gasnetc_get_pshm_nodecount(void)
 }
 
 #endif  /* PSHM */
+
 /* ------------------------------------------------------------------------------------ */
+/*
+  Fork()-based Spawner
+  ====================
+*/
 
-static int gasnetc_init(
-                               gex_Client_t            *client_p,
-                               gex_EP_t                *ep_p,
-                               gex_TM_t                *tm_p,
-                               const char              *clientName,
-                               int                     *argc,
-                               char                    ***argv,
-                               gex_Flags_t             flags)
-{
-#if GASNET_PSHM
-  int i;
-#endif
-  /*  check system sanity */
-  gasnetc_check_config();
+static gasneti_spawnerfn_t const fork_spawner;
 
-  if (gasneti_init_done) 
-    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already initialized");
-  gasneti_init_done = 1; /* enable early to allow tracing */
-
-    gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
-
-    if (gasneti_spawn_verbose) 
-      gasneti_console_message("gasnetc_init","about to spawn...");
-
-  /* Must init timers after global env, and preferably before tracing */
-  /* Note that we are intentionly doing this before we fork() */
-  GASNETI_TICKS_INIT();
-
-  /* add code here to bootstrap the nodes for your conduit */
-
+static gasneti_spawnerfn_t const *
+gasnetc_bootstrapInit_fork(int *argc, char ***argv, gex_Rank_t *nodes, gex_Rank_t *mynode) {
 #if GASNET_PSHM
   gasneti_nodes = gasnetc_get_pshm_nodecount();
 
@@ -518,6 +497,67 @@ static int gasnetc_init(
   gasneti_nodes = 1;
 #endif
 
+  return &fork_spawner;
+}
+
+static void gasnetc_bootstrapFini(void) {
+#if GASNET_PSHM
+  if (gasneti_mynode) {
+    gasnetc_join_children();
+  }
+#endif
+}
+
+static gasneti_spawnerfn_t const fork_spawner = {
+  gasnetc_bootstrapBarrier,
+  gasnetc_bootstrapExchange,
+  gasnetc_bootstrapBroadcast,
+#if GASNET_PSHM
+  gasnetc_bootstrapSNodeBroadcast,
+#else
+  NULL,
+#endif
+  NULL, // Alltoall (unused)
+  NULL, // Abort (unused)
+  NULL, // Cleanup (unused)
+  gasnetc_bootstrapFini,
+};
+
+/* ------------------------------------------------------------------------------------ */
+
+static gasneti_spawnerfn_t const *gasnetc_spawner = NULL;
+
+static int gasnetc_init(
+                               gex_Client_t            *client_p,
+                               gex_EP_t                *ep_p,
+                               gex_TM_t                *tm_p,
+                               const char              *clientName,
+                               int                     *argc,
+                               char                    ***argv,
+                               gex_Flags_t             flags)
+{
+#if GASNET_PSHM
+  int i;
+#endif
+  /*  check system sanity */
+  gasnetc_check_config();
+
+  if (gasneti_init_done) 
+    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already initialized");
+  gasneti_init_done = 1; /* enable early to allow tracing */
+
+    gasneti_spawn_verbose = gasneti_getenv_yesno_withdefault("GASNET_SPAWN_VERBOSE",0);
+
+    if (gasneti_spawn_verbose) 
+      gasneti_console_message("gasnetc_init","about to spawn...");
+
+  /* Must init timers after global env, and preferably before tracing */
+  /* Note that we are intentionly doing this before we fork() */
+  GASNETI_TICKS_INIT();
+
+  /* add code here to bootstrap the nodes for your conduit */
+  gasnetc_spawner = gasnetc_bootstrapInit_fork(argc, argv, &gasneti_nodes, &gasneti_mynode);
+
   gasneti_freezeForDebugger(); // bug 4596: must come AFTER worker process creation
 
   /* enable tracing */
@@ -545,7 +585,7 @@ static int gasnetc_init(
   {
     struct gasnetc_exit_data *tmp;
 
-    tmp = gasneti_pshm_init(&gasnetc_bootstrapSNodeBroadcast, GASNETC_EXIT_DATA_SZ);
+    tmp = gasneti_pshm_init(gasnetc_spawner->SNodeBroadcast, GASNETC_EXIT_DATA_SZ);
     if (!gasneti_mynode) {
       /* Relocate the pid table to shared space */
       GASNETI_MEMCPY(tmp, gasnetc_exit_data, GASNETC_EXIT_DATA_SZ);
@@ -556,7 +596,7 @@ static int gasnetc_init(
     gasnetc_exit_data = tmp;
   }
 
-  /* Done w/ bootstrap comms (move later if it becomes necessary) */
+  // Done with bootstrap comms over gasnetc_fds[]
   if (0 == gasneti_mynode) {
     for (i = 1; i < gasneti_nodes; ++i) {
       const int fd = gasnetc_fds[2 * i + 1];
@@ -610,7 +650,7 @@ static int gasnetc_init(
     }
     sharedLimit -= hostAuxSegs;
 
-    mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit, NULL, &gasnetc_bootstrapBarrier);
+    mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit, NULL, gasnetc_spawner->Barrier);
   #else
     // TODO-EX: we can at least look at rlimits but such logic belongs in conduit-indep code
     mmap_limit = (intptr_t)-1;
@@ -618,10 +658,10 @@ static int gasnetc_init(
 
   /* allocate and attach an aux segment */
 
-  (void) gasneti_auxsegAttach((uintptr_t)-1, &gasnetc_bootstrapExchange);
+  (void) gasneti_auxsegAttach((uintptr_t)-1, gasnetc_spawner->Exchange);
 
   /* determine Max{Local,GLobal}SegmentSize */
-  gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange, flags);
+  gasneti_segmentInit(mmap_limit, gasnetc_spawner->Exchange, flags);
 
   #if 0
     /* Enable this if you wish to use the default GASNet services for broadcasting 
@@ -663,7 +703,7 @@ extern int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
-  gasnetc_bootstrapBarrier();
+  gasnetc_spawner->Barrier();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete"));
 
@@ -672,7 +712,7 @@ extern int gasnetc_attach_primary(void) {
   gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
-  gasnetc_bootstrapBarrier();
+  gasnetc_spawner->Barrier();
 
   return GASNET_OK;
 }
@@ -783,9 +823,8 @@ extern void gasnetc_exit(int exitcode) {
     gasnetc_exit_sighand(SIGALRM);
   }
 
-  if (gasneti_mynode == 0) {
-    gasnetc_join_children();
-  }
+  gasnetc_spawner->Fini();
+
   exitcode = gasnetc_get_exitcode();
 #endif
 
