@@ -525,7 +525,12 @@ static gasneti_spawnerfn_t const fork_spawner = {
 
 /* ------------------------------------------------------------------------------------ */
 
+// Spawner used by the conduit
 static gasneti_spawnerfn_t const *gasnetc_spawner = NULL;
+
+// Spawner (if any) tested in gasnet_diagnostic.c
+// Will never point to conduit-specific one, which cannot pass the tests.
+gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 static int gasnetc_init(
                                gex_Client_t            *client_p,
@@ -556,16 +561,41 @@ static int gasnetc_init(
   GASNETI_TICKS_INIT();
 
   /* add code here to bootstrap the nodes for your conduit */
-  gasnetc_spawner = gasnetc_bootstrapInit_fork(argc, argv, &gasneti_nodes, &gasneti_mynode);
+
+  // TODO: configure-time default spawner
+  const char *spawner_env = gasneti_getenv_withdefault("GASNET_SMP_SPAWNER", GASNETC_DEFAULT_SPAWNER);
+  if (! gasneti_strcasecmp(spawner_env, "FORK")) {
+    gasnetc_spawner = gasnetc_bootstrapInit_fork(argc, argv, &gasneti_nodes, &gasneti_mynode);
+  } else {
+    gasnetc_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
+    gasneti_spawner = gasnetc_spawner;
+  }
+  if (!gasnetc_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
   gasneti_freezeForDebugger(); // bug 4596: must come AFTER worker process creation
 
   /* enable tracing */
   gasneti_trace_init(argc, argv);
 
-  /* Trivial all-zero nodemap */
-  gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gex_Rank_t));
-  gasneti_nodemapParse();
+  if (gasnetc_spawner == &fork_spawner) {
+    /* Trivial all-zero nodemap */
+    gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gex_Rank_t));
+    gasneti_nodemapParse();
+  } else {
+    gasneti_nodemapInit(gasnetc_spawner->Exchange, NULL, 0, 0);
+    if (gasneti_mysupernode.grp_count != 1) {
+    #if GASNET_PSHM
+      gasneti_fatalerror("Invalid attempt to launch a multi-host smp-conduit job.  "
+                         "For multi-host jobs, please rebuild your executable with a "
+                         "different conduit.  For smp-conduit jobs, please ensure "
+                         "your job spawner places processes on just a single host.");
+    #else
+      gasneti_fatalerror("Invalid attempt to launch a multi-process smp-conduit job "
+                         "without PSHM.  For multi-process support in smp-conduit, "
+                         "please reconfigure GASNet with --enable-pshm.");
+    #endif
+    }
+  }
 
   if (gasneti_spawn_verbose) {
     gasneti_console_message("gasnetc_init","spawn successful - proc %i/%i starting...",
@@ -596,8 +626,10 @@ static int gasnetc_init(
     gasnetc_exit_data = tmp;
   }
 
-  // Done with bootstrap comms over gasnetc_fds[]
-  if (0 == gasneti_mynode) {
+  // Done with bootstrap comms (if any) over gasnetc_fds[]
+  if (! gasnetc_fds) {
+    // Nothing to do here
+  } else if (0 == gasneti_mynode) {
     for (i = 1; i < gasneti_nodes; ++i) {
       const int fd = gasnetc_fds[2 * i + 1];
       #ifdef GASNETC_HAVE_O_ASYNC
@@ -713,6 +745,9 @@ extern int gasnetc_attach_primary(void) {
 
   /* ensure extended API is initialized across nodes */
   gasnetc_spawner->Barrier();
+
+  // Done w/ bootstrap comms
+  gasnetc_spawner->Fini();
 
   return GASNET_OK;
 }
