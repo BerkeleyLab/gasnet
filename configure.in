@@ -3705,6 +3705,30 @@ if test "$enabled_smp" = yes; then
 
     GASNET_POPVAR(LIBS)
   fi
+
+  dnl TODO: reduce duplication w/ CONDUIT_SPAWNER
+  GASNET_WITH(smp-spawner,
+     [smp job spawner ("fork", "ssh", "mpi" or "pmi", default is fork)],
+     [case "$withval" in
+        fork|ssh|mpi|pmi)
+             gasnet_spawner_conf=$withval
+             ;;
+        yes) AC_MSG_ERROR([--with-smp-spawner requires an argument ("fork", "ssh", "mpi" or "pmi")])
+             ;;
+        *)   AC_MSG_ERROR([--with-smp-spawner argument must be "fork", "ssh", "mpi" or "pmi"])
+             ;;
+      esac],
+     [AC_MSG_ERROR([--with-smp-spawner argument must be "fork", "ssh", "mpi" or "pmi"])],
+     [gasnet_spawner_conf=fork])
+  if test "$gasnet_spawner_conf$have_mpi_compat" = mpino; then
+    AC_MSG_ERROR([--with-smp-spawner=mpi requires MPI compatibility support which $mpi_compat_reason])
+  elif test "$gasnet_spawner_conf" = pmi; then
+    force_pmi=yes
+  fi
+  AC_DEFINE_UNQUOTED(GASNETC_SMP_SPAWNER_CONF, "$gasnet_spawner_conf")
+  GASNET_SMP_SPAWNER_CONF=$gasnet_spawner_conf
+  AC_SUBST(GASNET_SMP_SPAWNER_CONF)
+  unset gasnet_spawner_conf
 fi
 AC_SUBST(SMP_LIBS)
 CONDUIT_END([test "$enabled_smp" = yes])
@@ -6073,6 +6097,7 @@ if test -n "$warn_missing_rpath"; then
 Had support been present, the following conduits or packages would have used an RPATH:$warn_missing_rpath.])
 fi
 
+GASNET_FIX_EXEC(smp-conduit/contrib/gasnetrun_smp)
 GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
 GASNET_FIX_EXEC(ibv-conduit/contrib/gasnetrun_ibv)
 GASNET_FIX_EXEC(ofi-conduit/contrib/gasnetrun_ofi)
@@ -6164,6 +6189,8 @@ udp-conduit/conduit.mak
 
 smp-conduit/Makefile
 smp-conduit/conduit.mak
+smp-conduit/contrib/Makefile
+smp-conduit/contrib/gasnetrun_smp
 
 ibv-conduit/Makefile
 ibv-conduit/conduit.mak

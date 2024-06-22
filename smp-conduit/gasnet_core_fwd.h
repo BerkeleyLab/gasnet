@@ -20,7 +20,7 @@
 
 #define GASNET_CONDUIT_SMP       1
 
-#define GASNETC_DEFAULT_SPAWNER  "fork"
+#define GASNETC_DEFAULT_SPAWNER  GASNETC_SMP_SPAWNER_CONF
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED

@@ -434,7 +434,7 @@ static int gasnetc_get_pshm_nodecount(void)
     gasneti_fatalerror("Nodes requested (%d) > maximum (%d)", (int)nodes,
                        GASNETI_PSHM_MAX_NODES);
   } else if (nodes == 0) {
-    gasneti_console_message("WARNING","GASNET_PSHM_NODES not specified: running with 1 process");
+    gasneti_console_message("WARNING","GASNET_PSHM_NODES not specified: running with 1 process.  Did you mean to launch using gasnetrun_smp?");
     nodes = 1;
   }
 
@@ -452,6 +452,8 @@ static int gasnetc_get_pshm_nodecount(void)
   Fork()-based Spawner
   ====================
 */
+
+GASNETI_IDENT(gasnetc_IdentString_HaveFORKSpawner, "$GASNetFORKSpawner: 1 $");
 
 static gasneti_spawnerfn_t const fork_spawner;
 
@@ -557,7 +559,6 @@ static int gasnetc_init(
 
   /* add code here to bootstrap the nodes for your conduit */
 
-  // TODO: configure-time default spawner
   const char *spawner_env = gasneti_getenv_withdefault("GASNET_SMP_SPAWNER", GASNETC_DEFAULT_SPAWNER);
   if (! gasneti_strcasecmp(spawner_env, "FORK")) {
     gasnetc_spawner = gasnetc_bootstrapInit_fork(argc, argv, &gasneti_nodes, &gasneti_mynode);

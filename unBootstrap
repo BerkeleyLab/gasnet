@@ -24,6 +24,7 @@ rm -f Makefile.in              \
       ofi-conduit/Makefile.in \
       ofi-conduit/contrib/Makefile.in   \
       smp-conduit/Makefile.in  \
+      smp-conduit/contrib/Makefile.in   \
       udp-conduit/Makefile.in  \
       ucx-conduit/Makefile.in  \
       ucx-conduit/contrib/Makefile.in \

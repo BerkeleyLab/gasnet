@@ -44,7 +44,7 @@ pmi_deps = $(pmi_srcdir)/*.[ch]
 endif
 
 # any conduit-specific subdirectories containing Makefile.am's
-SUBDIRS = .
+SUBDIRS = contrib
 
 # complete list of files in the conduit directory
 # include all headers, documentation, etc. 
@@ -97,10 +97,10 @@ CONDUIT_KINDS =
 #   %Q = program arguments w/ an extra level of quotes
 #   %D = the current working directory 
 #   %H = hostfile (if any)
+CONDUIT_RUNCMD = @TOP_BUILDDIR@/smp-conduit/contrib/gasnetrun_smp -np %N %P %A
 if USE_PSHM
-CONDUIT_RUNCMD = @ENVCMD@ GASNET_PSHM_NODES=%N %P %A
 else
-CONDUIT_RUNCMD = %P %A
+CONDUIT_TEST_MAKEARGS = TEST_NODES=1 CONDUIT_TESTPARAMS=testbarrierconf_nodes=1
 endif
 
 # conduit-specific tests in ../tests directory
