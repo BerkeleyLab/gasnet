@@ -26,9 +26,15 @@ GASNet-EX ChangeLog
     scripts `cross-configure-cray-xc-slurm` and `cross-configure-cray-xc-alps`,
     which enable ofi-conduit with libfabric's "gni" provider.
 
+* Shared-memory without a network (details in smp-conduit README)
+  - New `gasnetrun_smp` script provides consistency with most other conduits.
+    This enables launch of (single-node) smp-conduit jobs using the ssh-, mpi-
+    and pmi-spawners, in addition to legacy fork-based job launch.
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4718 - Diagnose invalid segment binding to primordial endpoint
   - bug4723 - (partial fix) Chapel over ssh-spawner w/ environment modules chokes tcsh
+  - bug4726 - RFE: smp-conduit support for conduit-independent spawner
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0
