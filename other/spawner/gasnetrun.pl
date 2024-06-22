@@ -37,7 +37,13 @@ sub usage
 {
     print (@_) if (@_);
 
-    print "usage: gasnetrun -n <n> [options] [--] prog [program args]\n";
+    my @spawners = ();
+    push (@spawners,'fork') if ($ENV{'GASNET_SPAWN_HAVE_FORK'});
+    push (@spawners,'ssh')  if ($ENV{'GASNET_SPAWN_HAVE_SSH'});
+    push (@spawners,'mpi')  if ($ENV{'GASNET_SPAWN_HAVE_MPI'});
+    push (@spawners,'pmi')  if ($ENV{'GASNET_SPAWN_HAVE_PMI'});
+
+    print "usage: gasnetrun_".lc($conduit)." -n <n> [options] [--] prog [program args]\n";
     print "    options:\n";
     print "      -n <n>                 number of processes to run\n";
     print "      -N <N>                 number of nodes to run on (not always supported)\n"
@@ -47,7 +53,7 @@ sub usage
     print "      -v                     enable verbose output, repeated use increases verbosity\n";
     print "      -t                     test only, don't execute anything (implies -v)\n";
     print "      -k                     keep any temporary files created (implies -v)\n";
-    print "      -spawner=(ssh|mpi|pmi) force use of a specific spawner\n";
+    print "      -spawner=<name>        force use of a specific spawner (".join('|', @spawners).")\n" if (@spawners > 1);
     print "      --                     ends option parsing\n";
     exit 1;
 }
