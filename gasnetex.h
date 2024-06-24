@@ -877,6 +877,30 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
   #endif
   #define gex_AM_SrcDescAddr(sd)               ((void*)gasneti_import_srcdesc_valid(sd)->_addr)
   #define gex_AM_SrcDescSize(sd)               ((size_t)gasneti_import_srcdesc_valid(sd)->_size)
+  #ifndef gex_AM_CancelRequestMedium
+    extern int gasnetc_AM_CancelRequestMedium(
+                    gex_AM_SrcDesc_t   _sd,
+                    gex_Flags_t        _flags);
+    #define gex_AM_CancelRequestMedium(sd,flags)     gasnetc_AM_CancelRequestMedium(sd,flags)
+  #endif
+  #ifndef gex_AM_CancelReplyMedium
+    extern int gasnetc_AM_CancelReplyMedium(
+                    gex_AM_SrcDesc_t   _sd,
+                    gex_Flags_t        _flags);
+    #define gex_AM_CancelReplyMedium(sd,flags)       gasnetc_AM_CancelReplyMedium(sd,flags)
+  #endif
+  #ifndef gex_AM_CancelRequestLong
+    extern int gasnetc_AM_CancelRequestLong(
+                    gex_AM_SrcDesc_t   _sd,
+                    gex_Flags_t        _flags);
+    #define gex_AM_CancelRequestLong(sd,flags)       gasnetc_AM_CancelRequestLong(sd,flags)
+  #endif
+  #ifndef gex_AM_CancelReplyLong
+    extern int gasnetc_AM_CancelReplyLong(
+                    gex_AM_SrcDesc_t   _sd,
+                    gex_Flags_t        _flags);
+    #define gex_AM_CancelReplyLong(sd,flags)         gasnetc_AM_CancelReplyLong(sd,flags)
+  #endif
 #endif
 
 
