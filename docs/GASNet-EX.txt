@@ -2329,6 +2329,10 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
 //
 // gex_AM_Commit calls
 //
+// The `sd` argument to `gex_AM_Commit<XXX>[M]()` must be the return from a
+// call to the corresponding (i.e. same `<XXX>`) `gex_AM_Prepare<XXX>()`,
+// and with `[M]` (if any) matching the `numargs` passed to the Prepare.
+//
 // NOTE: Prototypes in this section are "patterns"
 //   These API instantiate the "[M]" at the end of each prototype with
 //   the integers 0 through gex_AM_MaxArgs(), inclusive.
