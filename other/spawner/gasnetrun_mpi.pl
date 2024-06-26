@@ -295,7 +295,7 @@ sub usage
     print "      -N <n>                number of nodes to run on (not supported on all mpiruns)\n";
     print "      -c <n>                number of cpus per process (not supported on all mpiruns)\n";
     print "      -E <VAR1[,VAR2...]>   list of environment vars to propagate\n";
-    print "      -v                    enable verbose output, repeated use increases verbosity\\n";
+    print "      -v                    enable verbose output, repeated use increases verbosity\n";
     print "      -t                    test only, don't execute anything (implies -v)\n";
     print "      -k                    keep any temporary files created (implies -v)\n";
     print "      -(no)encode[-args,-env]   use encoding of args, env or both to help with buggy spawners\n";
