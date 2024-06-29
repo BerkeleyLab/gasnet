@@ -1500,7 +1500,10 @@ case "$target_os" in
             GASNET_PLATFORM=crayex
             AC_DEFINE(GASNETI_ARCH_CRAYEX)
             # some defaults:
-            if test "${enable_ofi-unset}" = unset; then enable_ofi=yes; fi
+            if test "${enable_ofi-unset}" = unset; then 
+              enable_ofi=$enabled_auto_detect
+              _conduit_reason_ofi=$_conduit_auto_reason
+            fi
             if test "${enable_ibv-unset}" = unset; then enable_ibv=no; fi
             if test "${enable_udp-unset}" = unset; then enable_udp=no; fi
             if test "${with_ofi_spawner-unset}" = unset; then with_ofi_spawner=pmi; fi
