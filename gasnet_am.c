@@ -936,6 +936,86 @@ void gasnetc_AM_CommitReplyLongM(
 }
 #endif // GASNETC_BUILD_NP_REP_LONG
 
+#if GASNETC_BUILD_NP_REQ_MEDIUM
+int gasnetc_AM_CancelRequestMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REQ(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelRequest(sd, gasneti_Medium, flags);
+    } else if (sd->_tofree) {
+        gasneti_free_npam_buffer(sd);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
+}
+#endif // GASNETC_BUILD_NP_REQ_MEDIUM
+
+#if GASNETC_BUILD_NP_REP_MEDIUM
+int gasnetc_AM_CancelReplyMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REP(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelReply(sd, gasneti_Medium, flags);
+    } else if (sd->_tofree) {
+        gasneti_free_npam_buffer(sd);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
+}
+#endif // GASNETC_BUILD_NP_REP_MEDIUM
+
+#if GASNETC_BUILD_NP_REQ_LONG
+int gasnetc_AM_CancelRequestLong(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REQ(sd,flags,Long);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelRequest(sd, gasneti_Long, flags);
+    } else if (sd->_tofree) {
+        gasneti_free_npam_buffer(sd);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
+}
+#endif // GASNETC_BUILD_NP_REQ_LONG
+
+#if GASNETC_BUILD_NP_REP_LONG
+int gasnetc_AM_CancelReplyLong(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REP(sd,flags,Long);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelReply(sd, gasneti_Long, flags);
+    } else if (sd->_tofree) {
+        gasneti_free_npam_buffer(sd);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
+}
+#endif // GASNETC_BUILD_NP_REP_LONG
+
 /* ------------------------------------------------------------------------------------ */
 
 // gasneti_free_aligned() is a macro, preventing direct registration as a cleanupfn

@@ -366,6 +366,11 @@
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes)));          \
 } while(0)
 
+#define GASNETI_TRACE_CANCEL(name,sd,flags) do { \
+  _GASNETI_STAT_EVENT(A,name);                          \
+  GASNETI_TRACE_PRINTF(A,(#name": flags=%d", flags));   \
+} while(0)
+
 #if GASNET_TRACE
   #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs) \
           GASNETI_TRACE_AMSHORT(AMREQUEST_SHORT,tm,dest,handler,flags,numargs)
@@ -425,6 +430,16 @@
   #define GASNETI_TRACE_COMMIT_REPLYLONG(handler,source_addr,nbytes,dest_addr,numargs) \
           GASNETI_TRACE_COMMIT_LONG(COMMIT_REPLY_LONG,handler,source_addr,nbytes,dest_addr,numargs)
 
+  #define GASNETI_TRACE_CANCEL_REQUESTMEDIUM(sd,flags) \
+          GASNETI_TRACE_CANCEL(CANCEL_REQUEST_MEDIUM,sd,flags)
+  #define GASNETI_TRACE_CANCEL_REPLYMEDIUM(sd,flags) \
+          GASNETI_TRACE_CANCEL(CANCEL_REPLY_MEDIUM,sd,flags)
+
+  #define GASNETI_TRACE_CANCEL_REQUESTLONG(sd,flags) \
+          GASNETI_TRACE_CANCEL(CANCEL_REQUEST_LONG,sd,flags)
+  #define GASNETI_TRACE_CANCEL_REPLYLONG(sd,flags) \
+          GASNETI_TRACE_CANCEL(CANCEL_REPLY_LONG,sd,flags)
+
 #elif GASNET_STATS
   #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREQUEST_SHORT)
@@ -452,6 +467,15 @@
      GASNETI_TRACE_EVENT_VAL(A,COMMIT_REQUEST_LONG,nbytes)
   #define GASNETI_TRACE_COMMIT_REPLYLONG(handler,source_addr,nbytes,dest_addr,numargs) \
      GASNETI_TRACE_EVENT_VAL(A,COMMIT_REPLY_LONG,nbytes)
+
+  #define GASNETI_TRACE_CANCEL_REQUESTMEDIUM(sd,flags) \
+     GASNETI_TRACE_EVENT(A,CANCEL_REQUEST_MEDIUM)
+  #define GASNETI_TRACE_CANCEL_REPLYMEDIUM(sd,flags) \
+     GASNETI_TRACE_EVENT(A,CANCEL_REPLY_MEDIUM)
+  #define GASNETI_TRACE_CANCEL_REQUESTLONG(sd,flags) \
+     GASNETI_TRACE_EVENT(A,CANCEL_REQUEST_LONG)
+  #define GASNETI_TRACE_CANCEL_REPLYLONG(sd,flags) \
+     GASNETI_TRACE_EVENT(A,CANCEL_REPLY_LONG)
 #else
   #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs)                                ((void)0)
   #define GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs)                                    ((void)0)
@@ -468,6 +492,10 @@
   #define GASNETI_TRACE_COMMIT_REPLYMEDIUM(handler,source_addr,nbytes,numargs)                       ((void)0)
   #define GASNETI_TRACE_COMMIT_REQUESTLONG(handler,source_addr,nbytes,dest_addr,numargs)             ((void)0)
   #define GASNETI_TRACE_COMMIT_REPLYLONG(handler,source_addr,nbytes,dest_addr,numargs)               ((void)0)
+  #define GASNETI_TRACE_CANCEL_REQUESTMEDIUM(sd,flags)                                               ((void)0)
+  #define GASNETI_TRACE_CANCEL_REPLYMEDIUM(sd,flags)                                                 ((void)0)
+  #define GASNETI_TRACE_CANCEL_REQUESTLONG(sd,flags)                                                 ((void)0)
+  #define GASNETI_TRACE_CANCEL_REPLYLONG(sd,flags)                                                   ((void)0)
 #endif
 /* ------------------------------------------------------------------------------------ */
 /* AM Handler tracing */
@@ -802,6 +830,10 @@ extern FILE *gasneti_open_outputfile(const char *_filename, const char *_desc);
         VAL(A, COMMIT_REQUEST_LONG, sz)                   \
         VAL(A, COMMIT_REPLY_MEDIUM, sz)                   \
         VAL(A, COMMIT_REPLY_LONG, sz)                     \
+        CNT(A, CANCEL_REQUEST_MEDIUM, cnt)                \
+        CNT(A, CANCEL_REQUEST_LONG, cnt)                  \
+        CNT(A, CANCEL_REPLY_MEDIUM, cnt)                  \
+        CNT(A, CANCEL_REPLY_LONG, cnt)                    \
                                                           \
         CNT(A, AMREQUEST_SHORT_HANDLER, cnt)              \
         CNT(A, AMREQUEST_MEDIUM_HANDLER, cnt)             \
