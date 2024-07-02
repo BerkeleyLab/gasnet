@@ -163,6 +163,10 @@ retry:
       assert(gex_AM_SrcDescSize(sd) >= least_payload);
       assert(gex_AM_SrcDescSize(sd) <= most_payload);
       assert(gex_AM_SrcDescAddr(sd) == buf);
+      if (TEST_RAND_ONEIN(8)) {
+        GASNET_Safe( gex_AM_CancelReplyMedium(sd, 0) );
+        goto retry;
+      }
       len = MIN(len, gex_AM_SrcDescSize(sd));
       gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, len, iter, arg1);
       break;
@@ -173,6 +177,10 @@ retry:
       if (imm) break;
       assert(gex_AM_SrcDescSize(sd) >= least_payload);
       assert(gex_AM_SrcDescSize(sd) <= most_payload);
+      if (TEST_RAND_ONEIN(8)) {
+        GASNET_Safe( gex_AM_CancelReplyMedium(sd, 0) );
+        goto retry;
+      }
       len = MIN(len, gex_AM_SrcDescSize(sd));
       memcpy(gex_AM_SrcDescAddr(sd), buf, len);
       gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, len, iter, arg1);
@@ -233,6 +241,10 @@ retry:
       assert(gex_AM_SrcDescSize(sd) >= least_payload);
       assert(gex_AM_SrcDescSize(sd) <= most_payload);
       assert(gex_AM_SrcDescAddr(sd) == srcbuf);
+      if (TEST_RAND_ONEIN(8)) {
+        GASNET_Safe( gex_AM_CancelReplyLong(sd, 0) );
+        goto retry;
+      }
       len = MIN(len, gex_AM_SrcDescSize(sd));
       if (srcbuf != buf) memcpy(srcbuf, buf, len); // according to INSEG - not due to Prepare
       gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, len, dstbuf, iter, arg1);
@@ -244,6 +256,10 @@ retry:
       if (imm) break;
       assert(gex_AM_SrcDescSize(sd) >= least_payload);
       assert(gex_AM_SrcDescSize(sd) <= most_payload);
+      if (TEST_RAND_ONEIN(8)) {
+        GASNET_Safe( gex_AM_CancelReplyLong(sd, 0) );
+        goto retry;
+      }
       len = MIN(len, gex_AM_SrcDescSize(sd));
       memcpy(gex_AM_SrcDescAddr(sd), buf, len);
       gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, len, dstbuf, iter, arg1);
@@ -551,6 +567,10 @@ void *doit(void *id) {
                 assert(gex_AM_SrcDescSize(sd) >= least_payload);
                 assert(gex_AM_SrcDescSize(sd) <= most_payload);
                 assert(gex_AM_SrcDescAddr(sd) == src);
+                if (TEST_RAND_ONEIN(8)) {
+                  GASNET_Safe( gex_AM_CancelRequestMedium(sd, 0) );
+                  goto retry_med;
+                }
                 len = MIN(len, gex_AM_SrcDescSize(sd));
                 gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, len, iter, arg1);
                 if (lc_opt == GEX_EVENT_GROUP) {
@@ -568,6 +588,10 @@ void *doit(void *id) {
                 if (imm) break;
                 assert(gex_AM_SrcDescSize(sd) >= least_payload);
                 assert(gex_AM_SrcDescSize(sd) <= most_payload);
+                if (TEST_RAND_ONEIN(8)) {
+                  GASNET_Safe( gex_AM_CancelRequestMedium(sd, 0) );
+                  goto retry_med;
+                }
                 len = MIN(len, gex_AM_SrcDescSize(sd));
                 memcpy(gex_AM_SrcDescAddr(sd), srcbuf, len);
                 gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, len, iter, arg1);
@@ -630,6 +654,10 @@ void *doit(void *id) {
                 assert(gex_AM_SrcDescSize(sd) >= least_payload);
                 assert(gex_AM_SrcDescSize(sd) <= most_payload);
                 assert(gex_AM_SrcDescAddr(sd) == src);
+                if (TEST_RAND_ONEIN(8)) {
+                  GASNET_Safe( gex_AM_CancelRequestLong(sd, 0) );
+                  goto retry_long;
+                }
                 len = MIN(len, gex_AM_SrcDescSize(sd));
                 gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, len, dstbuf, iter, arg1);
                 if (lc_opt == GEX_EVENT_GROUP) {
@@ -647,6 +675,10 @@ void *doit(void *id) {
                 if (imm) break;
                 assert(gex_AM_SrcDescSize(sd) >= least_payload);
                 assert(gex_AM_SrcDescSize(sd) <= most_payload);
+                if (TEST_RAND_ONEIN(8)) {
+                  GASNET_Safe( gex_AM_CancelRequestLong(sd, 0) );
+                  goto retry_long;
+                }
                 len = MIN(len, gex_AM_SrcDescSize(sd));
                 memcpy(gex_AM_SrcDescAddr(sd), srcbuf, len);
                 gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, len, dstbuf, iter, arg1);
