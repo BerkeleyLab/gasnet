@@ -5178,6 +5178,25 @@ void gasnetc_commit_common(
   }
 }
 
+static
+void gasnetc_cancel_common(
+                       gasneti_AM_SrcDesc_t    sd,
+                       const int               is_reply)
+{
+  // flow-control
+  if (is_reply) {
+    gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *) sd->_dest._reply._token;
+    gasneti_assert(rbuf && !rbuf->rbuf_needReply);
+    rbuf->rbuf_needReply = 1;
+  } else {
+    gasnetc_am_put_credit(sd->_cep);
+  }
+  // bounce buffer, if any
+  if (sd->_buf_alloc) {
+    gasnetc_put_bbuf(sd->_buf_alloc);
+  }
+}
+
 // ---- external FPAM requests ----
 
 extern int gasnetc_AMRequestShortM( 
@@ -5360,6 +5379,24 @@ extern void gasnetc_AM_CommitRequestMediumM(
     gasneti_reset_srcdesc(sd);
 }
 
+int gasnetc_AM_CancelRequestMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REQ(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelRequest(sd, gasneti_Medium, flags);
+    } else {
+        gasnetc_cancel_common(sd,0);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
+}
+
 #endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 #if GASNET_NATIVE_NP_ALLOC_REQ_LONG
@@ -5444,6 +5481,24 @@ extern void gasnetc_AM_CommitRequestLongM(
     va_end(argptr);
 
     gasneti_reset_srcdesc(sd);
+}
+
+int gasnetc_AM_CancelRequestLong(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REQ(sd,flags,Long);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelRequest(sd, gasneti_Long, flags);
+    } else {
+        gasnetc_cancel_common(sd,0);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
 }
 
 #endif // GASNET_NATIVE_NP_ALLOC_REQ_LONG
@@ -5567,6 +5622,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
         } else {
             gasneti_init_sd_poison(sd);
             sd->_is_nbrhd = 0;
+            sd->_dest._reply._token = token;
             sd->_ep = rbuf->rr_ep;
             rbuf->rbuf_needReply = 0;
         }
@@ -5598,6 +5654,24 @@ extern void gasnetc_AM_CommitReplyMediumM(
     va_end(argptr);
 
     gasneti_reset_srcdesc(sd);
+}
+
+int gasnetc_AM_CancelReplyMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REP(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelReply(sd, gasneti_Medium, flags);
+    } else {
+        gasnetc_cancel_common(sd,1);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
 }
 
 #endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
@@ -5643,6 +5717,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
         } else {
             gasneti_init_sd_poison(sd);
             sd->_is_nbrhd = 0;
+            sd->_dest._reply._token = token;
             sd->_ep = rbuf->rr_ep;
             rbuf->rbuf_needReply = 0;
         }
@@ -5675,6 +5750,24 @@ extern void gasnetc_AM_CommitReplyLongM(
     va_end(argptr);
 
     gasneti_reset_srcdesc(sd);
+}
+
+int gasnetc_AM_CancelReplyLong(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REP(sd,flags,Long);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelReply(sd, gasneti_Long, flags);
+    } else {
+        gasnetc_cancel_common(sd,1);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
 }
 
 #endif // GASNET_NATIVE_NP_ALLOC_REP_LONG

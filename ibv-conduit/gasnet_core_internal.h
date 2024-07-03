@@ -1033,6 +1033,8 @@ GASNETI_MALLOCP(gasnetc_get_bbuf)
   #define gasnetc_get_bbuf_am(is_reply,block_and_ti)  gasnetc_get_bbuf(block_and_ti)
 #endif
 
+extern void gasnetc_put_bbuf(gasnetc_buffer_t *bbuf);
+
 extern gasnetc_sreq_t *gasnetc_get_sreq(gasnetc_sreq_opcode_t opcode GASNETI_THREAD_FARG) GASNETI_MALLOC;
 GASNETI_MALLOCP(gasnetc_get_sreq)
 

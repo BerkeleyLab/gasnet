@@ -1559,6 +1559,13 @@ gasnetc_buffer_t *gasnetc_get_bbuf(int block GASNETI_THREAD_FARG) {
   return gasnetc_get_bbuf_inner(0, block GASNETI_THREAD_PASS);
 }
 
+void gasnetc_put_bbuf(gasnetc_buffer_t *bbuf) {
+  gasneti_assert(bbuf != NULL);
+  if (!gasnetc_maybe_restore_spare_reply_bbuf(bbuf)) {
+    gasnetc_lifo_push(&gasnetc_bbuf_freelist,bbuf);
+  }
+}
+
 #if GASNETC_IBV_SRQ
 // Allocate a pre-pinned bounce buffer, with special case for reply
 gasnetc_buffer_t *gasnetc_get_bbuf_srq(int is_reply, int block GASNETI_THREAD_FARG) {
