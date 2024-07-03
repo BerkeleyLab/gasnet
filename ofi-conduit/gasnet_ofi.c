@@ -2641,7 +2641,6 @@ int gasnetc_medium_commit(
 
 out_imm:
     gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
-    gasnetc_ofi_free_am_header(header);
     return 1;
 }
 
@@ -2653,8 +2652,11 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
     header = gasnetc_medium_prep(numargs, isreq, flags GASNETI_THREAD_PASS);
     if (!header) return 1;
     gasneti_assume((source_addr != NULL) || !nbytes);
-    return gasnetc_medium_commit(header, /*fixed*/1, dest, handler, source_addr, nbytes,
+    int rc = gasnetc_medium_commit(header, /*fixed*/1, dest, handler, source_addr, nbytes,
                                  numargs, argptr, isreq, flags GASNETI_THREAD_PASS);
+    gasneti_assert(!rc || (flags && GEX_FLAG_IMMEDIATE));
+    if (rc) gasnetc_ofi_free_am_header(header);
+    return rc;
 }
 
 
@@ -2714,6 +2716,12 @@ extern void gasnetc_ofi_CommitMedium(
                               source_addr, nbytes,
                               numargs, argptr, isreq, /*flags*/0
                               GASNETI_THREAD_PASS));
+}
+
+void gasnetc_ofi_CancelMedium(gasneti_AM_SrcDesc_t sd)
+{
+    gasnetc_ofi_send_ctxt_t *header = (gasnetc_ofi_send_ctxt_t *)sd->_void_p;
+    gasnetc_ofi_free_am_header(header);
 }
 
 #endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM || GASNET_NATIVE_NP_ALLOC_REP_MEDIUM

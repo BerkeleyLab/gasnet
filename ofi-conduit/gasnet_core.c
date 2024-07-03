@@ -999,6 +999,24 @@ extern void gasnetc_AM_CommitRequestMediumM(
     gasneti_reset_srcdesc(sd);
 }
 
+int gasnetc_AM_CancelRequestMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REQ(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelRequest(sd, gasneti_Medium, flags);
+    } else {
+        gasnetc_ofi_CancelMedium(sd);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
+}
+
 #endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 #if GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
@@ -1063,6 +1081,24 @@ extern void gasnetc_AM_CommitReplyMediumM(
     va_end(argptr);
 
     gasneti_reset_srcdesc(sd);
+}
+
+int gasnetc_AM_CancelReplyMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REP(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelReply(sd, gasneti_Medium, flags);
+    } else {
+        gasnetc_ofi_CancelMedium(sd);
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
 }
 
 #endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM

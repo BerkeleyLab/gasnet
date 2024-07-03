@@ -211,6 +211,8 @@ void gasnetc_ofi_CommitMedium(
                 size_t                 nbytes,
                 va_list                argptr
                 GASNETI_THREAD_FARG);
+void gasnetc_ofi_CancelMedium(
+                gasneti_AM_SrcDesc_t   sd);
 
 // One-sided PUT/GET Functions
 int gasnetc_rdma_put(gex_TM_t tm, gex_Rank_t rank, void *dest, void * src, size_t nbytes,
