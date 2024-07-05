@@ -61,6 +61,10 @@ GASNet-EX ChangeLog
     in `README` for more details, including use of this variable to restore
     the old behavior.
 
+* GASNet-EX Spec v0.19: (details in docs/GASNet-EX.txt)
+  - Experimental new `gex_AM_Cancel{Request,Reply}{Medium,Long}()` APIs enable
+    a client to abandon a Prepare (called instead of the matching Commit).
+
 * General and Misc.
   - Support for hwloc, used conditionally by ibv- and ofi-conduits, now
     defaults to thread-scope (not process-scope) for the cpuset query.
