@@ -1782,6 +1782,9 @@ static void cmd_FINI(char cmd, int i) {
     }
   }
 
+  // Children can exit as quickly as they read the writes issued below.
+  // So, temporarily disarm SIGCHLD to ensure the loop runs to completion.
+  gasneti_blocksig(SIGCHLD);
   {
     fd_set fds;
     int j, k;
@@ -1791,6 +1794,7 @@ static void cmd_FINI(char cmd, int i) {
     }
     finalized = 1;
   }
+  gasneti_unblocksig(SIGCHLD);
 }
 
 static void cmd_BARR(char cmd, int i) {
