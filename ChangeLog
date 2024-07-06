@@ -36,6 +36,7 @@ GASNet-EX ChangeLog
   - bug4723 - (partial fix) Chapel over ssh-spawner w/ environment modules chokes tcsh
   - bug4726 - RFE: smp-conduit support for conduit-independent spawner
   - bug4732 - configure not respecting disable-auto-conduit-detect for ofi-conduit on Cray EX
+  - bug4733 - Intermittent exitcode=9 from ssh-spawner
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0
