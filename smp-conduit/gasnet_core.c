@@ -353,16 +353,9 @@ static void gasnetc_fork_children(void) {
 static void gasnetc_join_children(void) {
   int children = gasneti_nodes - 1;
 
-#if HAVE_SIGPROCMASK /* Is this ever NOT the case? */
-  { /* In case we run nested in a SIGALRM-induced exit.
-       We need this because alarm() may not do it for us. */
-    sigset_t new_set, old_set;
-
-    sigemptyset(&new_set);
-    sigaddset(&new_set, SIGALRM);
-    sigprocmask(SIG_UNBLOCK, &new_set, &old_set);
-  }
-#endif
+  // In case we run nested in a SIGALRM-induced exit, we explicitly
+  // unblock SIGALRM, since alarm() *might* not do so itself.
+  gasneti_unblocksig(SIGALRM);
 
   gasneti_reghandler(SIGALRM, gasnetc_exit_sighand);
   alarm((unsigned int)(1 + gasnetc_exittimeout));
