@@ -312,6 +312,29 @@ static const char* do_check_env_prefix_hook(const char *prefix) {
   #define my_setpgid(pid) (0)
 #endif
 
+// POSIX.1-2008 designated siginterrupt() as obsolete.
+// This favors the recommended replacement via the SA_RESTART flag with
+// sigaction(), while providing a fallback if sigaction or SA_RESTART
+// are not available.
+static int do_siginterrupt(int signum, int flag)
+{
+#if GASNETI_HAVE_SA_RESTART
+  struct sigaction act;
+
+  int rc = sigaction(signum, NULL, &act);
+  if (rc) return rc;
+
+  if (flag) {
+    act.sa_flags &= ~SA_RESTART;
+  } else {
+    act.sa_flags |= SA_RESTART;
+  }
+
+  return sigaction(signum, &act, NULL);
+#else
+  return siginterrupt(signum, flag);
+#endif
+}
 
 /* returns count of signals sent */
 static int signal_rank_procs(int signo)
@@ -2162,7 +2185,7 @@ static void event_loop(void)
 {
     int done = 0;
 
-    siginterrupt(SIGCHLD, 1);
+    do_siginterrupt(SIGCHLD, 1);
     reaper(SIGCHLD);
 
     while (!finalized && !in_abort) {
@@ -2333,7 +2356,7 @@ static void do_master(const char *spawn_args, int *argc_p, char ***argv_p) {
 
   fd_sets_init();
   gasneti_reghandler(SIGURG, &sigurg_handler);
-  siginterrupt(SIGURG, 1);
+  do_siginterrupt(SIGURG, 1);
 
   if (NULL == spawn_args) { /* Explicit-master support */
     int argi;
@@ -2502,7 +2525,7 @@ static void do_control(const char *spawn_args, int *argc_p, char ***argv_p)
 
   fd_sets_init();
   gasneti_reghandler(SIGURG, &sigurg_handler);
-  siginterrupt(SIGURG, 1);
+  do_siginterrupt(SIGURG, 1);
 
   #if HAVE_PR_SET_PDEATHSIG
   if (use_pdeathsig) {

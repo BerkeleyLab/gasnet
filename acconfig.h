@@ -248,6 +248,9 @@
 /* has sched_yield() */
 #undef HAVE_SCHED_YIELD
 
+/* has sigaction() and a definition of the SA_RESTART flag */
+#undef GASNETI_HAVE_SA_RESTART
+
 /* have sysctl machdep.tsc_freq */
 #undef GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ
 

@@ -5569,6 +5569,17 @@ GASNET_TRY_CACHE_CHECK(for sched_yield(), cc_has_sched_yield, [
 ],
   AC_SEARCH_LIBS(sched_yield, posix4, AC_DEFINE(HAVE_SCHED_YIELD), AC_MSG_RESULT(entry point not found - disabled)))
 
+# Check for sigaction() *and* a definition of the SA_RESTART flag
+GASNET_TRY_CACHE_CHECK(for SA_RESTART, cc_has_sa_restart, [
+#include <signal.h>
+], [
+  struct sigaction act;
+  act.sa_flags = SA_RESTART;
+  int rc = sigaction(SIGTERM, &act, NULL);
+], [
+  AC_DEFINE(GASNETI_HAVE_SA_RESTART)
+])
+
 # timer setup
 case "$target_os" in
   freebsd* | netbsd*)  
