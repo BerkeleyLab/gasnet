@@ -76,6 +76,8 @@
   #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 
+int _gasneti_unused_result = -1;
+
 /* ------------------------------------------------------------------------------------ */
 /* generic atomics support */
 #if GASNETI_BUILDING_TOOLS && \
