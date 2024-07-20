@@ -27,6 +27,7 @@
     #define hwloc_bitmap_intersects hwloc_cpuset_intersects
     #define hwloc_bitmap_free hwloc_cpuset_free
   #endif
+  GASNETI_IDENT(gasnetc_IdentString_Hwloc, "$GASNetHwloc: lib (API version " _STRINGIFY(HWLOC_API_VERSION) ") $");
 #elif GASNETI_HAVE_HWLOC_UTILS
   #include <sys/types.h>
   #include <sys/wait.h>
@@ -35,9 +36,12 @@
   typedef const char *gasneti_hwloc_obj_type_t;
   typedef const char *gasneti_hwloc_cpuset_t;
   #define CLOSE_STDIN " </dev/null"
+  GASNETI_IDENT(gasnetc_IdentString_Hwloc,
+                "$GASNetHwloc: utils (" GASNETI_HWLOC_BIND_PATH "," GASNETI_HWLOC_CALC_PATH ") $");
 #else
   #undef USE_HWLOC_LIB
   #undef USE_HWLOC_UTILS
+  GASNETI_IDENT(gasnetc_IdentString_Hwloc, "$GASNetHwloc: none $");
 #endif
 
 // ------------------------------------------------------------------------------------
