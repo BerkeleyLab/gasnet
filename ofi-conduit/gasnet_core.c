@@ -400,23 +400,23 @@ static void gasnetc_exit_sighandler(int sig) {
   /* note - can't call trace macros here, or even sprintf */
   if (sig == SIGALRM) {
     static const char msg[] = "gasnet_exit(): WARNING: timeout during exit... goodbye.  [";
-    (void) write(STDERR_FILENO, msg, sizeof(msg) - 1);
-    (void) write(STDERR_FILENO, state, state_len);
-    (void) write(STDERR_FILENO, "]\n", 2);
+    gasneti_unused_result( write(STDERR_FILENO, msg, sizeof(msg) - 1) );
+    gasneti_unused_result( write(STDERR_FILENO, state, state_len) );
+    gasneti_unused_result( write(STDERR_FILENO, "]\n", 2) );
   } else {
     static const char msg1[] = "gasnet_exit(): ERROR: signal ";
     static const char msg2[] = " received during exit... goodbye.  [";
     char digit;
 
-    (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
+    gasneti_unused_result( write(STDERR_FILENO, msg1, sizeof(msg1) - 1) );
 
     char sigstr[4];
     size_t n = gasneti_utoa(sig, sigstr, sizeof(sigstr), 10);
-    (void) write(STDERR_FILENO, sigstr, n);
+    gasneti_unused_result( write(STDERR_FILENO, sigstr, n) );
 
-    (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
-    (void) write(STDERR_FILENO, state, state_len);
-    (void) write(STDERR_FILENO, "]\n", 2);
+    gasneti_unused_result( write(STDERR_FILENO, msg2, sizeof(msg2) - 1) );
+    gasneti_unused_result( write(STDERR_FILENO, state, state_len) );
+    gasneti_unused_result( write(STDERR_FILENO, "]\n", 2) );
   }
   (void) fsync(STDERR_FILENO);
 
