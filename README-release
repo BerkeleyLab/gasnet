@@ -74,6 +74,17 @@ GASNet Release Procedure
 
 * Update license.txt with any new authorship credits
 
+* Create a new version of docs/memory_kinds.pdf:
+  + Open Google doc:
+    - https://docs.google.com/document/d/1KDA3eLNAnW9XuOcRe0mMwww99pPhSPR6-y-2FvlqxPc
+  + File > Download > Microsoft Word (.docx)
+  + Open in MS Word
+  + Edit the file properties in Word and update Title, Authors, Keywords
+  + File > Save As > 
+    - Select File Type PDF 
+    - Open Options and select: All pages, "Create Bookmarks using Headings", PDF/A output
+  + Audit the result for garbled fonts, correct bookmarks and PDF metadata
+
 * Commit all changes made in the previous steps
 
 * Run pushbuild/misc/extract-urls.sh on the source repo to generate an
@@ -112,7 +123,6 @@ GASNet Release Procedure
   with both debug+stats+trace and ndebug configs, and all supported backend
   C compilers:
    HPE Cray EX: ofi (and mpi if time/allocation allows)
-   Cray XC: aries (and mpi if time/allocation allows)
    Linux-Ethernet: mpi, udp, ofi
    Linux-InfiniBand: mpi, ibv, ucx
    Linux-Omni-Path: ofi (plus mpi and ibv if time/allocation allows)
@@ -235,11 +245,8 @@ GASNet Release Procedure
   + Add the new tarballs to CVS in the following locations
       tools/GASNet_Tools-[version].tar.gz
       EX/GASNet-[version].tar.gz
-  + Copy the GASNet-EX spec (docs/GASNet-EX.txt in the tarball) to two places:
-      docs/GASNet-EX.txt          (overwriting the previous version)
+  + Copy the GASNet-EX spec (docs/GASNet-EX.txt in the tarball) to EX/:
       EX/GASNet-EX-[version].txt  (creating a new file to add to CVS)
-    The following command can be used to populate the first location:
-    `tar --strip-components=1 --wildcards -xf EX/GASNet-[version].tar.gz -- '*/docs/GASNet-EX.txt'`
   + Update EX/date_history and tools/date_history in CVS with the three
     versioned files added to the respective directories in the previous two steps.
   + Update index.html for the new release

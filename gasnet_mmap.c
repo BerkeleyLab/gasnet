@@ -2066,6 +2066,9 @@ extern int gex_EP_BindSegment(
   if (segment == GEX_SEGMENT_INVALID) {
     GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() with GEX_SEGMENT_INVALID");
   }
+  if (!safe_idx && !gasneti_i_segment_kind_is_host(i_segment)) {
+    GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() with primordial endpoint and device memory segment.  To use device memory, one must gex_EP_Create() an additional endpoint, bind a device segment to it using gex_EP_BindSegment(), followed by gex_EP_PublishBoundSegment() to enable remote access.");
+  }
   if (flags) {
     GASNETI_RETURN_ERRR(BAD_ARG,"Invalid call to gex_EP_BindSegment() with non-zero flags");
   }

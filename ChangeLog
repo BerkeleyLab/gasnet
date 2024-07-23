@@ -13,10 +13,36 @@ GASNet-EX ChangeLog
   - Shared-memory (smp-conduit)
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
-  - Cray uGNI (aries-conduits) [DEPRECATED]
   - Unified Communication X (ucx-conduit) [EXPERIMENTAL]
   Users wishing to use other retired conduits may need to download 
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
+
+----------------------------------------------------------------------
+20XX-YY-ZZ: PENDING
+
+* Cray XC uGNI (aries-conduit)
+  - This conduit, deprecated since 2023.9.0, has been removed.
+  - Users of Cray XC systems are advised to use the renamed cross-configure
+    scripts `cross-configure-cray-xc-slurm` and `cross-configure-cray-xc-alps`,
+    which enable ofi-conduit with libfabric's "gni" provider.
+
+* Shared-memory without a network (details in smp-conduit README)
+  - New `gasnetrun_smp` script provides consistency with most other conduits.
+    This enables launch of (single-node) smp-conduit jobs using the ssh-, mpi-
+    and pmi-spawners, in addition to legacy fork-based job launch.
+
+* General and Misc.
+  - Support for libhwloc, used conditionally by ibv- and ofi-conduits, has
+    been updated to use a thread-scope query for the cpuset instead of
+    process-scope.  This addresses bug 4734.
+
+* Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4718 - Diagnose invalid segment binding to primordial endpoint
+  - bug4723 - (partial fix) Chapel over ssh-spawner w/ environment modules chokes tcsh
+  - bug4726 - RFE: smp-conduit support for conduit-independent spawner
+  - bug4732 - configure not respecting disable-auto-conduit-detect for ofi-conduit on Cray EX
+  - bug4733 - Intermittent exitcode=9 from ssh-spawner
+  - bug4734 - incorrect hwloc-based NIC selection with cxi provider
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0

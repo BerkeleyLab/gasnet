@@ -35,6 +35,7 @@ following networks.
   + Intel or Cornelis Networks Omni-Path fabric, via the "psm2" provider
   + HPE Slingshot-10 (100 Gb/s ConnectX-5 NIC), via the "verbs;ofi_rxm" provider
   + HPE Slingshot-11 (200 Gb/s Cassini NIC), via the "cxi" provider
+  + Cray Aries network, via the experimental "gni" provider
 
 The following providers have been used successfully on networks where other
 GASNet conduits are a more appropriate choice. Therefore we do not recommend
@@ -42,7 +43,6 @@ use of these providers in general.
 
   + TCP, via the "sockets" provider
   + UDP, via the "udp;ofi_rxd" provider
-  + Cray Aries, via the "gni" provider
 
 The following providers have not met our expectations (with respect to
 performance or stability) when tested on the listed networks and therefore are
@@ -94,12 +94,12 @@ Users with Ethernet hardware are encouraged to consider the GASNet udp-conduit
 as an alternative to ofi-conduit with the sockets or udp;ofi_rxd providers, as
 the former may provide more favorable performance.
 
-Users with Cray XC hardware are encouraged to consider the GASNet aries-conduit
-as an alternative to ofi-conduit with the gni provider, since the former may
-provide better performance.  Additionally, while the GASNet maintainers have
-seen good results from preliminary testing of this provider with GASNet's
+Users with Cray XC hardware are advised that while the GASNet maintainers have
+seen good results from preliminary testing of the gni provider with GASNet's
 ofi-conduit, nobody has thoroughly validated it.  Therefore, use of the gni
-provider with ofi-conduit should be considered experimental.
+provider with ofi-conduit should be considered experimental.  Additionally,
+lack of access means this provider has not been tested since the 2023.3.0
+release of GASNet-EX.  However, it is recommended over use of mpi-conduit.
 
 The ofi-conduit includes support for memory kinds (`GEX_MK_CLASS_CUDA_UVA` and
 `GASNET_HAVE_MK_CLASS_HIP`) for certain providers and subject to minimum
@@ -325,12 +325,14 @@ the gasnetrun_ofi utility:
     gasnetrun_ofi -n <n> [options] [--] prog [program args]
     options:
       -n <n>                 number of processes to run (required)
-      -N <N>                 number of nodes to run on (not supported by all MPIs)
+      -N <N>                 number of nodes to run on (not always supported)
+      -c <n>                 number of cpus per process (not always supported)
       -E <VAR1[,VAR2...]>    list of environment vars to propagate
       -v                     be verbose about what is happening
       -t                     test only, don't execute anything (implies -v)
       -k                     keep any temporary files created (implies -v)
-      -spawner=(ssh|mpi|pmi) force use of a specific spawner (if available)
+      -spawner=<name>        force use of a specific spawner ([supported spawners])
+      --                     ends option parsing
 
 There are as many as three possible methods (ssh, mpi and pmi) by which one
 can launch an ofi-conduit application.  Ssh-based spawning is always

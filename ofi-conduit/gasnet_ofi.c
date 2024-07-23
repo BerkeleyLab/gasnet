@@ -1472,7 +1472,7 @@ int gasnetc_ofi_init(void)
 
   // Low-water mark for multi-receive buffer, if any
   if (maybe_multi_recv) {
-    GASNETI_TRACE_PRINTF(I, ("Setting multi-recv low-water mark to %"PRIuSZ, min_multi_recv));
+    GASNETI_TRACE_PRINTF(I, ("Setting multi-recv low-water mark to %"PRIu64, min_multi_recv));
     optval = min_multi_recv;
     ret    = fi_setopt(&gasnetc_ofi_request_epfd->fid, FI_OPT_ENDPOINT, FI_OPT_MIN_MULTI_RECV,
                        &optval, sizeof(optval));

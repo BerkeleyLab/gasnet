@@ -188,9 +188,9 @@ compilers, including which GASNet conduits are supported.
 script in other/contrib/ and link it into your top-level source directory and
 invoke it in place of configure.  Example for the Cray XC with slurm:
      cd <path-to-gasnet-src>
-     ln -s other/contrib/cross-configure-cray-aries-slurm .
+     ln -s other/contrib/cross-configure-cray-xc-slurm .
      cd <your-build-dir>
-     <path-to-gasnet-src>/cross-configure-cray-aries-slurm (configure_options)
+     <path-to-gasnet-src>/cross-configure-cray-xc-slurm (configure_options)
 
   For cross-compilation support on platforms without scripts in other/contrib
 see the instructions in other/cross-configure-help.c.
@@ -447,11 +447,6 @@ ofi-conduit: Open Fabrics Interfaces (most providers)
 Native, high-performance conduits:
 ---------------------------------
 
-aries-conduit:  Cray XC Aries [DEPRECATED]
- The conduit of choice for GASNet on the Aries networks in Cray XC systems.
- This conduit is currently deprecated due to lack of machine access that
- prevents testing. It is slated for removal in a future release.
-
 ibv-conduit: InfiniBand Verbs
  GASNet over the OpenFabrics Verbs API.
  Rigorously tested and supported over InfiniBand hardware on all supported systems (see below).
@@ -489,10 +484,6 @@ mpi-conduit:
  In addition to the documentation for the `mpirun` (or equivalent) specific to
  your MPI implementation, see mpi-conduit/README and other/mpi-spawner/README
  for documentation.
-
-aries-conduit:
- By default, this conduit uses PMI for spawning, though MPI is also an option.
- See aries-conduit/README and other/pmi-spawner/README for documentation.
 
 ibv-conduit, ofi-conduit and ucx-conduit:
  These conduits can use ssh, MPI or PMI for spawning.
@@ -584,8 +575,6 @@ Platforms where GASNet and Berkeley UPC have been successfully tested include:
 
     * CNL/Cray-XE/{gcc,PGI,PathScale,Intel,Cray}/64: smp, mpi &
     * CNL/Cray-XK/{gcc,PGI,PathScale,Intel,Cray}/64: smp, mpi &
-
-    * CNL/Cray-XC/{gcc,Intel,Cray}/64: smp, mpi, aries, ofi
 
     * CNL/HPE-Cray-EX/{gcc,Cray}/64: smp, mpi, ofi
 

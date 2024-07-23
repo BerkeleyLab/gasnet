@@ -216,9 +216,6 @@ launcher-mpi:
 	 else \
 	  conduit_launcher=$$gasnet_bindir/gasnetrun_$(UPCXX_CONDUIT); \
 	  case "$(UPCXX_CONDUIT)" in \
-	    aries) \
-	      set -x ; ln -s $$conduit_launcher $@ \
-	      ;; \
 	    *) \
 	      if test -r $$conduit_launcher-mpi.pl ; then \
 	        mpi_launcher="$(PERL) $$conduit_launcher-mpi.pl"; \

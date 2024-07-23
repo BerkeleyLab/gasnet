@@ -365,7 +365,7 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
     cpuset = hwloc_bitmap_alloc();
     if (!cpuset ||
         (hwloc_topology_load(topology) < 0) ||
-        (hwloc_get_cpubind(topology, cpuset, HWLOC_CPUBIND_PROCESS) < 0 )) {
+        (hwloc_get_cpubind(topology, cpuset, HWLOC_CPUBIND_THREAD) < 0 )) {
       // failed to query cpu binding from hwloc
       goto out_bad_cpuset;
     }
@@ -453,7 +453,7 @@ out_bad_intersect:
           "Failed to query hwloc for objects of type '%s' while processing environment variable '%s'.  "
           "You may set '%s_TYPE=none' to disable checks for suffixed variants of this variable.  "
           "Suppressing additional warnings, if any, for this error with additional variables.",
-          typestring, keyname, keyname), keyname;
+          typestring, keyname, keyname);
       did_intersect_warning = 1;
     }
     goto out;
