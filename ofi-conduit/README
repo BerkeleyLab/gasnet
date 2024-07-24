@@ -471,6 +471,11 @@ Recognized environment variables:
   all supportable provider/device pairs.  In this context, "supportable"
   may be constrained by such factors as the configured provider or use of
   environment variables which constrain provider enumeration.
+  If libhwloc 2.0 or higher was detected at configure time, then this output
+  includes a distance ranking for each HCA port for which the information can
+  be found.  A ranking of "1" denotes the topologically nearest HCAs (i.e.
+  "first place").  If present, "2" will denote any HCA(s) less near than the
+  "1" HCA(s) but nearer than any "3"s, etc.  Note that ties are possible.
   See 'GASNET_OFI_LIST_DEVICES_NODES' for how to limit which nodes report.
   The default is "0" (no report).
 

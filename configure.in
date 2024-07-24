@@ -5734,6 +5734,14 @@ if test "$enabled_hwloc_utils" != no; then
   fi
 fi
 
+if test "$have_hwloc_lib" = 'yes'; then
+  hwloc_support='lib'
+elif test "$have_hwloc_utils" = 'yes'; then
+  hwloc_support='utils'
+else
+  hwloc_support='no'
+fi
+
 #  AC_FUNC_MMAP
 # Check for mmap functionality we actually use
 if test "$cross_compiling" = "yes" ; then
@@ -6133,6 +6141,7 @@ cat >>$CONDUIT_LIST <<EOF
   PSHM support:           $with_pshm
   Atomics support:        $atomics_config
   PMI support:            $have_pmi$pretty_pmi_version
+  Hwloc support:          $hwloc_support
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF
