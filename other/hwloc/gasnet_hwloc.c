@@ -283,6 +283,7 @@ int gasneti_hwloc_init(void) {
   int result = 0; // assume success
 
   gasneti_tick_t t1 = GASNETI_TICKS_NOW_IFENABLED(I);
+  gasneti_tick_t t2;
   GASNETI_TRACE_PRINTF(I,("gasneti_hwloc_init() {"));
   GASNETI_TRACE_PRINTF(I,("  GASNET_HWLOC_QUERY = '%s'", envval));
 #if USE_HWLOC_LIB
@@ -375,7 +376,7 @@ success:
   // fall through
 
 done:
-  gasneti_tick_t t2 = GASNETI_TICKS_NOW_IFENABLED(I);
+  t2 = GASNETI_TICKS_NOW_IFENABLED(I);
   GASNETI_TRACE_PRINTF(I,("  initialized in %.3fus", gasneti_ticks_to_ns(t2-t1)/1000.0));
   GASNETI_TRACE_PRINTF(I,("}"));
   return result;
