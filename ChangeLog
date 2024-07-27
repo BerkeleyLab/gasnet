@@ -29,6 +29,7 @@ GASNet-EX ChangeLog
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Reduced on-the-wire overheads of Active Messages
   - Improved AM Medium bandwidth (bug 4165)
+  - Increased default GASNET_UCX_MAX_MEDIUM to 65456
 
 * Shared-memory without a network (details in smp-conduit README)
   - New `gasnetrun_smp` script provides consistency with most other conduits.
