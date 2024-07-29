@@ -762,6 +762,9 @@ static void gasnetc_info_foreach(struct fi_info *info, gasnetc_info_visitor_t ca
 static const char* gasnetc_info_to_device(const struct fi_info *p)
 {
   char *name;
+
+#if FI_VERSION(FI_MAJOR_VERSION, FI_MINOR_VERSION) >= FI_VERSION(1, 7)
+  // The `nic` member of struct fi_info first appears in libfabric 1.7.0
   if (p->nic &&
       p->nic->bus_attr &&
       p->nic->bus_attr->bus_type == FI_BUS_PCI) {
@@ -774,7 +777,9 @@ static const char* gasnetc_info_to_device(const struct fi_info *p)
              p->nic->device_attr &&
              p->nic->device_attr->name) {
     name = gasneti_strdup(p->nic->device_attr->name);
-  } else {
+  } else
+#endif
+  {
     name = gasneti_strdup(p->domain_attr->name);
   }
 
