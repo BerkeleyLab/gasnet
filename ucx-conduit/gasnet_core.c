@@ -773,9 +773,8 @@ extern int gasnetc_attach_primary(void) {
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
-  // TODO: can we safely invert the next two lines to use an AM-based barrier here instead?
-  gasneti_bootstrapBarrier();
   gasneti_attach_done = 1;
+  gasneti_bootstrapBarrier();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete"));
 
@@ -1560,7 +1559,7 @@ extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
     gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
     gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
-                                     1, 0, numargs, argptr, NULL, 0, NULL,
+                                     1, numargs, argptr, NULL, 0, NULL,
                                      local_cnt, cbfunc
                                      GASNETI_THREAD_PASS);
   }
@@ -1587,7 +1586,7 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
     gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
     gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
-                                     0, 0, numargs, argptr, NULL, 0, NULL,
+                                     0, numargs, argptr, NULL, 0, NULL,
                                      local_cnt, cbfunc
                                      GASNETI_THREAD_PASS);
   }

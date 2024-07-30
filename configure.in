@@ -3776,7 +3776,7 @@ else
     GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
 
-    ucx_max_med_dflt=`expr 4096 - 16 - 64`  # 16 = fixed Medium header, 64 = 16x 4-byte args
+    ucx_max_med_dflt=`expr 65536 - 16 - 64`  # 16 = fixed Medium header, 64 = 16x 4-byte args
     GASNET_WITH(ucx-max-medium,[Specify gex_LUB*Medium() for ucx-conduit (default $ucx_max_med_dflt)],
       [if expr "$withval" : '[[0-9]]*$' >/dev/null 2>&1 && \
           expr "$withval" '>=' 512  >/dev/null 2>&1 ; then

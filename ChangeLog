@@ -28,6 +28,8 @@ GASNet-EX ChangeLog
 
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Reduced on-the-wire overheads of Active Messages
+  - Improved AM Medium bandwidth (bug 4165)
+  - Increased default GASNET_UCX_MAX_MEDIUM to 65456
 
 * Shared-memory without a network (details in smp-conduit README)
   - New `gasnetrun_smp` script provides consistency with most other conduits.
@@ -40,6 +42,8 @@ GASNet-EX ChangeLog
     See GASNET_HWLOC_QUERY in the top-level GASNet README for details.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
+  - bug4165 - ucx: AMMediumRequest bandwidth problems
+  - bug4280 - ucx: investigate use of is_sync in AM injection
   - bug4335 - ucx: inefficient AM header layout
   - bug4718 - Diagnose invalid segment binding to primordial endpoint
   - bug4723 - (partial fix) Chapel over ssh-spawner w/ environment modules chokes tcsh

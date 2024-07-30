@@ -73,7 +73,6 @@ typedef struct {
     gasnetc_ucx_req_status_t  status;
     gasnetc_am_req_t         *am_req;
     gasnetc_buffer_t          buffer;
-    uint8_t                   is_sync;
     void                     *result_p;
     struct {
       gasnetc_cbfunc_t        cbfunc;
