@@ -943,7 +943,7 @@ static void *gasnetc_alloc_pages(size_t len, const char *desc)
 
 static void gasnetc_check_version(const char *prov_name, unsigned int major, unsigned int minor)
 {
-  if (strcmp(prov_name,gasnetc_ofi_provider)) return;
+  if (gasneti_strcasecmp(prov_name,gasnetc_ofi_provider)) return;
 
   uint32_t have = fi_version();
   uint32_t want = FI_VERSION(major,minor);
@@ -1173,12 +1173,12 @@ int gasnetc_ofi_init(void)
   }
 
   // Balk if provider was explicitly chosen at configure time and is not available now
-  if (!strchr(supported_providers,' ') && strcmp(supported_providers, info->fabric_attr->prov_name)) {
+  if (!strchr(supported_providers,' ') && gasneti_strcasecmp(supported_providers, info->fabric_attr->prov_name)) {
       if (gasnetc_ofi_device) {
         // Retry to rule out invalid device choice
         hints->domain_attr->name = NULL;
         info = gasnetc_ofi_getinfo(hints);
-        if (info && !strcmp(supported_providers, info->fabric_attr->prov_name)) {
+        if (info && !gasneti_strcasecmp(supported_providers, info->fabric_attr->prov_name)) {
           gasneti_fatalerror("Specifed device '%s' is not available or not usable", gasnetc_ofi_device);
         }
       }
@@ -1194,14 +1194,14 @@ int gasnetc_ofi_init(void)
   // Check if this provider is one we consider "high performance"
   const char *high_perf_providers[] = { "psm2", "cxi", "verbs;ofi_rxm" };
   for (i = 0; i < sizeof(high_perf_providers)/sizeof(high_perf_providers[0]); ++i) {
-    if (!strcmp(info->fabric_attr->prov_name, high_perf_providers[i])) {
+    if (!gasneti_strcasecmp(info->fabric_attr->prov_name, high_perf_providers[i])) {
       gasnetc_high_perf_prov = 1;
       break;
     }
   }
 
   // psm2 provider needs some special handling
-  if (!strcmp(info->fabric_attr->prov_name, "psm2")){
+  if (!gasneti_strcasecmp(info->fabric_attr->prov_name, "psm2")){
       using_psm_provider = 1;
   } else if (set_psm2_lazy_conn) {
       /* If we set this variable and are not using psm2, unset it in the
@@ -1210,7 +1210,7 @@ int gasnetc_ofi_init(void)
       unsetenv("FI_PSM2_LAZY_CONN");
   }
 
-  if (!strcmp(info->fabric_attr->prov_name, "cxi") && !set_cxi_match_mode) {
+  if (!gasneti_strcasecmp(info->fabric_attr->prov_name, "cxi") && !set_cxi_match_mode) {
     const char *str0 = (initial_CXI_RX_MATCH_MODE && initial_CXI_RX_MATCH_MODE[0])
                      ? gasneti_dynsprintf("='%s'", initial_CXI_RX_MATCH_MODE)
                      : "";
@@ -1358,7 +1358,7 @@ int gasnetc_ofi_init(void)
                            info->fabric_attr->prov_name,
                            (unsigned int)FI_MAJOR(info->fabric_attr->prov_version),
                            (unsigned int)FI_MINOR(info->fabric_attr->prov_version)));
-  gasneti_assert(! strcmp(gasnetc_ofi_provider, info->fabric_attr->prov_name));
+  gasneti_assert(! gasneti_strcasecmp(gasnetc_ofi_provider, info->fabric_attr->prov_name));
 
   /* Open a fabric access domain, also referred to as a resource domain */
   ret = fi_domain(gasnetc_ofi_fabricfd, info, &gasnetc_ofi_domainfd, NULL);
