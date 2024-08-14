@@ -811,13 +811,20 @@ static void gasnetc_dump_cqe(struct ibv_wc *comp, gasnetc_hca_t *hca, const int 
             }
             break;
         }
-        if ((nargs == GASNETC_MAX_ARGS) && args) {
+        if (nargs == GASNETC_MAX_ARGS) {
           // Decode actual nargs when carrying a hidden flow control arg
-          nargs = GASNETC_HIDDEN_ARG_FULL_NARGS(args) - 1;
+          if (args) {
+            nargs = GASNETC_HIDDEN_ARG_FULL_NARGS(args) - 1;
+          }
+          // TODO: in absence of the original `args` array, Short and Long
+          // cases _might_ be able to reconstruct from message length, but
+          // padding to 8-byte boundary prevents that for Medium.
         }
-        MSG_APPEND(" Re%s%s: nargs=%d handler=%d",
+        MSG_APPEND(" Re%s%s: nargs=%s handler=%d",
                    GASNETC_MSG_ISREPLY(flags)?"ply":"quest",
-                   cat_name, nargs, GASNETC_MSG_HANDLERID(flags));
+                   cat_name,
+                   (nargs == GASNETC_MAX_ARGS)?"unknown":gasneti_dynsprintf("%d",nargs),
+                   GASNETC_MSG_HANDLERID(flags));
         // May use a second scatter-gather entry for med or packed-long payloads
         int num_sge = MIN(sreq->args.am.num_sge, 2); // longer than 2 is erroneous
         for (int i = 0; i < num_sge; ++i) {
@@ -826,12 +833,14 @@ static void gasnetc_dump_cqe(struct ibv_wc *comp, gasnetc_hca_t *hca, const int 
                      (unsigned int)sreq->args.am.length[i]);
         }
         // Payload length in this xfer, if any
-        if (category == gasneti_Long) {
-          // For Long, only report packed payload bytes
-          nbytes = (nbytes & 0x80000000) ? (nbytes & 0x7fffffff) : 0;
-        }
-        if (nbytes && (nbytes != (uint32_t)-1)) {
-          MSG_APPEND(", includes %u bytes payload", (unsigned int)nbytes);
+        if (nbytes != (uint32_t)-1) {
+          if (category == gasneti_Long) {
+            // For Long, only report packed payload bytes
+            nbytes = (nbytes & 0x80000000) ? (nbytes & 0x7fffffff) : 0;
+          }
+          if (nbytes) {
+            MSG_APPEND(", includes %u bytes payload", (unsigned int)nbytes);
+          }
         }
         break;
       }
