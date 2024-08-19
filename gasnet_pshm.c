@@ -8,6 +8,23 @@
 
 #if GASNET_PSHM /* Otherwise file is empty */
 
+#if GASNETI_PSHM_SYSV
+  #define GASNETI_PSHM_API sysv
+#elif GASNETI_PSHM_POSIX
+  #define GASNETI_PSHM_API posix
+#elif GASNETI_PSHM_FILE
+  #if GASNETI_USE_HUGETLBFS
+    #define GASNETI_PSHM_API hugetlbfs
+  #else
+    #define GASNETI_PSHM_API file
+  #endif
+#elif GASNETI_PSHM_XPMEM
+  #define GASNETI_PSHM_API xpmem
+#else
+  #error "Unknown PSHM API"
+#endif
+GASNETI_IDENT(gasneti_IdentString_PSHM, "$GASNetPSHM: " _STRINGIFY(GASNETI_PSHM_API) " $");
+
 #include <gasnet_core_internal.h> /* for gasnetc_handler[] */
 #include <gasnet_am.h> /* for gasneti_{prepare_alloc,commit_free}_buffer() */
 
