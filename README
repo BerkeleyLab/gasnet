@@ -673,15 +673,17 @@ these aliases.
   This is subject to the hard limit established by configure --with-max-pthreads-per-node,
   and pthread limits that may be imposed by specific conduits (see conduit README).
 
-* GASNET_SUPERNODE_MAXSIZE - limit on size of a GASNet "supernode".
- This is the maximum number of processes (GASNet "nodes") that will be grouped
- into a shared-memory "supernode", as reported by gasnet_getNodeInfo() and used
- by shared-memory communication (PSHM).  A value of zero means no limit.
+* GASNET_SUPERNODE_MAXSIZE - limit on size of a GASNet "supernode" (aka "neigborhood").
+ This is the maximum number of processes that will be grouped into a shared-memory
+ "supernode"/"neigborhood" used by shared-memory communication (PSHM).  The size and
+ membership of the local neigborhood are reported by gex_System_QueryNbrhdInfo(), and
+ by the legacy gasnet_getNodeInfo().
+ A value of zero (the default) means no limit.
 
 * GASNET_PSHM_BARRIER_HIER - Boolean setting to enable/disable hierarchical
  shared-memory barrier.  When shared-memory communication (PSHM) is enabled,
  the default behavior of most of GASNet's barrier implementations is to use a
- two-stage barrier which coordinates within each supernode before
+ two-stage barrier which coordinates within each supernode/neigborhood before
  communicating across the network.
  This variable can be set to "0" to disable this optimization.
 
@@ -889,7 +891,7 @@ these aliases.
 
 * GASNET_HOST_DETECT
  To implement gex_System_QueryHostInfo() and to construct shared-memory
- "nbrhds", GASNet must map the hosts (compute nodes) in a job.  This requires
+ "neigborhoods", GASNet must map the hosts (compute nodes) in a job.  This requires
  a unique identifier for each host.  This string-valued setting selects the
  identifier used.
  The following are implemented for most conduits:
