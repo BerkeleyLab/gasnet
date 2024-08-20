@@ -616,7 +616,8 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
       // TODO: can we confirm that is the actual cause?
       errno = ENOMEM;
     }
-    return MAP_FAILED;
+    ptr = MAP_FAILED;
+    goto out;
   }
 
   /* map */
@@ -649,7 +650,10 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
   #else
     #error
   #endif
-  if (fd == -1) return MAP_FAILED;
+  if (fd == -1) {
+    ptr = MAP_FAILED;
+    goto out;
+  }
 
   /* size on create only */
   if (create && ftruncate(fd, segsize)) {
@@ -702,12 +706,17 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
     gasneti_pshm_unlink(pshm_rank);
     errno = save_errno;
   }
+
+out:
+  GASNETI_TRACE_PRINTF(I, ("gasneti_pshm_mmap(%d, %p, %"PRIuSZ") create=%d ptr=%p",
+                           pshm_rank, segbase, segsize, create, ptr));
   return ptr;
 }
 
 /* Helper: remove local object's mapping from address space */
 static void gasneti_pshm_munmap(void *segbase, uintptr_t segsize) {
   gasneti_assert(segsize > 0);
+  GASNETI_TRACE_PRINTF(I, ("gasneti_pshm_munmap(%p, %"PRIuSZ")", segbase, segsize));
 #if defined(GASNETI_PSHM_SYSV)
   if (shmdt(segbase) != 0) {
       gasneti_fatalerror("shmdt("GASNETI_LADDRFMT") failed: %s\n",
@@ -1799,6 +1808,9 @@ int gasneti_segment_map(
                         int pshm_compat,
                         gex_Flags_t flags)
 {
+  GASNETI_TRACE_PRINTF(I, ("gasneti_segment_map: size=%"PRIuPTR", pshm_compat=%d, flags=0x%x",
+                           segsize, pshm_compat, flags));
+
 #ifdef GASNETI_MMAP_OR_PSHM
   if (flags & GASNETI_FLAG_INIT_LEGACY) {
     /* in "legacy_mode" we consume the presegment */
