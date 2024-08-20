@@ -480,6 +480,10 @@ uintptr_t gasneti_max_segsize(void);
   #endif
 #endif
 
+#if GASNET_PSHM
+  extern int gasneti_use_shared_allocator;
+#endif
+
 // Allocate/map memory intended for use as segment.
 // May be called non-collectively, as from gex_Segment_Create().
 // Also called collectively, as from gex_Segment_Attach() and aux seg creation.

@@ -100,6 +100,13 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   gasneti_pshm_mynode = gasneti_nodemap_local_rank;
   gasneti_pshm_firstnode = gasneti_nodemap_local[0];
 
+  if (gasneti_pshm_nodes == 1) {
+    gasneti_use_shared_allocator = gasneti_getenv_yesno_withdefault("GASNET_USE_PSHM_SINGLETON", 0);
+  } else {
+    // For multi-process nbrhd we must use PSHM-aware memory allocation.
+    gasneti_assert( gasneti_use_shared_allocator );
+  }
+
 #if GASNET_CONDUIT_SMP
   gasneti_assert_uint(gasneti_pshm_nodes ,==, gasneti_nodes);
   gasneti_assert_uint(gasneti_pshm_mynode ,==, gasneti_mynode);

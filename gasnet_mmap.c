@@ -47,6 +47,19 @@
   #define gasneti_mmap_pagesize()    GASNETI_PAGESIZE
 #endif
 
+// In a PSHM-enabled library, gasneti_use_shared_allocator controls whether a
+// PSHM-compatible segment will be allocated and cross-mapped for eligible
+// cases.  Currently "eligible" includes the aux and primordial segments.
+// Specifically, when the value is zero the "regular" gasneti_mmap() is used to
+// allocate "regular" memory and no cross-mapping is done.
+// Currently the only valid/usable case for zero in a PSHM-enabled library is
+// when environment variable GASNET_USE_PSHM_SINGLETON is false.
+#if GASNET_PSHM
+  int gasneti_use_shared_allocator = 1;
+#else
+  #define gasneti_use_shared_allocator 0
+#endif
+
 #ifdef GASNETI_MMAP_OR_PSHM
  #if GASNET_PSHM && !defined(_POSIX_C_SOURCE) && PLATFORM_OS_SOLARIS
   #define _POSIX_C_SOURCE 200112L /* Required for shm_{open,unlink} decls */
@@ -595,6 +608,8 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
                      ((pshm_rank == gasneti_pshm_nodes) && !gasneti_pshm_mynode);
   void * ptr = MAP_FAILED;
 
+  gasneti_assert(gasneti_use_shared_allocator);
+
 #if defined(GASNETI_PSHM_SYSV)
   const int flags = S_IRUSR | S_IWUSR | (create ? ( IPC_CREAT | IPC_EXCL ) : 0);
 
@@ -717,6 +732,10 @@ out:
 static void gasneti_pshm_munmap(void *segbase, uintptr_t segsize) {
   gasneti_assert(segsize > 0);
   GASNETI_TRACE_PRINTF(I, ("gasneti_pshm_munmap(%p, %"PRIuSZ")", segbase, segsize));
+  if (! gasneti_use_shared_allocator) {
+    gasneti_munmap(segbase, segsize);
+    return;
+  }
 #if defined(GASNETI_PSHM_SYSV)
   if (shmdt(segbase) != 0) {
       gasneti_fatalerror("shmdt("GASNETI_LADDRFMT") failed: %s\n",
@@ -731,6 +750,7 @@ static void gasneti_pshm_munmap(void *segbase, uintptr_t segsize) {
 }
 
 static void gasneti_munmap_remote(gex_Rank_t pshm_rank, void *segbase, uintptr_t segsize) {
+  gasneti_assert(gasneti_use_shared_allocator);
   gasneti_assert(segsize > 0);
 
 #if defined(GASNETI_PSHM_SYSV)
@@ -771,6 +791,7 @@ void gasneti_publish_segment(gasnet_seginfo_t segment, int do_sync) {
 
 /* Helper: destroy the "attach point" */
 static void gasneti_pshm_unlink(int pshm_rank){
+  if (!gasneti_use_shared_allocator) return;
 #if defined(GASNETI_PSHM_SYSV)
   int shmget_id = shmget(gasneti_pshm_sysvkeys[pshm_rank], 0, 0);
   (void)shmctl(shmget_id, IPC_RMID, NULL);
@@ -803,6 +824,7 @@ static void gasneti_unlink_segments(void) {
 
 /* Try to unlink everything we can, ignoring errors */
 static void gasneti_cleanup_shm(void) {
+  gasneti_assert(gasneti_use_shared_allocator);
 #ifdef GASNETI_PSHM_SYSV
   /* Unlink the segments and vnet */
   if (gasneti_pshm_sysvkeys) {
@@ -852,6 +874,10 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   int mmap_errno;
   gasneti_tick_t t1, t2;
   void	*ptr;
+
+  if (! gasneti_use_shared_allocator) {
+    return gasneti_mmap_internal(segbase, segsize, may_fail);
+  }
 
   /* 0-byte failure modes can vary by implemenation */
   if (!segsize) {
@@ -1970,12 +1996,15 @@ void gasneti_segment_cross_map(gasnet_seginfo_t *seginfo)
 }
 #endif /* GASNET_PSHM */
 
+//  Create a segment (primordial or aux) and exchange seginfo
+//  Only if pshm_segment non-zero then cross-maps the memory w/i the nbrhd
 static gasnet_seginfo_t
 gasneti_do_attach_segment(
                            uintptr_t segsize,
                            gasnet_seginfo_t *all_segments,
                            gex_TM_t tm,
                            gasneti_bootstrapExchangefn_t exchangefn,
+                           int pshm_segment,
                            gex_Flags_t flags)
 {
 #if GASNET_PSHM
@@ -1983,13 +2012,15 @@ gasneti_do_attach_segment(
   const char *context = (all_segments == gasneti_seginfo_aux)
                       ? " while attaching the aux segment"
                       : " while attaching the client segment";
-  gasneti_pshm_cs_enter(context, &gasneti_cleanup_shm);
-  gasneti_pshmnet_bootstrapBarrier();
+  if (pshm_segment) {
+    gasneti_pshm_cs_enter(context, &gasneti_cleanup_shm);
+    gasneti_pshmnet_bootstrapBarrier();
+  }
 #endif
 
   gasnet_seginfo_t local_segment;
 
-  int rc = gasneti_segment_map(&local_segment, segsize, 1, flags);
+  int rc = gasneti_segment_map(&local_segment, segsize, pshm_segment, flags);
   if (rc != GASNET_OK) {
     gasneti_fatalerror("Unexpected failure return from gasneti_segment_map()");
   }
@@ -2000,7 +2031,9 @@ gasneti_do_attach_segment(
     gasneti_blockingExchange(tm, &local_segment, sizeof(gasnet_seginfo_t), all_segments);
 #if GASNET_PSHM
     // Needed if a pshm bootstrap operation may follow use of AMs
-    gasneti_pshmnet_bootstrapBarrierPoll();
+    if (pshm_segment) {
+      gasneti_pshmnet_bootstrapBarrierPoll();
+    }
 #endif
   } else {
     // gasneti_assert(all_segments == gasneti_seginfo_aux); // Eventually only auxseg should use exchangefn
@@ -2009,8 +2042,10 @@ gasneti_do_attach_segment(
   }
 
 #if GASNET_PSHM
-  gasneti_segment_cross_map(all_segments);
-  gasneti_pshm_cs_leave();
+  if (pshm_segment) {
+    gasneti_segment_cross_map(all_segments);
+    gasneti_pshm_cs_leave();
+  }
 #endif
 
   return local_segment;
@@ -2204,7 +2239,7 @@ int gasneti_segmentAttach(
   /*  register segment  */
 
   // First portion of Segment_Create, plus cross-mapping and seginfo propagation:
-  gasnet_seginfo_t myseg = gasneti_do_attach_segment(segsize, gasneti_seginfo, tm, NULL, flags);
+  gasnet_seginfo_t myseg = gasneti_do_attach_segment(segsize, gasneti_seginfo, tm, NULL, gasneti_use_shared_allocator, flags);
 
   // Sanity checks:
   void *segbase = myseg.addr;
@@ -2758,7 +2793,8 @@ gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchangefn)
                        auxsize, maxsize);
   }
   gasneti_leak(gasneti_seginfo_aux    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
-  gasnet_seginfo_t local_segment = gasneti_do_attach_segment(auxsize, gasneti_seginfo_aux, NULL, exchangefn, 0);
+  gasnet_seginfo_t local_segment =
+          gasneti_do_attach_segment(auxsize, gasneti_seginfo_aux, NULL, exchangefn, gasneti_use_shared_allocator, 0);
   gasneti_auxseg_attach(gasneti_seginfo_aux);
   gasneti_assert_uint(gasneti_seginfo_aux[gasneti_mynode].size ,==, auxsize);
   return local_segment;

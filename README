@@ -680,6 +680,19 @@ these aliases.
  by the legacy gasnet_getNodeInfo().
  A value of zero (the default) means no limit.
 
+* GASNET_USE_PSHM_SINGLETON - Boolean to control shared memory use in "singleton"
+ neigborhoods (ones with only a single process).  By default, this setting is "0" and
+ a process in a singleton neigborhood will allocate memory using mmap() with the flag
+ MAP_ANONYMOUS (or similar if that is not supported), instead of allocating
+ sharable memory (such as via POSIX or SysV shared memory).
+ This default behavior *may* reduce pressure on limited shared memory pools to
+ potentially enable use of a larger segment and can result in lower-cost page
+ faults (if any) when accessing the segment.  However, it may also disable use
+ of hugepages (if any) which might have occurred otherwise.
+ This variable can be set to "1" to disable this singleton-specific behavior,
+ ensuring that memory allocation in a singleton neigborhood is performed in exactly
+ the same manner as in any other.
+
 * GASNET_PSHM_BARRIER_HIER - Boolean setting to enable/disable hierarchical
  shared-memory barrier.  When shared-memory communication (PSHM) is enabled,
  the default behavior of most of GASNet's barrier implementations is to use a
