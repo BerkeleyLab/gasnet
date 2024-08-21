@@ -1962,20 +1962,41 @@ GASNET_IF_ENABLED_WITH_AUTO(hugetlbfs,
   [Enable/disable huegtlbfs support (default is system dependent)],
   [enabled_hugetlbfs=yes], [enabled_hugetlbfs=no], [enabled_hugetlbfs=probe])
 if test "$enabled_hugetlbfs" != 'no'; then
- AC_CHECK_HEADERS(hugetlbfs.h, [
-  GASNET_PUSHVAR(LIBS,"$LIBS -lhugetlbfs")
-  AC_CHECK_FUNCS([hugetlbfs_unlinked_fd],
-                 [have_hugetlbfs=yes
-                  AC_DEFINE(HAVE_HUGETLBFS)])
-  GASNET_POPVAR(LIBS)
- ])
+ GASNET_PACKAGE_HOME(HUGETLBFS, [hugetlbfs], [hugectl], [/usr/local], [include/hugetlbfs.h])
+ GASNET_PACKAGE_CFLAGS(HUGETLBFS)
+ GASNET_ENV_DEFAULT(HUGETLBFS_LIBS, -lhugetlbfs)
+ GASNET_PACKAGE_LDFLAGS(HUGETLBFS, hugetlbfs)
+ GASNET_SPLIT_LINKER_OPTS(HUGETLBFS_LDFLAGS,HUGETLBFS_LIBS)
+
+ GASNET_PUSHVAR(CFLAGS,"$CFLAGS $HUGETLBFS_CFLAGS")
+ GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $HUGETLBFS_LDFLAGS")
+ GASNET_PUSHVAR(LIBS,"$LIBS $HUGETLBFS_LIBS")
+
+ GASNET_TRY_CACHE_LINK([for usable libhugetlbfs], hugetlbfs_works,
+      [ #include <hugetlbfs.h> ],
+      [ int rc1 = hugetlbfs_unlinked_fd();
+        const char * rc2 = hugetlbfs_find_path();
+        long rc3 = gethugepagesize();
+      ],
+      [ have_hugetlbfs=yes
+        AC_DEFINE(HAVE_HUGETLBFS)])
+
+ GASNET_POPVAR(LIBS)
+ GASNET_POPVAR(LDFLAGS)
+ GASNET_POPVAR(CFLAGS)
+
  if test "$enabled_hugetlbfs$have_hugetlbfs" = 'yesno'; then
    GASNET_MSG_ERROR([User requested --enable-hugetlbfs but the header and/or library could not be found])
  fi
  if test "$have_hugetlbfs" = 'yes'; then
-   GASNET_IF_ENABLED(hugetlbfs-whole-archive, [Use --whole-archive with libhugetlbfs],
-                     [HUGETLBFS_LIBS='-Wl,--whole-archive,-lhugetlbfs,--no-whole-archive'],
-                     [HUGETLBFS_LIBS='-lhugetlbfs'])
+   GASNET_IF_ENABLED_NOHELP(hugetlbfs-whole-archive,
+                     [ if test "$HUGETLBFS_LIBS" = '-lhugetlbfs'; then
+                         HUGETLBFS_LIBS="-Wl,--whole-archive,-lhugetlbfs,--no-whole-archive"
+                       else
+                         GASNET_MSG_ERROR([dnl
+User requested --enable-hugetlbfs-whole-archive, which is a deprecated option available only when libhugetlbfs is the only library required.  Please configure using the fully-general --with-hugetlbfs-libs option instead.])
+                       fi
+                     ])
  fi
 fi
 with_pshm=no
@@ -2147,6 +2168,8 @@ if test "$enabled_pshm" != no; then
   fi
   AC_DEFINE(GASNETI_PSHM_FILE)
   AC_DEFINE(GASNETI_USE_HUGETLBFS)
+  GASNET_PSHM_CFLAGS="$HUGETLBFS_CFLAGS"
+  GASNET_PSHM_LDFLAGS="$HUGETLBFS_LDFLAGS"
   GASNET_PSHM_LIBS="$HUGETLBFS_LIBS"
   with_pshm=hugetlbfs
  fi
@@ -2187,6 +2210,8 @@ elif test "$have_hugetlbfs" = yes && test "$GASNET_PLATFORM" = crayex ; then
   # Currently the supported systems are the Cray XC and HPE Cray EX
   # However, we are not doing anything here for the former
   AC_DEFINE(GASNETI_USE_HUGETLBFS)
+  GASNET_PSHM_CFLAGS="$HUGETLBFS_CFLAGS"
+  GASNET_PSHM_LDFLAGS="$HUGETLBFS_LDFLAGS"
   GASNET_PSHM_LIBS="$HUGETLBFS_LIBS"
 fi
 GASNET_SPLIT_LINKER_OPTS(GASNET_PSHM_LDFLAGS,GASNET_PSHM_LIBS)

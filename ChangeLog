@@ -36,6 +36,14 @@ GASNet-EX ChangeLog
     This enables launch of (single-node) smp-conduit jobs using the ssh-, mpi-
     and pmi-spawners, in addition to legacy fork-based job launch.
 
+* Intra-node Shared Memory (PSHM)
+  - Existing support for libhugetlbfs can now use an installation outside of
+    the default header and library search paths via a the configure option
+    `--with-hugetlbfs-home=`, or via the environment variable `HUGETLBFS_HOME`
+    set at configure time.
+  - The configure option `--enable-hugetlbfs-whole-archive` has been deprecated,
+    having been supersede by the more general `--with-hugetlbfs-libs` option.
+
 * General and Misc.
   - Support for hwloc, used conditionally by ibv- and ofi-conduits, now
     defaults to thread-scope (not process-scope) for the cpuset query.
