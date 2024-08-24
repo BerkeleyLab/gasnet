@@ -67,7 +67,7 @@ TAR               ?= tar
 UNZIP             ?= unzip
 P7ZIP             ?= 7za
 GIT               ?= git
-PERL              ?= perl  # only used as a launcher-mpi fallback
+PERL              ?= perl  # only used in the check-testsuite target
 
 # GASNET_CODEMODE
 ifeq ($(strip $(UPCXX_CODEMODE)),O3)
@@ -218,7 +218,7 @@ launcher-mpi:
 	  case "$(UPCXX_CONDUIT)" in \
 	    *) \
 	      if test -r $$conduit_launcher-mpi.pl ; then \
-	        mpi_launcher="$(PERL) $$conduit_launcher-mpi.pl"; \
+	        mpi_launcher="$$conduit_launcher -spawner=mpi"; \
 	      else \
 	        mpi_launcher=mpirun; \
 	      fi; \
