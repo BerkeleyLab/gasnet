@@ -69,12 +69,8 @@ P7ZIP             ?= 7za
 GIT               ?= git
 PERL              ?= perl  # only used in the check-testsuite target
 
-# GASNET_CODEMODE
-ifeq ($(strip $(UPCXX_CODEMODE)),O3)
-GASNET_CODEMODE=opt
-else
-GASNET_CODEMODE=debug
-endif
+# GASNET_CODEMODE currently simply follows UPCXX_CODEMODE
+GASNET_CODEMODE=$(UPCXX_CODEMODE)
 
 # Logic to extract GASNet's compiler variables.
 # intentionally ignore the environment here because it is set by harness
