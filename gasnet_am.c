@@ -775,9 +775,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
 #endif // GASNETC_BUILD_NP_REP_LONG
 
 #if GASNETC_BUILD_NP_REQ_MEDIUM
-void gasnetc_AM_CommitRequestMediumM(
+int gasnetc_AM_CommitRequestMediumM(
                        gex_AM_Index_t          handler,
-                       size_t                  nbytes
+                       size_t                  nbytes,
+                       gex_Flags_t             commit_flags
                        GASNETI_THREAD_FARG,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
@@ -812,13 +813,16 @@ void gasnetc_AM_CommitRequestMediumM(
         }
     }
     va_end(argptr);
+
+    return GASNET_OK;
 }
 #endif // GASNETC_BUILD_NP_REQ_MEDIUM
 
 #if GASNETC_BUILD_NP_REP_MEDIUM
-void gasnetc_AM_CommitReplyMediumM(
+int gasnetc_AM_CommitReplyMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
+                       gex_Flags_t             commit_flags,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
                      #endif
@@ -851,14 +855,17 @@ void gasnetc_AM_CommitReplyMediumM(
         }
     }
     va_end(argptr);
+
+    return GASNET_OK;
 }
 #endif // GASNETC_BUILD_NP_REP_MEDIUM
 
 #if GASNETC_BUILD_NP_REQ_LONG
-void gasnetc_AM_CommitRequestLongM(
+int gasnetc_AM_CommitRequestLongM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
-                       void                    *dest_addr
+                       void                    *dest_addr,
+                       gex_Flags_t             commit_flags
                        GASNETI_THREAD_FARG,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
@@ -893,14 +900,17 @@ void gasnetc_AM_CommitRequestLongM(
         }
     }
     va_end(argptr);
+
+    return GASNET_OK;
 }
 #endif // GASNETC_BUILD_NP_REQ_LONG
 
 #if GASNETC_BUILD_NP_REP_LONG
-void gasnetc_AM_CommitReplyLongM(
+int gasnetc_AM_CommitReplyLongM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
                        void                    *dest_addr,
+                       gex_Flags_t             commit_flags,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
                      #endif
@@ -933,6 +943,8 @@ void gasnetc_AM_CommitReplyLongM(
         }
     }
     va_end(argptr);
+
+    return GASNET_OK;
 }
 #endif // GASNETC_BUILD_NP_REP_LONG
 

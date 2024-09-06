@@ -525,11 +525,11 @@ extern int gasnetc_AMRequestMediumM(
 // This provides a template implementing the following three external functions:
 //     int gasnetc_AMRequestMediumM()
 //     int gasnetc_AM_PrepareRequestMedium()
-//     void gasnetc_AM_CommitRequestMediumM()
+//     int gasnetc_AM_CommitRequestMediumM()
 //
 // In this example all three are in terms of two inline functions:
 //     int gasnetc_prepare_req_medium()
-//     void gasnetc_commit_req_medium()
+//     int gasnetc_commit_req_medium()
 // but that is not a requirement.
 //
 // This example provides a specialized implementation of Negotiated-Payload
@@ -572,11 +572,12 @@ int gasnetc_prepare_req_medium(
 }
 
 GASNETI_INLINE(gasnetc_commit_req_medium)
-void gasnetc_commit_req_medium(
+int gasnetc_commit_req_medium(
                        gasneti_AM_SrcDesc_t    sd,
                        const int               isFixed,
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
+                       gex_Flags_t             commit_flags,
                        va_list                 argptr)
 {
   // (###) Add code here to initiate a Medium Request using the union of the
@@ -585,6 +586,8 @@ void gasnetc_commit_req_medium(
 
   // No provisions are needed for communication within the neighborhood,
   // since this function is only called in the non-nbrhd case.
+
+  return 0; // or 1 if GEX_FLAG_IMMEDIATE passed and resource(s) unavailable
 }
 
 extern int gasnetc_AMRequestMediumM(
@@ -614,7 +617,8 @@ extern int gasnetc_AMRequestMediumM(
     retval = gasnetc_prepare_req_medium(&the_sd,1,jobrank,source_addr,0,nbytes,
                                         lc_opt,flags,numargs GASNETI_THREAD_PASS);
     if (!retval) {
-      gasnetc_commit_req_medium(&the_sd,1,handler,nbytes,argptr);
+      // GEX_FLAG_IMMEDIATE was handled in prepare, if at all
+      gasneti_assert_zeroret( gasnetc_commit_req_medium(&the_sd,1,handler,nbytes,0,argptr) );
     }
   }
 
@@ -665,9 +669,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     return gasneti_export_srcdesc(sd);
 }
 
-extern void gasnetc_AM_CommitRequestMediumM(
+extern int gasnetc_AM_CommitRequestMediumM(
                        gex_AM_Index_t          handler,
-                       size_t                  nbytes
+                       size_t                  nbytes,
+                       gex_Flags_t             commit_flags
                        GASNETI_THREAD_FARG,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
@@ -678,16 +683,20 @@ extern void gasnetc_AM_CommitRequestMediumM(
 
     GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
+    int rc = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
-        gasnetc_commit_req_medium(sd,handler,nbytes,argptr);
+        rc = gasnetc_commit_req_medium(sd,handler,nbytes,commit_flags,argptr);
     }
     va_end(argptr);
 
-    gasneti_reset_srcdesc(sd);
+    if (!rc) gasneti_reset_srcdesc(sd);
+
+    gasneti_assert(!rc || (commit_flags & GEX_FLAG_IMMEDIATE));
+    return rc;
 }
 #endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
@@ -847,7 +856,7 @@ extern int gasnetc_AMReplyMediumM(
 // This provides a template implementing the following three external functions:
 //     int gasnetc_AMReplyMediumM()
 //     int gasnetc_AM_PrepareReplyMedium()
-//     void gasnetc_AM_CommitReplyMediumM()
+//     int gasnetc_AM_CommitReplyMediumM()
 // See comments with GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM for more information.
 
 GASNETI_INLINE(gasnetc_prepare_rep_medium)
@@ -882,11 +891,12 @@ int gasnetc_prepare_rep_medium(
 }
 
 GASNETI_INLINE(gasnetc_commit_rep_medium)
-void gasnetc_commit_rep_medium(
+int gasnetc_commit_rep_medium(
                        gasneti_AM_SrcDesc_t    sd,
                        const int               isFixed,
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
+                       gex_Flags_t             commit_flags,
                        va_list                 argptr)
 {
   // (###) Add code here to initiate a Medium Reply using the union of the
@@ -895,6 +905,8 @@ void gasnetc_commit_rep_medium(
 
   // No provisions are needed for communication within the neighborhood,
   // since this function is only called in the non-nbrhd case.
+
+  return 0; // or 1 if GEX_FLAG_IMMEDIATE passed and resource(s) unavailable
 }
 
 extern int gasnetc_AMReplyMediumM(
@@ -923,7 +935,8 @@ extern int gasnetc_AMReplyMediumM(
     retval = gasnetc_prepare_rep_medium(&the_sd,1,token,source_addr,0,nbytes,
                                         lc_opt,flags,numargs GASNETI_THREAD_PASS);
     if (!retval) {
-      gasnetc_commit_rep_medium(&the_sd,1,handler,nbytes,argptr);
+      // GEX_FLAG_IMMEDIATE was handled in prepare, if at all
+      gasneti_assert_zeroret( gasnetc_commit_rep_medium(&the_sd,1,handler,nbytes,0,argptr) );
     }
   }
 
@@ -972,9 +985,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     return gasneti_export_srcdesc(sd);
 }
 
-extern void gasnetc_AM_CommitReplyMediumM(
+extern int gasnetc_AM_CommitReplyMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
+                       gex_Flags_t             commit_flags,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
                      #endif
@@ -984,16 +998,20 @@ extern void gasnetc_AM_CommitReplyMediumM(
 
     GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
+    int rc = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitReply(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
-        gasnetc_commit_rep_medium(sd,0,handler,nbytes,argptr);
+        rc = gasnetc_commit_rep_medium(sd,0,handler,nbytes,commit_flags,argptr);
     }
     va_end(argptr);
 
-    gasneti_reset_srcdesc(sd);
+    if (!rc) gasneti_reset_srcdesc(sd);
+
+    gasneti_assert(!rc || (commit_flags & GEX_FLAG_IMMEDIATE));
+    return rc;
 }
 
 #endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM

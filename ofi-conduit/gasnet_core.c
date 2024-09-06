@@ -974,9 +974,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     return gasneti_export_srcdesc(sd);
 }
 
-extern void gasnetc_AM_CommitRequestMediumM(
+extern int gasnetc_AM_CommitRequestMediumM(
                        gex_AM_Index_t          handler,
-                       size_t                  nbytes
+                       size_t                  nbytes,
+                       gex_Flags_t             commit_flags
                        GASNETI_THREAD_FARG,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
@@ -997,6 +998,8 @@ extern void gasnetc_AM_CommitRequestMediumM(
     va_end(argptr);
 
     gasneti_reset_srcdesc(sd);
+
+    return GASNET_OK;
 }
 
 int gasnetc_AM_CancelRequestMedium(
@@ -1058,9 +1061,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     return gasneti_export_srcdesc(sd);
 }
 
-extern void gasnetc_AM_CommitReplyMediumM(
+extern int gasnetc_AM_CommitReplyMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
+                       gex_Flags_t             commit_flags,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
                      #endif
@@ -1081,6 +1085,8 @@ extern void gasnetc_AM_CommitReplyMediumM(
     va_end(argptr);
 
     gasneti_reset_srcdesc(sd);
+
+    return GASNET_OK;
 }
 
 int gasnetc_AM_CancelReplyMedium(
