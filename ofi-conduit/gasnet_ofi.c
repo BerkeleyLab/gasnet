@@ -2699,11 +2699,12 @@ out_immediate:
     return NULL;
 }
 
-extern void gasnetc_ofi_CommitMedium(
+extern int gasnetc_ofi_CommitMedium(
                 gasneti_AM_SrcDesc_t sd,
                 int isreq,
                 gex_AM_Index_t handler,
                 size_t nbytes,
+                gex_Flags_t commit_flags,
                 va_list argptr
                 GASNETI_THREAD_FARG)
 {
@@ -2711,11 +2712,12 @@ extern void gasnetc_ofi_CommitMedium(
     unsigned int numargs = header->sendbuf.argnum;
     gex_Rank_t jobrank = sd->_dest._request._rank;
     const void *source_addr = sd->_gex_buf ? NULL : sd->_addr;
-    gasneti_assert_zeroret(
-        gasnetc_medium_commit(header, /*fixed*/0, jobrank, handler,
-                              source_addr, nbytes,
-                              numargs, argptr, isreq, /*flags*/0
-                              GASNETI_THREAD_PASS));
+    int rc = gasnetc_medium_commit(header, /*fixed*/0, jobrank, handler,
+                                   source_addr, nbytes, numargs,
+                                   argptr, isreq, commit_flags GASNETI_THREAD_PASS);
+
+    gasneti_assert(!rc || (commit_flags & GEX_FLAG_IMMEDIATE));
+    return rc;
 }
 
 void gasnetc_ofi_CancelMedium(gasneti_AM_SrcDesc_t sd)

@@ -988,18 +988,20 @@ extern int gasnetc_AM_CommitRequestMediumM(
 
     GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
+    int rc = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
-        gasnetc_ofi_CommitMedium(sd, /*isreq*/1, handler, nbytes, argptr GASNETI_THREAD_PASS);
+        rc = gasnetc_ofi_CommitMedium(sd, /*isreq*/1, handler, nbytes, commit_flags, argptr GASNETI_THREAD_PASS);
+        gasneti_assert(!rc || (commit_flags & GEX_FLAG_IMMEDIATE));
     }
     va_end(argptr);
 
-    gasneti_reset_srcdesc(sd);
+    if (!rc) gasneti_reset_srcdesc(sd);
 
-    return GASNET_OK;
+    return rc;
 }
 
 int gasnetc_AM_CancelRequestMedium(
@@ -1074,19 +1076,21 @@ extern int gasnetc_AM_CommitReplyMediumM(
 
     GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
+    int rc = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitReply(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
         GASNET_POST_THREADINFO(sd->_thread);
-        gasnetc_ofi_CommitMedium(sd, /*isreq*/0, handler, nbytes, argptr GASNETI_THREAD_PASS);
+        rc = gasnetc_ofi_CommitMedium(sd, /*isreq*/0, handler, nbytes, commit_flags, argptr GASNETI_THREAD_PASS);
+        gasneti_assert(!rc || (commit_flags & GEX_FLAG_IMMEDIATE));
     }
     va_end(argptr);
 
-    gasneti_reset_srcdesc(sd);
+    if (!rc) gasneti_reset_srcdesc(sd);
 
-    return GASNET_OK;
+    return rc;
 }
 
 int gasnetc_AM_CancelReplyMedium(
