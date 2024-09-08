@@ -789,7 +789,7 @@ int gasnetc_AM_CommitRequestMediumM(
     // NPAM implementations.  See the comment preceding its definition in gasnet_am.h.
     gasneti_AM_SrcDesc_t sd = gasneti_consume_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs_arg,Medium);
+    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,commit_flags,nargs_arg,Medium);
 
     int retval = GASNET_OK; // assume success
     va_list argptr;
@@ -838,7 +838,7 @@ int gasnetc_AM_CommitReplyMediumM(
     // NPAM implementations.  See the comment preceding its definition in gasnet_am.h.
     gasneti_AM_SrcDesc_t sd = gasneti_consume_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs_arg,Medium);
+    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,commit_flags,nargs_arg,Medium);
 
     int retval = GASNET_OK; // assume success
     va_list argptr;
@@ -888,7 +888,7 @@ int gasnetc_AM_CommitRequestLongM(
     // NPAM implementations.  See the comment preceding its definition in gasnet_am.h.
     gasneti_AM_SrcDesc_t sd = gasneti_consume_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs_arg,Long);
+    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,commit_flags,nargs_arg,Long);
 
     int retval = GASNET_OK; // assume success
     va_list argptr;
@@ -938,7 +938,7 @@ int gasnetc_AM_CommitReplyLongM(
     // NPAM implementations.  See the comment preceding its definition in gasnet_am.h.
     gasneti_AM_SrcDesc_t sd = gasneti_consume_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs_arg,Long);
+    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,commit_flags,nargs_arg,Long);
 
     int retval = GASNET_OK; // assume success
     va_list argptr;

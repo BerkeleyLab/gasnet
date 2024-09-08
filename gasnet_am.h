@@ -389,7 +389,7 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
       _GASNETI_CHECK_PREPARE(cbuf,least_pl,most_pl,limit,lc_opt,nargs,0,cat);          \
     } while(0)
 
-  #define _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,is_req,cat) \
+  #define _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,flags,nargs,is_req,cat) \
     do {                                                                                                 \
       const char *_reqrep = is_req ? "Request" : "Reply";                                                \
       if (!sd)                                                                                           \
@@ -424,14 +424,18 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
                              "client did not write to the GASNet-provided buffer",                       \
                              _reqrep, nargs);                                                            \
       }                                                                                                  \
+      if (flags & ~GEX_FLAG_IMMEDIATE) {                                                                 \
+        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
+                           "Invalid flags=0x%x", _reqrep, nargs, flags);                                 \
+      }                                                                                                  \
     } while(0)
-  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs,cat) do {            \
-      GASNETI_TRACE_COMMIT_REQUEST##cat(handler,(sd?sd->_addr:NULL),(sd?sd->_size:0),dest_addr,(sd?sd->_nargs:0)); \
-      _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,1,cat);                      \
+  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,flags,nargs,cat) do {            \
+      GASNETI_TRACE_COMMIT_REQUEST##cat(handler,(sd?sd->_addr:NULL),(sd?sd->_size:0),dest_addr,flags,(sd?sd->_nargs:0)); \
+      _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,flags,nargs,1,cat);                      \
     } while(0)
-  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs,cat) do {            \
-      GASNETI_TRACE_COMMIT_REPLY##cat(handler,(sd?sd->_addr:NULL),(sd?sd->_size:0),dest_addr,(sd?sd->_nargs:0));   \
-      _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat);                      \
+  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,flags,nargs,cat) do {            \
+      GASNETI_TRACE_COMMIT_REPLY##cat(handler,(sd?sd->_addr:NULL),(sd?sd->_size:0),dest_addr,flags,(sd?sd->_nargs:0));   \
+      _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,flags,nargs,0,cat);                      \
     } while(0)
 
   #define _GASNETI_CHECK_CANCEL(sd,is_req,cat) \
@@ -486,10 +490,10 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
   #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) do { \
       _GASNETI_COMMON_PREP_NARGS(sd,nargs);                                                    \
     } while(0)
-  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs_arg,cat) \
-          GASNETI_TRACE_COMMIT_REQUEST##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs)
-  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs_arg,cat) \
-          GASNETI_TRACE_COMMIT_REPLY##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs)
+  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,flags,nargs_arg,cat) \
+          GASNETI_TRACE_COMMIT_REQUEST##cat(handler,sd->_addr,sd->_size,dest_addr,flags,sd->_nargs)
+  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,flags,nargs_arg,cat) \
+          GASNETI_TRACE_COMMIT_REPLY##cat(handler,sd->_addr,sd->_size,dest_addr,flags,sd->_nargs)
   #define GASNETI_COMMON_CANCEL_REQ(sd,flags,cat) \
           GASNETI_TRACE_CANCEL_REQUEST##cat(sd,flags)
   #define GASNETI_COMMON_CANCEL_REP(sd,flags,cat) \
@@ -497,14 +501,14 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
   #define GASNETI_CHECK_SD(cbuf, least_payload, most_payload, sd) ((void)0)
 #endif
 
-#define GASNETI_TRACE_COMMIT_REQUESTMedium(handler,source_addr,nbytes,dest_addr,numargs) \
-        GASNETI_TRACE_COMMIT_REQUESTMEDIUM(handler,source_addr,nbytes,numargs)
-#define GASNETI_TRACE_COMMIT_REQUESTLong(handler,source_addr,nbytes,dest_addr,numargs) \
-        GASNETI_TRACE_COMMIT_REQUESTLONG(handler,source_addr,nbytes,dest_addr,numargs)
-#define GASNETI_TRACE_COMMIT_REPLYMedium(handler,source_addr,nbytes,dest_addr,numargs) \
-        GASNETI_TRACE_COMMIT_REPLYMEDIUM(handler,source_addr,nbytes,numargs)
-#define GASNETI_TRACE_COMMIT_REPLYLong(handler,source_addr,nbytes,dest_addr,numargs) \
-        GASNETI_TRACE_COMMIT_REPLYLONG(handler,source_addr,nbytes,dest_addr,numargs)
+#define GASNETI_TRACE_COMMIT_REQUESTMedium(handler,source_addr,nbytes,dest_addr,flags,numargs) \
+        GASNETI_TRACE_COMMIT_REQUESTMEDIUM(handler,source_addr,nbytes,flags,numargs)
+#define GASNETI_TRACE_COMMIT_REQUESTLong(handler,source_addr,nbytes,dest_addr,flags,numargs) \
+        GASNETI_TRACE_COMMIT_REQUESTLONG(handler,source_addr,nbytes,dest_addr,flags,numargs)
+#define GASNETI_TRACE_COMMIT_REPLYMedium(handler,source_addr,nbytes,dest_addr,flags,numargs) \
+        GASNETI_TRACE_COMMIT_REPLYMEDIUM(handler,source_addr,nbytes,flags,numargs)
+#define GASNETI_TRACE_COMMIT_REPLYLong(handler,source_addr,nbytes,dest_addr,flags,numargs) \
+        GASNETI_TRACE_COMMIT_REPLYLONG(handler,source_addr,nbytes,dest_addr,flags,numargs)
 
 #define GASNETI_TRACE_CANCEL_REQUESTMedium(sd,flags) \
         GASNETI_TRACE_CANCEL_REQUESTMEDIUM(sd,flags)

@@ -5366,7 +5366,7 @@ extern int gasnetc_AM_CommitRequestMediumM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs,Medium);
+    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,commit_flags,nargs,Medium);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -5473,7 +5473,7 @@ extern int gasnetc_AM_CommitRequestLongM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs,Long);
+    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,commit_flags,nargs,Long);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -5648,7 +5648,7 @@ extern int gasnetc_AM_CommitReplyMediumM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs,Medium);
+    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,commit_flags,nargs,Medium);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -5747,7 +5747,7 @@ extern int gasnetc_AM_CommitReplyLongM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs,Long);
+    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,commit_flags,nargs,Long);
 
     va_list argptr;
     va_start(argptr, sd_arg);
