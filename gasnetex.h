@@ -353,6 +353,16 @@ extern const char *gasnet_ErrorName(int);
 extern const char *gasnet_ErrorDesc(int);
 
 /* ------------------------------------------------------------------------------------ */
+// feature macros
+
+// GASNET_SUPPORTS_AM_CANCEL
+// Value indicates revision date of the gex_AM_Cancel() API
+//
+// History:
+//  20240418 - Initial revison
+#define GASNET_SUPPORTS_AM_CANCEL 20240418L
+
+/* ------------------------------------------------------------------------------------ */
 /* core types */
 
 // TODO-EX: need comments here?

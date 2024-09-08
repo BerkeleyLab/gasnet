@@ -2386,6 +2386,8 @@ extern void gex_AM_CommitReplyLong[M](
 //
 // gex_AM_Cancel calls [EXPERIMENTAL]
 //
+// This corresponds to feature macro GASNET_SUPPORTS_AM_CANCEL == 20240418L
+//
 // Cancel a gex_AM_SrcDesc_t without initiating communication
 //
 // The `sd` argument to `gex_AM_Cancel<XXX>()` must be the return from a call to
