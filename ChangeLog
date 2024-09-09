@@ -64,6 +64,9 @@ GASNet-EX ChangeLog
 * GASNet-EX Spec v0.19: (details in docs/GASNet-EX.txt)
   - Experimental new `gex_AM_Cancel{Request,Reply}{Medium,Long}()` APIs enable
     a client to abandon a Prepare (called instead of the matching Commit).
+  - Experimental new `gex_AM_Commit*_v2()` APIs extend the `Commit` API
+    family with a `commit_flags` argument and an `int` return type.  This
+    enables use of `GEX_FLAG_IMMEDIATE` at commit time.
 
 * General and Misc.
   - Support for hwloc, used conditionally by ibv- and ofi-conduits, now
