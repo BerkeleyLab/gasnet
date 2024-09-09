@@ -2405,6 +2405,8 @@ extern void gex_AM_CommitReplyLong[M](
 //
 // gex_AM_Commit<XXX>[M]_v2 calls [EXPERIMENTAL]
 //
+// This corresponds to feature macro GASNET_SUPPORTS_AM_COMMIT_V2 == 20240906L
+//
 // These APIs are analogous to the gex_AM_Commit<XXX>[M]() APIs described above,
 // with the addition of a `commit_flags` argument and a return type of `int`
 // (instead of `void`).  Depending on the `commit_flags` bits set, there may

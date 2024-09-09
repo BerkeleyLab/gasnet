@@ -362,6 +362,13 @@ extern const char *gasnet_ErrorDesc(int);
 //  20240418 - Initial revison
 #define GASNET_SUPPORTS_AM_CANCEL 20240418L
 
+// GASNET_SUPPORTS_AM_COMMIT_V2
+// Value indicates revision date of the gex_AM_Commit*_v2() APIs
+//
+// History:
+//  20240906 - Initial revison
+#define GASNET_SUPPORTS_AM_COMMIT_V2 20240906L
+
 /* ------------------------------------------------------------------------------------ */
 /* core types */
 
