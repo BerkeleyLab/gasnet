@@ -43,6 +43,12 @@ GASNet-EX ChangeLog
     set at configure time.
   - The configure option `--enable-hugetlbfs-whole-archive` has been deprecated,
     having been supersede by the more general `--with-hugetlbfs-libs` option.
+  - The implementation of PSHM now defaults to avoiding allocation of shared
+    memory when there can be no sharing (i.e. in a single-process neighborhood),
+    instead using `mmap(MAP_ANONYNOUS)` or similar.
+    See the description of the environment variable `GASNET_USE_PSHM_SINGLETON`
+    in `README` for more details, including use of this variable to restore
+    the old behavior.
 
 * General and Misc.
   - Support for hwloc, used conditionally by ibv- and ofi-conduits, now
