@@ -791,6 +791,7 @@ int gasnetc_AM_CommitRequestMediumM(
 
     GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
+    int retval = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
@@ -800,21 +801,26 @@ int gasnetc_AM_CommitRequestMediumM(
         gex_Rank_t rank        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-        gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
-                                                GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
-                                                GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+        gex_Flags_t flags      = (sd->_flags & ~(GEX_FLAG_IMMEDIATE |
+                                                 GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
+                                                 GEX_FLAG_AM_PREPARE_LEAST_ALLOC))
+                               | (commit_flags & GEX_FLAG_IMMEDIATE);
         unsigned int nargs     = sd->_nargs;
 
-        int rc = gasneti_AMRequestMediumV(tm, rank, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
-        gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+        retval = gasneti_AMRequestMediumV(tm, rank, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
 
-        if (sd->_tofree) {
+        if (retval) {
+          gasneti_assert(commit_flags & GEX_FLAG_IMMEDIATE); // only permissible reason to return non-zero
+        #if GASNET_DEBUG
+          GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC); // reverse part of "consume"
+        #endif
+        } else if (sd->_tofree) {
           gasneti_free_npam_buffer(sd);
         }
     }
     va_end(argptr);
 
-    return GASNET_OK;
+    return retval;
 }
 #endif // GASNETC_BUILD_NP_REQ_MEDIUM
 
@@ -834,6 +840,7 @@ int gasnetc_AM_CommitReplyMediumM(
 
     GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
+    int retval = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
@@ -842,21 +849,26 @@ int gasnetc_AM_CommitReplyMediumM(
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-        gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
-                                                GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
-                                                GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+        gex_Flags_t flags      = (sd->_flags & ~(GEX_FLAG_IMMEDIATE |
+                                                 GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
+                                                 GEX_FLAG_AM_PREPARE_LEAST_ALLOC))
+                               | (commit_flags & GEX_FLAG_IMMEDIATE);
         unsigned int nargs     = sd->_nargs;
 
-        int rc = gasneti_AMReplyMediumV(token, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
-        gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+        retval = gasneti_AMReplyMediumV(token, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
 
-        if (sd->_tofree) {
+        if (retval) {
+          gasneti_assert(commit_flags & GEX_FLAG_IMMEDIATE); // only permissible reason to return non-zero
+        #if GASNET_DEBUG
+          GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC); // reverse part of "consume"
+        #endif
+        } else if (sd->_tofree) {
           gasneti_free_npam_buffer(sd);
         }
     }
     va_end(argptr);
 
-    return GASNET_OK;
+    return retval;
 }
 #endif // GASNETC_BUILD_NP_REP_MEDIUM
 
@@ -878,6 +890,7 @@ int gasnetc_AM_CommitRequestLongM(
 
     GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
+    int retval = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
@@ -887,21 +900,26 @@ int gasnetc_AM_CommitRequestLongM(
         gex_Rank_t rank        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-        gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
-                                                GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
-                                                GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+        gex_Flags_t flags      = (sd->_flags & ~(GEX_FLAG_IMMEDIATE |
+                                                 GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
+                                                 GEX_FLAG_AM_PREPARE_LEAST_ALLOC))
+                               | (commit_flags & GEX_FLAG_IMMEDIATE);
         unsigned int nargs     = sd->_nargs;
 
-        int rc = gasneti_AMRequestLongV(tm, rank, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
-        gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+        retval = gasneti_AMRequestLongV(tm, rank, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
 
-        if (sd->_tofree) {
+        if (retval) {
+          gasneti_assert(commit_flags & GEX_FLAG_IMMEDIATE); // only permissible reason to return non-zero
+        #if GASNET_DEBUG
+          GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC); // reverse part of "consume"
+        #endif
+        } else if (sd->_tofree) {
           gasneti_free_npam_buffer(sd);
         }
     }
     va_end(argptr);
 
-    return GASNET_OK;
+    return retval;
 }
 #endif // GASNETC_BUILD_NP_REQ_LONG
 
@@ -922,6 +940,7 @@ int gasnetc_AM_CommitReplyLongM(
 
     GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
+    int retval = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
@@ -930,21 +949,26 @@ int gasnetc_AM_CommitReplyLongM(
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-        gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
-                                                GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
-                                                GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+        gex_Flags_t flags      = (sd->_flags & ~(GEX_FLAG_IMMEDIATE |
+                                                 GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
+                                                 GEX_FLAG_AM_PREPARE_LEAST_ALLOC))
+                               | (commit_flags & GEX_FLAG_IMMEDIATE);
         unsigned int nargs     = sd->_nargs;
 
-        int rc = gasneti_AMReplyLongV(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
-        gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+        retval = gasneti_AMReplyLongV(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
 
-        if (sd->_tofree) {
+        if (retval) {
+          gasneti_assert(commit_flags & GEX_FLAG_IMMEDIATE); // only permissible reason to return non-zero
+        #if GASNET_DEBUG
+          GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC); // reverse part of "consume"
+        #endif
+        } else if (sd->_tofree) {
           gasneti_free_npam_buffer(sd);
         }
     }
     va_end(argptr);
 
-    return GASNET_OK;
+    return retval;
 }
 #endif // GASNETC_BUILD_NP_REP_LONG
 
