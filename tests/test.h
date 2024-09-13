@@ -282,7 +282,8 @@ static int64_t _test_rand(int64_t low, int64_t high) {
   //     http://www.sprng.org/sprng.html
   _test_rand_val *= 2862933555777941757ull;
   _test_rand_val += 3037000493ull;
-  uint64_t val = _test_rand_val;
+  // "mix" bits to compensate for lower randomness of least-signficant bits
+  uint64_t val = _test_rand_val ^ TEST_HIWORD(_test_rand_val);
 #else
   // The "RANDn" generator accumulates 8 random bits at a time using
   // multiple calls to libc's rand(), making only as many calls as
