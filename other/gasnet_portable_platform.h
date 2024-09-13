@@ -296,7 +296,7 @@
           PLATFORM_COMPILER_VERSION_INT(__PATHCC__,__PATHCC_MINOR__,__PATHCC_PATCHLEVEL__+0)
   #define PLATFORM_COMPILER_VERSION_STR __PATHSCALE__
 
-#elif defined(__NVCOMPILER) // Must occur prior to PGI and CLANG
+#elif defined(__NVCOMPILER) /* Must occur prior to PGI and CLANG */
   #define PLATFORM_COMPILER_NVHPC  1
   #define PLATFORM_COMPILER_FAMILYNAME NVHPC
   #define PLATFORM_COMPILER_FAMILYID 20
@@ -595,7 +595,7 @@
     #define PLATFORM_COMPILER_VERSION_STR __clang_version__
   #endif
 
-// NOTE: PLATFORM_COMPILER_FAMILYID "20" is allocted to NVHPC, appearing earlier
+/* NOTE: PLATFORM_COMPILER_FAMILYID "20" is allocted to NVHPC, appearing earlier */
 
 #else /* unknown compiler */
   #define PLATFORM_COMPILER_UNKNOWN  1
@@ -789,7 +789,7 @@
     #define PLATFORM_OS_SUBFAMILY_WSL 1
     #define PLATFORM_OS_SUBFAMILYNAME WSL
   #elif defined(__CRAYXT_COMPUTE_LINUX_TARGET)
-    // NOTE: As of 2022-07 this is ONLY defined for the Cray cc/CC wrappers, and not the raw PrgEnv compilers
+    /* NOTE: As of 2022-07 this is ONLY defined for the Cray cc/CC wrappers, and not the raw PrgEnv compilers */
     #define PLATFORM_OS_SUBFAMILY_CNL 1
     #define PLATFORM_OS_SUBFAMILYNAME CNL
   #endif
@@ -1046,7 +1046,7 @@
   #define _PLATFORM_ARCH_LITTLE_ENDIAN 1
   #if __riscv_xlen == 32
     #define _PLATFORM_ARCH_32 1
-  #else  // (__riscv_xlen == 64) || (__riscv_xlen == 128)
+  #else  /* (__riscv_xlen == 64) || (__riscv_xlen == 128) */
     #define _PLATFORM_ARCH_64 1
   #endif
 
