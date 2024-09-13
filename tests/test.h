@@ -238,14 +238,15 @@ static void _test_makeErrMsg(const char *format, ...)) {
   #define _TEST_USE_LCG64 1
 #endif
 
+static int _test_rand_is_init = 0;
 #if _TEST_USE_LCG64
   // NOTE: this state and seed operation are per compilation unit.
   // TODO: If/when we write tests spanning multiple source files we may
   // need to move the PRNG state into its own object file.
   static uint64_t _test_rand_val = 5551212;
-  #define TEST_SRAND(seed)  ((void)(_test_rand_val = (seed)))
+  #define TEST_SRAND(seed)  (_test_rand_is_init=1,(void)(_test_rand_val = (seed)))
 #else
-  #define TEST_SRAND(seed)  srand(seed)
+  #define TEST_SRAND(seed)  (_test_rand_is_init=1,srand(seed))
 #endif
 
 // Some platforms are missing these from stdint.h by default in C++ mode (without __STDC_LIMIT_MACROS)
@@ -262,6 +263,7 @@ static void _test_makeErrMsg(const char *format, ...)) {
 
 // NOTE: (high - low + 1) must be <= INT64_MAX to avoid undefined behavior
 static int64_t _test_rand(int64_t low, int64_t high) {
+  assert(_test_rand_is_init);
   assert(low <= high);
   assert(low <= high+1); /* We will overflow otherwise */
   // conservatively avoid the use of the high bit to avoid any chance of overflow
