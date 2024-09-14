@@ -65,6 +65,7 @@ GASNet-EX ChangeLog
   - bug4732 - configure not respecting disable-auto-conduit-detect for ofi-conduit on Cray EX
   - bug4733 - Intermittent exitcode=9 from ssh-spawner
   - bug4734 - incorrect hwloc-based NIC selection with cxi provider
+  - bug4743 - prohibit space characters in $(prefix) and $(DESTDIR) for `make install`
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0
