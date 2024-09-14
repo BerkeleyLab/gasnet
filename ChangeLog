@@ -54,6 +54,7 @@ GASNet-EX ChangeLog
   - Support for hwloc, used conditionally by ibv- and ofi-conduits, now
     defaults to thread-scope (not process-scope) for the cpuset query.
     See GASNET_HWLOC_QUERY in the top-level GASNet README for details.
+  - Improved pseudo-random number generation used in many tests.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4165 - ucx: AMMediumRequest bandwidth problems
@@ -66,6 +67,7 @@ GASNet-EX ChangeLog
   - bug4733 - Intermittent exitcode=9 from ssh-spawner
   - bug4734 - incorrect hwloc-based NIC selection with cxi provider
   - bug4743 - prohibit space characters in $(prefix) and $(DESTDIR) for `make install`
+  - bug4744 - uninitialized use of PRNG in some tests
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0

@@ -114,7 +114,8 @@ static gex_TM_t myteam;
  */
 extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *testsections,
                                    gex_TM_t myteam_arg, void *myseg_arg,
-                                   gex_Rank_t peer_arg, void *peerseg_arg) {
+                                   gex_Rank_t peer_arg, void *peerseg_arg,
+                                   unsigned int seed_arg) {
   test_errs = 0;
   iters = iter_cnt;
   iters2 = (iters <= INT_MAX/100) ? iters*100 : iters;
@@ -126,6 +127,8 @@ extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *test
   myseg = myseg_arg;
   peer = peer_arg;
   peerseg = peerseg_arg;
+
+  TEST_SRAND(seed_arg);
 
 #if !GASNET_SEGMENT_EVERYTHING
   for (gex_Rank_t rank =0; rank < nnodes; rank++) {
