@@ -228,6 +228,9 @@ static void _test_makeErrMsg(const char *format, ...)) {
 #define alignup_ptr(a,b) ((void *)(((((uintptr_t)(a))+(b)-1)/(b))*(b)))
 #define aligndown(a,b) (((a)/(b))*(b))
 
+#define TEST_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
+#define TEST_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
+
 // Two 64-bit PRNGs are available
 //  + "LCG64" uses 64-bit Linear Congruential Generator
 //  + "RANDn" uses multiple calls to rand().
@@ -305,9 +308,6 @@ static int64_t _test_rand(int64_t low, int64_t high) {
 #define TEST_RAND(low,high) _test_rand((low), (high))
 #define TEST_RAND_PICK(a,b) (TEST_RAND(0,1)==1?(a):(b))
 #define TEST_RAND_ONEIN(p)  (TEST_RAND(1,p) == 1)
-
-#define TEST_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
-#define TEST_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
 
 #define check_zeroret(op) do {                                       \
   int _retval = (op);                                                \
