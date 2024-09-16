@@ -371,6 +371,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     Of course, even on the same system, your mileage may vary.
     By default 'GASNET_IBV_PORTS_TYPE' is "Socket" and all other variables in
     this family are unset.
+    There is currently no support for GASNET_IBV_PORTS_TYPE == "Auto".
 
   + GASNET_IBV_PORTS_VERBOSE
     This integer setting controls the detail of any warnings printed when there

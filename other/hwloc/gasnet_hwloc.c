@@ -405,10 +405,11 @@ int gasneti_hwloc_fini(void) {
 //    In either case the value is traced as if obtained by the latter.
 //    This gives precedence to the local environment (see bug 4303).
 //
-// 1. Check for suffixed env vars.
+// 1. Check for env var "[keyname]_TYPE" equal to "None" or prefixed with "Auto" (case insensitive).
+//    If "None", return the value of keyname from the environment.
+//    If starts with "Auto", return the entire value to caller.
+// 2. Check for suffixed env vars.
 //    If none, return the value of keyname from the environment.
-// 2. Check for env var "[keyname]_TYPE" equal to "None" (case insensitive).
-//    If YES, return the value of keyname from the environment.
 // 3. Strip any '/' or '%' suffixes to be applied in later steps
 // 4. Check for env var "[keyname]_TYPE" equal to "{J,H,N}Rank" (case insensitive).
 //    If YES, return the associated suffixed env var (if any) or the value of keyname from the environment.
@@ -433,14 +434,9 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   char *suffix = NULL;
   char *result = NULL;
 
-  // Step 1 - check for suffixed vars
-  char *firstkey = check_suffixed(keyname);
-  if (! firstkey) {
-    // short-cut w/o using hwloc if there are no suffixed variables
-    goto out_return_unsuffixed;
-  }
-
-  // Step 2 - check env var "[keyname]_TYPE" for "None" (which disables all additional intelligence)
+  // Step 1 - check env var "[keyname]_TYPE" for special cases:
+  // + "None" (which disables all additional intelligence)
+  // + "Auto" prefix (which will return the typestring to the caller)
   char *typekey = gasneti_sappendf(NULL, "%s_TYPE", keyname);
   const char *typestring = gasneti_getenv_withdefault(typekey, dflt_type);
   const char *orig_typestring = typestring;
@@ -448,9 +444,19 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   if (typestring) {
     if (! gasneti_strcasecmp("none", typestring)) {
       // short-cut w/o using hwloc if TYPE is "none"
-      gasneti_free(firstkey);
       goto out_return_unsuffixed;
     }
+    if (! gasneti_strncasecmp("auto", typestring, 4)) {
+      // inform caller that an "auto" mode has been requested
+      return (char *)typestring;
+    }
+  }
+
+  // Step 2 - check for suffixed vars
+  char *firstkey = check_suffixed(keyname);
+  if (! firstkey) {
+    // short-cut w/o using hwloc if there are no suffixed variables
+    goto out_return_unsuffixed;
   }
 
   // Step 3 - strip off any "%" or "/" expressions

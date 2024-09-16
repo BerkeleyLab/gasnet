@@ -965,6 +965,9 @@ these aliases.
  Where a conduit documents a "topology-aware environment variable":
     - Values of '[BASE]_TYPE' are matched using case-insensitive comparisons.
     - If '[BASE]_TYPE' is unset, the default value listed above is used.
+    - If '[BASE]_TYPE' begins with "Auto" then automatic device selection is
+      enabled (if available), as documented in the conduit-specific README
+      (including treatment of the computed-name variables described below).
     - If '[BASE]_TYPE' is set to "None" then it, and the computed-name
       variables described below, are ignored and the conduit will use the value
       of the variable '[BASE]', subject to conduit-specific defaults.

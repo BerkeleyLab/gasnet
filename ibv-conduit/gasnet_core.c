@@ -877,6 +877,9 @@ static int gasnetc_load_settings(void) {
 
   (void) gasneti_hwloc_init(); // TODO: messages on error?
   gasnetc_ibv_ports = gasneti_getenv_hwloc_withdefault("GASNET_IBV_PORTS", GASNETC_DEFAULT_IBV_PORTS, "Socket");
+  if (! gasneti_strncasecmp("auto",gasnetc_ibv_ports,4)) {
+    gasneti_fatalerror("No support for GASNET_IBV_PORTS_TYPE=auto");
+  }
   gasnetc_ibv_ports_verbose = gasneti_getenv_int_withdefault("GASNET_IBV_PORTS_VERBOSE",1,0);
 
   #define GASNETC_ENVINT(program_var, env_key, default_val, minval, is_mem) do {     \

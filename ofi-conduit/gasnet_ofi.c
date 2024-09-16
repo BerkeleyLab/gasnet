@@ -1012,6 +1012,9 @@ int gasnetc_ofi_init(void)
   // constrain the device/domain if provided by the user
   (void) gasneti_hwloc_init(); // TODO: messages on error?
   gasnetc_ofi_device = gasneti_getenv_hwloc_withdefault("GASNET_OFI_DEVICE", "", "Socket");
+  if (! gasneti_strncasecmp("auto",gasnetc_ofi_device,4)) {
+    gasneti_fatalerror("No support for GASNET_OFI_DEVICE_TYPE=auto");
+  }
   if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
   hints->domain_attr->name = gasnetc_ofi_device;
 
