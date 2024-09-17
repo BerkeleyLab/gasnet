@@ -369,9 +369,22 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     of a node of OLCF's Summit, and should not be considered as generic advice
     for use of all multi-HCA systems.
     Of course, even on the same system, your mileage may vary.
+    There is currently limited support for GASNET_IBV_PORTS_TYPE == "auto", in
+    which each process will be assigned exactly one HCA.  This assignment will
+    be based on the HCAs available after filtering by 'GASNET_IBV_PORTS', but
+    currently ignoring computed-name variables, such as 'GASNET_IBV_PORTS_0'.
+    Subject to that filtering (if any) assignments will be made to an HCA
+    "nearest" to a given process based on hwloc's metrics.  Such assignments
+    will spread processes over eligible HCAs to minimize processes sharing any
+    given HCA, subject to the other constraints.  Additional details of the
+    assignment algorithm are intentionally unspecified and subject to change.
+    Details of ibv-conduit's "auto" behavior are subject to change in future
+    releases, but efforts will be made to avoid incompatible changes.  In
+    particular, any characters after "auto" (case insensitive) are reserved for
+    future enhancements, and are currently ignored.
+    See "Bug 4769" in the Known Problems section for some important caveats.
     By default 'GASNET_IBV_PORTS_TYPE' is "Socket" and all other variables in
     this family are unset.
-    There is currently no support for GASNET_IBV_PORTS_TYPE == "Auto".
 
   + GASNET_IBV_PORTS_VERBOSE
     This integer setting controls the detail of any warnings printed when there
@@ -1527,6 +1540,28 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   under heavy load when application thread(s) are also actively polling.
   The most up-to-date information on this issue is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4691
+
++ Bug 4769
+  Currently the implementation of GASNET_IBV_PORTS_TYPE=auto has limitations,
+  some of which may result in unexpected loss of performance relative to a
+  manual assignment using other settings.
+  1. Each process will be assigned only a single HCA, even when the most
+     desirable configuration might utilize multiple HCAs.
+     Example: On a host with two processes and four HCAs, the current algorithm
+     will never use more than half of the HCAs.
+  2. Each process will only be assigned an HCA from among those which are
+     (according to hwloc) topologically nearest to it.  Consequently, any HCAs
+     not "nearest" to at least one process will go unused.
+     Example: On a host with two sockets, each with one associated HCA, pinning
+     all process to a *single* socket (for instance to provide affinity to a
+     GPU) will cause the current algorithm to ignore the HCA associated with the
+     other socket.
+  These limitations are specific to the current automatic HCA assignment
+  algorithm activated by GASNET_IBV_PORTS_TYPE=auto.
+  Both situations described above can be avoided by instead applying settings for
+  "manual assignment" of HCAs, see the documentation above for GASNET_IBV_PORTS.
+  The most up-to-date information on this bug is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4769
 
 + See the GASNet Bugzilla server for details on other known bugs:
   https://gasnet-bugs.lbl.gov/
