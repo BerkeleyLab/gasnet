@@ -68,6 +68,7 @@ do-check-other: force
 	@cp -f $(TOP_BUILDDIR)/gasnet/other/check-pp-tgt$(EXESUFFIX) $(EXE)$(EXESUFFIX)
 
 check-other:          force ; $(MAKE) do-check-other EXE=$@
+check-other-cross:    force ; $(MAKE) do-check-other EXE=$@
 check-other-pedantic: force ; $(MAKE) do-check-other EXE=$@
 
 force:
