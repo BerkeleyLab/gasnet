@@ -62,9 +62,13 @@ check-libupcr-exports: force
 	@$(MAKE) -C $(TOP_BUILDDIR) check-exports
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-check-other: force
+do-check-other: force
+	@rm -f $(TOP_BUILDDIR)/gasnet/other/check-pp-tgt$(EXESUFFIX)
 	@$(MAKE) -C $(TOP_BUILDDIR)/gasnet/other check-local
-	@echo '#!/bin/sh' > $@ ; chmod +x $@
+	@cp -f $(TOP_BUILDDIR)/gasnet/other/check-pp-tgt$(EXESUFFIX) $(EXE)$(EXESUFFIX)
+
+check-other:          force ; $(MAKE) do-check-other EXE=$@
+check-other-pedantic: force ; $(MAKE) do-check-other EXE=$@
 
 force:
 

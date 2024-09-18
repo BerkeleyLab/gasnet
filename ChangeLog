@@ -68,6 +68,7 @@ GASNet-EX ChangeLog
   - bug4734 - incorrect hwloc-based NIC selection with cxi provider
   - bug4743 - prohibit space characters in $(prefix) and $(DESTDIR) for `make install`
   - bug4744 - uninitialized use of PRNG in some tests
+  - bug4746 - support pedantic compiler options in gasnet_portable_platform.h
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0
