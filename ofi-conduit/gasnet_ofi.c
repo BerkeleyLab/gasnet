@@ -1659,8 +1659,9 @@ int gasnetc_ofi_init(void)
   gasneti_semaphore_init(&num_unallocated_request_buffers, max_am_request_buffs - num_init_am_request_buffs, 0);
   gasneti_semaphore_init(&num_unallocated_reply_buffers, max_am_reply_buffs - num_init_am_reply_buffs, 0);
 
+  size_t am_buf_alloc_sz = GASNETI_ALIGNUP(GASNETC_SIZEOF_AM_BUF_T, GASNETI_MEDBUF_ALIGNMENT);
   size_t total_init = num_init_am_request_buffs + num_init_am_reply_buffs;
-  am_buffers_region_size = GASNETI_PAGE_ALIGNUP(total_init*GASNETC_SIZEOF_AM_BUF_T);
+  am_buffers_region_size = GASNETI_PAGE_ALIGNUP(total_init*am_buf_alloc_sz);
   am_buffers_region_start = gasnetc_alloc_pages(am_buffers_region_size, "for AM send buffers");
   { char valstr[16];
     gasneti_format_number(am_buffers_region_size, valstr, sizeof(valstr), 1);
@@ -1670,20 +1671,20 @@ int gasnetc_ofi_init(void)
 
   /* Add the buffers to the stack in reverse order to be friendly to the cache. */
   gasnetc_ofi_send_ctxt_t * bufp = (gasnetc_ofi_send_ctxt_t*)
-      ((uintptr_t)am_buffers_region_start + GASNETC_SIZEOF_AM_BUF_T*(total_init - 1));
+      ((uintptr_t)am_buffers_region_start + am_buf_alloc_sz*(total_init - 1));
 
   GASNETC_STAT_EVENT_VAL(ALLOC_REQ_BUFF, num_init_am_request_buffs);
   for (i = 0; i < (int)num_init_am_request_buffs; i++) {
      bufp->pool = &ofi_am_request_pool;
      gasneti_lifo_push(bufp->pool, bufp);
-     bufp = (gasnetc_ofi_send_ctxt_t*)((uintptr_t)bufp - GASNETC_SIZEOF_AM_BUF_T);
+     bufp = (gasnetc_ofi_send_ctxt_t*)((uintptr_t)bufp - am_buf_alloc_sz);
   }  
 
   GASNETC_STAT_EVENT_VAL(ALLOC_REP_BUFF, num_init_am_reply_buffs);
   for (i = 0; i < (int)num_init_am_reply_buffs; i++) {
       bufp->pool = &ofi_am_reply_pool;
       gasneti_lifo_push(bufp->pool, bufp);
-      bufp = (gasnetc_ofi_send_ctxt_t*)((uintptr_t)bufp - GASNETC_SIZEOF_AM_BUF_T);
+      bufp = (gasnetc_ofi_send_ctxt_t*)((uintptr_t)bufp - am_buf_alloc_sz);
   }
 
   gasnetc_ofi_inited = 1;
@@ -1927,8 +1928,8 @@ gasnetc_ofi_send_ctxt_t *gasnetc_ofi_get_am_header(int isreq, gex_Flags_t flags 
                                       : &num_unallocated_reply_buffers;
     if (gasneti_semaphore_trydown(sema)) {
         // TODO: cache-align and allocate more than one at a time
-        header = gasneti_malloc(GASNETC_SIZEOF_AM_BUF_T);
-        gasneti_leak(header);
+        header = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT, GASNETC_SIZEOF_AM_BUF_T);
+        gasneti_leak_aligned(header);
         header->pool = pool;
         if (isreq) {
             GASNETC_STAT_EVENT_VAL(ALLOC_REQ_BUFF, 1);
@@ -1954,6 +1955,7 @@ gasnetc_ofi_send_ctxt_t *gasnetc_ofi_get_am_header(int isreq, gex_Flags_t flags 
                              GASNETC_OFI_POLL_SELECTIVE(OFI_POLL_REPLY));
     }
 
+    gasneti_assert_uint((uintptr_t)&header->sendbuf.buf.medium_buf.data % GASNETI_MEDBUF_ALIGNMENT ,==, 0);
     return header;
 }
 
