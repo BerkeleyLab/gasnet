@@ -54,9 +54,12 @@ const char *testdesc_par[] = {
   "non-collective gasnet_exit(53) from one pthread, others in spin-loop",
   "non-collective gasnet_exit(54) from one pthread, others in poll-loop",
   "non-collective gasnet_exit(55) from one pthread, others sending messages",
+  #define NUMTEST_PAR (sizeof(testdesc_par)/sizeof(char*))
+#else
+  NULL
+  #define NUMTEST_PAR 0
 #endif
 };
-#define NUMTEST_PAR (sizeof(testdesc_par)/sizeof(char*))
 #define TESTBASE_PAR 51
 
 const char *testid2desc(int testid) {
