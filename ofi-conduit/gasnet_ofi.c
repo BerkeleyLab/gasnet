@@ -2339,7 +2339,7 @@ void gasnetc_ofi_am_recv_poll(int is_request)
 
     int count;
     for (count = 0; count < GASNETC_OFI_EVENTS_PER_POLL; ++count) {
-        if(EBUSY == GASNETC_OFI_PAR_TRYLOCK(lock_p)) goto out;
+        if(EBUSY == GASNETC_OFI_PAR_TRYLOCK(lock_p)) break;
 
         /* Read from Completion Queue */
         struct fi_cq_data_entry re = {0};
@@ -2347,13 +2347,13 @@ void gasnetc_ofi_am_recv_poll(int is_request)
 
         if (ret == -FI_EAGAIN) {
             GASNETC_OFI_PAR_UNLOCK(lock_p);
-            goto out;
+            break;
         } 
         if_pf (ret < 0) {
             struct fi_cq_err_entry e = {0};
             gasnetc_fi_cq_readerr(cq, &e ,0);
             GASNETC_OFI_PAR_UNLOCK(lock_p);
-            if_pf (gasnetc_is_exit_error(e)) goto out;
+            if_pf (gasnetc_is_exit_error(e)) goto error_out;
             gasnetc_ofi_fatalerror("fi_cq_read for am_recv_poll failed with error", -e.err);
         }
 
@@ -2456,7 +2456,7 @@ void gasnetc_ofi_am_recv_poll(int is_request)
     }
 #endif
 
-out:
+error_out:
     if (is_request) {
         GASNETI_TRACE_EVENT_VAL(X, CQ_READ_REQ, count);
     } else {
