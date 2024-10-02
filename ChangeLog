@@ -71,6 +71,7 @@ GASNet-EX ChangeLog
   - bug4746 - support pedantic compiler options in gasnet_portable_platform.h
   - bug4749 - ofi-conduit NPAM support broken on ILP32
   - bug4751 - incorrect segment limit computation on ILP32
+  - bug4752 - Incomplete work-around for bug 4376 (FI_EAGAIN when reposting multi-recv buffer)
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0
