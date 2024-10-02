@@ -1407,7 +1407,7 @@ uint64_t gasneti_sharedLimit(void) {
     if (fd >= 0) {
       // TODO: for now we ignore any errors here
       if (0 == fstatvfs(fd, &buf)) {
-        uint64_t free_space = buf.f_bsize * buf.f_bavail;
+        uint64_t free_space = (uint64_t)buf.f_bsize * (uint64_t)buf.f_bavail;
         if (free_space) {
           sharedLimit = MIN(sharedLimit, free_space);
         }
