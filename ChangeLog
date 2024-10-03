@@ -72,6 +72,7 @@ GASNet-EX ChangeLog
   - bug4749 - ofi-conduit NPAM support broken on ILP32
   - bug4751 - incorrect segment limit computation on ILP32
   - bug4752 - Incomplete work-around for bug 4376 (FI_EAGAIN when reposting multi-recv buffer)
+  - bug4753 - ofi: race condition in multi-receive message accounting
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0
