@@ -43,6 +43,8 @@ const char *testdesc_seq[] = {
   "non-collective gasnet_exit(11) from AM handler on one node",
   "non-collective gasnet_exit(12) from AM handler on one node (loopback)",
   "non-collective gasnet_exit(13) from AM handler on one node (N requests)",
+  "non-collective gasnet_exit(14) following PrepareRequestMedium()",
+  "non-collective gasnet_exit(15) following PrepareReplyMedium()",
 };
 #define NUMTEST_SEQ (sizeof(testdesc_seq)/sizeof(char*))
 #define TESTBASE_SEQ 1
@@ -88,6 +90,7 @@ static char *replyseg;
 #define hidx_exit_handler		201
 #define hidx_noop_handler               202
 #define hidx_ping_handler               203
+#define hidx_npam_handler               204
 
 void test_exit_handler(gex_Token_t token, gex_AM_Arg_t exitcode) {
   gasnet_exit((int)exitcode);
@@ -103,6 +106,13 @@ void ping_handler(gex_Token_t token, void *buf, size_t nbytes) {
 }
 
 void noop_handler(gex_Token_t token, void *buf, size_t nbytes) {
+}
+
+void npam_handler(gex_Token_t token, gex_AM_Arg_t exitcode) {
+ gex_AM_SrcDesc_t sd;
+ sd = gex_AM_PrepareReplyMedium(token, NULL, 0, 0, NULL, 0, 0);
+ if (mynode == nodes-1) { gasnet_exit(exitcode); }
+ gex_AM_CommitReplyMedium0(sd, hidx_noop_handler, 0);
 }
 
 #ifdef GASNET_PAR
@@ -211,6 +221,7 @@ int main(int argc, char **argv) {
     { hidx_exit_handler, test_exit_handler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT, 1 },
     { hidx_ping_handler, ping_handler,      GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDLONG, 0 },
     { hidx_noop_handler, noop_handler,      GEX_FLAG_AM_REQREP|GEX_FLAG_AM_MEDLONG, 0 },
+    { hidx_npam_handler, npam_handler,      GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT, 1 },
   };
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testexit", &argc, &argv, 0));
@@ -365,6 +376,18 @@ int main(int argc, char **argv) {
       break;
     case 13:
       gex_AM_RequestShort1(myteam, nodes-1, hidx_exit_handler, 0, testid);
+      while(1) GASNET_Safe(gasnet_AMPoll());
+      break;
+    case 14: {
+      gex_AM_SrcDesc_t sd;
+      sd = gex_AM_PrepareRequestMedium(myteam, peer, NULL, 0, 0, NULL, 0, 0);
+      if (mynode == nodes-1) { gasnet_exit(testid); }
+      gex_AM_CommitRequestMedium0(sd, hidx_noop_handler, 0);
+      while(1) GASNET_Safe(gasnet_AMPoll());
+      break;
+    }
+    case 15:
+      gex_AM_RequestShort1(myteam, peer, hidx_npam_handler, 0, testid);
       while(1) GASNET_Safe(gasnet_AMPoll());
       break;
   default: 
