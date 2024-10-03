@@ -528,6 +528,11 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_killmyprocess(exitcode);
   }
 
+#if GASNET_DEBUG
+  // Disarm gasneti_checknpam() so we can use AMs for coordination
+  gasneti_checknpam_disarm();
+#endif
+
   const unsigned int timeout = (unsigned int)gasnetc_exittimeout;
 
   // One alarm timer for the exit coordination

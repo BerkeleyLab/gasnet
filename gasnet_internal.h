@@ -1012,6 +1012,7 @@ extern gex_Rank_t gasneti_get_dissem_peers_pshm(const gex_Rank_t **out_p);
 
 #if GASNET_DEBUG
 void gasneti_checknpam(int for_reply GASNETI_THREAD_FARG);
+void gasneti_checknpam_disarm(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
