@@ -349,7 +349,7 @@ do-run-testexit: force
 	@echo 'line="----------------------------------"'         >> $(TESTEXIT_SCRIPT)
 	@echo 'line="$$line$$line"'                               >> $(TESTEXIT_SCRIPT)
 	@i=`expr $(TESTEXIT_SEQMIN) - 1`; \
-	 needinterrupt="5 9 16" ; export needinterrupt ;                        \
+	 needinterrupt="5 9 53" ; export needinterrupt ;                        \
 	 while test "$$i" != "$(TESTEXIT_PARMAX)" ; do                       \
            i=`expr $$i + 1`;                                                 \
 	   echo ""                                   >> $(TESTEXIT_SCRIPT) ; \
