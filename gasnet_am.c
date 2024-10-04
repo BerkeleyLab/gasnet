@@ -580,7 +580,21 @@ void gasneti_checknpam(int for_reply GASNETI_THREAD_FARG) {
     }
   }
 }
-#endif
+
+// Conduits can call this from gasnet_exit() to disarm gasneti_checknpam() to
+// enable use of AM for exit coordination even if exiting between a Prepare
+// and the following Commit.
+//
+// TODO: Opt-in use of gex_AM_Cancel*() when available and safe.
+void gasneti_checknpam_disarm(void) {
+  GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  if (mythread->sd_is_init) {
+    GASNETI_INIT_MAGIC(&mythread->request_sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
+    GASNETI_INIT_MAGIC(&mythread->reply_sd,   GASNETI_AM_SRCDESC_BAD_MAGIC);
+  }
+}
+#endif // GASNET_DEBUG
 #endif // _GEX_AM_SRCDESC_T
 
 #if GASNETC_BUILD_NP_REQ_MEDIUM
