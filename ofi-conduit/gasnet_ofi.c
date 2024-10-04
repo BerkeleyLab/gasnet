@@ -2339,7 +2339,7 @@ void gasnetc_ofi_am_recv_poll(int is_request)
 
     int count;
     for (count = 0; count < GASNETC_OFI_EVENTS_PER_POLL; ++count) {
-        if(EBUSY == GASNETC_OFI_PAR_TRYLOCK(lock_p)) goto out;
+        if(EBUSY == GASNETC_OFI_PAR_TRYLOCK(lock_p)) break;
 
         /* Read from Completion Queue */
         struct fi_cq_data_entry re = {0};
@@ -2347,13 +2347,13 @@ void gasnetc_ofi_am_recv_poll(int is_request)
 
         if (ret == -FI_EAGAIN) {
             GASNETC_OFI_PAR_UNLOCK(lock_p);
-            goto out;
+            break;
         } 
         if_pf (ret < 0) {
             struct fi_cq_err_entry e = {0};
             gasnetc_fi_cq_readerr(cq, &e ,0);
             GASNETC_OFI_PAR_UNLOCK(lock_p);
-            if_pf (gasnetc_is_exit_error(e)) goto out;
+            if_pf (gasnetc_is_exit_error(e)) goto exiting;
             gasnetc_ofi_fatalerror("fi_cq_read for am_recv_poll failed with error", -e.err);
         }
 
@@ -2392,15 +2392,21 @@ void gasnetc_ofi_am_recv_poll(int is_request)
 
         // Repost if either not using FI_MULTI_RECV
         // OR matched "final" and "consumed" counters indicate last AM handler has completed
+        uint64_t consumed;
         if (!maybe_multi_recv ||
-            ((GASNETI_ATOMIC_MAX & header->final_cntr) ==
-             (uint64_t) gasnetc_paratomic_add(&header->consumed_cntr, 1, GASNETI_ATOMIC_ACQ))) {
+            // Note: use of ACQ fence and comma operator ensure the read of final_cntr
+            // cannot be "stale" relative to the increment of consumed_cntr.
+            ((consumed = gasnetc_paratomic_add(&header->consumed_cntr, 1, GASNETI_ATOMIC_ACQ)),
+             ((GASNETI_ATOMIC_MAX & header->final_cntr) == consumed))) {
             struct fi_msg* am_buff_msg = &metadata->am_buff_msg;
             GASNETC_OFI_LOCK(&gasnetc_ofi_locks.am_rx);
             int post_ret = fi_recvmsg(ep, am_buff_msg, maybe_multi_recv);
             GASNETC_OFI_UNLOCK(&gasnetc_ofi_locks.am_rx);
 #if GASNETC_OFI_RETRY_RECVMSG
             if_pf (post_ret == -FI_EAGAIN) {
+                // TODO: add accounting (debug only?) to enable warnings if the
+                // number of buffers posted to a given FI_MSG EP falls to some
+                // threshold (possibly zero).
                 GASNETC_OFI_PAR_LOCK(lock_p);
                 header->next = buffs_to_retry[is_request];
                 buffs_to_retry[is_request] = header;
@@ -2441,6 +2447,9 @@ void gasnetc_ofi_am_recv_poll(int is_request)
         #endif
             if (post_ret == -FI_EAGAIN) {
                 prev_p = &curr->next; // retain curr in the list
+                // TODO: "break" here if either (a) we can be certain that EAGAIN failure
+                // is *not* buffer-specific or (b) we "rotate" the list to ensure that no
+                // buffer can hold the head-of-list indefinitely.
             } else {
                 GASNETC_OFI_CHECK_RET(post_ret, "deferred fi_recvmsg failed");
                 if (is_request) {
@@ -2456,7 +2465,7 @@ void gasnetc_ofi_am_recv_poll(int is_request)
     }
 #endif
 
-out:
+exiting:
     if (is_request) {
         GASNETI_TRACE_EVENT_VAL(X, CQ_READ_REQ, count);
     } else {
