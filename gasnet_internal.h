@@ -660,6 +660,10 @@ extern int gasnetc_ep_publishboundsegment_hook(
 extern int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm);
 #endif
 
+// Conduit-specific "primary attach" logic for use in the conduit-independent
+// implementation of `gasnet_attach()`.
+extern int gasnetc_attach_primary(gex_Flags_t);
+
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface - provides a mechanism for conduit-independent services (like VIS)
    to expose non-blocking operations that utilize the regular GASNet op sync mechanisms
