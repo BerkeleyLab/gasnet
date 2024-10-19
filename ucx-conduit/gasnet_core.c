@@ -124,8 +124,6 @@ static void gasnetc_check_config(void) {
 
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
-
-  gasneti_static_assert(GASNETC_UCX_HDR_SIZE == sizeof(gasnetc_sreq_hdr_t));
 }
 
 GASNETI_INLINE(gasnetc_msgsource)
@@ -580,7 +578,7 @@ static int gasnetc_init(
                          "See ucx-conduit README for more details.",
                          lub_medium);
     }
-    size_t max_med_overhead = GASNETI_ALIGNUP(GASNETC_UCX_HDR_SIZE + GASNETC_MAX_ARGS_SIZE, 8);
+    size_t max_med_overhead = GASNETC_UCX_MED_HDR_SIZE_PADDED(GASNETC_MAX_ARGS);
     gasnetc_ammed_bufsz = lub_medium + max_med_overhead;
   }
 
@@ -762,7 +760,7 @@ static void gasnetc_defaultSignalHandler(int sig) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach_primary(void) {
+extern int gasnetc_attach_primary(gex_Flags_t flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
@@ -775,9 +773,8 @@ extern int gasnetc_attach_primary(void) {
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
-  // TODO: can we safely invert the next two lines to use an AM-based barrier here instead?
-  gasneti_bootstrapBarrier();
   gasneti_attach_done = 1;
+  gasneti_bootstrapBarrier();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete"));
 
@@ -874,7 +871,7 @@ extern int gasnetc_Client_Init(
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
-    if (GASNET_OK != gasnetc_attach_primary())
+    if (GASNET_OK != gasnetc_attach_primary(flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
     /* ensure everything is initialized across all nodes */
@@ -1562,7 +1559,7 @@ extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
     gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
     gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
-                                     1, 0, numargs, argptr, NULL, 0, NULL,
+                                     1, numargs, argptr, NULL, 0, NULL,
                                      local_cnt, cbfunc
                                      GASNETI_THREAD_PASS);
   }
@@ -1589,7 +1586,7 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
     gasnetc_cbfunc_t      cbfunc    = counter ? gasnetc_cb_counter  : NULL;
     gasnetc_atomic_val_t *local_cnt = counter ? &counter->initiated : NULL;
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
-                                     0, 0, numargs, argptr, NULL, 0, NULL,
+                                     0, numargs, argptr, NULL, 0, NULL,
                                      local_cnt, cbfunc
                                      GASNETI_THREAD_PASS);
   }

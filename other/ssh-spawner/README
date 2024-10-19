@@ -17,7 +17,11 @@ which allows applications using many GASNet conduits to utilize ssh (or rsh)
 to perform job launch.  If installing GASNet on system which allows remote
 shell connections to the compute nodes, this may be a lower-overhead mechanism
 for job launch than use of the default mpi-spawner.  This is also the default
-spawner when MPI support is not present (or is disabled).
+spawner for many conduits when MPI support is not present (or is disabled).
+
+This document does *not* cover ssh-based job spawning in udp-conduit, which uses
+distinct code.  For information on spawning udp-conduit jobs, please see
+udp-conduit/README (source) or share/doc/gasnet/README-udp (installed).
 
 @ Section: Basic Usage @
 

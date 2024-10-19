@@ -191,7 +191,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach_primary(void) {
+extern int gasnetc_attach_primary(gex_Flags_t flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
@@ -289,7 +289,7 @@ extern int gasnetc_Client_Init(
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
-    if (GASNET_OK != gasnetc_attach_primary())
+    if (GASNET_OK != gasnetc_attach_primary(flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
     /* ensure everything is initialized across all nodes */
@@ -527,6 +527,11 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_bootstrapAbort(exitcode);
     gasneti_killmyprocess(exitcode);
   }
+
+#if GASNET_DEBUG
+  // Disarm gasneti_checknpam() so we can use AMs for coordination
+  gasneti_checknpam_disarm();
+#endif
 
   const unsigned int timeout = (unsigned int)gasnetc_exittimeout;
 

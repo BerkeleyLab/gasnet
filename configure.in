@@ -11,7 +11,7 @@ define([cv_prefix],[gasnet_cv_])
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2024])
 define([GASNET_RELEASE_VERSION_MINOR_D],[5])
-define([GASNET_RELEASE_VERSION_PATCH_D],[3])
+define([GASNET_RELEASE_VERSION_PATCH_D],[5])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
 define([GASNETEX_SPEC_VERSION_MINOR_D],[18])
@@ -1962,20 +1962,41 @@ GASNET_IF_ENABLED_WITH_AUTO(hugetlbfs,
   [Enable/disable huegtlbfs support (default is system dependent)],
   [enabled_hugetlbfs=yes], [enabled_hugetlbfs=no], [enabled_hugetlbfs=probe])
 if test "$enabled_hugetlbfs" != 'no'; then
- AC_CHECK_HEADERS(hugetlbfs.h, [
-  GASNET_PUSHVAR(LIBS,"$LIBS -lhugetlbfs")
-  AC_CHECK_FUNCS([hugetlbfs_unlinked_fd],
-                 [have_hugetlbfs=yes
-                  AC_DEFINE(HAVE_HUGETLBFS)])
-  GASNET_POPVAR(LIBS)
- ])
+ GASNET_PACKAGE_HOME(HUGETLBFS, [hugetlbfs], [hugectl], [/usr/local], [include/hugetlbfs.h])
+ GASNET_PACKAGE_CFLAGS(HUGETLBFS)
+ GASNET_ENV_DEFAULT(HUGETLBFS_LIBS, -lhugetlbfs)
+ GASNET_PACKAGE_LDFLAGS(HUGETLBFS, hugetlbfs)
+ GASNET_SPLIT_LINKER_OPTS(HUGETLBFS_LDFLAGS,HUGETLBFS_LIBS)
+
+ GASNET_PUSHVAR(CFLAGS,"$CFLAGS $HUGETLBFS_CFLAGS")
+ GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $HUGETLBFS_LDFLAGS")
+ GASNET_PUSHVAR(LIBS,"$LIBS $HUGETLBFS_LIBS")
+
+ GASNET_TRY_CACHE_LINK([for usable libhugetlbfs], hugetlbfs_works,
+      [ #include <hugetlbfs.h> ],
+      [ int rc1 = hugetlbfs_unlinked_fd();
+        const char * rc2 = hugetlbfs_find_path();
+        long rc3 = gethugepagesize();
+      ],
+      [ have_hugetlbfs=yes
+        AC_DEFINE(HAVE_HUGETLBFS)])
+
+ GASNET_POPVAR(LIBS)
+ GASNET_POPVAR(LDFLAGS)
+ GASNET_POPVAR(CFLAGS)
+
  if test "$enabled_hugetlbfs$have_hugetlbfs" = 'yesno'; then
    GASNET_MSG_ERROR([User requested --enable-hugetlbfs but the header and/or library could not be found])
  fi
  if test "$have_hugetlbfs" = 'yes'; then
-   GASNET_IF_ENABLED(hugetlbfs-whole-archive, [Use --whole-archive with libhugetlbfs],
-                     [HUGETLBFS_LIBS='-Wl,--whole-archive,-lhugetlbfs,--no-whole-archive'],
-                     [HUGETLBFS_LIBS='-lhugetlbfs'])
+   GASNET_IF_ENABLED_NOHELP(hugetlbfs-whole-archive,
+                     [ if test "$HUGETLBFS_LIBS" = '-lhugetlbfs'; then
+                         HUGETLBFS_LIBS="-Wl,--whole-archive,-lhugetlbfs,--no-whole-archive"
+                       else
+                         GASNET_MSG_ERROR([dnl
+User requested --enable-hugetlbfs-whole-archive, which is a deprecated option available only when libhugetlbfs is the only library required.  Please configure using the fully-general --with-hugetlbfs-libs option instead.])
+                       fi
+                     ])
  fi
 fi
 with_pshm=no
@@ -2147,6 +2168,8 @@ if test "$enabled_pshm" != no; then
   fi
   AC_DEFINE(GASNETI_PSHM_FILE)
   AC_DEFINE(GASNETI_USE_HUGETLBFS)
+  GASNET_PSHM_CFLAGS="$HUGETLBFS_CFLAGS"
+  GASNET_PSHM_LDFLAGS="$HUGETLBFS_LDFLAGS"
   GASNET_PSHM_LIBS="$HUGETLBFS_LIBS"
   with_pshm=hugetlbfs
  fi
@@ -2187,6 +2210,8 @@ elif test "$have_hugetlbfs" = yes && test "$GASNET_PLATFORM" = crayex ; then
   # Currently the supported systems are the Cray XC and HPE Cray EX
   # However, we are not doing anything here for the former
   AC_DEFINE(GASNETI_USE_HUGETLBFS)
+  GASNET_PSHM_CFLAGS="$HUGETLBFS_CFLAGS"
+  GASNET_PSHM_LDFLAGS="$HUGETLBFS_LDFLAGS"
   GASNET_PSHM_LIBS="$HUGETLBFS_LIBS"
 fi
 GASNET_SPLIT_LINKER_OPTS(GASNET_PSHM_LDFLAGS,GASNET_PSHM_LIBS)
@@ -3776,7 +3801,7 @@ else
     GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
 
-    ucx_max_med_dflt=`expr 4096 - 40 - 64`  # 40 = fixed header, 64 = 16x 4-byte args
+    ucx_max_med_dflt=`expr 65536 - 16 - 64`  # 16 = fixed Medium header, 64 = 16x 4-byte args
     GASNET_WITH(ucx-max-medium,[Specify gex_LUB*Medium() for ucx-conduit (default $ucx_max_med_dflt)],
       [if expr "$withval" : '[[0-9]]*$' >/dev/null 2>&1 && \
           expr "$withval" '>=' 512  >/dev/null 2>&1 ; then
@@ -5734,6 +5759,14 @@ if test "$enabled_hwloc_utils" != no; then
   fi
 fi
 
+if test "$have_hwloc_lib" = 'yes'; then
+  hwloc_support='lib'
+elif test "$have_hwloc_utils" = 'yes'; then
+  hwloc_support='utils'
+else
+  hwloc_support='no'
+fi
+
 #  AC_FUNC_MMAP
 # Check for mmap functionality we actually use
 if test "$cross_compiling" = "yes" ; then
@@ -6133,6 +6166,7 @@ cat >>$CONDUIT_LIST <<EOF
   PSHM support:           $with_pshm
   Atomics support:        $atomics_config
   PMI support:            $have_pmi$pretty_pmi_version
+  Hwloc support:          $hwloc_support
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF

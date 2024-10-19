@@ -471,6 +471,21 @@ Recognized environment variables:
   all supportable provider/device pairs.  In this context, "supportable"
   may be constrained by such factors as the configured provider or use of
   environment variables which constrain provider enumeration.
+  If libhwloc 2.0 or higher was detected at configure time, then this output
+  includes a distance ranking for each HCA port for which the information can
+  be found.  A ranking of "1" denotes the topologically nearest HCAs (i.e.
+  "first place").  If present, "2" will denote any HCA(s) less near than the
+  "1" HCA(s) but nearer than any "3"s, etc.  Note that ties are possible.
+  This ranking of distance depends on libfabric's ability to provide device
+  names (or PCI addresses) which hwloc can recognize, and thus may vary
+  depending on the versions of hwloc and libfabric and on the provider in use.
+  Currently, the status is as follows:
+  + There are no known dependencies on hwloc version.
+  + The `cxi`, `verbs`, `sockets`, `tcp` and `udp` providers are all believed
+    to support applicable devices with their respective supported libfabric
+    versions.
+  + No version of the `psm2` provider (Omni-Path) supports distance ranking.
+  + The status of the `gni` and `efa` providers are unknown.
   See 'GASNET_OFI_LIST_DEVICES_NODES' for how to limit which nodes report.
   The default is "0" (no report).
 
@@ -733,6 +748,17 @@ Known problems:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4478
   and
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4480
+
+* Bug 4750
+  GASNet supports RMA and AM Long to/from any valid local address, including
+  addresses within the segment of a shared-memory peer when cross-mapped via
+  PSHM. However, it has been observed that with the cxi provider on an HPE
+  Cray EX system, such cross-mapped accesses do not work together with PSHM
+  over XPMEM (not the default).  While not observed directly, we suspect that
+  other providers which register memory with the NIC (e.g. verbs) may also
+  fail when using PSHM over XPMEM.
+  The most up-to-date information on this issue is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4750
 
 * See docs/memory_kinds_implementation.md in the GASNet-EX sources for current
   information regarding known issues with respect to memory kinds support in

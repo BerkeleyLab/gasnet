@@ -389,6 +389,11 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   + GASNET_IBV_LIST_PORTS
     The value is a boolean: "0" to disable or "1" to enable the reporting of
     all detectable HCAs and the status of their ports.
+    If libhwloc 2.0 or higher was detected at configure time, then this output
+    includes a distance ranking for each HCA port for which the information can
+    be found.  A ranking of "1" denotes the topologically nearest HCAs (i.e.
+    "first place").  If present, "2" will denote any HCA(s) less near than the
+    "1" HCA(s) but nearer than any "3"s, etc.  Note that ties are possible.
     See 'GASNET_IBV_LIST_PORTS_NODES' for how to limit which nodes report.
     The default is "0" (no report).
 

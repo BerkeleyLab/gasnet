@@ -480,6 +480,10 @@ uintptr_t gasneti_max_segsize(void);
   #endif
 #endif
 
+#if GASNET_PSHM
+  extern int gasneti_use_shared_allocator;
+#endif
+
 // Allocate/map memory intended for use as segment.
 // May be called non-collectively, as from gex_Segment_Create().
 // Also called collectively, as from gex_Segment_Attach() and aux seg creation.
@@ -655,6 +659,10 @@ extern int gasnetc_ep_publishboundsegment_hook(
 // in terms of gex_Segment_Create() and gex_EP_PublishBoundSegment().
 extern int gasnetc_segment_attach_hook(gex_Segment_t e_segment, gex_TM_t e_tm);
 #endif
+
+// Conduit-specific "primary attach" logic for use in the conduit-independent
+// implementation of `gasnet_attach()`.
+extern int gasnetc_attach_primary(gex_Flags_t);
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface - provides a mechanism for conduit-independent services (like VIS)
@@ -1008,6 +1016,7 @@ extern gex_Rank_t gasneti_get_dissem_peers_pshm(const gex_Rank_t **out_p);
 
 #if GASNET_DEBUG
 void gasneti_checknpam(int for_reply GASNETI_THREAD_FARG);
+void gasneti_checknpam_disarm(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */

@@ -114,7 +114,8 @@ static gex_TM_t myteam;
  */
 extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *testsections,
                                    gex_TM_t myteam_arg, void *myseg_arg,
-                                   gex_Rank_t peer_arg, void *peerseg_arg) {
+                                   gex_Rank_t peer_arg, void *peerseg_arg,
+                                   unsigned int seed_arg) {
   test_errs = 0;
   iters = iter_cnt;
   iters2 = (iters <= INT_MAX/100) ? iters*100 : iters;
@@ -126,6 +127,8 @@ extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *test
   myseg = myseg_arg;
   peer = peer_arg;
   peerseg = peerseg_arg;
+
+  TEST_SRAND(seed_arg);
 
 #if !GASNET_SEGMENT_EVERYTHING
   for (gex_Rank_t rank =0; rank < nnodes; rank++) {
@@ -907,10 +910,6 @@ static void progressfn_tester(int *counter) {
   if (!iamactive) return;
 
   /* do some work that should be legal inside a progress fn */
-#if 0
-  if ((gasneti_weakatomic_read(&progressfn_req_sent,0) -
-       gasneti_weakatomic_read(&progressfn_rep_rcvd,0)) <= 128U)
-#endif
   { static int tmp;
     // The outer context in progressfns_test() is performing RMA operations
     // which reference only the bottom halves of our segment and of the
@@ -937,7 +936,9 @@ static void progressfn_tester(int *counter) {
       }
       pf_events[1] = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_GET);
     }
-    if (gasneti_diag_havehandlers) {
+    if (gasneti_diag_havehandlers &&
+        ((gasneti_weakatomic_read(&progressfn_req_sent,0) -
+          gasneti_weakatomic_read(&progressfn_rep_rcvd,0)) <= 128U)) {
       const size_t max_sz = MIN(gex_AM_MaxRequestMedium(myteam, peer, GEX_EVENT_NOW, 0, 0),
                                 MIN(64*1024,region_len));
       for (size_t sz = 1; sz <= max_sz; sz = (sz < 64?sz*2:sz*8)) {
