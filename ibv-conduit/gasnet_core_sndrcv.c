@@ -1163,9 +1163,12 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid)
 
 /* Take and sreq and bind it to a specific (not wildcard) qp */
 #if GASNETC_DYNAMIC_CONNECT || GASNETC_IBV_SRQ
-gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply GASNETI_THREAD_FARG)
+gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid,
+                                      gasnetc_sreq_t *sreq, int block, int is_reply
+                                      GASNETI_THREAD_FARG)
 #else
-gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq)
+gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid,
+                                      gasnetc_sreq_t *sreq, int block)
 #endif
 {
   gasnetc_cep_t *ceps = gasnetc_get_cep(ep, gasnetc_epid2node(epid));
@@ -1177,8 +1180,6 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
   qpi = gasnetc_epid_select_qpi(ceps, epid);
   cep = &ceps[qpi];
   if_pf (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
-    GASNETC_TRACE_WAIT_BEGIN();
-
   #if GASNETC_DYNAMIC_CONNECT
     /* Close the one dynamic connection race condition. */
     if (GASNETT_PREDICT_FALSE(GASNETC_CEP_SQ_SEMA(cep) == &gasnetc_zero_sema) && is_reply) {
@@ -1189,8 +1190,26 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
        * thus cannot send us a Request until ready to send the ACK.
        */
       gasnetc_conn_implied_ack(ep, gasnetc_epid2node(epid));
+      if (gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
+        goto out;
+      }
     }
   #endif
+
+    // Handle the non-blocking (IMMEDIATE) case
+    if (!block) {
+    #if GASNETC_IMM_MAY_POLL_SQ
+      // Progress sends *once* on the selected HCA and recheck semaphore
+      gasnetc_snd_reap_hca(cep->hca,1);
+      if (gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
+        goto out;
+      }
+    #endif
+      // TODO: If not bound to a specific cep, should scan all remaining CEPs
+      // before giving up.  However, that case is currently unreachable, since
+      // only RMA makes non-bound calls and there is no RMA+IMMEDIATE support.
+      return NULL;
+    }
 
 #if GASNETC_IBV_SRQ
   // When using SRQ, rcv buffers for AM Requests may be under-provisioned,
@@ -1241,6 +1260,7 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
   #define MAYBE_POLL_RCV(_ep, _cep) ((void)0)
 #endif
 
+    GASNETC_TRACE_WAIT_BEGIN();
     GASNETI_SPIN_DOUNTIL(
       gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)),
       {
@@ -1255,6 +1275,9 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
 #undef MAYBE_POLL_RCV
 #undef MAYBE_POLL_RCV_PSHM
   }
+
+out:
+  gasneti_assert(cep);
   cep->used = 1;
 
   sreq->epid = gasnetc_epid(epid, qpi);

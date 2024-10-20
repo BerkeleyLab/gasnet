@@ -266,6 +266,15 @@ typedef union {
   #define GASNETC_CONN_USE_SRTT 1
 #endif
 
+// When passed GEX_FLAG_IMMEDIATE, may we poll send progress (once) on full SQ?
+// Doing so will not run AMs but might still perform non-trivial work such as
+// bounce-buffer copies to complete out-of-segment Gets, as well as returning
+// resources to their free lists/pools.
+// DEFAULT: yes
+#ifndef GASNETC_IMM_MAY_POLL_SQ
+  #define GASNETC_IMM_MAY_POLL_SQ 1
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 
 /* Semaphore, lifo and atomics wrappers
@@ -1040,13 +1049,16 @@ GASNETI_MALLOCP(gasnetc_get_sreq)
 
 extern gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid);
 #if GASNETC_DYNAMIC_CONNECT || GASNETC_IBV_SRQ
-  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply GASNETI_THREAD_FARG);
-  #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),0 GASNETI_THREAD_PASS)
-  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s),(i) GASNETI_THREAD_PASS)
+  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid,
+                                               gasnetc_sreq_t *sreq, int block, int is_reply
+                                               GASNETI_THREAD_FARG);
+  #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),1,0 GASNETI_THREAD_PASS)
+  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s),1,(i) GASNETI_THREAD_PASS)
 #else
-  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq);
-  #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s))
-  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s))
+  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid,
+                                               gasnetc_sreq_t *sreq, int block);
+  #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),1)
+  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s),1)
 #endif
 extern void gasnetc_snd_post_common(
                   gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc,
