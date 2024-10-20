@@ -1053,12 +1053,12 @@ extern gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_
                                                gasnetc_sreq_t *sreq, int block, int is_reply
                                                GASNETI_THREAD_FARG);
   #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),1,0 GASNETI_THREAD_PASS)
-  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s),1,(i) GASNETI_THREAD_PASS)
+  #define gasnetc_bind_cep_am(ep,id,s,b,i)  gasnetc_bind_cep_inner((ep),(id),(s),(b),(i) GASNETI_THREAD_PASS)
 #else
   extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid,
                                                gasnetc_sreq_t *sreq, int block);
   #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),1)
-  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s),1)
+  #define gasnetc_bind_cep_am(ep,id,s,b,i)  gasnetc_bind_cep_inner((ep),(id),(s),(b))
 #endif
 extern void gasnetc_snd_post_common(
                   gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc,

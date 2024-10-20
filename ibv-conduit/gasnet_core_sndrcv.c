@@ -1739,6 +1739,7 @@ static void gasnetc_snd_post_fail(int rc, int is_inline) {
 }
 GASNETI_NORETURNP(gasnetc_snd_post_fail)
 
+// TODO: implement GEX_FLAG_IMMEDIATE for CQ slot scarcity
 static void
 gasnetc_snd_post_inner(gasnetc_cep_t * const cep, struct ibv_send_wr *sr_desc, int is_inline GASNETI_THREAD_FARG)
 {
