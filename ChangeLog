@@ -73,6 +73,7 @@ GASNet-EX ChangeLog
   - bug4751 - incorrect segment limit computation on ILP32
   - bug4752 - Incomplete work-around for bug 4376 (FI_EAGAIN when reposting multi-recv buffer)
   - bug4753 - ofi: race condition in multi-receive message accounting
+  - bug4754 - intermittent testratomic validation failures on Apple M1 h/w
   - bug4757 - Undefined behavior in ibv-conduit legacy initialization
 
 ----------------------------------------------------------------------
