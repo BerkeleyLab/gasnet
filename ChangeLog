@@ -75,6 +75,7 @@ GASNet-EX ChangeLog
   - bug4753 - ofi: race condition in multi-receive message accounting
   - bug4754 - intermittent testratomic validation failures on Apple M1 h/w
   - bug4757 - Undefined behavior in ibv-conduit legacy initialization
+  - bug4760 - ibv: assertion failure with single-process and GASNET_NUM_QPS>1
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0
