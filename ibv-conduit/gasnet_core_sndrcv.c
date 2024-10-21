@@ -1088,22 +1088,11 @@ void gasnetc_snd_reap_one(struct ibv_wc *comp_p, gasnetc_hca_t *hca GASNETC_COLL
   }
 }
 
-/* Try to pull completed entries (if any) from the send CQ(s). */
-int gasnetc_snd_reap(int limit) {
+// Try to pull completed entries (if any) from a single send CQ
+static int gasnetc_snd_reap_hca(gasnetc_hca_t *hca, int limit) {
   int count;
   struct ibv_wc comp;
   GASNETC_COLLECT_DECLS
-
-  gasnetc_hca_t *hca;
-#if GASNETC_IB_MAX_HCAS > 1
-  if (gasnetc_snd_poll_multi_hcas) {
-    GASNETC_WEAK_COUNTER_DECL(index, 0);
-    int tmp = GASNETC_WEAK_COUNTER_READ(index);
-    GASNETC_WEAK_COUNTER_WRITE(index, ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1);
-    hca = &gasnetc_hca[tmp];
-  } else
-#endif
-  hca = &gasnetc_hca[0];
 
   gasneti_assert(limit <= GASNETC_SND_REAP_LIMIT);
 
@@ -1123,6 +1112,22 @@ int gasnetc_snd_reap(int limit) {
   }
 
   return count;
+}
+
+// Try to pull completed entries (if any) from the send CQ(s).
+// Services only one HCA per call, round-robin across calls.
+int gasnetc_snd_reap(int limit) {
+  int hca_index = 0;
+
+#if GASNETC_IB_MAX_HCAS > 1
+  if (gasnetc_snd_poll_multi_hcas) {
+    GASNETC_WEAK_COUNTER_DECL(index, 0);
+    hca_index = GASNETC_WEAK_COUNTER_READ(index);
+    GASNETC_WEAK_COUNTER_WRITE(index, ((hca_index == 0) ? gasnetc_num_hcas : hca_index) - 1);
+  }
+#endif
+
+  return gasnetc_snd_reap_hca(&gasnetc_hca[hca_index], limit);
 }
 
 /* Take *unbound* epid, return a qp number */
@@ -1794,13 +1799,14 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
     sr_desc->send_flags = inline_flag; // Strips IBV_SEND_SIGNALED
     sr_desc->next = amo_sr_desc;
 
-    // Try at most twice (w/ a CQ poll between) to obtain a second CQ slot
+    // Try at most twice (w/ a CQ poll between) to obtain a second SQ slot
     // Spinning indefinitely while holding one slot could deadlock if
     // multiple threads in a PAR build are all doing the same.
     // Even in a SEQ or PARSYNC build, there is an advantage to posting the
     // Put without unnecessary delay.
+    gasnetc_hca_t *hca = cep->hca;
     if_pf (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)) &&
-           (gasnetc_snd_reap(1), !gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)))) {
+           (gasnetc_snd_reap_hca(hca,1), !gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)))) {
       // Since we failed to get a second SQ slot we split the two post operations
       GASNETC_STAT_EVENT(POST_SR_SPLIT);
       // Move the remote completion callback from the Put to the Atomic
@@ -1817,7 +1823,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
       is_inline = 0;
       // Now we spin to obtain a SQ slot for just the Atomic operation
       GASNETI_SPIN_UNTIL_TRACE(gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)),
-                               C, POST_SR_STALL_SQ2, gasnetc_snd_reap(1));
+                               C, POST_SR_STALL_SQ2, gasnetc_snd_reap_hca(hca,1));
     }
   }
 #endif
