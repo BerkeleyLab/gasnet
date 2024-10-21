@@ -2650,22 +2650,13 @@ extern int gasnetc_sndrcv_limits(void) {
     gasnetc_rbuf_spares = MAX(1,gasneti_getenv_int_withdefault("GASNET_RBUF_SPARES", threads, 0));
   }
 
-  /* Count normal qps to be placed on each HCA */
-  if (gasneti_nodes == 1) {
-    GASNETC_FOR_ALL_HCA(hca) {
-      /* Avoid a later division by zero */
-      hca->max_qps = 1;
-      hca->qps = 1;
-    }
-  } else {
-    /* XXX: this logic depends on the current gasnetc_select_port() logic;
-     * in particular on the simple node-independent repetition of ports. */
-    int i;
-    for (i = 0; i < gasnetc_num_qps; ++i) {
+  // Count normal qps to be placed on each HCA
+  // XXX: this logic depends on the current gasnetc_select_port() logic;
+  // in particular on the simple node-independent repetition of ports.
+  for (int i = 0; i < gasnetc_num_qps; ++i) {
       hca = &gasnetc_hca[gasnetc_port_tbl[i % gasnetc_num_ports].hca_index];
       hca->qps += 1;
       hca->max_qps += gasneti_nodes;
-    }
   }
 
   /* Ops outstanding per peer and total: */
@@ -3121,7 +3112,7 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
     }
 
     hca->num_qps++;
-    gasneti_assert(hca->num_qps <= hca->max_qps);
+    gasneti_assert_uint(hca->num_qps ,<=, hca->max_qps);
   }
 }
 
