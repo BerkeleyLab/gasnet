@@ -1,6 +1,6 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testimm.c $
  * Description: GASNet Active Messages IMMEDIATE test
- * Copyright (c) 2018, The Regents of the University of California
+ * Copyright (c) 2018-2024, The Regents of the University of California
  * Terms of use are as specified in license.txt
  */
 
@@ -151,11 +151,17 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
 
-  test_init("testimm",1, "[options] (iters) (msgsz)\n"
-             "  The '-in' or '-out' option selects whether the requestor's\n"
-             "        buffer is in the GASNet segment or not (default is 'in').\n"
-             "  The '-m/-l/-p/-g' options enable, respectively, timing of the\n"
-             "        RequestMedium, RequestLong, PutNBI and GetNBI operations.\n"
+  test_init("testimm",1, "[options] (msgcnt) (msgsz)\n"
+             "  Active rank 0 injects msgcnt operations of size msgsz to each passive peer.\n"
+             "  Note that msgsz will be reduced if RequestMedium or RequestLong are\n"
+             "  to be timed and msgsz would exceed the respective LUBRequest limit.\n"
+             "  Options:\n"
+             "  -in / -out\n"
+             "        Selects whether the initiator's buffer is in the GASNet segment\n"
+             "        or not (default is 'in').\n"
+             "  -m / -l / -p / -g\n"
+             "        Respectively enable timing of the RequestMedium, RequestLong, \n"
+             "        PutNBI and GetNBI operations.\n"
              "        The default is to test all four operations, except omitting\n"
              "        Put and Get in runs with only shared-memory communication.\n"
              "  -mixed\n"
@@ -181,8 +187,6 @@ int main(int argc, char **argv) {
              "                 but poll only between loops over peers\n"
              "    -poll-always advance to the next peer upon back pressure,\n"
              "                 but poll before every IMMEDIATE operation\n"
-             "  Note that maxsz will be reduced if RequestMedium or RequestLong are\n"
-             "  to be timed and maxsz would exceed the respective LUBRequest limit.\n"
            );
   if (help || argc > arg) test_usage();
 
@@ -229,7 +233,7 @@ int main(int argc, char **argv) {
       local_addr = alignup_ptr(space, PAGESZ);
     }
     remain = test_malloc(sizeof(long) * numrank);
-  }
+  } // rank 0
 
   if (!enable_given) {
     enable_put = enable_get = !nbrhd_only;
@@ -306,7 +310,7 @@ void passive(void) {
         if ((poll_mode == TEST_POLL_ALWAYS) && imm_flag)\
           gasnet_AMPoll();                              \
       retry:                                            \
-        if ( OPERATION ) {                              \
+        if ( OPERATION ) { /* got IMM backpressure */   \
           if (did_retry) break;                         \
           if (poll_mode == TEST_POLL_LAZY) break;       \
           gasnet_AMPoll();                              \
@@ -317,7 +321,7 @@ void passive(void) {
       }                                                 \
       remain[r] -= count;                               \
       done &= !remain[r];                               \
-    }                                                   \
+    } /* end loop over ranks */                         \
     if ((poll_mode == TEST_POLL_LAZY) && imm_flag)      \
       gasnet_AMPoll();                                  \
   } while (!done);                                      \
