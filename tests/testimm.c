@@ -309,14 +309,24 @@ void passive(void) {
         int did_retry = 0;                              \
         if ((poll_mode == TEST_POLL_ALWAYS) && imm_flag)\
           gasnet_AMPoll();                              \
-      retry:                                            \
+        retry:                                          \
         if ( OPERATION ) { /* got IMM backpressure */   \
-          if (did_retry) break;                         \
-          if (poll_mode == TEST_POLL_LAZY) break;       \
-          gasnet_AMPoll();                              \
-          if (poll_mode == TEST_POLL_NEXT) break;       \
-          did_retry = 1;                                \
-          goto retry;                                   \
+          switch (poll_mode) {                          \
+            case TEST_POLL_RETRY:                       \
+              if (!did_retry) {                         \
+                gasnet_AMPoll();                        \
+                did_retry = 1;                          \
+                goto retry;                             \
+              }                                         \
+              break;                                    \
+            case TEST_POLL_NEXT:                        \
+              gasnet_AMPoll();                          \
+              break;                                    \
+            case TEST_POLL_LAZY: break;                 \
+            case TEST_POLL_ALWAYS: break;               \
+            default: gasnett_unreachable();             \
+          }                                             \
+          break; /* end injection to this peer */       \
         }                                               \
       }                                                 \
       remain[r] -= count;                               \
