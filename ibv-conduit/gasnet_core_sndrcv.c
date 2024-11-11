@@ -1739,15 +1739,36 @@ static void gasnetc_snd_post_fail(int rc, int is_inline) {
 }
 GASNETI_NORETURNP(gasnetc_snd_post_fail)
 
-// TODO: implement GEX_FLAG_IMMEDIATE for CQ slot scarcity
-static void
-gasnetc_snd_post_inner(gasnetc_cep_t * const cep, struct ibv_send_wr *sr_desc, int is_inline GASNETI_THREAD_FARG)
+// Used in the IMMEDIATE case to reserve a CQ slot separate from gasnetc_snd_post*()
+// Returns non-zero on success, zero on failure
+int gasnetc_snd_reserve(gasnetc_cep_t * const cep) {
+  gasnetc_sema_t *sema = cep->snd_cq_sema_p;
+  if (gasnetc_sema_trydown(sema)) return 1;
+
+#if GASNETC_IMM_MAY_POLL_SQ
+  // Progress sends *once* on the selected HCA and recheck semaphore
+  gasnetc_snd_reap_hca(cep->hca, 1);
+  return gasnetc_sema_trydown(sema);
+#else
+  return 0;
+#endif
+}
+
+GASNETI_INLINE(gasnetc_snd_post_inner)
+void gasnetc_snd_post_inner(
+                gasnetc_cep_t * const cep,
+                struct ibv_send_wr *sr_desc,
+                int reserved,
+                int is_inline
+                GASNETI_THREAD_FARG)
 {
-  // Loop until space is available for 1 new entry on the CQ.
-  // If we hold the last one then threads sending to ANY node will stall.
-  // So this is the last resource to acquire
-  GASNETI_SPIN_UNTIL_TRACE(gasnetc_sema_trydown(cep->snd_cq_sema_p),
-                           C, POST_SR_STALL_CQ, gasnetc_poll_snd());
+  if (! reserved) {
+    // Loop until space is available for 1 new entry on the CQ.
+    // If we hold the last one then threads sending to ANY node will stall.
+    // So this is the last resource to acquire
+    GASNETI_SPIN_UNTIL_TRACE(gasnetc_sema_trydown(cep->snd_cq_sema_p),
+                             C, POST_SR_STALL_CQ, gasnetc_poll_snd());
+  }
 
   // Post the operation
   struct ibv_send_wr *bad_wr;
@@ -1755,7 +1776,7 @@ gasnetc_snd_post_inner(gasnetc_cep_t * const cep, struct ibv_send_wr *sr_desc, i
   if_pf (rc) gasnetc_snd_post_fail(rc, is_inline);
 }
 
-void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int is_inline GASNETI_THREAD_FARG) {
+void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int reserved, int is_inline GASNETI_THREAD_FARG) {
   gasnetc_cep_t * const cep = sreq->cep;
 
   /* Must be bound to a qp by now */
@@ -1796,6 +1817,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
   // will not execute until the ibv-level CQE for the Atomic.
   GASNETC_DECL_SR_DESC(amo_sr_desc, 1);
   if (sreq->opcode & gasnetc_op_needs_fence_mask) {
+    gasneti_assert(! reserved); // TODO: IMMEDIATE support for RMA
     gasnetc_sreq_t *amo_sreq = gasnetc_get_sreq(GASNETC_OP_FENCE GASNETI_THREAD_PASS);
     amo_sreq->cep = cep;
     amo_sreq->fence_sreq = sreq;
@@ -1841,7 +1863,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
       // Post only the Put, releasing a SQ slot for eventual reclamation
       sr_desc->next = NULL;
       sr_desc->send_flags = inline_flag | IBV_SEND_SIGNALED;
-      gasnetc_snd_post_inner(cep, sr_desc, is_inline GASNETI_THREAD_PASS);
+      gasnetc_snd_post_inner(cep, sr_desc, 0, is_inline GASNETI_THREAD_PASS);
       // Ensure the post call on the normal code path will post the Atomic
       sr_desc = amo_sr_desc;
       is_inline = 0;
@@ -1853,10 +1875,10 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
 #endif
 
   /* Post it */
-  gasnetc_snd_post_inner(cep, sr_desc, is_inline GASNETI_THREAD_PASS);
+  gasnetc_snd_post_inner(cep, sr_desc, reserved, is_inline GASNETI_THREAD_PASS);
 }
-#define gasnetc_snd_post(x,y)		gasnetc_snd_post_common(x,y,0 GASNETI_THREAD_PASS)
-#define gasnetc_snd_post_inline(x,y)	gasnetc_snd_post_common(x,y,1 GASNETI_THREAD_PASS)
+#define gasnetc_snd_post(x,y)           gasnetc_snd_post_common(x,y,0,0 GASNETI_THREAD_PASS)
+#define gasnetc_snd_post_inline(x,y)    gasnetc_snd_post_common(x,y,0,1 GASNETI_THREAD_PASS)
 
 #if GASNETC_USE_RCV_THREAD
 static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)

@@ -275,6 +275,15 @@ typedef union {
   #define GASNETC_IMM_MAY_POLL_SQ 1
 #endif
 
+// When passed GEX_FLAG_IMMEDIATE, may we poll send progress (once) on full CQ?
+// Doing so will not run AMs but might still perform non-trivial work such as
+// bounce-buffer copies to complete out-of-segment Gets, as well as returning
+// resources to their free lists/pools.
+// DEFAULT: yes
+#ifndef GASNETC_IMM_MAY_POLL_CQ
+  #define GASNETC_IMM_MAY_POLL_CQ 1
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 
 /* Semaphore, lifo and atomics wrappers
@@ -1060,9 +1069,10 @@ extern gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_
   #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),1)
   #define gasnetc_bind_cep_am(ep,id,s,b,i)  gasnetc_bind_cep_inner((ep),(id),(s),(b))
 #endif
+extern int gasnetc_snd_reserve(gasnetc_cep_t * const cep);
 extern void gasnetc_snd_post_common(
                   gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc,
-                  int is_inline GASNETI_THREAD_FARG);
+                  int reserved, int is_inline GASNETI_THREAD_FARG);
 
 extern void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG);
 extern void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG);
