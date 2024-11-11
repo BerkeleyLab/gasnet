@@ -4229,7 +4229,17 @@ int gasnetc_am_commit(    gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       goto out_bind_failed;
     }
 
-    // Set header fields and locate arguments
+    // For the IMMEDIATE case, try to reserve space on the CQ early.
+    // If we make it past this point then there are no further "immediate
+    // failure" opportunities, and thus we can be certain the AM *will* be sent.
+    // This is important when have_flow!=0, since there is no means to reverse
+    // the "grab" of banked credits while honoring `GASNET_AM_CREDITS_SLACK` (at
+    // least not in a PAR build).
+    if (immediate && !gasnetc_snd_reserve(cep)) {
+      goto out_reserve_failed;
+    }
+
+    // Set header fields, memcpy payloads, and locate arguments
     gex_AM_Arg_t *args;
     switch (category) {
     case gasneti_Short:
@@ -4282,16 +4292,6 @@ int gasnetc_am_commit(    gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       const uint32_t credits = gasnetc_atomic_swap(&cep->am_flow.credit, 0, 0);
       gasneti_assume(credits <= 255);
 
-      // Once we grab a non-zero number of coalesced credits we can no longer
-      // honor GEX_FLAG_IMMEDIATE, since (in general) we cannot "ungrab" them
-      // while still honoring GASNET_AM_CREDITS_SLACK.  So, we cannot allow
-      // immediate failure at post time, below.
-      //
-      // TODO?  Alternative approaches include (a) giving priority to immediate
-      // over have_flow and (b) allocating CQ space prior to finalizing the
-      // message payload.  Either would ensure we never need to "ungrab".
-      if (credits) immediate = 0;
-
       args[0] = GASNETC_GEN_HIDDEN_ARG(credits, numargs);
 
       GASNETI_TRACE_PRINTF(C,("SND_AM_CREDITS credits=%d\n", credits));
@@ -4337,12 +4337,16 @@ int gasnetc_am_commit(    gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
         ++(*local_cnt);
       }
       #endif
-  
-      // TODO: implement GEX_FLAG_IMMEDIATE in post path (for CQ slots)
-      gasnetc_snd_post_common(sreq, sr_desc, !buf_alloc GASNETI_THREAD_PASS);
+
+      int reserved = (immediate != 0); // CQ slot was pre-reserved if and only if immediate
+      gasnetc_snd_post_common(sreq, sr_desc, reserved, !buf_alloc GASNETI_THREAD_PASS);
     }
 
     return 0;
+
+out_reserve_failed:
+
+    gasnetc_sema_up(GASNETC_CEP_SQ_SEMA(cep));
 
 out_bind_failed:
 
