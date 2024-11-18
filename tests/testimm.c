@@ -48,10 +48,20 @@ static enum {
 static void *local_addr;
 static long *remain;
 
-#define hidx_noop_handler 200
+static gasnett_atomic_t expect = gasnett_atomic_init(0);
 
-void noop_handler(gex_Token_t token, void *buf, size_t nbytes) {
-  // does absolutely nothing
+#define hidx_expect_dec_handler 200
+#define hidx_expect_set_handler 201
+
+void expect_dec_handler(gex_Token_t token, void *buf, size_t nbytes) {
+  // decrement the counter
+  gasnett_atomic_decrement(&expect, 0);
+}
+void expect_set_handler(gex_Token_t token, void *buf, size_t nbytes) {
+  // set the counter and reply with a decrement
+  assert(nbytes == sizeof(gasnett_atomic_val_t));
+  gasnett_atomic_set(&expect, *(gasnett_atomic_val_t*)buf, 0);
+  gex_AM_ReplyMedium0(token, hidx_expect_dec_handler, NULL, 0, GEX_EVENT_NOW, 0);
 }
 
 void doMed(gex_Flags_t imm_flag);
@@ -61,7 +71,8 @@ void doGet(gex_Flags_t imm_flag);
 
 int main(int argc, char **argv) {
   gex_AM_Entry_t htable[] = { 
-    { hidx_noop_handler, noop_handler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDLONG, 0 }
+    { hidx_expect_dec_handler, expect_dec_handler, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_MEDLONG, 0 },
+    { hidx_expect_set_handler, expect_set_handler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 0 }
   };
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testimm", &argc, &argv, 0));
@@ -290,13 +301,22 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-void passive(void) {
-  uint64_t interval_ns = 1000 * param_Z;
+void sleepy_barrier(uint64_t interval_ns) {
   gex_Event_t bar = gex_Coll_BarrierNB(myteam,0);
   do {
     gasnett_nsleep(interval_ns);
     gasnet_AMPoll();
   } while (gex_Event_Test(bar) != GASNET_OK);
+}
+
+void passive(void) {
+  uint64_t interval_ns = 1000 * param_Z;
+  sleepy_barrier(interval_ns); // start barrier (passive)
+  do {
+    gasnett_nsleep(interval_ns);
+    gasnet_AMPoll();
+  } while (gasnett_atomic_read(&expect, 0)); // await AM arrivals
+  sleepy_barrier(interval_ns); // end barrier (passive)
 }
 
 #define ACTIVE(OPERATION, SYNC) do {                    \
@@ -338,11 +358,26 @@ void passive(void) {
   gex_NBI_Wait(SYNC,0);                                 \
 } while (0)
 
-void init_remain(void) {
+void init_remain(int isAMtest) {
   for (gex_Rank_t r = 1; r < numrank; ++r) remain[r] = param_N;
   if (nbrhdinfo) { // Optionally exclude PSHM-peers by zeroing their remain[]
     for (gex_Rank_t i = 0; i < nbrhdsize; ++i) remain[nbrhdinfo[i].gex_jobrank] = 0;
   }
+  if (isAMtest) {
+    gasnett_atomic_set(&expect, 0, 0);
+    for (gex_Rank_t r = 1; r < numrank; ++r) {
+      if (remain[r]) { // tell each passive rank what to expect
+        gasnett_atomic_val_t val = (gasnett_atomic_val_t)remain[r];
+        assert((long)val == remain[r]);
+        gasnett_atomic_increment(&expect, 0);
+        gex_AM_RequestMedium0(myteam, r, hidx_expect_set_handler, &val, sizeof(val), GEX_EVENT_NOW, 0);
+      }
+    }
+    do { // await acknowledgment
+      gasnet_AMPoll();
+    } while (gasnett_atomic_read(&expect, 0));
+  }
+  gex_Event_Wait(gex_Coll_BarrierNB(myteam,0)); // start barrier (active)
 }
 
 void report(const char *name, gex_Flags_t imm_flag, double elapsed, double *prev) {
@@ -362,9 +397,9 @@ void doMed(gex_Flags_t imm_flag) {
   if (myrank) {
     passive();
   } else {
-    init_remain();
+    init_remain(1);
     gasnett_tick_t start_ticks = gasnett_ticks_now();
-    ACTIVE( gex_AM_RequestMedium0(myteam, r, hidx_noop_handler, local_addr, param_SZ,
+    ACTIVE( gex_AM_RequestMedium0(myteam, r, hidx_expect_dec_handler, local_addr, param_SZ,
                                   GEX_EVENT_GROUP, imm_flag),
             GEX_EC_AM );
     gasnett_tick_t end_ticks = gasnett_ticks_now();
@@ -373,7 +408,7 @@ void doMed(gex_Flags_t imm_flag) {
     static double prev;
     report("MEDIUM:", imm_flag, elapsed, &prev);
 
-    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0)); // end barrier (active)
   }
 }
 
@@ -381,9 +416,9 @@ void doLong(gex_Flags_t imm_flag) {
   if (myrank) {
     passive();
   } else {
-    init_remain();
+    init_remain(1);
     gasnett_tick_t start_ticks = gasnett_ticks_now();
-    ACTIVE( gex_AM_RequestLong0(myteam, r, hidx_noop_handler, local_addr, param_SZ,
+    ACTIVE( gex_AM_RequestLong0(myteam, r, hidx_expect_dec_handler, local_addr, param_SZ,
                                 TEST_SEG(r), GEX_EVENT_GROUP, imm_flag),
             GEX_EC_AM );
     gasnett_tick_t end_ticks = gasnett_ticks_now();
@@ -392,7 +427,7 @@ void doLong(gex_Flags_t imm_flag) {
     static double prev;
     report("LONG:", imm_flag, elapsed, &prev);
 
-    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0)); // end barrier (active)
   }
 }
 
@@ -400,7 +435,7 @@ void doPut(gex_Flags_t imm_flag) {
   if (myrank) {
     passive();
   } else {
-    init_remain();
+    init_remain(0);
     gasnett_tick_t start_ticks = gasnett_ticks_now();
     ACTIVE( gex_RMA_PutNBI(myteam, r, TEST_SEG(r), local_addr, param_SZ,
                            GEX_EVENT_DEFER, imm_flag),
@@ -411,7 +446,7 @@ void doPut(gex_Flags_t imm_flag) {
     static double prev;
     report("PUT:", imm_flag, elapsed, &prev);
 
-    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0)); // end barrier (active)
   }
 }
 
@@ -419,7 +454,7 @@ void doGet(gex_Flags_t imm_flag) {
   if (myrank) {
     passive();
   } else {
-    init_remain();
+    init_remain(0);
     gasnett_tick_t start_ticks = gasnett_ticks_now();
     ACTIVE( gex_RMA_GetNBI(myteam, local_addr, r, TEST_SEG(r), param_SZ, imm_flag),
             GEX_EC_GET );
@@ -429,6 +464,6 @@ void doGet(gex_Flags_t imm_flag) {
     static double prev;
     report("GET:", imm_flag, elapsed, &prev);
 
-    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0)); // end barrier (active)
   }
 }
