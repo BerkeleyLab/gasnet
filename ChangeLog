@@ -34,6 +34,9 @@ GASNet-EX ChangeLog
     topology-aware assignment of HCAs to processes on a multi-rail system.
     See the description of the `GASNET_IBV_PORTS_*` family of environment
     variables in the conduit `README` for more details.
+  - Support for `GEX_FLAG_IMMEDIATE` with AM injection (both FPAM and NPAM) has
+    been improved to detect full send queues and completion queues, conditions
+    which previously could have resulted in stalls rather than immediate return.
   - NEW: Support for network offload of atomic operations.  See the
     ibv-conduit README for more information, such as supported op/type pairs.
 
