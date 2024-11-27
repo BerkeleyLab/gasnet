@@ -383,8 +383,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     warning is issued if more HCAs are detected than supported by
     '--with-ibv-max-hcas=N' (where N defaults to 2 when configured using
     `--enable-ibv-multirail`, and 1 otherwise).
-    Values of 2 or higher are reserved to request printing additional
-    details in future releases.
+    Values of 2 or higher request printing additional information.
     This setting defaults to 1.
 
   + GASNET_IBV_LIST_PORTS
