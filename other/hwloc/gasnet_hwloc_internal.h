@@ -58,4 +58,55 @@ enum {
   GASNETI_HWLOC_DISTANCES_NORMALIZE = (1 <<  0),
 };
 
+// Selects as many as 'max_results' devices for the conduit to use, with
+// load-balance over processes on the same host.
+//
+// This function takes two arrays ("use" and "names") of length "count".
+// The "names" array is an input, containing strings which can be O/S device
+// names known to hwloc, or PCI addresses of the form xxxx:yy:zz.t or yy:zz.t.
+//
+// On success (positive return value) the elements of `use[]` are set as follows
+// to indicate if the caller should use the device indicated by the
+// corresponding element in `names[]`:
+//   + negative if hwloc could not locate the device.
+//   + positive if the device was selected for use.
+//   + zero if the corresponding device was located, but was not selected.
+//
+// The `max_results` argument indicates the number of devices which the caller
+// desires to use.  This is an upper bound on the number of positive values in
+// `use[]`.
+// NOTE: ** The current implementation only supports `max_results==1` **
+//
+// The `verbose` argument is a boolean to enable console messages with info
+// on the auto device selection, eg as determined by the caller from the value
+// of `GASNET_IBV_PORTS_VERBOSE` or equivalent for other conduits.
+//
+// The `barrierfn` is a (non-NULL) pointer to a function to perform a
+// global bootstrap barrier.
+// The `hostbcastfn` is a (non-NULL) pointer to a function to perform a
+// host-scoped bootstrap broadcast.
+//
+// Returns a negative value if hwloc is not available, is too old (API 2.0+ is
+// required), has not been properly initialized, or any other condition which
+// would prevent determining the topological distance of valid names[] elements.
+// In such cases, the content of use[] will be undefined.
+// On success, returns the number of non-zeros in use[].  This will never
+// exceed MIN('max_results, 'count'), and may be less if some of the `names[]`
+// could not be identified by hwloc.
+// Together these mean that (retval > 0) is sufficient to determine that there
+// is at least one positive value in use[].
+//
+// TBD: may want the "auto*" string from GASNET_*_TYPE as an argument, under the
+// assumption it will be used to control behavior(s) of this function.
+// Alternatively, the conduit might do all the work parsing the optional part.
+// In which case, a `flags` argument might be needed to request behaviors.
+extern int gasneti_hwloc_auto_select(
+                int max_results,
+                int count,
+                int *use,            // OUT
+                const char **names,  // IN
+                int verbose,
+                gasneti_bootstrapBarrierfn_t barrierfn,
+                gasneti_bootstrapBroadcastfn_t hostbcastfn);
+
 #endif // _GASNET_HWLOC_INTERNAL_H
