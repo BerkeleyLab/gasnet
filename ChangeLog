@@ -29,6 +29,12 @@ GASNet-EX ChangeLog
     scripts `cross-configure-cray-xc-slurm` and `cross-configure-cray-xc-alps`,
     which enable ofi-conduit with libfabric's "gni" provider.
 
+* InfiniBand Verbs (details in ibv-conduit README)
+  - Setting `GASNET_IBV_PORTS_TYPE=auto` can now be used to automate
+    topology-aware assignment of HCAs to processes on a multi-rail system.
+    See the description of the `GASNET_IBV_PORTS_*` family of environment
+    variables in the conduit `README` for more details.
+
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Reduced on-the-wire overheads of Active Messages
   - Improved AM Medium bandwidth (bug 4165)
