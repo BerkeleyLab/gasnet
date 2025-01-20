@@ -3908,6 +3908,13 @@ if test "$enabled_ibv" = yes; then
 
     # Collect IB-specifc configure options
 
+    GASNET_IF_DISABLED([ibv-atomics],
+      [Disable atomics offload support in ibv-conduit (enabled by default in FAST segment mode)],
+      [:],
+      [if test "$segconfig" = fast; then
+         AC_DEFINE(GASNETC_IBV_ATOMICS_CONFIGURE)
+       fi])
+
     GASNET_IF_ENABLED_WITH_AUTO(ibv-rcv-thread, [See ibv-conduit/README (enabled by default if pthreads available)], 
       [enabled_ibv_rcv_thread=yes
        if test "$have_pthread" = no; then

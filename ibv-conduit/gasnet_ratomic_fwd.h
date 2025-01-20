@@ -17,11 +17,16 @@
 // changes indicated by comments starting with (###).
 
 // Build IBV remote atomics by default if remote segment is statically pinned
+// unless disabled at configure time.
 #if defined(GASNETC_BUILD_IBVRATOMIC)
+  // Normalize any forced value
   #if !GASNETC_BUILD_IBVRATOMIC
     #undef GASNETC_BUILD_IBVRATOMIC
+  #else
+    #undef GASNETC_BUILD_IBVRATOMIC
+    #define GASNETC_BUILD_IBVRATOMIC 1
   #endif
-#elif defined(GASNET_SEGMENT_FAST)
+#elif GASNET_SEGMENT_FAST && GASNETC_IBV_ATOMICS_CONFIGURE
   #define GASNETC_BUILD_IBVRATOMIC 1
 #endif
 
