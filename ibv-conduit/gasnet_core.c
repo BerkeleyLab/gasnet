@@ -2574,6 +2574,14 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* determine Max{Local,GLobal}SegmentSize */
   gasneti_segmentInit(mmap_limit, &gasneti_bootstrapExchange_am, flags);
 
+#if GASNETC_BUILD_IBVRATOMIC
+  // Setup for offloaded remote atomics (needs auxseg)
+  i = gasnetc_ratomic_init(gasnetc_ep0);
+  if (i != GASNET_OK) {
+    return i;
+  }
+#endif
+
   gasnetc_exit_init();
 
   #if 0

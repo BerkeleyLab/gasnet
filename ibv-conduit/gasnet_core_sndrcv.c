@@ -926,6 +926,24 @@ void gasnetc_dump_cqs(struct ibv_wc *comp, gasnetc_hca_t *hca, const int is_snd)
   gex_HSL_Unlock(&lock);
 }
 
+#if GASNETC_BUILD_IBVRATOMIC
+  #if GASNETI_HAVE_CC_BUILTIN_BSWAP32
+    #define GASNETC_BSWAP32(x) __builtin_bswap32(x)
+  #else
+    #define GASNETC_BSWAP32(x) \
+      ((((x) & 0x000000ff) << 24) | \
+       (((x) & 0x0000ff00) <<  8) | \
+       (((x) & 0x00ff0000) >>  8) | \
+       (((x) & 0xff000000) >> 24))
+  #endif
+  #if GASNETI_HAVE_CC_BUILTIN_BSWAP64
+    #define GASNETC_BSWAP64(x) __builtin_bswap64(x)
+  #else
+    #define GASNETC_BSWAP64(x) GASNETI_MAKEWORD(GASNETC_BSWAP32(GASNETI_LOWORD(x)), \
+                                                GASNETC_BSWAP32(GASNETI_HIWORD(x)))
+  #endif
+#endif
+
 GASNETI_INLINE(gasnetc_snd_reap_one)
 void gasnetc_snd_reap_one(struct ibv_wc *comp_p, gasnetc_hca_t *hca GASNETC_COLLECT_FARGS) {
 #if !GASNETC_SND_REAP_COLLECT
@@ -1014,7 +1032,7 @@ void gasnetc_snd_reap_one(struct ibv_wc *comp_p, gasnetc_hca_t *hca GASNETC_COLL
         break;
 
       #if GASNETC_BUILD_IBVRATOMIC
-      case GASNETC_OP_ATOMIC_BOUNCE: // Fetching atomic, result in bounce buffer
+      case GASNETC_OP_ATOMIC_BOUNCE: { // Fetching atomic, result in bounce buffer
         // NOTE: Strictly speaking, "*(uint64_t *)sreq->amo_result = ..." below
         // runs afoul of aliasing rules in the C spec when the actual result
         // type is "double".  However, the presence of compiler fences in REL
@@ -1025,17 +1043,15 @@ void gasnetc_snd_reap_one(struct ibv_wc *comp_p, gasnetc_hca_t *hca GASNETC_COLL
         gasneti_assert_int(hca->hca_index ,==, 0);
         gasneti_assert(sreq->amo_bbuf);
         gasneti_assert(sreq->amo_result);
-#if 1 // WIP - not all HCAs generate big-endian result for FADD and FCAS
-        *(uint64_t *)sreq->amo_result = be64toh(*(volatile uint64_t*)sreq->amo_bbuf);
-#else
-        *(uint64_t *)sreq->amo_result = *(volatile uint64_t*)sreq->amo_bbuf;
-#endif
+        uint64_t result = *(volatile uint64_t*)sreq->amo_bbuf;
+        *(uint64_t *)sreq->amo_result = hca->amo_bswap ? GASNETC_BSWAP64(result) : result;
         if (sreq->comp.cb != NULL) {
           sreq->comp.cb(sreq->comp.data);
         }
         // TODO: do we want/need GASNETC_COLLECT_RATOMICBUF() ?
         gasnetc_lifo_push(&gasnetc_ratomicbuf_freelist, sreq->amo_bbuf);
         break;
+      }
       #endif
 
       #if GASNETC_HAVE_FENCED_PUTS

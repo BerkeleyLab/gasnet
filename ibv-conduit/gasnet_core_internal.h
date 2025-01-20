@@ -557,6 +557,9 @@ typedef struct {
   int			qps; /* qps per peer */
   int			max_qps; /* maximum total over all peers */
   int			num_qps; /* current total over all peers */
+#if GASNETC_BUILD_IBVRATOMIC
+  int                   amo_bswap;  // AMO result byteorder differs from host's
+#endif
 
   void			*rbufs;
   gasnetc_lifo_head_t	rbuf_freelist;
@@ -1077,6 +1080,11 @@ extern gex_Rank_t gasnetc_msgsource(gex_Token_t token);
 extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, enum ibv_access_flags acl, gasnetc_memreg_t *reg);
 extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg);
 #define gasnetc_unmap(reg)	gasnetc_munmap((void *)((reg)->addr), (reg)->len)
+
+// Routines in gasnet_ratomic.c
+#if GASNETC_BUILD_IBVRATOMIC
+extern int gasnetc_ratomic_init(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
+#endif
 
 /* Bootstrap support */
 extern gasneti_spawnerfn_t const *gasneti_spawner;

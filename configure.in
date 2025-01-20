@@ -2450,6 +2450,22 @@ GASNET_POPVAR(CPPFLAGS)
 
 ## Misc. builtins (e.g. for bit manipulation)
 
+GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$TOP_SRCDIR/other")
+
+  GASNET_TRY_CACHE_LINK(for __builtin_bswap32, cc_has_builtin_bswap32,
+    [ #include "portable_inttypes.h"
+      uint32_t x;],
+    [__builtin_bswap32(x);],
+    AC_DEFINE(GASNETI_HAVE_CC_BUILTIN_BSWAP32))
+
+  GASNET_TRY_CACHE_LINK(for __builtin_bswap64, cc_has_builtin_bswap64,
+    [ #include "portable_inttypes.h"
+      uint64_t x;],
+    [__builtin_bswap64(x);],
+    AC_DEFINE(GASNETI_HAVE_CC_BUILTIN_BSWAP64))
+
+GASNET_POPVAR(CFLAGS)
+
 GASNET_TRY_CACHE_LINK(for __builtin_clz, cc_has_builtin_clz,
   [unsigned int x;], [__builtin_clz(x);],
   AC_DEFINE(GASNETI_HAVE_CC_BUILTIN_CLZ))

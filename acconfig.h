@@ -369,6 +369,10 @@
 /* gcc support for "U" and "h" register classes on SPARC32 */
 #undef GASNETI_HAVE_SPARC32_64BIT_ASM
 
+/* has _builtin_bswap{32,64} */
+#undef GASNETI_HAVE_CC_BUILTIN_BSWAP32
+#undef GASNETI_HAVE_CC_BUILTIN_BSWAP64
+
 /* has _builtin_c[lt]z */
 #undef GASNETI_HAVE_CC_BUILTIN_CLZ
 #undef GASNETI_HAVE_CC_BUILTIN_CLZL

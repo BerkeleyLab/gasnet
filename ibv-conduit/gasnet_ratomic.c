@@ -551,4 +551,44 @@ use_am:
     return;
 }
 
+// Subsystem initialization
+// Currently just checks byteorder
+int gasnetc_ratomic_init(gasnetc_EP_t ep0) {
+  GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
+
+  gasneti_TM_t i_tm = ep0->_client->_tm0;
+
+  // A location in aux segment we can use as needed
+  uint64_t *tmp = (uint64_t *)GASNETC_RATOMIC_SINK(cep);
+
+  // Two back-to-back loop-back FADD(1) operations:
+  uint64_t result[2];
+  for (int i = 0; i < 2; ++i) {
+    gex_Event_Wait(
+      gasnete_ratomic_nb(i_tm, 1, &result[i], gasneti_mynode, tmp,
+                         0, IBV_WR_ATOMIC_FETCH_AND_ADD,
+                         1, 0 GASNETI_THREAD_PASS));
+  }
+
+  // Check the two results to determine byteorder
+  // TODO: would an AMO ever use an HCA other than 0?
+  gasnetc_hca_t *hca = &gasnetc_hca[0];
+  hca->amo_bswap = (result[1] - result[0]) != 1;
+  GASNETI_TRACE_PRINTF(I,("gex_AD: amo results are %sin host byteorder",
+                          hca->amo_bswap ? "not " : ""));
+
+#if GASNET_DEBUG
+  // Try again to be sure
+  for (int i = 0; i < 2; ++i) {
+    gex_Event_Wait(
+      gasnete_ratomic_nb(i_tm, 1, &result[i], gasneti_mynode, tmp,
+                         0, IBV_WR_ATOMIC_FETCH_AND_ADD,
+                         1, 0 GASNETI_THREAD_PASS));
+  }
+  gasneti_assert_uint(result[1] - result[0] ,==, 1);
+#endif
+
+  return GASNET_OK;
+}
+
 #endif // GASNETC_BUILD_IBVRATOMIC
