@@ -95,6 +95,8 @@ command.  For instance
       Set environment variable OMPI_MCA_btl=tcp,self.
     - MPICH or MPICH2
       These normally default to TCP/IP, so no special action is required.
+    - MPICH3 or MPICH4
+      Set environment variable MPIR_CVAR_NEMESIS_NETMOD=tcp
     - MVAPICH family
       These most often support only InfiniBand and therefore are not
       recommended for use as a launcher for GASNet applications if one
