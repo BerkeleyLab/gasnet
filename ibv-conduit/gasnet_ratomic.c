@@ -5,6 +5,7 @@
  */
 
 #define GASNETI_NEED_GASNET_RATOMIC_H 1
+#define GASNETI_NEED_GASNET_COLL_H 1
 #include <gasnet_internal.h>
 
 #if GASNETC_BUILD_IBVRATOMIC // Else entire file is empty
@@ -470,9 +471,9 @@ GASNETE_IBVRATOMIC_TBL(_gex_dt_DBL)
 // HCA's hca_cap.atomic_cap
 enum {
     atomic_cap_uninitialized,
+    atomic_cap_none, // Use AMs
     atomic_cap_hca,
-    atomic_cap_glob,
-    atomic_cap_none  // Use AMs
+    atomic_cap_glob
 };
 static int gasnetc_atomic_cap = atomic_cap_uninitialized;
 
@@ -573,6 +574,9 @@ use_am:
 int gasnetc_ratomic_init(gasnetc_EP_t ep0) {
   GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
 
+  gasneti_TM_t i_tm = ep0->_client->_tm0;
+  gex_TM_t e_tm = gasneti_export_tm(i_tm);
+
   //
   // 1) check and log just the first HCA's reported atomics capability
   //
@@ -605,10 +609,40 @@ int gasnetc_ratomic_init(gasnetc_EP_t ep0) {
                                 (int)gasnetc_hca[0].hca_cap.atomic_cap));
   }
 
+  // Reduction to find global min
+  if (gasneti_nodes > 1) {
+    int32_t global_cap;
+    int32_t local_cap = (int32_t) gasnetc_atomic_cap;
+    gex_Event_Wait(
+      gex_Coll_ReduceToAllNB(e_tm, &global_cap, &local_cap,
+                             GEX_DT_I32, sizeof(int32_t), 1,
+                             GEX_OP_MIN, NULL, NULL, 0));
+    if (global_cap != local_cap) {
+      gasnetc_atomic_cap = global_cap;
+      switch (gasnetc_atomic_cap) {
+        case atomic_cap_none:
+          GASNETI_TRACE_PRINTF(I,("gex_AD: at least one process lacks atomics support"));
+          break;
+
+        case atomic_cap_hca:
+          GASNETI_TRACE_PRINTF(I,("gex_AD: at least one process supports only HCA-scope atomicity"));
+          break;
+
+        default:
+          gasneti_unreachable_error(("gex_AD: impossible atomic cap reduction output"));
+      }
+    }
+  }
+
+  // Stop here if no support
+  if (gasnetc_atomic_cap == atomic_cap_none) {
+    GASNETI_TRACE_PRINTF(I,("gex_AD: disabled due to lack of HCA support"));
+    return GASNET_OK;
+  }
+
   //
   // 2) Check byteorder of FADD and FCAS results
   //
-  gasneti_TM_t i_tm = ep0->_client->_tm0;
 
   // A location in aux segment we can use as needed
   uint64_t *tmp = (uint64_t *)GASNETC_RATOMIC_SINK(cep);
