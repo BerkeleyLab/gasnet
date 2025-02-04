@@ -457,6 +457,15 @@ GASNETE_IBVRATOMIC_TBL(_gex_dt_DBL)
                                       GEX_OP_INC | GEX_OP_FINC | GEX_OP_DEC | GEX_OP_FDEC )
 #define GASNETE_IBVRATOMIC_TYPES ( GEX_DT_I64 | GEX_DT_U64 | GEX_DT_DBL )
 
+// HCA's hca_cap.atomic_cap
+enum {
+    atomic_cap_uninitialized,
+    atomic_cap_hca,
+    atomic_cap_glob,
+    atomic_cap_none  // Use AMs
+};
+static int gasnetc_atomic_cap = atomic_cap_uninitialized;
+
 //
 // Init-hook to install the dispatch tables (aka algorithm selection)
 //
@@ -477,11 +486,14 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
     if (real_tm->_size == 1) goto use_am;
 
     // Check for supported cases that should favor AM over NIC
-    if (! (flags & GEX_FLAG_AD_FAVOR_REMOTE)) {
-        if (flags & (GEX_FLAG_AD_FAVOR_MY_RANK | GEX_FLAG_AD_FAVOR_MY_NBRHD)) {
-            // Client's flags favor AM-based atomics
-            goto use_am;
-        }
+    if (flags & GEX_FLAG_AD_FAVOR_REMOTE) {
+        // Client's flags want offload
+    } else if (gasnetc_atomic_cap == atomic_cap_glob) {
+        // HCA can interoperate with tools-based atomics w/i RANK and NBRHD
+    } else if (flags & (GEX_FLAG_AD_FAVOR_MY_RANK | GEX_FLAG_AD_FAVOR_MY_NBRHD)) {
+        // Client's flags favor AM-based atomics
+        goto use_am;
+    }
     #if GASNET_PSHM
         // TODO-EX: this closed form does not generalize for multi-EP nor TM_Split
         else if (gasneti_mysupernode.node_count == gasneti_nodes) {
@@ -504,29 +516,23 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
             }
         }
     #endif
-    }
 
-    // Checks for HCA atomics support
-    #define LOG_ONCE(msg) \
-      { static int once = 0; \
-        if (!once) { once = 1; GASNETI_TRACE_PRINTF(C,("gex_AD_Create: " msg)); } \
-      }
-    gasnetc_hca_t *hca;
-    GASNETC_FOR_ALL_HCA(hca) {
-      switch (hca->hca_cap.atomic_cap)
-      {
-        case IBV_ATOMIC_GLOB:
-          // TODO: GLOB is CPU-coherent
-          //   Can set _tools_safe and enable AM-based for rest of OPs
-        case IBV_ATOMIC_HCA:
-          break;
+    switch (gasnetc_atomic_cap) {
+        case atomic_cap_none:
+            goto use_am;
 
-        default:
-          LOG_ONCE("HCA atomics support absent or unknown type");
-          goto use_am;
-      }
+        case atomic_cap_hca:
+            // HCA-initiated atomics may use separate PCI read and write transactions, and
+            // thus are not guaranteed to preserve atomic coherence wrt CPU AMO instructions
+            real_ad->_tools_safe = 0;
+            break;
+
+        case atomic_cap_glob:
+            real_ad->_tools_safe = 1;
+            break;
+
+        default: gasneti_unreachable_error(("invalid atomic_cap"));
     }
-    #undef LOG_ONCE
 
     switch (dt) {
         case GEX_DT_U64:
@@ -543,7 +549,6 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
     }
 
     GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x) -> IBV", (int)dt, (unsigned int)ops));
-    real_ad->_tools_safe = 0;
     return;
 
 use_am:
@@ -552,10 +557,46 @@ use_am:
 }
 
 // Subsystem initialization
-// Currently just checks byteorder
+//  1) query/log HCA atomic capabilty
+//  2) detect byteorder of FADD and FCAS results
 int gasnetc_ratomic_init(gasnetc_EP_t ep0) {
   GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
 
+  //
+  // 1) check and log just the first HCA's reported atomics capability
+  //
+
+  gasneti_assert_int(gasnetc_atomic_cap ,==, atomic_cap_uninitialized);
+
+  // quoted enum descriptions are from https://www.rdmamojo.com/2012/07/13/ibv_query_device/
+  switch (gasnetc_hca[0].hca_cap.atomic_cap) {
+    case IBV_ATOMIC_NONE:
+      // "Atomic operations aren't supported at all"
+      GASNETI_TRACE_PRINTF(I,("gex_AD: HCA does not support atomics"));
+      gasnetc_atomic_cap = atomic_cap_none;
+      break;
+
+    case IBV_ATOMIC_HCA:
+      // "Atomicity is guaranteed between QPs on this device only"
+      GASNETI_TRACE_PRINTF(I,("gex_AD: HCA supports device-scope atomicity"));
+      gasnetc_atomic_cap = atomic_cap_hca;
+      break;
+
+    case IBV_ATOMIC_GLOB:
+      // "Atomicity is guaranteed between this device and any other component,
+      // such as CPUs, IO devices and other RDMA devices"
+      GASNETI_TRACE_PRINTF(I,("gex_AD: HCA supports global-scope atomicity"));
+      gasnetc_atomic_cap = atomic_cap_glob;
+      break;
+
+    default:
+      gasneti_unreachable_error(("gex_AD: unknown hca_cap.atomic_cap value %i",
+                                (int)gasnetc_hca[0].hca_cap.atomic_cap));
+  }
+
+  //
+  // 2) Check byteorder of FADD and FCAS results
+  //
   gasneti_TM_t i_tm = ep0->_client->_tm0;
 
   // A location in aux segment we can use as needed
