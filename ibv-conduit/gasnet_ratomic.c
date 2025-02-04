@@ -67,6 +67,16 @@ extern void gasnetc_cb_iop_rmw(gasnetc_atomic_val_t *p) {
   GASNETE_IOP_CNT_FINISH(iop, rmw, 1, GASNETI_ATOMIC_REL);
 }
 
+enum {
+  use_any_qp = -1, // gasnetc_bind_cep() can use any QP
+  use_one_qp = 0,  // gasnetc_bind_cep() can use only qpi=0
+};
+#if (GASNETC_IB_MAX_HCAS == 1)
+  #define gasnetc_ratomic_qpi use_any_qp
+#else
+  static int gasnetc_ratomic_qpi = use_one_qp;
+#endif
+
 //
 // Misc. helpers
 //
@@ -102,7 +112,7 @@ int gasnete_ratomic_inner(
 
   gasnetc_EP_t ep = (gasnetc_EP_t) i_tm->_ep;
   gex_Rank_t jobrank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
-  gasnetc_epid_t epid = gasnetc_epid(jobrank,0); // Always using only first CEP per jobrank
+  gasnetc_epid_t epid = gasnetc_epid(jobrank, gasnetc_ratomic_qpi);
   const int rem_auxseg = gasneti_in_auxsegment(jobrank, tgt_addr, sizeof(uint64_t));
 
   gasnetc_sreq_t *sreq = gasnetc_get_sreq(GASNETC_OP_INVALID GASNETI_THREAD_PASS);
@@ -559,6 +569,7 @@ use_am:
 // Subsystem initialization
 //  1) query/log HCA atomic capabilty
 //  2) detect byteorder of FADD and FCAS results
+//  3) set gasnetc_ratomic_qpi
 int gasnetc_ratomic_init(gasnetc_EP_t ep0) {
   GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
 
@@ -612,7 +623,6 @@ int gasnetc_ratomic_init(gasnetc_EP_t ep0) {
   }
 
   // Check the two results to determine byteorder
-  // TODO: would an AMO ever use an HCA other than 0?
   gasnetc_hca_t *hca = &gasnetc_hca[0];
   hca->amo_bswap = (result[1] - result[0]) != 1;
   GASNETI_TRACE_PRINTF(I,("gex_AD: amo results are %sin host byteorder",
@@ -628,6 +638,49 @@ int gasnetc_ratomic_init(gasnetc_EP_t ep0) {
   }
   gasneti_assert_uint(result[1] - result[0] ,==, 1);
 #endif
+
+  //
+  // 3) set gasnetc_ratomic_qpi
+  // Controls whether AD Ops will be issued on a single QP or striped over all of them.
+  //
+
+#if (GASNETC_IB_MAX_HCAS > 1)
+  switch (gasnetc_atomic_cap) {
+    case atomic_cap_glob:
+    #if 0 // TODO: enable if/when a (multi-rail + IBV_ATOMIC_GLOB) platform can be tested
+    {
+      // It is safe to use all QPs if and only if all HCAs report IBV_ATOMIC_GLOB
+      gasnetc_ratomic_qpi = use_any_qp;
+      gasnetc_hca_t *hca;
+      GASNETC_FOR_ALL_HCA(hca) {
+        if (hca->hca_cap.atomic_cap != IBV_ATOMIC_GLOB) {
+          gasnetc_ratomic_qpi = use_one_qp;
+          break;
+        } else {
+          // TODO: replace this untested homogeneity assumption with a real probe
+          hca->amo_bswap = gasnetc_hca[0]->amo_bswap;
+        }
+      }
+      break;
+    }
+    #else
+      // fall-though
+    #endif
+
+    case atomic_cap_hca:
+      // It is safe to use all QPs if and only if using a single HCA
+      gasnetc_ratomic_qpi = (gasnetc_num_hcas == 1) ? use_any_qp : use_one_qp;
+      break;
+
+    default:
+      gasneti_unreachable_error(("gex_AD: impossible atomic cap value"));
+  }
+#else
+  gasneti_static_assert(gasnetc_ratomic_qpi == use_any_qp);
+#endif
+
+  GASNETI_TRACE_PRINTF(I,("gex_AD: using %s",
+                          (gasnetc_ratomic_qpi == use_any_qp)?"all QPs":"one QP"));
 
   return GASNET_OK;
 }
