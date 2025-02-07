@@ -1551,7 +1551,12 @@ static void gasnetc_probe_ports(int max_ports) {
         } else {
           this_port->rd_atom = MIN(hca_cap.max_qp_init_rd_atom, hca_cap.max_qp_rd_atom);
         }
-        GASNETI_TRACE_PRINTF(C,("Probe found HCA '%s', port %d", hca_name, curr_port));
+        if (gasneti_spawn_verbose) {
+          gasneti_console_message("INFO", "Using HCA:port '%s:%d' on hostname '%s'",
+                                  hca_name, curr_port, gasneti_gethostname());
+        } else {
+          GASNETI_TRACE_PRINTF(C,("Probe found HCA '%s', port %d", hca_name, curr_port));
+        }
         (void)gasnetc_match_port(hca_name, curr_port, 1);
 	if (gasnetc_port_list == NULL) {
 	  /* By default one at most 1 port per HCA */

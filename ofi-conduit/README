@@ -1,6 +1,6 @@
 GASNet ofi-conduit documentation
 Copyright 2015-2017, Intel Corporation
-Portions copyright 2018-2024, The Regents of the University of California.
+Portions copyright 2018-2025, The Regents of the University of California.
 
 User Information:
 ----------------
@@ -472,10 +472,10 @@ Recognized environment variables:
   may be constrained by such factors as the configured provider or use of
   environment variables which constrain provider enumeration.
   If libhwloc 2.0 or higher was detected at configure time, then this output
-  includes a distance ranking for each HCA port for which the information can
-  be found.  A ranking of "1" denotes the topologically nearest HCAs (i.e.
-  "first place").  If present, "2" will denote any HCA(s) less near than the
-  "1" HCA(s) but nearer than any "3"s, etc.  Note that ties are possible.
+  includes a distance ranking for each device for which the information can
+  be found.  A ranking of "1" denotes the topologically nearest devices (i.e.
+  "first place").  If present, "2" will denote any device(s) less near than the
+  "1" device(s) but nearer than any "3"s, etc.  Note that ties are possible.
   This ranking of distance depends on libfabric's ability to provide device
   names (or PCI addresses) which hwloc can recognize, and thus may vary
   depending on the versions of hwloc and libfabric and on the provider in use.

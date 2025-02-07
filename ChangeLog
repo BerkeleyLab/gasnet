@@ -20,6 +20,9 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* Memory Kinds (support for non-host memory)
+  - Fixed support for device memory allocated via cuMemMap (bug 4767)
+
 * Cray XC uGNI (aries-conduit)
   - This conduit, deprecated since 2023.9.0, has been removed.
   - Users of Cray XC systems are advised to use the renamed cross-configure
@@ -73,7 +76,11 @@ GASNet-EX ChangeLog
   - bug4751 - incorrect segment limit computation on ILP32
   - bug4752 - Incomplete work-around for bug 4376 (FI_EAGAIN when reposting multi-recv buffer)
   - bug4753 - ofi: race condition in multi-receive message accounting
+  - bug4754 - intermittent testratomic validation failures on Apple M1 h/w
   - bug4757 - Undefined behavior in ibv-conduit legacy initialization
+  - bug4760 - ibv: assertion failure with single-process and GASNET_NUM_QPS>1
+  - bug4766 - Executing a NULL pointer via gasnete_barrier_pf
+  - bug4767 - CUDA framebuffer memory allocated by cuMemMap failed when registering with GASNet-EX
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0

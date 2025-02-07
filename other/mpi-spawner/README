@@ -95,12 +95,18 @@ command.  For instance
       Set environment variable OMPI_MCA_btl=tcp,self.
     - MPICH or MPICH2
       These normally default to TCP/IP, so no special action is required.
+    - MPICH3 or MPICH4
+      Set environment variable MPIR_CVAR_NEMESIS_NETMOD=tcp
     - MVAPICH family
       These most often support only InfiniBand and therefore are not
       recommended for use as a launcher for GASNet applications if one
       is concerned with reducing resource usage.
-    - Intel MPI
+    - Intel MPI, prior to the 2019.x series
       Set environment variable I_MPI_DEVICE=sock.
+    - Intel MPI, since 2019.x
+      Set environment variable I_MPI_OFI_PROVIDER=tcp
+      NOT SUPPORTED for ofi-conduit, because of defects in the MPI and/or
+      libfabric library.  A bug report has been submitted.
     - HP-MPI
       Set environment variable MPI_IC_ORDER=tcp.
     - LAM/MPI
