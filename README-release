@@ -319,6 +319,83 @@ GASNet Release Procedure
 
 * Revise this document with any additions, corrections or changes
 
+Snapshot Releases
+=================
+
+* Goals of a snapshot include
+  + provide stable, versioned code to one or more stakeholders
+  + ensure the version is tagged in git for reproducibility
+  + avoid listing the version number in ChangeLog of the main branches, or as the name of a branch
+  + provide unambiguous, monotonic versioning:
+    - package, gex spec, tools spec, AMX libs, gasnet_portable_platform.h
+* A snapshot differs from a normal release as follows:
+  + We do not generate a tarball to post on any of our public download sites
+    - Upload to `unlisted` area on mantis to be decided on a case-by-case basis
+      (e.g. collaborator's CI needs a Bootstrapped tarball)
+  + We do not generate any advertising, publicity or public-facing documentation (such as updates to gasnet.lbl.gov)
+  + We do not add a version to Bugzilla
+    - Existing "other snapshot (specify)" already serves this purpose
+  + We do not attempt manual testing on platforms not covered by automation
+    - Unless such a platform is a motivator for the snapshot
+  + Less effort might be spent on updates to documentation.  Examples:
+    - Might omit careful examination of `git` history looking for missing `ChangeLog` items
+    - Might omit reordering or "wordsmithing" in ChangeLog
+    - No review of `[PROPOSED]`, '[EXPERIMENTAL]', or similar tags in `GASNet-EX.txt`
+    - Skip the spell checker
+* A snapshot shares the following characteristics with a normal "full" release
+  + We must review a full week of automated testing and at least document "NEW" failures
+    not attributed to external causes (SYSERR, "pilot error", bug in test or client, etc.)
+  + `{GASNETT,GEX}_SPEC_VERSION_*` will have "closed" values, meaning
+    no `// work-in-progress, not "closed"` comments or `GASNet-EX.txt` and `README-tools`
+  + We advance (if appropriate) conduit, ammpi and amudp versions
+  + We advance version in `other/gasnet_portable_platform.h`
+* Snapshots should be named `gex-YYYY.MM.0-snapshot`
+  + Will reflect the date of the snapshot release
+    (as opposed to a patch relative to any full release or earlier snapshot)
+  + In the event `YYYY.MM` would collide with a planned release, "decrement" the month
+    - Example: the 2023.2.0 snapshot took place in March, but we used `2` for `MM`
+      because a full 2023.3.0 release was forthcoming
+* Step 1. Prior to advancing `stable` the following should be done on `develop` to ensure that there
+  will be no version ambiguity between the snapshot content and subsequent work on `develop`
+  + If there have been any GEX or Tools spec changes, "close" `GEX_SPEC_VERSION_*` and/or
+    `GASNETT_SPEC_VERSION_*` as for a normal release.
+    - The "no changes" case is handled below, in Step 3.
+  + Advance the version in `other/gasnet_portable_platform.h`
+  + If appropriate, advance conduit and amx versions as for a normal release
+  + Update the package version to `YYYY.MM.0` in `configure.in`
+  + Note that the "PENDING" line remains in `ChangeLog`
+  + Note lack of any `-snapshot` in these steps
+  + This work should be subject to PR which is fast-forward merged, just as when preparing for a normal release
+* Step 2. advance `stable` in the normal manner
+  + The "normal manner" includes an annotated `gex-stable-YYYY_MM_DD` tag
+  + If applicable, new spec and amx version tags should be applied to `stable`:
+    - `gex-spec-*`, `gasnet-tools-spec-*`, `AMMPI_*`, `AMUDP_*`
+  + Note lack of any tag for `gex-YYYY.MM.0`
+* Step 3. Create the snapshot, as a single "orphan" commit
+  + Parent of the snapshot is the commit created in Step 2.
+  + Replace PENDING heading with date and package version in ChangeLog
+  + If nothing has changed to warrant an advance of `{GASNETT,GEX}_SPEC_VERSION_*` in Step 1,
+    then roll-back the "in progress" version bump(s) which were preserved on `develop`
+    - However, if there were textual changes which did not change the API, then we should
+      roll-back the number but append a short comment mentioning the difference(s).
+  + Comment: "Version markings for YYYY.MM.0-snapshot"
+  + Commit gets an annotated tag
+    - Tag: `gex-YYYY.MM.0-snapshot`
+    - Annotation message: "GASNet-EX YYYY.MM.0 snapshot"
+  + The annotated tag is "publication" of the snapshot release (pushes the commit too)
+* Step 4. When sure no additional changes are desired on `develop` (sending us back to Step. 1)
+  + Follow normal post-release steps on `develop`, including advancing the package version to
+    `gex-YYYY.MM.1` and opening new "work-in-progress" GEX and Tools spec versions if they were
+     closed in Step 1.
+  + Most (only?) significant differences from a normal release are that the "PENDING" line will
+    already/still be present in `ChangeLog` and in some case the GEX and Tools spec numbers might
+    already/still be marked work-in-progress.
+* Optional
+  + Best practice is to stage `develop`, `stable` and the single orphan commit in a team
+    member's fork of the main repo, where we can review all the commit and tags.
+  + In that case, all the work constructed in steps 1 to 4 boils down to pushing two
+    branches and three or more tags.
+
 --------------------------------------------------------------------------
   The canonical version of this document is located here:
     https://bitbucket.org/berkeleylab/gasnet/src/develop/README-release
