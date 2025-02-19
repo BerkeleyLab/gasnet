@@ -79,6 +79,7 @@ GASNet-EX ChangeLog
   - bug4754 - intermittent testratomic validation failures on Apple M1 h/w
   - bug4757 - Undefined behavior in ibv-conduit legacy initialization
   - bug4760 - ibv: assertion failure with single-process and GASNET_NUM_QPS>1
+  - bug4764 - ibv: progress functions may send AMs in an NPAM prepare/commit interval
   - bug4766 - Executing a NULL pointer via gasnete_barrier_pf
   - bug4767 - CUDA framebuffer memory allocated by cuMemMap failed when registering with GASNet-EX
 
