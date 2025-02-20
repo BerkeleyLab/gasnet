@@ -312,7 +312,7 @@ static unsigned long long       maybe_multi_recv = FI_MULTI_RECV;
 
 static int using_psm_provider = 0;
 
-static char *gasnetc_ofi_device = NULL;
+static const char *gasnetc_ofi_device = NULL;
 static const char *supported_providers = GASNETC_OFI_PROVIDER_LIST;
 
 static int gasnetc_high_perf_prov = 0;
@@ -1016,7 +1016,7 @@ int gasnetc_ofi_init(void)
     gasneti_fatalerror("No support for GASNET_OFI_DEVICE_TYPE=auto");
   }
   if (!strlen(gasnetc_ofi_device)) gasnetc_ofi_device = NULL;
-  hints->domain_attr->name = gasnetc_ofi_device;
+  hints->domain_attr->name = (/*no const*/ char *)gasnetc_ofi_device;
 
   /* caps: fabric interface capabilities */
   hints->caps           = FI_RMA | FI_MSG | FI_MULTI_RECV;

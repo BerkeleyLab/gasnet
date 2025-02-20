@@ -17,7 +17,7 @@ extern int gasneti_hwloc_fini(void);
 // 1. Look for a hwloc object type in env var "[kename]_TYPE", or dflt_type if none.
 // 2. Find the current procs binding(s) for the given type
 // 3. Return the value of env var "[keyname]_[binding]", or of "[keyname]" if none
-extern char *gasneti_getenv_hwloc_withdefault(
+extern const char *gasneti_getenv_hwloc_withdefault(
                 const char *keyname,
                 const char *dflt_val,
                 const char *dflt_type);

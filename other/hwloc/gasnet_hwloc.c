@@ -426,15 +426,15 @@ int gasneti_hwloc_fini(void) {
 //
 // Detected hwloc errors result in a warning (at most once per "step")
 // and use of the unsuffixed variable.
-char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val, const char *dflt_type)
+const char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val, const char *dflt_type)
 {
 #if USE_HWLOC_LIB || USE_HWLOC_UTILS
   // Define these early to avoid harmlss goto-bypasses-initialization warnings
   gasneti_hwloc_obj_type_t type = (gasneti_hwloc_obj_type_t)0;
 #endif
 
-  char *suffix = NULL;
-  char *result = NULL;
+  const char *suffix = NULL;
+  const char *result = NULL;
 
   // Step 1 - check env var "[keyname]_TYPE" for special cases:
   // + "None" (which disables all additional intelligence)
@@ -450,7 +450,7 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
     }
     if (! gasneti_strncasecmp("auto", typestring, 4)) {
       // inform caller that an "auto" mode has been requested
-      return (char *)typestring;
+      return typestring;
     }
   }
 
@@ -618,7 +618,7 @@ try_suffix:
     }
     gasneti_free(fullkey);
   }
-  gasneti_free(suffix);
+  gasneti_free((void *) suffix); // discarding const qualifier to avoid warning
 
 out:
   if (typestring != orig_typestring) gasneti_free((void*)typestring);

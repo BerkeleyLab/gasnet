@@ -217,7 +217,7 @@ typedef struct gasnetc_pin_info_t_ {
 } gasnetc_pin_info_t;
 static gasnetc_pin_info_t gasnetc_pin_info;
 
-static char *gasnetc_ibv_ports;
+static const char *gasnetc_ibv_ports;
 static int gasnetc_ibv_ports_verbose;
 
 #if GASNET_TRACE
