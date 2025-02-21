@@ -409,7 +409,9 @@ int gasneti_hwloc_fini(void) {
 //
 // 1. Check for env var "[keyname]_TYPE" equal to "None" or prefixed with "Auto" (case insensitive).
 //    If "None", return the value of keyname from the environment.
-//    If starts with "Auto", return the entire value to caller.
+//    If starts with "Auto" then
+//      if "enable_auto" is non-zero, return the entire value to caller
+//      else continue and the "dflt_type" will be used instead (with a warning)
 // 2. Check for suffixed env vars.
 //    If none, return the value of keyname from the environment.
 // 3. Strip any '/' or '%' suffixes to be applied in later steps
@@ -426,7 +428,7 @@ int gasneti_hwloc_fini(void) {
 //
 // Detected hwloc errors result in a warning (at most once per "step")
 // and use of the unsuffixed variable.
-const char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val, const char *dflt_type)
+const char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val, const char *dflt_type, int enable_auto)
 {
 #if USE_HWLOC_LIB || USE_HWLOC_UTILS
   // Define these early to avoid harmlss goto-bypasses-initialization warnings
@@ -448,7 +450,7 @@ const char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *df
       // short-cut w/o using hwloc if TYPE is "none"
       goto out_return_unsuffixed;
     }
-    if (! gasneti_strncasecmp("auto", typestring, 4)) {
+    if (! gasneti_strncasecmp("auto", typestring, 4) && enable_auto) {
       // inform caller that an "auto" mode has been requested
       return typestring;
     }

@@ -880,7 +880,7 @@ static int gasnetc_load_settings(void) {
   gasnetc_ibv_ports_verbose = gasneti_getenv_int_withdefault("GASNET_IBV_PORTS_VERBOSE",1,0);
 
   (void) gasneti_hwloc_init(); // TODO: messages on error?
-  gasnetc_ibv_ports = gasneti_getenv_hwloc_withdefault("GASNET_IBV_PORTS", GASNETC_DEFAULT_IBV_PORTS, "Socket");
+  gasnetc_ibv_ports = gasneti_getenv_hwloc_withdefault("GASNET_IBV_PORTS", GASNETC_DEFAULT_IBV_PORTS, "Socket", 1);
   if (! gasneti_strncasecmp("auto",gasnetc_ibv_ports,4)) {
     gasnetc_ibv_ports = gasnetc_auto_ports(gasnetc_ibv_ports);
   }

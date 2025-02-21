@@ -20,7 +20,8 @@ extern int gasneti_hwloc_fini(void);
 extern const char *gasneti_getenv_hwloc_withdefault(
                 const char *keyname,
                 const char *dflt_val,
-                const char *dflt_type);
+                const char *dflt_type,
+                int enable_auto);
 
 // Score devices by distance from the calling processes.
 //
