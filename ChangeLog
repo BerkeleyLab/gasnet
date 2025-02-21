@@ -88,6 +88,7 @@ GASNet-EX ChangeLog
   - bug4764 - ibv: progress functions may send AMs in an NPAM prepare/commit interval
   - bug4766 - Executing a NULL pointer via gasnete_barrier_pf
   - bug4767 - CUDA framebuffer memory allocated by cuMemMap failed when registering with GASNet-EX
+  - bug4768 - memcpy with NULL destination in collectives
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0
