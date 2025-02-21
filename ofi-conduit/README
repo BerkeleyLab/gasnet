@@ -465,6 +465,7 @@ Recognized environment variables:
   Of course, even on the same system, your mileage may vary.
   By default 'GASNET_OFI_DEVICE_TYPE' is "Socket" and all other variables in
   this family are unset.
+  There is currently no support for GASNET_OFI_DEVICE_TYPE == "Auto".
 
 * GASNET_OFI_LIST_DEVICES
   The value is a boolean: "0" to disable or "1" to enable the reporting of

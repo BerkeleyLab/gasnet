@@ -12,6 +12,8 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #if GASNETI_HAVE_HWLOC_LIB
   #include "hwloc.h"
@@ -405,10 +407,13 @@ int gasneti_hwloc_fini(void) {
 //    In either case the value is traced as if obtained by the latter.
 //    This gives precedence to the local environment (see bug 4303).
 //
-// 1. Check for suffixed env vars.
+// 1. Check for env var "[keyname]_TYPE" equal to "None" or prefixed with "Auto" (case insensitive).
+//    If "None", return the value of keyname from the environment.
+//    If starts with "Auto" then
+//      if "enable_auto" is non-zero, return the entire value to caller
+//      else continue and the "dflt_type" will be used instead (with a warning)
+// 2. Check for suffixed env vars.
 //    If none, return the value of keyname from the environment.
-// 2. Check for env var "[keyname]_TYPE" equal to "None" (case insensitive).
-//    If YES, return the value of keyname from the environment.
 // 3. Strip any '/' or '%' suffixes to be applied in later steps
 // 4. Check for env var "[keyname]_TYPE" equal to "{J,H,N}Rank" (case insensitive).
 //    If YES, return the associated suffixed env var (if any) or the value of keyname from the environment.
@@ -423,24 +428,19 @@ int gasneti_hwloc_fini(void) {
 //
 // Detected hwloc errors result in a warning (at most once per "step")
 // and use of the unsuffixed variable.
-char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val, const char *dflt_type)
+const char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val, const char *dflt_type, int enable_auto)
 {
 #if USE_HWLOC_LIB || USE_HWLOC_UTILS
   // Define these early to avoid harmlss goto-bypasses-initialization warnings
   gasneti_hwloc_obj_type_t type = (gasneti_hwloc_obj_type_t)0;
 #endif
 
-  char *suffix = NULL;
-  char *result = NULL;
+  const char *suffix = NULL;
+  const char *result = NULL;
 
-  // Step 1 - check for suffixed vars
-  char *firstkey = check_suffixed(keyname);
-  if (! firstkey) {
-    // short-cut w/o using hwloc if there are no suffixed variables
-    goto out_return_unsuffixed;
-  }
-
-  // Step 2 - check env var "[keyname]_TYPE" for "None" (which disables all additional intelligence)
+  // Step 1 - check env var "[keyname]_TYPE" for special cases:
+  // + "None" (which disables all additional intelligence)
+  // + "Auto" prefix (which will return the typestring to the caller)
   char *typekey = gasneti_sappendf(NULL, "%s_TYPE", keyname);
   const char *typestring = gasneti_getenv_withdefault(typekey, dflt_type);
   const char *orig_typestring = typestring;
@@ -448,9 +448,19 @@ char *gasneti_getenv_hwloc_withdefault(const char *keyname, const char *dflt_val
   if (typestring) {
     if (! gasneti_strcasecmp("none", typestring)) {
       // short-cut w/o using hwloc if TYPE is "none"
-      gasneti_free(firstkey);
       goto out_return_unsuffixed;
     }
+    if (! gasneti_strncasecmp("auto", typestring, 4) && enable_auto) {
+      // inform caller that an "auto" mode has been requested
+      return typestring;
+    }
+  }
+
+  // Step 2 - check for suffixed vars
+  char *firstkey = check_suffixed(keyname);
+  if (! firstkey) {
+    // short-cut w/o using hwloc if there are no suffixed variables
+    goto out_return_unsuffixed;
   }
 
   // Step 3 - strip off any "%" or "/" expressions
@@ -610,7 +620,7 @@ try_suffix:
     }
     gasneti_free(fullkey);
   }
-  gasneti_free(suffix);
+  gasneti_free((void *) suffix); // discarding const qualifier to avoid warning
 
 out:
   if (typestring != orig_typestring) gasneti_free((void*)typestring);
@@ -865,4 +875,359 @@ int gasneti_hwloc_distances(int count, uint32_t *distances, const char **names, 
   GASNETI_TRACE_PRINTF(I,("gasneti_hwloc_distances(0x%x) failure: libhwloc 2.0+ required", flags));
   return -1;
 #endif
+}
+
+// ------------------------------------------------------------------------------------
+//
+// Automatic device selection
+//
+
+// Array of unique device names, where indices are used in place of names
+// to identify devices.
+// NOTE: anticipated number of devices per host isn't large enough to warrant
+// use of a more-complex data structure.
+static const char **dev_names = NULL;
+static int dev_name_count = 0;
+
+// Adds a name to the array if not already present.
+// Returns the array index for the name, regardless of whether new or not.
+static int dev_name_to_idx(const char *name) {
+  int i;
+  for (i = 0; i < dev_name_count; ++i) {
+    if (! strcmp(name, dev_names[i])) return i;
+  }
+  gasneti_assert(i == dev_name_count);
+  dev_names = gasneti_realloc(dev_names, ++dev_name_count * sizeof(const char *));
+  dev_names[i] = gasneti_strdup(name);
+  return i;
+}
+
+struct dev_table_row {
+  int row_len;
+  int assigned;
+  struct dev_table_tuple {
+    int dev_idx;
+    int use;
+  } *tuples;
+};
+
+// Write out file w/ this proc's list on "nearest" of devices.
+// File format is a series of newline-terminated lines:
+// + First line is device count as base-10 integer (as "%d")
+// + Remainder are device (string) as "%s"
+//   This allows device names to contain anything but \0 and \n.
+static void auto_dev_write_inputs(FILE *fp, int count, const char **names, uint32_t *distances)
+{
+  int row_len = 0;
+  for (int i = 0; i < count; ++i) {
+    if (! distances[i]) ++row_len;
+  }
+  if (fprintf(fp, "%d\n", row_len) < 0) goto error;
+  for (int i = 0; i < count; ++i) {
+    if (distances[i]) continue; // skip - not near
+    if (fprintf(fp, "%s\n", names[i]) < 0) goto error;
+  }
+  fflush(fp);
+  return;
+
+error:
+  gasneti_fatalerror("bad file write in automatic device selection");
+}
+
+// Read file generated by auto_dev_write_inputs()
+static void auto_dev_read_inputs(FILE *fp, struct dev_table_row *row)
+{
+  int row_len;
+  if (fscanf(fp, " %d ", &row_len) < 0) goto error;
+  row->row_len = row_len;
+  row->tuples = gasneti_calloc(row_len, sizeof(struct dev_table_tuple));
+  struct dev_table_tuple *p = &row->tuples[0];
+  size_t buflen = 0;
+  char *buf = NULL;
+  for (int i = 0; i < row_len; ++i, ++p) {
+    size_t line_len = gasneti_getline(&buf, &buflen, fp);
+    if (line_len < 1) goto error;
+    // replace \n with \0
+    gasneti_assert(buf[line_len - 1] == '\n');
+    buf[line_len-1] = 0;
+    // convert to index of name in table of unique names
+    p->dev_idx = dev_name_to_idx(buf);
+  }
+  gasneti_free(buf);
+  return;
+
+error:
+  gasneti_fatalerror("bad file read in automatic device selection");
+}
+
+// lead process writes one row of the solution
+static void auto_dev_write_ouput(FILE *fp, struct dev_table_row *row)
+{
+  const int row_len = row->row_len;
+  struct dev_table_tuple *p = &row->tuples[0];
+  char *soln_string = gasneti_malloc((row_len + 1) * sizeof(char));
+  for (int i = 0; i < row_len; ++i, ++p) {
+    soln_string[i] = p->use ? '1' : '0';
+  }
+  soln_string[row_len] = '\0';
+  if (fprintf(fp, "%s", soln_string) < 0) goto error;
+  // NOTE: skip fflush(fp) since caller will fclose(fp)
+  gasneti_free(soln_string);
+  return;
+
+error:
+  gasneti_fatalerror("bad file write in automatic device selection");
+}
+
+// A "set-contains" operation (helper for auto_dev_best_row)
+//
+// Return 1 if the given dev_idx appears in the passed row
+static int auto_dev_in_row(const struct dev_table_row *row, int dev_idx) {
+  for (int i = 0; i < row->row_len; ++i) {
+    if (row->tuples[i].dev_idx == dev_idx) return 1;
+  }
+  return 0;
+}
+
+// Compute one element of the solution (helper for auto_dev_solve)
+//
+// Returns the host-local rank (row index) of the "best" row for the given
+// device index.  Here, "best" is defined as the row with the lowest `row_idx`
+// among those which include `dev_idx` among their `tuples[].dev_idx`, but
+// excluding those which are already marked as `assigned`.
+// Will return impossible `nproc` if no rows satisfy the constraints above.
+static int auto_dev_best_row(int nprocs, const struct dev_table_row *dev_table, int dev_idx) {
+  int best_len = dev_name_count + 1; // impossibly large row_len
+  int best_row = nprocs;             // impossibly large host-local rank (row index)
+  for (int i = 0; i < nprocs; ++i) {
+    const struct dev_table_row *row = &dev_table[i];
+    if (row->assigned) continue;   // this proc has already been assigned s device
+    if (! auto_dev_in_row(row, dev_idx)) continue; // device is not near this proc
+    if (row->row_len < best_len) { // MIN(row_len) == most constrained proc
+      best_len = row->row_len;
+      best_row = i;
+    }
+  }
+  return best_row;
+}
+
+// compute the solution for automatic device selection
+// For every row in dev_table, sets `use` in up to  `max_result` tuples.
+// TODO: support max_results != 1
+static void auto_dev_solve(int max_results, gex_Rank_t nprocs, struct dev_table_row *dev_table)
+{
+  gasneti_assert_int(max_results ,==, 1);
+
+  // This algorithm is device-centric.
+  // The devices take turns, round-robin, picking one process which will use
+  // that device (if any remain).  Each pick is a process which has identified
+  // the corresponding device as near, but does not yet have an assigned device.
+  // Among such processes, each pick will select one with the fewest devices
+  // identified as near.
+
+  const int num_devs = dev_name_count;
+  int remain = nprocs; // number of unassigned procs
+  for (int curr_dev = 0; remain; curr_dev = ((curr_dev + 1) % num_devs)) {
+    int pick = auto_dev_best_row(nprocs, dev_table, curr_dev);
+    if (pick == nprocs) continue; // no unassigned procs near this device
+    struct dev_table_row *row = &dev_table[pick];
+    row->assigned = 1;
+    for (int i = 0; i < dev_table[pick].row_len; ++i) {
+      if (row->tuples[i].dev_idx == curr_dev) {
+        row->tuples[i].use = 1;
+        break;
+      }
+    }
+    remain -= 1;
+  }
+}
+
+// TODO: error returns in place of some fatal errors?
+// TODO: mode that favors use of all NICs even if one or more is not
+// "nearest" to any process?
+int gasneti_hwloc_auto_select(
+                int max_results,
+                int count,
+                int *use,              // OUT
+                const char **devices,  // IN
+                int verbose,
+                gasneti_bootstrapBarrierfn_t barrierfn,
+                gasneti_bootstrapBroadcastfn_t hostbcastfn)
+{
+  uint32_t *distances = gasneti_malloc(count * sizeof(uint32_t));
+  if (count == 1) {
+    // Don't even need to initialize hwloc when there is exactly one dev locally.
+    distances[0] = 0;
+  } else {
+    int rc = gasneti_hwloc_distances(count, distances, devices, GASNETI_HWLOC_DISTANCES_NORMALIZE);
+    if (rc <= 0) {
+      gasneti_free(distances);
+      return rc;
+    }
+  }
+
+  // TODO: when gasneti_myhost.node_count == 1, could skip the mkstemp() and
+  // corresponding unlink() and possibly more.  However, every process must
+  // still enter each of the bootstrap collectives.
+
+  gex_Rank_t leader = gasneti_myhost.nodes[0];
+  gex_Rank_t nprocs = gasneti_myhost.node_count;
+  gex_Rank_t myproc = gasneti_myhost.node_rank;
+  int i_am_lead = !myproc;
+  FILE **files = NULL; // non-NULL only for lead process
+  FILE *my_file;
+
+  // Lead process generates a unique temporary file and one for each non-zero
+  // host-local-rank.  Host-scoped broadcast of the unique portion of the first
+  // file is sufficient to name all of the others.
+  // Post-bcast fopen() calls validate the assumption of a single-valued tmpdir.
+  const char *tmpdir = gasneti_tmpdir();
+  if (!tmpdir && !tmpdir[0]) {
+    gasneti_fatalerror("automatic device selection requires valid $GASNET_TMPDIR, $TMPDIR or /tmp");
+  }
+  char *prefix = gasneti_sappendf(NULL, "%s/GEXtmpXXXXXX", tmpdir);
+  if (i_am_lead) {
+    int fd = mkstemp(prefix);
+    if (fd < 0) {
+      gasneti_fatalerror("mkstemp() failed in automatic device selection");
+    }
+    close(fd);
+    files = gasneti_malloc(nprocs * sizeof(FILE *));
+    const int flags = O_RDWR | O_CREAT | O_EXCL;
+    const int mode = 0600;
+    for (gex_Rank_t r = 1; r < nprocs; ++r) {
+      const char *filename = gasneti_dynsprintf("%s%d", prefix, r);
+      int tmp = open(filename, flags, mode);
+      if (tmp < 0) {
+        gasneti_fatalerror("open(O_CREAT) failed in automatic device selection");
+      }
+      FILE *file = fdopen(tmp, "r+");
+      if (!file) {
+        gasneti_fatalerror("fdopen() failed in automatic device selection");
+      }
+      files[r] = file;
+    }
+  }
+  {
+    char *unique = prefix + strlen(prefix) - 6;
+    hostbcastfn(unique, 6, unique, leader);
+  }
+
+  // Non-lead procs open and unlink their respective temporary files, where this
+  // order ensures that the only possible file leaks are of *empty* files.
+  // Next, the (device,distance) pairs are written to the temporary files.
+  // A barrier after the writes lets the lead know when it can read the files.
+  // This is effectively the first half of a host-scoped GatherV.
+  if (! i_am_lead) {
+    const char *filename = gasneti_dynsprintf("%s%d", prefix, myproc);
+    my_file = fopen(filename, "r+");
+    if (!my_file) {
+        gasneti_fatalerror("open() failed in automatic device selection");
+    }
+    (void)unlink(filename);
+    auto_dev_write_inputs(my_file, count, devices, distances);
+  }
+  barrierfn();
+
+  // Lead process now:
+  // + Unlinks the original file (from mkstemp()), since there is no further
+  //   need for uniqueness (with all other files written and unlinked).
+  // + Reads the per-proc temporary files to builds a table of all
+  //   (device,distance) tuples the temporary files.  As part of this step, each
+  //   device name is converted to a zero-based integer index into a table of
+  //   all of the device names (effectively the second half of a host-scoped
+  //   GatherV)
+  // + Some "magic happens" to perform device assignment
+  // + Writes assignments for non-leads are to their respective temp files
+  //   (effectively a host-scoped Scatter)
+  struct dev_table_row *dev_table = NULL; // used only in leads
+  if (i_am_lead) {
+    (void)unlink(prefix); // no longer needed to ensure uniqueness
+    dev_table = gasneti_calloc(nprocs, sizeof(struct dev_table_row));
+    // Fill own row from local variables, skipping devices "UNKNOWN" to hwloc
+    int row_len = 0;
+    for (int i = 0; i < count; ++i) {
+      if (! distances[i]) ++row_len;
+    }
+    dev_table[0].row_len = row_len;
+    dev_table[0].tuples = gasneti_calloc(row_len, sizeof(struct dev_table_tuple));
+    for (int i = 0; i < row_len; ++i) {
+      if (distances[i]) continue; // skip - not near
+      dev_table[0].tuples[i].dev_idx = dev_name_to_idx(devices[i]);
+    }
+    // Read other rows from the temporary files
+    for (gex_Rank_t rank = 1; rank < nprocs; ++rank) {
+      auto_dev_read_inputs(files[rank], &dev_table[rank]);
+    }
+
+    // perform device assignment
+    auto_dev_solve(max_results, nprocs, dev_table);
+
+    // Write assignments for non-leads are to their respective temp files
+    for (gex_Rank_t rank = 1; rank < nprocs; ++rank) {
+      auto_dev_write_ouput(files[rank], &dev_table[rank]);
+      fclose(files[rank]); // is also a fflush()
+    }
+  }
+  barrierfn();
+
+  // Leads construct their solution from dev_table
+  // Non-leads read their solution from temp files
+  for (int i = 0, j = 0; i < count; ++i) {
+    if (! distances[i]) { // nearest
+      if (i_am_lead) {
+        use[i] = dev_table[0].tuples[j++].use;
+      } else {
+        // TODO: auto_dev_read_ouput() abstraction?
+        int c = fgetc(my_file);
+        if_pf (c == EOF) {
+          gasneti_fatalerror("bad file read in automatic device selection");
+        }
+        use[i] = (c == '1') ? 1 : 0;
+      }
+    } else if (distances[i] == GASNETI_HWLOC_DISTANCE_UNKNOWN) {
+      use[i] = -1; // hwloc did not locate
+    } else if (distances[i]) {
+      use[i] = 0; // not nearest
+    }
+  }
+
+  // cleanups:
+  gasneti_free(prefix);
+  if (i_am_lead) {
+    gasneti_free(files);
+    for (gex_Rank_t rank = 0; rank < nprocs; ++rank) {
+      gasneti_free(dev_table[rank].tuples);
+    }
+    gasneti_free(dev_table);
+    for (int i = 0; i < dev_name_count; ++i) {
+      gasneti_free((void*)dev_names[i]);
+    }
+    gasneti_free(dev_names);
+  } else {
+    fclose(my_file);
+  }
+
+  if (verbose) {
+    // TODO: a "display name" argument would give the conduit control over the
+    // output, which may be important for ofi-conduit where devices[] is
+    // expected to contain PCI bus addresses.
+    gasneti_console_message("INFO", "Automatic device selection summary (%d devices):", count);
+    for (int i = 0; i < count; ++i) {
+      const char *status;
+      if (use[i] < 0) {
+        status = "not found";
+      } else if (use[i] > 0) {
+        gasneti_assert_uint(distances[i] ,==, 0);
+        status = "distance=0 [selected]";
+      } else {
+        status = gasneti_dynsprintf("distance=%u", (unsigned int)distances[i]);
+      }
+      gasneti_console_message("INFO", "    device '%s' %s", devices[i], status);
+    }
+  }
+
+  gasneti_free(distances);
+
+  return 1;
 }
