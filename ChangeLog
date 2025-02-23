@@ -86,6 +86,7 @@ GASNet-EX ChangeLog
   - bug4757 - Undefined behavior in ibv-conduit legacy initialization
   - bug4760 - ibv: assertion failure with single-process and GASNET_NUM_QPS>1
   - bug4764 - ibv: progress functions may send AMs in an NPAM prepare/commit interval
+  - bug4765 - ucx-conduit flaw in gex_AD_OpNBI for GEX_OP_SET and _GET
   - bug4766 - Executing a NULL pointer via gasnete_barrier_pf
   - bug4767 - CUDA framebuffer memory allocated by cuMemMap failed when registering with GASNet-EX
   - bug4768 - memcpy with NULL destination in collectives
