@@ -18,7 +18,7 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX-YY-ZZ: PENDING
+2025-02-26: GASNet-EX 2025.2.0-snapshot
 
 * Memory Kinds (support for non-host memory)
   - Fixed support for device memory allocated via cuMemMap (bug 4767)
