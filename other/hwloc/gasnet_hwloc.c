@@ -1075,7 +1075,7 @@ int gasneti_hwloc_auto_select(
   gex_Rank_t myproc = gasneti_myhost.node_rank;
   int i_am_lead = !myproc;
   FILE **files = NULL; // non-NULL only for lead process
-  FILE *my_file;
+  FILE *my_file = NULL;
 
   // Lead process generates a unique temporary file and one for each non-zero
   // host-local-rank.  Host-scoped broadcast of the unique portion of the first
