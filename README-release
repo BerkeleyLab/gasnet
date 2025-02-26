@@ -252,7 +252,8 @@ GASNet Release Procedure
   + Update index.html for the new release
     Minimum update is:
     - fresh NEWS item
-    - new versions and MD5s for the tarballs (sizes are automatic)
+    - new versions and MD5s and SHA256 or the tarballs (sizes are automatic)
+       - on the download page and the text files in each tarball directory
     - new spec version number for "GASNet-EX API description"
     One should also check that lists (such as of conduits, platforms and
     compilers) are kept current.
