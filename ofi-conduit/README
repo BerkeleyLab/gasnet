@@ -618,15 +618,19 @@ Known problems:
   Under certain AM traffic patterns, the cxi provider (for the Slingshot-11
   network on some HPE Cray EX systems) has been observed to fail in various
   ways, including crashes and dropped messages.
-  At the time of this writing, the best known work-around is to set
+  At the time of this writing, we recommend updating the Slingshot Host
+  Software to version 2.1.0 or newer.  If that is not possible, an alternative
+  work-around is to set
     GASNET_OFI_RECEIVE_BUFF_SIZE=recv
-  in your environment.  This setting disables use of the "multi-receive"
-  feature of libfabric, and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is
-  adjusted to compensate.
-  Empirical evidence shows this prevents the failures in applications which
-  exhibit them (which is *not* every application).  However, this measurably
-  increases the latency of small AM operations.  So, this should only be used
-  if it is suspected that bug 4461 is impacting your application.
+  in your environment.
+  Empirical evidence shows both alternatives will prevent crashes in
+  applications which exhibit them (which is *not* every application).  However,
+  the possibility of application hangs due to dropped messages remains.
+  Note that the environment setting disables use of the "multi-receive" feature
+  of libfabric, and the default for GASNET_OFI_NUM_RECEIVE_BUFFS is adjusted to
+  compensate.  This measurably increases the latency of small AM operations.
+  So, it should only be used with older Slingshot releases and only if it is
+  suspected that bug 4461 is impacting your application.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4461
 
