@@ -1474,15 +1474,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 
-+ Bug 3997
-  When using ibv-conduit on Linux/AARCH64 (aka ARM64 or ARMv8) systems, it has
-  been observed that some traffic patterns may lead to crashes of the IB HCA
-  or of the compute node.
-  The most up-to-date information on this bug is maintained at:
-    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3997
-  That bug report describes more about the problem, and provides more detail
-  regarding the recommended work-around(s).
-
 + Bugs 4008 and 4009
   On some systems, RMA Puts and AM Longs with source buffers on read-only pages
   (such as those that might be generated for const-qualified static variables)
