@@ -29,6 +29,12 @@ GASNet-EX ChangeLog
     scripts `cross-configure-cray-xc-slurm` and `cross-configure-cray-xc-alps`,
     which enable ofi-conduit with libfabric's "gni" provider.
 
+* InfiniBand Verbs (details in ibv-conduit README)
+  - Setting `GASNET_IBV_PORTS_TYPE=auto` can now be used to automate
+    topology-aware assignment of HCAs to processes on a multi-rail system.
+    See the description of the `GASNET_IBV_PORTS_*` family of environment
+    variables in the conduit `README` for more details.
+
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Reduced on-the-wire overheads of Active Messages
   - Improved AM Medium bandwidth (bug 4165)
@@ -79,8 +85,11 @@ GASNet-EX ChangeLog
   - bug4754 - intermittent testratomic validation failures on Apple M1 h/w
   - bug4757 - Undefined behavior in ibv-conduit legacy initialization
   - bug4760 - ibv: assertion failure with single-process and GASNET_NUM_QPS>1
+  - bug4764 - ibv: progress functions may send AMs in an NPAM prepare/commit interval
+  - bug4765 - ucx-conduit flaw in gex_AD_OpNBI for GEX_OP_SET and _GET
   - bug4766 - Executing a NULL pointer via gasnete_barrier_pf
   - bug4767 - CUDA framebuffer memory allocated by cuMemMap failed when registering with GASNet-EX
+  - bug4768 - memcpy with NULL destination in collectives
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0

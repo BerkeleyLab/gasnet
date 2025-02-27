@@ -386,9 +386,11 @@ static void gasnetc_join_children(void) {
   alarm(0);
 }
 
-/* Broadcast usable prior to bring-up of PSHM
-   This is used for the SNodeBcast fn in gasneti_pshm_init() */
-static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int root)
+// Broadcast usable prior to bring-up of PSHM
+// This is used for the NbrhdBcast fn in gasneti_pshm_init()
+// Also suitable as a HostBcast
+// However, supports only (root == 0)
+static void gasnetc_bootstrapSubsetBroadcast(void *src, size_t len, void *dest, int root)
 {
   ssize_t rc;
   int i;
@@ -436,6 +438,15 @@ static int gasnetc_get_pshm_nodecount(void)
   gasnet_set_waitmode(politedefault ? GASNET_WAIT_BLOCK : GASNET_WAIT_SPIN);
 
   return nodes;
+}
+
+#else   /* PSHM */
+
+static void gasnetc_bootstrapSubsetBroadcast(void *src, size_t len, void *dest, int root)
+{
+  gasneti_assert(gasneti_mynode == 0);
+  gasneti_assert(root == 0);
+  GASNETI_MEMCPY_SAFE_IDENTICAL(dest, src, len);
 }
 
 #endif  /* PSHM */
@@ -502,11 +513,8 @@ static gasneti_spawnerfn_t const fork_spawner = {
   gasnetc_bootstrapBarrier,
   gasnetc_bootstrapExchange,
   gasnetc_bootstrapBroadcast,
-#if GASNET_PSHM
-  gasnetc_bootstrapSNodeBroadcast,
-#else
-  NULL,
-#endif
+  gasnetc_bootstrapSubsetBroadcast, // Nbhrhd
+  gasnetc_bootstrapSubsetBroadcast, // Host
   NULL, // Alltoall (unused)
   NULL, // Abort (unused)
   NULL, // Cleanup (unused)
@@ -614,7 +622,7 @@ static int gasnetc_init(
   {
     struct gasnetc_exit_data *tmp;
 
-    tmp = gasneti_pshm_init(gasnetc_spawner->SNodeBroadcast, GASNETC_EXIT_DATA_SZ);
+    tmp = gasneti_pshm_init(gasnetc_spawner->NbrhdBroadcast, GASNETC_EXIT_DATA_SZ);
     if (gasnetc_spawner != &fork_spawner) {
       // Fill-in the pid table in shared space
       tmp->pid_tbl[gasneti_mynode] = getpid();

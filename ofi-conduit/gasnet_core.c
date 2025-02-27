@@ -135,7 +135,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   gasneti_assert_zeroret(gasnetc_exit_init());
 
   #if GASNET_PSHM
-  gasneti_pshm_init(gasneti_bootstrapSNodeBroadcast, 0);
+  gasneti_pshm_init(gasneti_bootstrapNbrhdBroadcast, 0);
   #endif
 
   //  Create first Client, EP and TM *here*, for use in subsequent bootstrap communication

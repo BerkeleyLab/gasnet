@@ -90,7 +90,7 @@ static int gasnetc_init(
 
   #if GASNET_PSHM
     /* (###) If your conduit will support PSHM, you should initialize it here.
-     * The 1st argument is normally gasneti_spawner->SNodeBroadcast or equivalent
+     * The 1st argument is normally gasneti_spawner->NbrhdBroadcast or equivalent
      * The 2nd argument is the amount of shared memory space needed for any
      * conduit-specific uses.
      * The return value is a pointer to the space requested by the 2nd argument.
@@ -98,7 +98,7 @@ static int gasnetc_init(
      * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
      * or similar memory probes.
      */
-    ### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
+    ### = gasneti_pshm_init(gasneti_spawner->NbrhdBroadcast, ###);
   #endif
 
   //  Create first Client, EP and TM *here*, for use in subsequent bootstrap communication

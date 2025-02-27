@@ -430,6 +430,15 @@ gasneti_EP_t gasneti_i_tm_to_i_ep(gasneti_TM_t i_tm) {
 
 /* ------------------------------------------------------------------------------------ */
 // Internal conduit interface to spawner
+//
+// NOTE: Though NbrhdBroadcast and HostBroadcast have semantics which require only
+// local data movement, implementations are peritted to use global communication
+// (such as via AM{MPI,UDP}_SPMDBroadcast()).  Consequently, calls must be
+// collective across *all* ranks, not just across ranks in the same neighborhood
+// or host.  The `len` argument must be single-valued across every rank in the
+// job.  The `root` arguent need only be single-valued within the {nbrhd, host}
+// scope of the broadcast, but must identify a root process in the caller's
+// {nbrhd, host}.
 
 typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest);
 typedef void (*gasneti_bootstrapBroadcastfn_t)(void *src, size_t len, void *dest, int rootnode);
@@ -439,7 +448,8 @@ typedef struct {
   gasneti_bootstrapBarrierfn_t Barrier;
   gasneti_bootstrapExchangefn_t Exchange;
   gasneti_bootstrapBroadcastfn_t Broadcast;
-  void (*SNodeBroadcast)(void *src, size_t len, void *dest, int rootnode);
+  gasneti_bootstrapBroadcastfn_t NbrhdBroadcast;
+  gasneti_bootstrapBroadcastfn_t HostBroadcast;
   void (*Alltoall)(void *src, size_t len, void *dest);
   void (*Abort)(int exitcode);
   void (*Cleanup)(void);

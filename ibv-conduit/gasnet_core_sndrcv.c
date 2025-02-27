@@ -1150,11 +1150,18 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
   #else
     #define MAYBE_POLL_RCV_PSHM() ((void)0)
   #endif
+  // Note: It is NOT safe to run progress functions for the case of an AM
+  // Request header because the caller holds resources (at least an AM credit
+  // and often a bounce buffer).  That means running _communicating_ progress
+  // functions here could lead to deadlock.  However, Put of a RequestLong
+  // payload can (and so does) safely execute progress functions here.
+  // This code is not reached for AM Reply (subject of "sanity check" above).
+  // TODO: revisit GASNETC_OP_AM if/when we distinguish NON-communicating PFs.
   #define MAYBE_POLL_RCV(_ep, _cep) do { \
       if (should_poll_rcv && !gasnetc_sema_read(GASNETC_CEP_SQ_SEMA(_cep))) {  \
         gasnetc_poll_rcv_all(_ep, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS); \
         MAYBE_POLL_RCV_PSHM();                                                 \
-        GASNETI_PROGRESSFNS_RUN();                                             \
+        if (sreq->opcode != GASNETC_OP_AM) { GASNETI_PROGRESSFNS_RUN(); }      \
       }                                                                        \
     } while (0)
 #else
