@@ -825,7 +825,8 @@ static void gasneti_unlink_segments(void) {
 
 /* Try to unlink everything we can, ignoring errors */
 static void gasneti_cleanup_shm(void) {
-  gasneti_assert(gasneti_use_shared_allocator);
+  if (!gasneti_use_shared_allocator) return; // nothing to cleanup
+
 #ifdef GASNETI_PSHM_SYSV
   /* Unlink the segments and vnet */
   if (gasneti_pshm_sysvkeys) {
