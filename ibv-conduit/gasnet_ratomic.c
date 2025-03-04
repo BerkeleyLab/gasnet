@@ -482,19 +482,29 @@ static int gasnetc_atomic_cap = atomic_cap_uninitialized;
 //
 void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
 {
+    const char *msg = "";
     gex_Flags_t flags = real_ad->_flags;
     gasneti_TM_t real_tm = real_ad->_tm;
     gex_DT_t dt = real_ad->_dt;
     gex_OP_t ops = real_ad->_ops;
 
-    // Check for unsupported ops or dt
+    // Check for unsupported dt or op(s)
+    if (dt  & ~GASNETE_IBVRATOMIC_TYPES) {
+      msg = "unsupported datatype";
+      goto use_am;
+    }
     gex_OP_t avail_ops = GASNETE_IBVRATOMIC_BASE_OPS;
     if (gasneti_dt_int(dt)) avail_ops |= GASNETE_IBVRATOMIC_FADD_OPS;
-    if (ops & ~avail_ops) goto use_am;
-    if (dt  & ~GASNETE_IBVRATOMIC_TYPES) goto use_am;
+    if (ops & ~avail_ops) {
+      msg = "unsupported operation(s) on a supported datatype";
+      goto use_am;
+    }
 
     // Check for singleton, which is a pain to support for no clear benefit
-    if (real_tm->_size == 1) goto use_am;
+    if (real_tm->_size == 1) {
+      msg = "singleton team";
+      goto use_am;
+    }
 
     // Check for supported cases that should favor AM over NIC
     if (flags & GEX_FLAG_AD_FAVOR_REMOTE) {
@@ -503,6 +513,7 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
         // HCA can interoperate with tools-based atomics w/i RANK and NBRHD
     } else if (flags & (GEX_FLAG_AD_FAVOR_MY_RANK | GEX_FLAG_AD_FAVOR_MY_NBRHD)) {
         // Client's flags favor AM-based atomics
+        msg = "GEX_FLAG_AD_FAVOR_* flags(s)";
         goto use_am;
     }
     #if GASNET_PSHM
@@ -512,6 +523,7 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
             // "tools safe" (and thus not actually using AM).  Otherwise, we
             // will assume that the NIC is a better option since it does not
             // rely on target attentiveness.
+            msg = "enabling shared-memory optimization";
             switch (dt) {
                 case GEX_DT_U64:
                     if (GASNETE_RATOMIC_PSHMSAFE_gex_dt_U64) goto use_am;
@@ -530,6 +542,7 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
 
     switch (gasnetc_atomic_cap) {
         case atomic_cap_none:
+            msg = "missing HCA support";
             goto use_am;
 
         case atomic_cap_hca:
@@ -563,6 +576,7 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
     return;
 
 use_am:
+    GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x): %s", (int)dt, (unsigned int)ops, msg));
     gasnete_amratomic_init_hook(real_ad);
     return;
 }
