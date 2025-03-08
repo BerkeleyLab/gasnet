@@ -39,17 +39,19 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
   typedef struct { GASNETI_AD_COMMON } *gasneti_AD_t;
   #if GASNET_DEBUG
     extern gasneti_AD_t gasneti_import_ad(gex_AD_t _ad);
+    extern gasneti_AD_t gasneti_import_ad_valid(gex_AD_t _ad);
     extern gex_AD_t gasneti_export_ad(gasneti_AD_t _real_ad);
   #else
     #define gasneti_import_ad(x) ((gasneti_AD_t)(x))
+    #define gasneti_import_ad_valid gasneti_import_ad
     #define gasneti_export_ad(x) ((gex_AD_t)(x))
   #endif
-  #define gex_AD_SetCData(ad,val)  ((void)(gasneti_import_ad(ad)->_cdata = (val)))
-  #define gex_AD_QueryCData(ad)    ((void*)gasneti_import_ad(ad)->_cdata)
-  #define gex_AD_QueryTM(ad)       gasneti_export_tm(gasneti_import_ad(ad)->_tm)
-  #define gex_AD_QueryOps(ad)      ((gex_OP_t)gasneti_import_ad(ad)->_ops)
-  #define gex_AD_QueryDT(ad)       ((gex_DT_t)gasneti_import_ad(ad)->_dt)
-  #define gex_AD_QueryFlags(ad)    ((gex_Flags_t)gasneti_import_ad(ad)->_flags)
+  #define gex_AD_SetCData(ad,val)  ((void)(gasneti_import_ad_valid(ad)->_cdata = (val)))
+  #define gex_AD_QueryCData(ad)    ((void*)gasneti_import_ad_valid(ad)->_cdata)
+  #define gex_AD_QueryTM(ad)       gasneti_export_tm(gasneti_import_ad_valid(ad)->_tm)
+  #define gex_AD_QueryOps(ad)      ((gex_OP_t)gasneti_import_ad_valid(ad)->_ops)
+  #define gex_AD_QueryDT(ad)       ((gex_DT_t)gasneti_import_ad_valid(ad)->_dt)
+  #define gex_AD_QueryFlags(ad)    ((gex_Flags_t)gasneti_import_ad_valid(ad)->_flags)
 #endif
 
 // Collective creation of an atomic domain - default implementation

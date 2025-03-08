@@ -19,6 +19,10 @@ gasneti_AD_t gasneti_import_ad(gex_AD_t _ad) {
   GASNETI_IMPORT_MAGIC(_real_ad, AD);
   return _real_ad;
 }
+gasneti_AD_t gasneti_import_ad_valid(gex_AD_t ad) {
+  gasneti_assert(ad != GEX_AD_INVALID);
+  return gasneti_import_ad(ad);
+}
 #endif
 
 #ifndef gasneti_export_ad
