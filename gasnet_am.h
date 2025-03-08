@@ -426,11 +426,11 @@ extern int gasneti_amregister_legacy(gasneti_EP_t i_ep,
       }                                                                                                  \
     } while(0)
   #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs,cat) do {            \
-      GASNETI_TRACE_COMMIT_REQUEST##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs); \
+      GASNETI_TRACE_COMMIT_REQUEST##cat(handler,(sd?sd->_addr:NULL),(sd?sd->_size:0),dest_addr,(sd?sd->_nargs:0)); \
       _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,1,cat);                      \
     } while(0)
   #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs,cat) do {            \
-      GASNETI_TRACE_COMMIT_REPLY##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs);   \
+      GASNETI_TRACE_COMMIT_REPLY##cat(handler,(sd?sd->_addr:NULL),(sd?sd->_size:0),dest_addr,(sd?sd->_nargs:0));   \
       _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat);                      \
     } while(0)
 
