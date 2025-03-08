@@ -423,15 +423,17 @@ struct gasneti_endpoint_internal_s;
   typedef struct { GASNETI_CLIENT_COMMON } *gasneti_Client_t;
   #if GASNET_DEBUG
     extern gasneti_Client_t gasneti_import_client(gex_Client_t _client);
+    extern gasneti_Client_t gasneti_import_client_valid(gex_Client_t _client);
     extern gex_Client_t gasneti_export_client(gasneti_Client_t _real_client);
   #else
     #define gasneti_import_client(x) ((gasneti_Client_t)(x))
+    #define gasneti_import_client_valid gasneti_import_client
     #define gasneti_export_client(x) ((gex_Client_t)(x))
   #endif
-  #define gex_Client_SetCData(client,val)      ((void)(gasneti_import_client(client)->_cdata = (val)))
-  #define gex_Client_QueryCData(client)        ((void*)gasneti_import_client(client)->_cdata)
-  #define gex_Client_QueryFlags(client)        ((gex_Flags_t)gasneti_import_client(client)->_flags)
-  #define gex_Client_QueryName(client)         ((const char*)gasneti_import_client(client)->_name)
+  #define gex_Client_SetCData(client,val)      ((void)(gasneti_import_client_valid(client)->_cdata = (val)))
+  #define gex_Client_QueryCData(client)        ((void*)gasneti_import_client_valid(client)->_cdata)
+  #define gex_Client_QueryFlags(client)        ((gex_Flags_t)gasneti_import_client_valid(client)->_flags)
+  #define gex_Client_QueryName(client)         ((const char*)gasneti_import_client_valid(client)->_name)
 #endif
 
 #ifndef _GEX_SEGMENT_T
@@ -448,17 +450,19 @@ struct gasneti_endpoint_internal_s;
   typedef struct { GASNETI_SEGMENT_COMMON } *gasneti_Segment_t;
   #if GASNET_DEBUG
     extern gasneti_Segment_t gasneti_import_segment(gex_Segment_t _segment);
+    extern gasneti_Segment_t gasneti_import_segment_valid(gex_Segment_t _segment);
     extern gex_Segment_t gasneti_export_segment(gasneti_Segment_t _real_segment);
   #else
     #define gasneti_import_segment(x) ((gasneti_Segment_t)(x))
+    #define gasneti_import_segment_valid gasneti_import_segment
     #define gasneti_export_segment(x) ((gex_Segment_t)(x))
   #endif
-  #define gex_Segment_SetCData(seg,val)         ((void)(gasneti_import_segment(seg)->_cdata = (val)))
-  #define gex_Segment_QueryCData(seg)           ((void*)gasneti_import_segment(seg)->_cdata)
-  #define gex_Segment_QueryClient(seg)          gasneti_export_client(gasneti_import_segment(seg)->_client)
-  #define gex_Segment_QueryFlags(seg)           ((gex_Flags_t)gasneti_import_segment(seg)->_flags)
-  #define gex_Segment_QueryAddr(seg)            ((void*)gasneti_import_segment(seg)->_addr)
-  #define gex_Segment_QuerySize(seg)            ((uintptr_t)gasneti_import_segment(seg)->_size)
+  #define gex_Segment_SetCData(seg,val)         ((void)(gasneti_import_segment_valid(seg)->_cdata = (val)))
+  #define gex_Segment_QueryCData(seg)           ((void*)gasneti_import_segment_valid(seg)->_cdata)
+  #define gex_Segment_QueryClient(seg)          gasneti_export_client(gasneti_import_segment_valid(seg)->_client)
+  #define gex_Segment_QueryFlags(seg)           ((gex_Flags_t)gasneti_import_segment_valid(seg)->_flags)
+  #define gex_Segment_QueryAddr(seg)            ((void*)gasneti_import_segment_valid(seg)->_addr)
+  #define gex_Segment_QuerySize(seg)            ((uintptr_t)gasneti_import_segment_valid(seg)->_size)
 #endif
 
 #ifndef _GEX_EP_T
@@ -476,17 +480,19 @@ struct gasneti_endpoint_internal_s;
   typedef struct gasneti_endpoint_internal_s { GASNETI_EP_COMMON } *gasneti_EP_t;
   #if GASNET_DEBUG
     extern gasneti_EP_t gasneti_import_ep(gex_EP_t _ep);
+    extern gasneti_EP_t gasneti_import_ep_valid(gex_EP_t _ep);
     extern gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep);
   #else
     #define gasneti_import_ep(x) ((gasneti_EP_t)(x))
+    #define gasneti_import_ep_valid gasneti_import_ep
     #define gasneti_export_ep(x) ((gex_EP_t)(x))
   #endif
-  #define gex_EP_SetCData(ep,val)              ((void)(gasneti_import_ep(ep)->_cdata = (val)))
-  #define gex_EP_QueryCData(ep)                ((void*)gasneti_import_ep(ep)->_cdata)
-  #define gex_EP_QueryClient(ep)               gasneti_export_client(gasneti_import_ep(ep)->_client)
-  #define gex_EP_QueryFlags(ep)                ((gex_Flags_t)gasneti_import_ep(ep)->_flags)
-  #define gex_EP_QuerySegment(ep)              gasneti_export_segment(gasneti_import_ep(ep)->_segment)
-  #define gex_EP_QueryIndex(ep)                ((gex_EP_Index_t)gasneti_import_ep(ep)->_index)
+  #define gex_EP_SetCData(ep,val)              ((void)(gasneti_import_ep_valid(ep)->_cdata = (val)))
+  #define gex_EP_QueryCData(ep)                ((void*)gasneti_import_ep_valid(ep)->_cdata)
+  #define gex_EP_QueryClient(ep)               gasneti_export_client(gasneti_import_ep_valid(ep)->_client)
+  #define gex_EP_QueryFlags(ep)                ((gex_Flags_t)gasneti_import_ep_valid(ep)->_flags)
+  #define gex_EP_QuerySegment(ep)              gasneti_export_segment(gasneti_import_ep_valid(ep)->_segment)
+  #define gex_EP_QueryIndex(ep)                ((gex_EP_Index_t)gasneti_import_ep_valid(ep)->_index)
 #endif
 
 #ifndef _GEX_TM_T
