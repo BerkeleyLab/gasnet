@@ -868,13 +868,15 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
   } *gasneti_AM_SrcDesc_t;
   #if GASNET_DEBUG
     extern gasneti_AM_SrcDesc_t gasneti_import_srcdesc(gex_AM_SrcDesc_t _srcdesc);
+    extern gasneti_AM_SrcDesc_t gasneti_import_srcdesc_valid(gex_AM_SrcDesc_t _srcdesc);
     extern gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc);
   #else
     #define gasneti_import_srcdesc(x) ((gasneti_AM_SrcDesc_t)(x))
+    #define gasneti_import_srcdesc_valid gasneti_import_srcdesc
     #define gasneti_export_srcdesc(x) ((gex_AM_SrcDesc_t)(x))
   #endif
-  #define gex_AM_SrcDescAddr(sd)               ((void*)gasneti_import_srcdesc(sd)->_addr)
-  #define gex_AM_SrcDescSize(sd)               ((size_t)gasneti_import_srcdesc(sd)->_size)
+  #define gex_AM_SrcDescAddr(sd)               ((void*)gasneti_import_srcdesc_valid(sd)->_addr)
+  #define gex_AM_SrcDescSize(sd)               ((size_t)gasneti_import_srcdesc_valid(sd)->_size)
 #endif
 
 

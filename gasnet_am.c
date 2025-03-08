@@ -531,6 +531,10 @@ gasneti_AM_SrcDesc_t gasneti_import_srcdesc(gex_AM_SrcDesc_t _srcdesc) {
   gasneti_assert(!_real_srcdesc || (_real_srcdesc->_thread == _gasneti_mythread_slow()));
   return _real_srcdesc;
 }
+gasneti_AM_SrcDesc_t gasneti_import_srcdesc_valid(gex_AM_SrcDesc_t srcdesc) {
+  gasneti_assert(srcdesc != GEX_AM_SRCDESC_NO_OP);
+  return gasneti_import_srcdesc(srcdesc);
+}
 #endif
 
 #ifndef gasneti_export_srcdesc
