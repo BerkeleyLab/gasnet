@@ -304,7 +304,7 @@ extern int gex_EP_RegisterHandlers(
 {
   GASNETI_TRACE_PRINTF(O,("gex_EP_RegisterHandlers: ep=%p table=%p numentries=%"PRIuSZ,
                           (void*)ep, (void*)table, numentries));
-  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
+  return gasneti_amregister_client(gasneti_import_ep_valid(ep), table, numentries);
 }
 
 /* ------------------------------------------------------------------------------------ */

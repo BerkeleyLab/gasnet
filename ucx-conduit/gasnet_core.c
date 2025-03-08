@@ -305,7 +305,7 @@ gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   // Count/allocate local space
   size_t local_bytes = 0;
   for (gex_Rank_t i = 0; i < num_eps; ++i) {
-    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep(eps[i])->_segment;
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep_valid(eps[i])->_segment;
     if (!segment || !segment->_size) continue;
     gasnetc_mem_info_t* mem_info = segment->mem_info;
     gasneti_assert(mem_info);
@@ -319,7 +319,7 @@ gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   // Pack
   size_t offset = 0;
   for (gex_Rank_t i = 0; i < num_eps; ++i) {
-    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep(eps[i])->_segment;
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep_valid(eps[i])->_segment;
     if (!segment || !segment->_size) continue;
     gasnetc_mem_info_t* mem_info = segment->mem_info;
     gasneti_assert(mem_info);
@@ -797,7 +797,7 @@ int gasnetc_segment_create_hook(gex_Segment_t e_segment)
 {
 #if GASNETC_PIN_SEGMENT
   // Register the segment
-  gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment(e_segment);
+  gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_segment_valid(e_segment);
   segment->mem_info = gasnetc_segment_register(segment->_addr, segment->_size);
   if (! segment->mem_info) {
     // TODO: non-fatal error handling:

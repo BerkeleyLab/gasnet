@@ -2810,7 +2810,7 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   p = local;
   for (gex_Rank_t i = 0; i < num_eps; ++i) {
     gex_EP_t ep = eps[i];
-    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep(ep)->_segment;
+    gasnetc_Segment_t segment = (gasnetc_Segment_t) gasneti_import_ep_valid(ep)->_segment;
     if (! segment) continue;
     p->loc.gex_rank = gasneti_mynode;
     p->loc.gex_ep_index = gex_EP_QueryIndex(ep);

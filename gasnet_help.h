@@ -475,7 +475,7 @@ GASNETI_INLINE(_gasneti_in_segment_t)
 int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t _segment) {
   gasneti_assert(_nbytes); // precondition to avoid "fence post" error at top of segment
   uintptr_t _uptr = (uintptr_t)_ptr;
-  gasneti_Segment_t _i_seg = gasneti_import_segment(_segment);
+  gasneti_Segment_t _i_seg = gasneti_import_segment_valid(_segment);
   return (_uptr >= (uintptr_t)(_i_seg->_addr) && (_uptr + _nbytes) <= (uintptr_t)_i_seg->_ub);
 }
 
