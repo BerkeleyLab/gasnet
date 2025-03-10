@@ -2163,7 +2163,7 @@ void gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   // Pack
   p = local;
   for (gex_Rank_t i = 0; i < num_eps; ++i) {
-    gasnetc_EP_t c_ep = (gasnetc_EP_t) gasneti_import_ep(eps[i]);
+    gasnetc_EP_t c_ep = (gasnetc_EP_t) gasneti_import_ep_valid(eps[i]);
     if (! c_ep->_segment) continue;
     p->loc.gex_rank = gasneti_mynode;
     p->loc.gex_ep_index = c_ep->_index;

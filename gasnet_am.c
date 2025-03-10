@@ -304,7 +304,7 @@ extern int gex_EP_RegisterHandlers(
 {
   GASNETI_TRACE_PRINTF(O,("gex_EP_RegisterHandlers: ep=%p table=%p numentries=%"PRIuSZ,
                           (void*)ep, (void*)table, numentries));
-  return gasneti_amregister_client(gasneti_import_ep(ep), table, numentries);
+  return gasneti_amregister_client(gasneti_import_ep_valid(ep), table, numentries);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -530,6 +530,10 @@ gasneti_AM_SrcDesc_t gasneti_import_srcdesc(gex_AM_SrcDesc_t _srcdesc) {
   GASNETI_CHECK_MAGIC(_real_srcdesc, GASNETI_AM_SRCDESC_MAGIC);
   gasneti_assert(!_real_srcdesc || (_real_srcdesc->_thread == _gasneti_mythread_slow()));
   return _real_srcdesc;
+}
+gasneti_AM_SrcDesc_t gasneti_import_srcdesc_valid(gex_AM_SrcDesc_t srcdesc) {
+  gasneti_assert(srcdesc != GEX_AM_SRCDESC_NO_OP);
+  return gasneti_import_srcdesc(srcdesc);
 }
 #endif
 
