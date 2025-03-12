@@ -91,6 +91,7 @@ GASNet-EX ChangeLog
   - bug4767 - CUDA framebuffer memory allocated by cuMemMap failed when registering with GASNet-EX
   - bug4768 - memcpy with NULL destination in collectives
   - bug4772 - regression in low-memory error handling with single-process runs
+  - bug4773 - (partial fix) improved error handling in segment allocation
   - bug4774 - Add argument-checking to GASNet object query accessors
 
 ----------------------------------------------------------------------
