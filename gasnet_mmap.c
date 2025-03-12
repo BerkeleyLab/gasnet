@@ -906,6 +906,11 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 
   if ((ptr == MAP_FAILED) && !may_fail) {
     gasneti_cleanup_shm();
+    int is_aux = (pshmnode == gasneti_pshm_nodes);
+    const char *type = is_aux ? "aux" : "client";
+    const char *op = ((pshmnode == gasneti_pshm_mynode) ||
+                      (is_aux && !gasneti_pshm_mynode))
+                     ? "allocation" : "cross-mapping";
 
     if (mmap_errno != ENOMEM) {
       #if PLATFORM_OS_CYGWIN
@@ -913,16 +918,17 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
       #elif PLATFORM_OS_SOLARIS
         if (mmap_errno != EAGAIN) /* Solaris stupidly returns EAGAIN for insuff mem */
       #endif
-      gasneti_fatalerror("unexpected error in mmap%s for size %"PRIuPTR": %s\n", 
-                         (segbase == NULL?"":" fixed"),
+      gasneti_fatalerror("unexpected error in %s%s of %s segment of size %"PRIuPTR": %s\n",
+                         (segbase == NULL?"":"fixed-address "), op, type,
                          segsize, strerror(mmap_errno));
     }
 
     if (!segbase) {
-      gasneti_fatalerror("mmap failed for size %"PRIuPTR": %s", segsize, strerror(mmap_errno));
+      gasneti_fatalerror("%s failed for %s segment of size %"PRIuPTR": %s",
+              op, type, segsize, strerror(mmap_errno));
     } else {
-      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %"PRIuPTR": %s" GASNETI_BUG3480_MSG,
-              GASNETI_LADDRSTR(segbase), segsize, strerror(mmap_errno));
+      gasneti_fatalerror("fixed-address %s failed at "GASNETI_LADDRFMT" for %s segment of size %"PRIuPTR": %s" GASNETI_BUG3480_MSG,
+              op, GASNETI_LADDRSTR(segbase), type, segsize, strerror(mmap_errno));
     }
   }
 
