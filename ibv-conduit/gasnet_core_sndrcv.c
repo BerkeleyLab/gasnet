@@ -1874,7 +1874,7 @@ static void gasnetc_snd_thread(struct ibv_wc *comp_p, void *arg)
   gasneti_assert((comp_p->opcode == IBV_WC_SEND) ||
                  (comp_p->opcode == IBV_WC_RDMA_WRITE) ||
                  (comp_p->opcode == IBV_WC_RDMA_READ) ||
-             //  (comp_p->opcode == IBV_WC_COMP_SWAP) ||
+                 (comp_p->opcode == IBV_WC_COMP_SWAP) ||
                  (comp_p->opcode == IBV_WC_FETCH_ADD) ||
                  (comp_p->status != IBV_WC_SUCCESS));
 
