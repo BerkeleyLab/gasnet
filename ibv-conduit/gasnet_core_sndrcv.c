@@ -1465,13 +1465,13 @@ GASNETI_INLINE(gasnetc_get_bbuf_inner)
 gasnetc_buffer_t *gasnetc_get_bbuf_inner(const int is_reply, const int block GASNETI_THREAD_FARG) {
   gasnetc_buffer_t *bbuf = NULL;
 
-  GASNETC_TRACE_WAIT_BEGIN();
   GASNETC_STAT_EVENT(GET_BBUF);
 
   bbuf = gasnetc_bbuf_pop_helper(is_reply);
   if_pt (bbuf) {
     // done
   } else if (block) {
+    GASNETC_TRACE_WAIT_BEGIN();
     GASNETI_SPIN_DOUNTIL(bbuf, {
         gasnetc_poll_snd();
         bbuf = gasnetc_bbuf_pop_helper(is_reply);
