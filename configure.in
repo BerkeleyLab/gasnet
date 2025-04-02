@@ -2448,7 +2448,7 @@ GASNET_TRY_CACHE_RUN_WITHCC(for x86 pause instruction,x86_pause_instruction, [
 ], [AC_DEFINE(GASNETI_PAUSE_INSTRUCTION, "pause")])
 GASNET_POPVAR(CPPFLAGS)
 
-## Misc. builtins (e.g. for bit manipilation)
+## Misc. builtins (e.g. for bit manipulation)
 
 GASNET_TRY_CACHE_LINK(for __builtin_clz, cc_has_builtin_clz,
   [unsigned int x;], [__builtin_clz(x);],
