@@ -14,6 +14,8 @@
 #include <gasnet_ratomic_internal.h>
 #include <gasnet_event_internal.h>
 
+GASNETI_IDENT(gasnetc_IdentString_IbvAtomicOffload, "$GASNetIbvAtomicOffload: 1 $");
+
 //
 // buffers for fetching ops
 //
