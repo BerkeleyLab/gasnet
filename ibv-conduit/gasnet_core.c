@@ -932,6 +932,9 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_am_oust_limit, GASNET_AM_CREDITS_TOTAL, GASNETC_DEFAULT_AM_CREDITS_TOTAL, 0, 0);
   GASNETC_ENVINT(gasnetc_am_credits_slack, GASNET_AM_CREDITS_SLACK, GASNETC_DEFAULT_AM_CREDITS_SLACK, 0, 0);
   GASNETC_ENVINT(gasnetc_bbuf_limit, GASNET_BBUF_COUNT, GASNETC_DEFAULT_BBUF_COUNT, 0, 0);
+#if GASNETC_BUILD_IBVRATOMIC
+  GASNETC_ENVINT(gasnetc_ratomicbuf_limit, GASNET_RATOMICBUF_COUNT, 0, 0, 0);
+#endif
 #if GASNETC_IBV_SRQ
   gasnetc_rbuf_set = (NULL != gasneti_getenv("GASNET_RBUF_COUNT"));
   GASNETC_ENVINT(gasnetc_rbuf_limit, GASNET_RBUF_COUNT, GASNETC_DEFAULT_RBUF_COUNT, 0, 0);
@@ -1119,6 +1122,10 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AM_CREDITS_SLACK         = %d", gasnetc_am_credits_slack));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_BBUF_COUNT               = %d%s",
 			  	gasnetc_bbuf_limit, gasnetc_bbuf_limit ? "": " (automatic)"));
+#if GASNETC_BUILD_IBVRATOMIC
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_RATOMICBUF_COUNT         = %d%s",
+                               gasnetc_ratomicbuf_limit, gasnetc_ratomicbuf_limit ? "": " (automatic)"));
+#endif
 #if GASNETC_IBV_SRQ
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_USE_SRQ                  = %d", gasnetc_use_srq));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_RBUF_COUNT               = %d%s",
@@ -2699,6 +2706,14 @@ extern int gasnetc_attach_primary(gex_Flags_t flags) {
 
   gasnete_init(); /* init the extended API */
 
+#if GASNETC_BUILD_IBVRATOMIC
+  // Setup for offloaded remote atomics
+  int i = gasnetc_ratomic_init(gasnetc_ep0);
+  if (i != GASNET_OK) {
+    return i;
+  }
+#endif
+
   gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
@@ -2831,11 +2846,14 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   for (size_t i = 0; i < total_eps; ++i) {
     gex_Rank_t jobrank = p->loc.gex_rank;
     gex_EP_Index_t idx = p->loc.gex_ep_index;
+  #if !GASNETC_BUILD_IBVRATOMIC
     if (jobrank == gasneti_mynode) {
-      // Local:
-      // Fall through to advance p
-    } else if (! idx) {
-      // Remote + primordial:
+      // Loopback for RMA is only used for remote atomics
+      // So when they are not enabled, just fall through to advance p
+    } else
+  #endif
+    if (! idx) {
+      // Primordial:
       uint32_t *rkey = p->rkey;
       for (int j = 0; j < gasnetc_num_hcas; ++j) {
         gasnetc_hca_t *hca = gasnetc_hca + j;
@@ -2845,14 +2863,14 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
       }
       gasnetc_cep_t *cep = GASNETC_NODE2CEP(gasnetc_ep0, jobrank);
       if (cep) gasnetc_sndrcv_attach_peer(jobrank, cep);
-    } else {
+    } else if (jobrank != gasneti_mynode) {
       // Remote + non-primordial:
       gasnetc_install_np_rkeys(jobrank, idx, p->rkey);
     }
     p = (struct exchg_data *)(elem_sz + (uintptr_t)p);
   }
   gasneti_free(global);
-#else
+#else // PIN_SEGMENT
   // Per-endpoint work:
   // TODO: multi-ep may require more work
   gex_Rank_t team_size = gex_TM_QuerySize(tm);
@@ -2867,7 +2885,7 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
       if (cep) gasnetc_sndrcv_attach_peer(jobrank, cep);
     }
   }
-#endif
+#endif // PIN_SEGMENT
 
   return GASNET_OK;
 }

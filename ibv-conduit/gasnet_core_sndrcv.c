@@ -187,37 +187,63 @@ extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *cnt) {
 }
 
 
-#if GASNETC_HAVE_FENCED_PUTS
 /* ------------------------------------------------------------------------------------ *
- * AuxSeg space for dummy Atomic ops used to fence multi-rail Puts
- * TODO: this use of auxseg is yet another an O(ranks) table we must seek to eliminate
+ * AuxSeg space for IBV-level Atomic ops (including GEX Ratomics and fencing of multi-rail Puts).
  * ------------------------------------------------------------------------------------ */
-static gasnet_seginfo_t *gasnetc_fence_auxseg = NULL;
-gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
+#if GASNETC_IB_MAX_HCAS > 1
+  gasnet_seginfo_t *gasnetc_fence_auxseg = NULL;
+#endif
+uint64_t *gasnetc_ratomic_sink = NULL; // TODO: one per HCA
+gasneti_auxseg_request_t gasnetc_atomics_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
   gasneti_auxseg_request_t retval;
 
-  if (!gasnetc_use_fenced_puts) {
-    // No allocation if fenced puts are not enabled
-    retval.minsz = retval.optimalsz = 0;
-  } else {
-    // One cache line each for use as initiator and target
-    // TODO: distinct cache lines for each HCA (via `cep` argument to macros, below)
-    retval.minsz = retval.optimalsz = 2 * GASNETI_CACHE_LINE_BYTES;
-  }
+  gasneti_assert_always_int(GASNETI_CACHE_LINE_BYTES ,>=, sizeof(uint64_t));
 
-  if (gasnetc_use_fenced_puts && auxseg_info) { /* auxseg granted */
-    gasneti_assert(!gasnetc_fence_auxseg);
-    gasnetc_fence_auxseg = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-    GASNETI_MEMCPY(gasnetc_fence_auxseg, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
+  // TODO: distinct allocations for each HCA (via `cep` argument to macros)
+
+  // One cache line used as local dst (sink) for both non-fetching RAtomics,
+  // and for the AMO used in fenced puts, if enabled
+  int request = 1;
+
+  // A second cache line for use as remote AMO target in fenced puts, if enabled
+  request += GASNETC_USE_FENCED_PUTS ? 1 :0;
+
+#if GASNETC_BUILD_IBVRATOMIC
+  // Some number of cache lines for buffering fetching RAtomics
+  int buffer_start = request;
+  request += gasnetc_ratomicbuf_limit;
+#endif
+
+  retval.minsz = retval.optimalsz = request * GASNETI_CACHE_LINE_BYTES;
+
+  if (auxseg_info) { /* auxseg granted */
+    gasnetc_ratomic_sink = (uint64_t*)auxseg_info[gasneti_mynode].addr;
+  #if GASNETC_IB_MAX_HCAS > 1
+    if (GASNETC_USE_FENCED_PUTS) {
+      // TODO: this use of auxseg is yet another O(ranks) table we must seek to eliminate
+      // TODO: at a minimum we can save about half the space by only keeping addr (not len)
+      gasneti_assert(!gasnetc_fence_auxseg);
+      gasnetc_fence_auxseg = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+      memcpy(gasnetc_fence_auxseg, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
+      GASNETI_MEMCPY(gasnetc_fence_auxseg, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
+      gasneti_assert_uint((uintptr_t)GASNETC_RATOMIC_SINK(NULL) ,==, GASNETC_FENCE_LOC_ADDR(NULL));
+    }
+  #endif
+  #if GASNETC_BUILD_IBVRATOMIC
+    // Freelist of buffers
+    uint8_t *buff = (uint8_t *)(buffer_start*GASNETI_CACHE_LINE_BYTES +
+                                (uintptr_t)auxseg_info[gasneti_mynode].addr);
+    for (int i = 0 ; i < gasnetc_ratomicbuf_limit; ++i) {
+      gasnetc_lifo_push(&gasnetc_ratomicbuf_freelist, buff);
+      buff += GASNETI_CACHE_LINE_BYTES;
+    }
+    gasneti_assert_ptr(buff ,<=, (uint8_t*)auxseg_info[gasneti_mynode].addr +
+                                           auxseg_info[gasneti_mynode].size);
+  #endif
   }
 
   return retval;
 }
-#define GASNETC_FENCE_ADDR_(jobrank,n) \
-            ((uintptr_t)gasnetc_fence_auxseg[(jobrank)].addr + (n << GASNETI_CACHE_LINE_SHIFT))
-#define GASNETC_FENCE_REM_ADDR(cep) GASNETC_FENCE_ADDR_(gasnetc_epid2node(cep->epid), 0)
-#define GASNETC_FENCE_LOC_ADDR(cep) GASNETC_FENCE_ADDR_(gasneti_mynode, 1)
-#endif
 
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped functions and macros                                                    *
@@ -716,6 +742,7 @@ const char *gasnetc_opcode_str(gasnetc_sreq_opcode_t opcode)
     OPCASE(FREE)
     OPCASE(AM)
     OPCASE(ATOMIC)
+    OPCASE(ATOMIC_BOUNCE)
     OPCASE(GET_ZEROCP)
 #if GASNETC_PIN_SEGMENT && GASNETC_FH_OPTIONAL
     OPCASE(GET_BOUNCE)
@@ -899,6 +926,24 @@ void gasnetc_dump_cqs(struct ibv_wc *comp, gasnetc_hca_t *hca, const int is_snd)
   gex_HSL_Unlock(&lock);
 }
 
+#if GASNETC_BUILD_IBVRATOMIC
+  #if GASNETI_HAVE_CC_BUILTIN_BSWAP32
+    #define GASNETC_BSWAP32(x) __builtin_bswap32(x)
+  #else
+    #define GASNETC_BSWAP32(x) \
+      ((((x) & 0x000000ff) << 24) | \
+       (((x) & 0x0000ff00) <<  8) | \
+       (((x) & 0x00ff0000) >>  8) | \
+       (((x) & 0xff000000) >> 24))
+  #endif
+  #if GASNETI_HAVE_CC_BUILTIN_BSWAP64
+    #define GASNETC_BSWAP64(x) __builtin_bswap64(x)
+  #else
+    #define GASNETC_BSWAP64(x) GASNETI_MAKEWORD(GASNETC_BSWAP32(GASNETI_LOWORD(x)), \
+                                                GASNETC_BSWAP32(GASNETI_HIWORD(x)))
+  #endif
+#endif
+
 GASNETI_INLINE(gasnetc_snd_reap_one)
 void gasnetc_snd_reap_one(struct ibv_wc *comp_p, gasnetc_hca_t *hca GASNETC_COLLECT_FARGS) {
 #if !GASNETC_SND_REAP_COLLECT
@@ -980,11 +1025,34 @@ void gasnetc_snd_reap_one(struct ibv_wc *comp_p, gasnetc_hca_t *hca GASNETC_COLL
         }
         break;
 
-      case GASNETC_OP_ATOMIC:
+      case GASNETC_OP_ATOMIC:       // Non-fetching or zero-copy atomic
         if (sreq->comp.cb != NULL) {
           sreq->comp.cb(sreq->comp.data);
         }
         break;
+
+      #if GASNETC_BUILD_IBVRATOMIC
+      case GASNETC_OP_ATOMIC_BOUNCE: { // Fetching atomic, result in bounce buffer
+        // NOTE: Strictly speaking, "*(uint64_t *)sreq->amo_result = ..." below
+        // runs afoul of aliasing rules in the C spec when the actual result
+        // type is "double".  However, the presence of compiler fences in REL
+        // and ACQ fence operations (respectively located in the comp.cb()
+        // called below, and in the GEX_Event_{Wait,Try*)()) is believed to be
+        // sufficient to prevent reordering of the write and reads (even in the
+        // presence of LTO to cross the library boundary).
+        gasneti_assert_int(hca->hca_index ,==, 0);
+        gasneti_assert(sreq->amo_bbuf);
+        gasneti_assert(sreq->amo_result);
+        uint64_t result = *(volatile uint64_t*)sreq->amo_bbuf;
+        *(uint64_t *)sreq->amo_result = hca->amo_bswap ? GASNETC_BSWAP64(result) : result;
+        if (sreq->comp.cb != NULL) {
+          sreq->comp.cb(sreq->comp.data);
+        }
+        // TODO: do we want/need GASNETC_COLLECT_RATOMICBUF() ?
+        gasnetc_lifo_push(&gasnetc_ratomicbuf_freelist, sreq->amo_bbuf);
+        break;
+      }
+      #endif
 
       #if GASNETC_HAVE_FENCED_PUTS
       case GASNETC_OP_FENCE:        // Atomic after PUT, with descriptor chaining
@@ -1465,13 +1533,13 @@ GASNETI_INLINE(gasnetc_get_bbuf_inner)
 gasnetc_buffer_t *gasnetc_get_bbuf_inner(const int is_reply, const int block GASNETI_THREAD_FARG) {
   gasnetc_buffer_t *bbuf = NULL;
 
-  GASNETC_TRACE_WAIT_BEGIN();
   GASNETC_STAT_EVENT(GET_BBUF);
 
   bbuf = gasnetc_bbuf_pop_helper(is_reply);
   if_pt (bbuf) {
     // done
   } else if (block) {
+    GASNETC_TRACE_WAIT_BEGIN();
     GASNETI_SPIN_DOUNTIL(bbuf, {
         gasnetc_poll_snd();
         bbuf = gasnetc_bbuf_pop_helper(is_reply);
@@ -1579,6 +1647,17 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int
       sreq->args.rdma.rem_addr = sr_desc->wr.rdma.remote_addr;
       sreq->args.rdma.length   = r_addr - sr_desc->wr.rdma.remote_addr;
     #endif
+      break;
+
+    case IBV_WR_ATOMIC_FETCH_AND_ADD:
+    case IBV_WR_ATOMIC_CMP_AND_SWP:
+      gasneti_assert_uint(sr_desc->num_sge ,==, 1);
+      gasneti_assert_uint(sr_desc->sg_list[0].length ,==, sizeof(uint64_t));
+      GASNETI_TRACE_PRINTF(D,("%s op=AMO rkey=0x%08x\n", type, (unsigned int)sr_desc->wr.atomic.rkey));
+      GASNETI_TRACE_PRINTF(D,("  0: lkey=0x%08x local=%p remote=%p\n",
+                              sr_desc->sg_list[0].lkey,
+                              (void *)sr_desc->sg_list[0].addr,
+                              (void *)r_addr));
       break;
 
     default:
@@ -1795,7 +1874,7 @@ static void gasnetc_snd_thread(struct ibv_wc *comp_p, void *arg)
   gasneti_assert((comp_p->opcode == IBV_WC_SEND) ||
                  (comp_p->opcode == IBV_WC_RDMA_WRITE) ||
                  (comp_p->opcode == IBV_WC_RDMA_READ) ||
-             //  (comp_p->opcode == IBV_WC_COMP_SWAP) ||
+                 (comp_p->opcode == IBV_WC_COMP_SWAP) ||
                  (comp_p->opcode == IBV_WC_FETCH_ADD) ||
                  (comp_p->status != IBV_WC_SUCCESS));
 
@@ -2800,6 +2879,13 @@ extern int gasnetc_sndrcv_limits(void) {
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
   gasnetc_am_credits_slack_orig = gasnetc_am_credits_slack;
 
+#if GASNETC_BUILD_IBVRATOMIC
+  if (!gasnetc_ratomicbuf_limit || (gasnetc_ratomicbuf_limit > gasnetc_op_oust_limit)) {
+    gasnetc_ratomicbuf_limit = gasnetc_op_oust_limit;
+  }
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RATOMICBUF_COUNT = %d", gasnetc_ratomicbuf_limit));
+#endif
+
   gasnetc_alloc_qps = gasnetc_num_qps; /* Default w/o SRQ or XRC */
 #if GASNETC_IBV_SRQ
   if (gasnetc_use_srq) {
@@ -3734,7 +3820,7 @@ extern int gasnetc_rdma_get(
 
   return 0;
 }
-#else
+#else // !GASNETC_PIN_SEGMENT
 /*
  * ###########################################
  * RDMA ops when the segment is NOT pre-pinned
@@ -3897,4 +3983,3 @@ extern int gasnetc_rdma_get(
   return 0;
 }
 #endif
-
