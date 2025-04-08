@@ -1656,7 +1656,7 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int
       GASNETI_TRACE_PRINTF(D,("%s op=AMO rkey=0x%08x\n", type, (unsigned int)sr_desc->wr.atomic.rkey));
       GASNETI_TRACE_PRINTF(D,("  0: lkey=0x%08x local=%p remote=%p\n",
                               sr_desc->sg_list[0].lkey,
-                              (void *)sr_desc->sg_list[0].addr,
+                              (void *)(uintptr_t)sr_desc->sg_list[0].addr,
                               (void *)r_addr));
       break;
 
