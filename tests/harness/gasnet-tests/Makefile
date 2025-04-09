@@ -54,6 +54,9 @@ parsync: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
+ident:
+	cp -f $(GASNET_SRCDIR)/other/contrib/ident .
+
 check-exports: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
