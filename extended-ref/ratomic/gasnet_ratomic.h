@@ -482,15 +482,15 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 
 #if GASNETI_STATS_OR_TRACE
   #define _GASNETE_RATOMIC_EVENT(prefix,dtype) do { \
-    switch(dtype) {                                               \
-      case GEX_DT_I32: _GASNETI_STAT_EVENT(R,prefix##I32); break; \
-      case GEX_DT_U32: _GASNETI_STAT_EVENT(R,prefix##U32); break; \
-      case GEX_DT_I64: _GASNETI_STAT_EVENT(R,prefix##I64); break; \
-      case GEX_DT_U64: _GASNETI_STAT_EVENT(R,prefix##U64); break; \
-      case GEX_DT_FLT: _GASNETI_STAT_EVENT(R,prefix##FLT); break; \
-      case GEX_DT_DBL: _GASNETI_STAT_EVENT(R,prefix##DBL); break; \
-      default: gasneti_unreachable();                             \
-    }                                                             \
+    switch(dtype) {                                              \
+      case GEX_DT_I32: GASNETI_STAT_EVENT(R,prefix##I32); break; \
+      case GEX_DT_U32: GASNETI_STAT_EVENT(R,prefix##U32); break; \
+      case GEX_DT_I64: GASNETI_STAT_EVENT(R,prefix##I64); break; \
+      case GEX_DT_U64: GASNETI_STAT_EVENT(R,prefix##U64); break; \
+      case GEX_DT_FLT: GASNETI_STAT_EVENT(R,prefix##FLT); break; \
+      case GEX_DT_DBL: GASNETI_STAT_EVENT(R,prefix##DBL); break; \
+      default: gasneti_unreachable();                            \
+    }                                                            \
   } while (0)
 #endif
 
@@ -506,8 +506,8 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
       case GEX_DT_DBL: _trat_suffix="DBL"; break;                       \
       default: gasneti_unreachable();                                   \
     }                                                                   \
+    _GASNETE_RATOMIC_EVENT(prefix,dtype);                               \
     if (GASNETI_TRACE_ENABLED(R)) {                                     \
-      _GASNETE_RATOMIC_EVENT(prefix,dtype);                             \
       char *_trat_opstr = (char *)gasneti_extern_malloc(gasneti_format_op(NULL,opcode));\
       gasneti_format_op(_trat_opstr,opcode);                            \
       char _trat_resultstr[32] = "";                                    \
