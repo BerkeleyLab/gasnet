@@ -42,6 +42,7 @@ extern gasneti_AD_t gasneti_alloc_ad(
                        gex_OP_t ops,
                        gex_Flags_t flags)
 {
+  static unsigned int next_index = 0;
   gasneti_AD_t ad;
 #ifdef GASNETC_SIZEOF_AD_T
   size_t alloc_size = GASNETC_SIZEOF_AD_T();
@@ -59,6 +60,7 @@ extern gasneti_AD_t gasneti_alloc_ad(
   ad->_flags = flags;
   ad->_dt = dt;
   ad->_ops = ops;
+  ad->_index = next_index++;
 #if GASNET_DEBUG
   ad->_tools_safe = -1;
   ad->_fn_tbl = NULL;
@@ -158,6 +160,9 @@ void gasneti_AD_Create(
   gasneti_assert(real_ad->_tools_safe >= 0);
   gasneti_assert(real_ad->_fn_tbl != NULL);
 
+  GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x) -> AD#%u %s",
+                          (int)dt, (unsigned int)ops, real_ad->_index,
+                          real_ad->_is_ref ? "AM" : "NIC"));
   *ad_p = gasneti_export_ad(real_ad);
   return;
 }
@@ -860,7 +865,7 @@ void gasnete_amratomic_init_hook(gasneti_AD_t real_ad)
     }
     #undef GASNETE_AMRATOMIC_TBL_CASE
 
-    GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x) -> AM", (int)dt, (unsigned int)ops));
+    real_ad->_is_ref = 1;
 }
 
 #endif // GASNETE_BUILD_AMRATOMIC

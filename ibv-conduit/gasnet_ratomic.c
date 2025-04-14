@@ -627,7 +627,7 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
             gasneti_unreachable_error(("unknown data type %d", dt));
     }
 
-    GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x) -> IBV", (int)dt, (unsigned int)ops));
+    real_ad->_is_ref = 0;
     return;
 
 use_am:

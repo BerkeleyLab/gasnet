@@ -35,6 +35,8 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
     gex_DT_t           _dt;            \
     gex_OP_t           _ops;           \
     int                _tools_safe;    \
+    unsigned int       _index;         \
+    int /*boolean*/    _is_ref;        \
     gasnete_ratomic_fn_tbl_t _fn_tbl;
   typedef struct { GASNETI_AD_COMMON } *gasneti_AD_t;
   #if GASNET_DEBUG
@@ -495,7 +497,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 #endif
 
 #if GASNET_TRACE
-  #define _GASNETE_TRACE_RATOMIC(prefix,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) do { \
+  #define _GASNETE_TRACE_RATOMIC(prefix,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) do { \
     const char *_trat_suffix = "";                                      \
     switch(dtype) {                                                     \
       case GEX_DT_I32: _trat_suffix="I32"; break;                       \
@@ -515,9 +517,13 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         snprintf(_trat_resultstr, sizeof(_trat_resultstr),              \
                  " " GASNETI_LADDRFMT " <-",GASNETI_LADDRSTR(result_p));\
       }                                                                 \
-      GASNETI_TRACE_PRINTF(R,(#prefix "%s: %s%s " GASNETI_RADDRFMT " flags=0x%x",\
+      gasneti_AD_t _trat_real_ad = gasneti_import_ad(ad);               \
+      GASNETI_TRACE_PRINTF(R,(#prefix "%s: %s%s " GASNETI_RADDRFMT " AD#%u %s flags=0x%x",\
                            _trat_suffix,_trat_opstr,_trat_resultstr,    \
-                           GASNETI_RADDRSTR(gex_AD_QueryTM(ad),tgt_rank,tgt_addr),flags)); \
+                           GASNETI_RADDRSTR(gex_AD_QueryTM(ad),tgt_rank,tgt_addr), \
+                           _trat_real_ad->_index,                       \
+                           (tools)?"CPU":(_trat_real_ad->_is_ref?"AM":"NIC"), \
+                           flags));                                     \
       gasneti_extern_free(_trat_opstr);                                 \
     }                                                                   \
     if (gasneti_op_1arg(opcode)) {                                      \
@@ -529,19 +535,19 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
                               _trat_suffix, cast op1, cast op2));       \
     } else gasneti_assert(gasneti_op_0arg(opcode) || !gasneti_op_valid_atomic(opcode)); \
   } while (0)
-  #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
-          _GASNETE_TRACE_RATOMIC(RATOMIC_NB_,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2)
-  #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
-          _GASNETE_TRACE_RATOMIC(RATOMIC_NBI_,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2)
+  #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
+          _GASNETE_TRACE_RATOMIC(RATOMIC_NB_,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools)
+  #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
+          _GASNETE_TRACE_RATOMIC(RATOMIC_NBI_,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools)
 #elif GASNET_STATS
-  #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+  #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
           _GASNETE_RATOMIC_EVENT(RATOMIC_NB_,dtype)
-  #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+  #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
           _GASNETE_RATOMIC_EVENT(RATOMIC_NBI_,dtype)
 #else
-  #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+  #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
           ((void)0)
-  #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+  #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
           ((void)0)
 #endif
 
@@ -595,18 +601,18 @@ gex_Rank_t gasnete_ratomic_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _tgt_rank, gex
     GASNETI_INLINE(fname) _GASNETE_RATOMIC_DISP_WARN##nbnbi              \
     rettype fname(_GASNETE_RATOMIC_DISP_ARGS(type))                      \
     {                                                                    \
-        GASNETE_TRACE_RATOMIC##nbnbi(_ad, dtcode##_dtype, _result_p,     \
-                                     _tgt_rank,_tgt_addr,_opcode,_flags, \
-                                     dtcode##_fmt,dtcode##_fmt_cast,     \
-                                     _operand1,_operand2);               \
         GASNETI_CHECK_INJECT();                                          \
         gasnete_ratomic_validate(_ad,_result_p,_tgt_rank,_tgt_addr,      \
                                  _opcode, dtcode##_dtype, _flags);       \
         gasneti_AD_t _real_ad = gasneti_import_ad(_ad);                  \
         if (GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE##dtcode ||                 \
             _real_ad->_tools_safe) {                                     \
-          _GASNETE_RATOMIC_DISP_TOOLS_SAFE(dtcode,type,retdone);         \
+          _GASNETE_RATOMIC_DISP_TOOLS_SAFE(nbnbi,dtcode,type,retdone);   \
         }                                                                \
+        GASNETE_TRACE_RATOMIC##nbnbi(_ad, dtcode##_dtype, _result_p,     \
+                                     _tgt_rank,_tgt_addr,_opcode,_flags, \
+                                     dtcode##_fmt,dtcode##_fmt_cast,     \
+                                     _operand1,_operand2,0);             \
         switch(_opcode) {                                                \
             _GASNETE_RATOMIC_DISP_CASE1(dtcode, nbnbi, SET,   N1)        \
             _GASNETE_RATOMIC_DISP_CASE1(dtcode, nbnbi, GET,   F0)        \
@@ -637,8 +643,12 @@ gex_Rank_t gasnete_ratomic_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _tgt_rank, gex
 //   (GEX_FLAG_AD_ACQ == GASNETI_ATOMIC_ACQ)
 //   (GEX_FLAG_AD_REL == GASNETI_ATOMIC_REL)
 // as checked via gasneti_static_assert() elsewhere.
-#define _GASNETE_RATOMIC_DISP_TOOLS_SAFE(dtcode,type,retdone) do { \
+#define _GASNETE_RATOMIC_DISP_TOOLS_SAFE(nbnbi,dtcode,type,retdone) do { \
         _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode)                            \
+        GASNETE_TRACE_RATOMIC##nbnbi(_ad, dtcode##_dtype, _result_p,         \
+                                     _tgt_rank,_tgt_addr,_opcode,_flags,     \
+                                     dtcode##_fmt,dtcode##_fmt_cast,         \
+                                     _operand1,_operand2,1);                 \
         const int _fences = (_flags) & (GEX_FLAG_AD_ACQ | GEX_FLAG_AD_REL);  \
         type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
                                                  _operand1, _operand2,       \
