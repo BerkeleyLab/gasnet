@@ -51,6 +51,9 @@
 // as extensions to the standard atomics.  These should allow a straight-
 // forward implementation of the existing OPs on the 32-bit types.
 // Additionally, the following additional operations become possible:
+//     SET via masked CAS:
+//         `compare_mask = 0`, `swap_mask = ~1`, `newval = operand1`
+//         This will unconditionally write the entire word.
 //    SWAP via masked FCAS:
 //         `compare_mask = 0`, `swap_mask = ~1`, `newval = operand1`
 //         This will unconditionally swap the entire word.
