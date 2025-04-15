@@ -483,14 +483,14 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 //
 
 #if GASNETI_STATS_OR_TRACE
-  #define _GASNETE_RATOMIC_EVENT(prefix,dtype) do { \
+  #define _GASNETE_RATOMIC_EVENT(prefix,dtype,transport) do { \
     switch(dtype) {                                              \
-      case GEX_DT_I32: GASNETI_STAT_EVENT(R,prefix##I32); break; \
-      case GEX_DT_U32: GASNETI_STAT_EVENT(R,prefix##U32); break; \
-      case GEX_DT_I64: GASNETI_STAT_EVENT(R,prefix##I64); break; \
-      case GEX_DT_U64: GASNETI_STAT_EVENT(R,prefix##U64); break; \
-      case GEX_DT_FLT: GASNETI_STAT_EVENT(R,prefix##FLT); break; \
-      case GEX_DT_DBL: GASNETI_STAT_EVENT(R,prefix##DBL); break; \
+      case GEX_DT_I32: GASNETI_STAT_EVENT(R,prefix##I32_##transport); break; \
+      case GEX_DT_U32: GASNETI_STAT_EVENT(R,prefix##U32_##transport); break; \
+      case GEX_DT_I64: GASNETI_STAT_EVENT(R,prefix##I64_##transport); break; \
+      case GEX_DT_U64: GASNETI_STAT_EVENT(R,prefix##U64_##transport); break; \
+      case GEX_DT_FLT: GASNETI_STAT_EVENT(R,prefix##FLT_##transport); break; \
+      case GEX_DT_DBL: GASNETI_STAT_EVENT(R,prefix##DBL_##transport); break; \
       default: gasneti_unreachable();                            \
     }                                                            \
   } while (0)
@@ -498,6 +498,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 
 #if GASNET_TRACE
   #define _GASNETE_TRACE_RATOMIC(prefix,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) do { \
+    gasneti_AD_t _trat_real_ad = gasneti_import_ad(ad);                 \
     const char *_trat_suffix = "";                                      \
     switch(dtype) {                                                     \
       case GEX_DT_I32: _trat_suffix="I32"; break;                       \
@@ -508,7 +509,17 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
       case GEX_DT_DBL: _trat_suffix="DBL"; break;                       \
       default: gasneti_unreachable();                                   \
     }                                                                   \
-    _GASNETE_RATOMIC_EVENT(prefix,dtype);                               \
+    const char *_trat_transport = "";                                   \
+    if (tools) {                                                        \
+      _trat_transport="CPU";                                            \
+      _GASNETE_RATOMIC_EVENT(prefix,dtype,CPU);                         \
+    } else if (_trat_real_ad->_is_ref) {                                \
+      _trat_transport="AM";                                             \
+      _GASNETE_RATOMIC_EVENT(prefix,dtype,AM);                          \
+    } else {                                                            \
+      _trat_transport="NIC";                                            \
+      _GASNETE_RATOMIC_EVENT(prefix,dtype,NIC);                         \
+    }                                                                   \
     if (GASNETI_TRACE_ENABLED(R)) {                                     \
       char *_trat_opstr = (char *)gasneti_extern_malloc(gasneti_format_op(NULL,opcode));\
       gasneti_format_op(_trat_opstr,opcode);                            \
@@ -517,12 +528,10 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         snprintf(_trat_resultstr, sizeof(_trat_resultstr),              \
                  " " GASNETI_LADDRFMT " <-",GASNETI_LADDRSTR(result_p));\
       }                                                                 \
-      gasneti_AD_t _trat_real_ad = gasneti_import_ad(ad);               \
       GASNETI_TRACE_PRINTF(R,(#prefix "%s: %s%s " GASNETI_RADDRFMT " AD#%u %s flags=0x%x",\
                            _trat_suffix,_trat_opstr,_trat_resultstr,    \
                            GASNETI_RADDRSTR(gex_AD_QueryTM(ad),tgt_rank,tgt_addr), \
-                           _trat_real_ad->_index,                       \
-                           (tools)?"CPU":(_trat_real_ad->_is_ref?"AM":"NIC"), \
+                           _trat_real_ad->_index, _trat_transport,      \
                            flags));                                     \
       gasneti_extern_free(_trat_opstr);                                 \
     }                                                                   \

@@ -712,18 +712,47 @@ extern FILE *gasneti_open_outputfile(const char *_filename, const char *_desc);
         VAL(P, PUTS_NB_BULK, sz)                          \
         VAL(P, PUTS_NBI_BULK, sz)                         \
                                                           \
-        CNT(R, RATOMIC_NB_I32, cnt)                       \
-        CNT(R, RATOMIC_NB_U32, cnt)                       \
-        CNT(R, RATOMIC_NB_I64, cnt)                       \
-        CNT(R, RATOMIC_NB_U64, cnt)                       \
-        CNT(R, RATOMIC_NB_FLT, cnt)                       \
-        CNT(R, RATOMIC_NB_DBL, cnt)                       \
-        CNT(R, RATOMIC_NBI_I32, cnt)                      \
-        CNT(R, RATOMIC_NBI_U32, cnt)                      \
-        CNT(R, RATOMIC_NBI_I64, cnt)                      \
-        CNT(R, RATOMIC_NBI_U64, cnt)                      \
-        CNT(R, RATOMIC_NBI_FLT, cnt)                      \
-        CNT(R, RATOMIC_NBI_DBL, cnt)                      \
+        /* Remote Atomics performed via GASNet Tools */   \
+        CNT(R, RATOMIC_NB_I32_CPU, cnt)                   \
+        CNT(R, RATOMIC_NB_U32_CPU, cnt)                   \
+        CNT(R, RATOMIC_NB_I64_CPU, cnt)                   \
+        CNT(R, RATOMIC_NB_U64_CPU, cnt)                   \
+        CNT(R, RATOMIC_NB_FLT_CPU, cnt)                   \
+        CNT(R, RATOMIC_NB_DBL_CPU, cnt)                   \
+        CNT(R, RATOMIC_NBI_I32_CPU, cnt)                  \
+        CNT(R, RATOMIC_NBI_U32_CPU, cnt)                  \
+        CNT(R, RATOMIC_NBI_I64_CPU, cnt)                  \
+        CNT(R, RATOMIC_NBI_U64_CPU, cnt)                  \
+        CNT(R, RATOMIC_NBI_FLT_CPU, cnt)                  \
+        CNT(R, RATOMIC_NBI_DBL_CPU, cnt)                  \
+                                                          \
+        /* Remote Atomics performed via AM */             \
+        CNT(R, RATOMIC_NB_I32_AM, cnt)                    \
+        CNT(R, RATOMIC_NB_U32_AM, cnt)                    \
+        CNT(R, RATOMIC_NB_I64_AM, cnt)                    \
+        CNT(R, RATOMIC_NB_U64_AM, cnt)                    \
+        CNT(R, RATOMIC_NB_FLT_AM, cnt)                    \
+        CNT(R, RATOMIC_NB_DBL_AM, cnt)                    \
+        CNT(R, RATOMIC_NBI_I32_AM, cnt)                   \
+        CNT(R, RATOMIC_NBI_U32_AM, cnt)                   \
+        CNT(R, RATOMIC_NBI_I64_AM, cnt)                   \
+        CNT(R, RATOMIC_NBI_U64_AM, cnt)                   \
+        CNT(R, RATOMIC_NBI_FLT_AM, cnt)                   \
+        CNT(R, RATOMIC_NBI_DBL_AM, cnt)                   \
+                                                          \
+        /* Remote Atomics performed via conduit */        \
+        CNT(R, RATOMIC_NB_I32_NIC, cnt)                   \
+        CNT(R, RATOMIC_NB_U32_NIC, cnt)                   \
+        CNT(R, RATOMIC_NB_I64_NIC, cnt)                   \
+        CNT(R, RATOMIC_NB_U64_NIC, cnt)                   \
+        CNT(R, RATOMIC_NB_FLT_NIC, cnt)                   \
+        CNT(R, RATOMIC_NB_DBL_NIC, cnt)                   \
+        CNT(R, RATOMIC_NBI_I32_NIC, cnt)                  \
+        CNT(R, RATOMIC_NBI_U32_NIC, cnt)                  \
+        CNT(R, RATOMIC_NBI_I64_NIC, cnt)                  \
+        CNT(R, RATOMIC_NBI_U64_NIC, cnt)                  \
+        CNT(R, RATOMIC_NBI_FLT_NIC, cnt)                  \
+        CNT(R, RATOMIC_NBI_DBL_NIC, cnt)                  \
                                                           \
         /* TODO-EX: "SYNCNB" name is out-of-date */       \
         VAL(S, TEST_SYNCNB, success)                      \
