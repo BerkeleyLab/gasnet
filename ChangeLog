@@ -65,6 +65,7 @@ GASNet-EX ChangeLog
   - Support for hwloc, used conditionally by ibv- and ofi-conduits, now
     defaults to thread-scope (not process-scope) for the cpuset query.
     See GASNET_HWLOC_QUERY in the top-level GASNet README for details.
+  - Improved tracing and statistics support for the `gex_AD_*()` APIs
   - Improved pseudo-random number generation used in many tests.
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
