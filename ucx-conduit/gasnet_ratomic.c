@@ -642,7 +642,7 @@ void gasnete_ucxratomic_init_hook(gasneti_AD_t real_ad)
         if (ops & GASNETE_UCXRATOMIC_BADOPS##dtcode) goto use_am; \
         real_ad->_fn_tbl = (gasnete_ratomic_fn_tbl_t) &gasnete_ucxratomic##dtcode##_fn_tbl; \
         real_ad->_tools_safe = 0; \
-        GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x) -> UCX", (int)dt, (unsigned int)ops)); \
+        real_ad->_is_ref = 0; \
         return;
   switch(dt) {
       GASNETE_DT_INT_APPLY(GASNETE_UCXRATOMIC_TBL_CASE)

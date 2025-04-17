@@ -51,6 +51,9 @@
 // as extensions to the standard atomics.  These should allow a straight-
 // forward implementation of the existing OPs on the 32-bit types.
 // Additionally, the following additional operations become possible:
+//     SET via masked CAS:
+//         `compare_mask = 0`, `swap_mask = ~1`, `newval = operand1`
+//         This will unconditionally write the entire word.
 //    SWAP via masked FCAS:
 //         `compare_mask = 0`, `swap_mask = ~1`, `newval = operand1`
 //         This will unconditionally swap the entire word.
@@ -627,7 +630,7 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
             gasneti_unreachable_error(("unknown data type %d", dt));
     }
 
-    GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x) -> IBV", (int)dt, (unsigned int)ops));
+    real_ad->_is_ref = 0;
     return;
 
 use_am:
