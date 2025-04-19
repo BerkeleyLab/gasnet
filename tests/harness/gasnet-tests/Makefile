@@ -7,6 +7,7 @@ all:
 # legacy harness support
 UPCR_BLDDIR ?= $(TOP_BUILDDIR)
 GASNET_BLDDIR ?= $(TOP_BUILDDIR)/gasnet
+GASNET_SRCDIR ?= $(TOP_SRCDIR)/gasnet
 
 PERL ?= perl
 CONDUIT_DIR=$(GASNET_BLDDIR)/$(NETWORK)-conduit
