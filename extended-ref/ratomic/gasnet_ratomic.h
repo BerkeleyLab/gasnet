@@ -549,10 +549,20 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
   #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
           _GASNETE_TRACE_RATOMIC(RATOMIC_NBI_,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools)
 #elif GASNET_STATS
+  #define _GASNETE_RATOMIC_STATS(prefix,ad,dtype,tools) do { \
+    gasneti_AD_t _trat_real_ad = gasneti_import_ad(ad);      \
+    if (tools) {                                             \
+      _GASNETE_RATOMIC_EVENT(prefix,dtype,CPU);              \
+    } else if (_trat_real_ad->_is_ref) {                     \
+      _GASNETE_RATOMIC_EVENT(prefix,dtype,AM);               \
+    } else {                                                 \
+      _GASNETE_RATOMIC_EVENT(prefix,dtype,NIC);              \
+    }                                                        \
+  } while (0)
   #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
-          _GASNETE_RATOMIC_EVENT(RATOMIC_NB_,dtype)
+          _GASNETE_RATOMIC_STATS(RATOMIC_NB_,ad,dtype,tools)
   #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
-          _GASNETE_RATOMIC_EVENT(RATOMIC_NBI_,dtype)
+          _GASNETE_RATOMIC_STATS(RATOMIC_NBI_,ad,dtype,tools)
 #else
   #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2,tools) \
           ((void)0)
