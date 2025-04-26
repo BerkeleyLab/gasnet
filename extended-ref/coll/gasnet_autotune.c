@@ -100,7 +100,7 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
                                                                   uint32_t tree_alg,
                                                                   uint32_t num_params,
                                                                   struct gasnet_coll_tuning_parameter_t *param_list, 
-                                                                  gex_Event_t (*coll_fnptr)(),
+                                                                  untyped_coll_fn_ptr_t coll_fnptr,
                                                                   const char *name_str) {
   gasnete_coll_algorithm_t ret;
   int i;
@@ -137,11 +137,13 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
     ret.parameter_list = NULL;
   }
   switch(optype) {
-    case GASNET_COLL_BROADCAST_OP: ret.fn_ptr.bcast_fn = (gasnete_coll_bcast_fn_ptr_t) coll_fnptr; break;
-    case GASNET_COLL_SCATTER_OP: ret.fn_ptr.scatter_fn = (gasnete_coll_scatter_fn_ptr_t) coll_fnptr; break;
-    case GASNET_COLL_GATHER_OP: ret.fn_ptr.gather_fn = (gasnete_coll_gather_fn_ptr_t) coll_fnptr; break;
-    case GASNET_COLL_GATHER_ALL_OP: ret.fn_ptr.gather_all_fn = (gasnete_coll_gather_all_fn_ptr_t) coll_fnptr; break;
-    case GASNET_COLL_EXCHANGE_OP: ret.fn_ptr.exchange_fn = (gasnete_coll_exchange_fn_ptr_t) coll_fnptr; break;
+    case GASNET_COLL_BROADCAST_OP:
+    case GASNET_COLL_SCATTER_OP:
+    case GASNET_COLL_GATHER_OP:
+    case GASNET_COLL_GATHER_ALL_OP:
+    case GASNET_COLL_EXCHANGE_OP:
+      ret.fn_ptr.untyped_fn = coll_fnptr;
+      break;
     default: gasneti_fatalerror("not implemented yet");
   }
   return ret;
@@ -1007,7 +1009,7 @@ static gasnete_coll_autotune_index_entry_t *load_autotuner_defaults_helper(gasne
       
       temp->end = atoi(MYXML_VALUE(MYXML_CHILDREN(child_node)[0]));
       temp->impl = gasnete_coll_get_implementation();
-      temp->impl->fn_ptr = info->collective_algorithms[optype][atoi(MYXML_VALUE(MYXML_CHILDREN(child_node)[0]))].fn_ptr.generic_coll_fn_ptr;
+      temp->impl->fn_ptr.untyped_fn = info->collective_algorithms[optype][atoi(MYXML_VALUE(MYXML_CHILDREN(child_node)[0]))].fn_ptr.untyped_fn;
       temp->impl->fn_idx = atoi(MYXML_VALUE(MYXML_CHILDREN(child_node)[0]));
       if(strlen(MYXML_VALUE(MYXML_CHILDREN(child_node)[1])) > 0) {
         temp->impl->tree_type = gasnete_coll_make_tree_type_str(MYXML_VALUE(MYXML_CHILDREN(child_node)[1]));
@@ -1085,31 +1087,31 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
   for(iter=0; iter<team->autotune_info->warm_iters; iter++) {
     switch(op){
       case GASNET_COLL_BROADCAST_OP:
-        handle = (*((gasnete_coll_bcast_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.rootimg, 
+        handle = impl->fn_ptr.bcast_fn(team, coll_args.dst[0], coll_args.rootimg, 
                                                                    coll_args.src[0], coll_args.nbytes, flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
       case GASNET_COLL_SCATTER_OP:
-        handle = (*((gasnete_coll_scatter_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.rootimg, 
+        handle = impl->fn_ptr.scatter_fn(team, coll_args.dst[0], coll_args.rootimg, 
                                                                    coll_args.src[0], coll_args.nbytes, coll_args.dist, flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
       case GASNET_COLL_GATHER_OP:
-        handle = (*((gasnete_coll_gather_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.rootimg, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
+        handle = impl->fn_ptr.gather_fn(team, coll_args.rootimg, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                     coll_args.dist, flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
       case GASNET_COLL_GATHER_ALL_OP:
-        handle = (*((gasnete_coll_gather_all_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
+        handle = impl->fn_ptr.gather_all_fn(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                         flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
       case GASNET_COLL_EXCHANGE_OP:
-        handle = (*((gasnete_coll_exchange_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
+        handle = impl->fn_ptr.exchange_fn(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                       flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
@@ -1126,31 +1128,31 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
   for(iter=0; iter<niters; iter++) {
     switch(op){
       case GASNET_COLL_BROADCAST_OP:
-        handle = (*((gasnete_coll_bcast_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.rootimg, coll_args.src[0], 
+        handle = impl->fn_ptr.bcast_fn(team, coll_args.dst[0], coll_args.rootimg, coll_args.src[0], 
                                                                    coll_args.nbytes, flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
       case GASNET_COLL_SCATTER_OP:
-        handle = (*((gasnete_coll_scatter_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.rootimg, 
+        handle = impl->fn_ptr.scatter_fn(team, coll_args.dst[0], coll_args.rootimg, 
                                                                      coll_args.src[0], coll_args.nbytes, coll_args.dist, flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
       case GASNET_COLL_GATHER_OP:
-        handle = (*((gasnete_coll_gather_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.rootimg, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
+        handle = impl->fn_ptr.gather_fn(team, coll_args.rootimg, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                     coll_args.dist, flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
       case GASNET_COLL_GATHER_ALL_OP:
-        handle = (*((gasnete_coll_gather_all_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
+        handle = impl->fn_ptr.gather_all_fn(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                         flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
       case GASNET_COLL_EXCHANGE_OP:
-        handle = (*((gasnete_coll_exchange_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
+        handle = impl->fn_ptr.exchange_fn(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                       flags, impl, 0 GASNETI_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
@@ -1184,7 +1186,7 @@ static void do_tuning_loop(gasnet_team_handle_t team, gasnet_coll_optype_t op,
     impl->team = team;
     impl->optype = op;
     impl->flags = flags;
-    impl->fn_ptr = team->autotune_info->collective_algorithms[op][alg_idx].fn_ptr.generic_coll_fn_ptr;
+    impl->fn_ptr.untyped_fn = team->autotune_info->collective_algorithms[op][alg_idx].fn_ptr.untyped_fn;
     impl->fn_idx = alg_idx;
     *best_time = run_collective_bench(team, op, coll_args, flags, impl, fnptr, sample_work_arg GASNETI_THREAD_PASS);
     if(team->myrank==0 && gasnete_coll_print_autotuner_timers) {
@@ -1229,7 +1231,7 @@ static void do_tuning_loop(gasnet_team_handle_t team, gasnet_coll_optype_t op,
           impl->team = team;
           impl->optype = op;
           impl->flags = flags;
-          impl->fn_ptr = team->autotune_info->collective_algorithms[op][alg_idx].fn_ptr.generic_coll_fn_ptr;
+          impl->fn_ptr.untyped_fn = team->autotune_info->collective_algorithms[op][alg_idx].fn_ptr.untyped_fn;
           impl->fn_idx = alg_idx;
           impl->num_params = team->autotune_info->collective_algorithms[op][alg_idx].num_parameters;
           GASNETE_FAST_UNALIGNED_MEMCPY(impl->param_list, curr_idx, impl->num_params*sizeof(uint32_t));
@@ -1677,7 +1679,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
     gasnete_coll_safe_broadcast(team, ret, temp, args.rootimg, sizeof(struct gasnete_coll_implementation_t_), 0 GASNETI_THREAD_PASS);
     memset(all_best_tree, 0, sizeof(char)*GASNETE_COLL_MAX_TREE_TYPE_STRLEN);
     gasnete_coll_safe_broadcast(team, all_best_tree, best_tree, args.rootimg, GASNETE_COLL_MAX_TREE_TYPE_STRLEN*sizeof(char), 0 GASNETI_THREAD_PASS);
-    ret->fn_ptr = team->autotune_info->collective_algorithms[op][ret->fn_idx].fn_ptr.generic_coll_fn_ptr;
+    ret->fn_ptr.untyped_fn = team->autotune_info->collective_algorithms[op][ret->fn_idx].fn_ptr.untyped_fn;
     ret->team = team;
 
     if(strlen(all_best_tree) > 0) {
@@ -1778,7 +1780,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     ret->num_params = 0;
     ret->fn_idx = GASNETE_COLL_BROADCAST_RVOUS;
   }
-  ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][ret->fn_idx].fn_ptr.bcast_fn;
+  ret->fn_ptr.bcast_fn = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][ret->fn_idx].fn_ptr.bcast_fn;
   
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
     gasneti_console_message("COLL INFO","The algorithm for broadcast is selected by the default logic.");
@@ -1850,7 +1852,7 @@ gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst
   } else {
     ret->fn_idx = GASNETE_COLL_SCATTER_RVOUS;
   }
-  ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_SCATTER_OP][ret->fn_idx].fn_ptr.scatter_fn;
+  ret->fn_ptr.scatter_fn = team->autotune_info->collective_algorithms[GASNET_COLL_SCATTER_OP][ret->fn_idx].fn_ptr.scatter_fn;
 
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
     gasneti_console_message("COLL INFO","The algorithm for scatter is selected by the default logic.");
@@ -1924,7 +1926,7 @@ gasnete_coll_autotune_get_gather_algorithm(gasnet_team_handle_t team,gasnet_imag
   } else {
     ret->fn_idx = GASNETE_COLL_GATHER_RVOUS;
   }
-  ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][ret->fn_idx].fn_ptr.gather_fn;
+  ret->fn_ptr.gather_fn = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][ret->fn_idx].fn_ptr.gather_fn;
 
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
     gasneti_console_message("COLL INFO","The algorithm for gather is selected by the default logic.");
@@ -1970,7 +1972,7 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
   } else {
       ret->fn_idx = GASNETE_COLL_GATHER_ALL_GATHBCAST;
   }
-  ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][ret->fn_idx].fn_ptr.gather_all_fn;
+  ret->fn_ptr.gather_all_fn = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][ret->fn_idx].fn_ptr.gather_all_fn;
  
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
     gasneti_console_message("COLL INFO","The algorithm for gather_all is selected by the default logic.");
@@ -2015,7 +2017,7 @@ gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *ds
   } else {
     ret->fn_idx = GASNETE_COLL_EXCHANGE_GATH;
   }
-  ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_EXCHANGE_OP][ret->fn_idx].fn_ptr.exchange_fn;
+  ret->fn_ptr.exchange_fn = team->autotune_info->collective_algorithms[GASNET_COLL_EXCHANGE_OP][ret->fn_idx].fn_ptr.exchange_fn;
 
   if (gasnete_coll_print_coll_alg && team->myrank == 0) {
     gasneti_console_message("COLL INFO","The algorithm for exchange is selected by the default logic.");

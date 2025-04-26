@@ -22,42 +22,6 @@
 #include <myxml/myxml.h>
 #include <coll/gasnet_coll.h>
 
-/*returns the implementation of the collectives including all the parameters to the algorithm*/
-struct gasnete_coll_implementation_t_{
-  struct gasnete_coll_implementation_t_ *next;
-  gex_Event_t (*fn_ptr)();
-  int fn_idx;
-  gasnet_team_handle_t team;
-  gasnet_coll_optype_t optype;
-  uint32_t flags;
-  int num_params;
-  int need_to_free;
-  gasnete_coll_tree_type_t tree_type;
-  uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES]; /*declare an array that can take all the possible param types*/
-};
-
-typedef struct gasnete_coll_autotune_tree_node_t_ {
-  struct gasnete_coll_autotune_tree_node_t_* parent;
-  struct gasnete_coll_autotune_tree_node_t_** children;
-  int num_children;
-  char *field_name;
-  unsigned int field_start;
-  unsigned int field_end;
-  gasnete_coll_implementation_t impl;
-} gasnete_coll_autotune_tree_node_t;
-
-typedef enum {GASNETE_COLL_NONO=0, GASNETE_COLL_NOMY, GASNETE_COLL_NOALL, 
-  GASNETE_COLL_MYNO, GASNETE_COLL_MYMY, GASNETE_COLL_MYALL,
-GASNETE_COLL_ALLNO, GASNETE_COLL_ALLMY, GASNETE_COLL_ALLALL, GASNETE_COLL_NUM_SYNCMODES}
-  gasnete_coll_syncmode_t;
-
-typedef enum {GASNETE_COLL_LOCAL_MODE,
-  GASNETE_COLL_NUM_ADDRMODES} gasnete_coll_addr_mode_t;
-
-
-  
-
-
 typedef gex_Event_t 
 (*gasnete_coll_bcast_fn_ptr_t)(gasnet_team_handle_t team,
                                void * dst,
@@ -101,6 +65,53 @@ typedef gex_Event_t
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
                                     GASNETI_THREAD_FARG);
+
+typedef gex_Event_t
+(*untyped_coll_fn_ptr_t)();
+
+typedef union {
+    gasnete_coll_bcast_fn_ptr_t       bcast_fn;
+    gasnete_coll_scatter_fn_ptr_t     scatter_fn;
+    gasnete_coll_gather_fn_ptr_t      gather_fn;
+    gasnete_coll_gather_all_fn_ptr_t  gather_all_fn;
+    gasnete_coll_exchange_fn_ptr_t    exchange_fn;
+    untyped_coll_fn_ptr_t             untyped_fn;
+} generic_coll_fn_ptr_t;
+
+/*returns the implementation of the collectives including all the parameters to the algorithm*/
+struct gasnete_coll_implementation_t_{
+  struct gasnete_coll_implementation_t_ *next;
+  generic_coll_fn_ptr_t fn_ptr;
+  int fn_idx;
+  gasnet_team_handle_t team;
+  gasnet_coll_optype_t optype;
+  uint32_t flags;
+  int num_params;
+  int need_to_free;
+  gasnete_coll_tree_type_t tree_type;
+  uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES]; /*declare an array that can take all the possible param types*/
+};
+
+typedef struct gasnete_coll_autotune_tree_node_t_ {
+  struct gasnete_coll_autotune_tree_node_t_* parent;
+  struct gasnete_coll_autotune_tree_node_t_** children;
+  int num_children;
+  char *field_name;
+  unsigned int field_start;
+  unsigned int field_end;
+  gasnete_coll_implementation_t impl;
+} gasnete_coll_autotune_tree_node_t;
+
+typedef enum {GASNETE_COLL_NONO=0, GASNETE_COLL_NOMY, GASNETE_COLL_NOALL, 
+  GASNETE_COLL_MYNO, GASNETE_COLL_MYMY, GASNETE_COLL_MYALL,
+GASNETE_COLL_ALLNO, GASNETE_COLL_ALLMY, GASNETE_COLL_ALLALL, GASNETE_COLL_NUM_SYNCMODES}
+  gasnete_coll_syncmode_t;
+
+typedef enum {GASNETE_COLL_LOCAL_MODE,
+  GASNETE_COLL_NUM_ADDRMODES} gasnete_coll_addr_mode_t;
+
+
+  
 
 typedef enum {
   GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH,
@@ -235,14 +246,7 @@ typedef struct gasnete_coll_allgorithm_t_ {
   
   struct gasnet_coll_tuning_parameter_t *parameter_list;
   
-  union {
-    gex_Event_t (*generic_coll_fn_ptr)();
-    gasnete_coll_bcast_fn_ptr_t bcast_fn;
-    gasnete_coll_scatter_fn_ptr_t scatter_fn;
-    gasnete_coll_gather_fn_ptr_t gather_fn;
-    gasnete_coll_gather_all_fn_ptr_t gather_all_fn;
-    gasnete_coll_exchange_fn_ptr_t exchange_fn;
-  } fn_ptr;
+  generic_coll_fn_ptr_t fn_ptr;
   
   const char *name_str;
 } gasnete_coll_algorithm_t;
