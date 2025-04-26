@@ -324,8 +324,37 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
                                                                   uint32_t tree_alg,
                                                                   uint32_t num_params,
                                                                   struct gasnet_coll_tuning_parameter_t *param_list,
-                                                                  gex_Event_t (*coll_fnptr)(),
+                                                                  generic_coll_fn_ptr_t coll_fnptr,
                                                                   const char *name_str);
+
+// The following family of macros avoids casts among function pointer types.
+// See bug 4787 for motivation.
+#define gasnete_coll_autotune_register_generic_algorithm(optype_upper, optype_lower, \
+                                                         info, index, syncflags, requirements, \
+                                                         n_requirements, max_size, min_size, \
+                                                         tree_alg, num_params, param_list, \
+                                                         coll_fnptr, name_str) \
+  do { \
+    gasneti_assert((unsigned int)index < GASNETE_COLL_##optype_upper##_NUM_ALGS); \
+    generic_coll_fn_ptr_t generic_coll_fn_ptr; \
+    generic_coll_fn_ptr.optype_lower##_fn = coll_fnptr; \
+    info->collective_algorithms[GASNET_COLL_##optype_upper##_OP][index] = \
+    gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_##optype_upper##_OP, \
+                                             syncflags, requirements, \
+                                             n_requirements, max_size, min_size, \
+                                             tree_alg, num_params, param_list, \
+                                             generic_coll_fn_ptr, name_str); \
+  } while (0)
+#define gasnete_coll_autotune_register_broadcast_algorithm(...) \
+        gasnete_coll_autotune_register_generic_algorithm(BROADCAST, bcast, __VA_ARGS__)
+#define gasnete_coll_autotune_register_scatter_algorithm(...) \
+        gasnete_coll_autotune_register_generic_algorithm(SCATTER, scatter, __VA_ARGS__)
+#define gasnete_coll_autotune_register_gather_algorithm(...) \
+        gasnete_coll_autotune_register_generic_algorithm(GATHER, gather, __VA_ARGS__)
+#define gasnete_coll_autotune_register_gather_all_algorithm(...) \
+        gasnete_coll_autotune_register_generic_algorithm(GATHER_ALL, gather_all, __VA_ARGS__)
+#define gasnete_coll_autotune_register_exchange_algorithm(...) \
+        gasnete_coll_autotune_register_generic_algorithm(EXCHANGE, exchange, __VA_ARGS__)
 
 size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);
 
