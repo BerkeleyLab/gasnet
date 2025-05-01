@@ -1913,15 +1913,15 @@ gasnetc_ofi_send_ctxt_t *gasnetc_ofi_get_am_header(int isreq, gex_Flags_t flags 
 
     gasnetc_ofi_send_ctxt_t *header = gasneti_lifo_pop(pool);
 #if GASNETC_IMMEDIATE_AMPOLLS
-    if (header) return header;
+    if (header) goto done;
 #else
-    if (header || imm) return header;
+    if (header || imm) goto done;
 #endif
 
     // Poll only the tx queue and retry the pool before (maybe) allocating another buffer
     gasnetc_ofi_tx_poll();
     header = gasneti_lifo_pop(pool);
-    if (header) return header;
+    if (header) goto done;
 
     // Allocate another unless doing so would exceed the max
     gasneti_semaphore_t* sema = isreq ? &num_unallocated_request_buffers
@@ -1936,7 +1936,7 @@ gasnetc_ofi_send_ctxt_t *gasnetc_ofi_get_am_header(int isreq, gex_Flags_t flags 
         } else {
             GASNETC_STAT_EVENT_VAL(ALLOC_REP_BUFF, 1);
         }
-        return header;
+        goto done;
     }
 
 #if GASNETC_IMMEDIATE_AMPOLLS
@@ -1955,13 +1955,19 @@ gasnetc_ofi_send_ctxt_t *gasnetc_ofi_get_am_header(int isreq, gex_Flags_t flags 
                              GASNETC_OFI_POLL_SELECTIVE(OFI_POLL_REPLY));
     }
 
-    gasneti_assert_uint((uintptr_t)&header->sendbuf.buf.medium_buf.data % GASNETI_MEDBUF_ALIGNMENT ,==, 0);
+done:
+    if (header) {
+        GASNETC_STAT_EVENT(ALLOC_HEADER);
+        gasneti_assert_uint((uintptr_t)&header->sendbuf.buf.medium_buf.data % GASNETI_MEDBUF_ALIGNMENT ,==, 0);
+    }
     return header;
 }
 
 // Release unused AM send buffer
-#define gasnetc_ofi_free_am_header(header) \
-        gasneti_lifo_push(header->pool, header)
+#define gasnetc_ofi_free_am_header(header) do {  \
+        gasneti_lifo_push(header->pool, header); \
+        GASNETC_STAT_EVENT(FREE_HEADER);         \
+  } while(0)
 
 // Process completed AM send
 // TODO: Async LC handling goes here
