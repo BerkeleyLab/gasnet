@@ -522,19 +522,21 @@ extern int gasnetc_AMRequestMediumM(
 
 #else // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
-// This provides a template implementing the following three external functions:
+// This provides a template implementing the following four external functions:
 //     int gasnetc_AMRequestMediumM()
 //     int gasnetc_AM_PrepareRequestMedium()
 //     int gasnetc_AM_CommitRequestMediumM()
+//     int gasnetc_AM_CancelRequestMedium()
 //
-// In this example all three are in terms of two inline functions:
+// In this example the first three are in terms of two inline functions:
 //     int gasnetc_prepare_req_medium()
 //     int gasnetc_commit_req_medium()
 // but that is not a requirement.
 //
 // This example provides a specialized implementation of Negotiated-Payload
-// RequestMedium (by providing gasnetc_AM_PrepareRequestMedium() and
-// gasnetc_AM_CommitRequestMediumM()) and one must
+// RequestMedium (by providing gasnetc_AM_PrepareRequestMedium(),
+// gasnetc_AM_CommitRequestMediumM() and gasnetc_AM_CancelRequestMedium)
+// and one must
 //    #define GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM 1
 // in the conduit's gasnet_core_fwd.h to disable (conflicting) definitions in
 // the reference implementation.
@@ -698,6 +700,26 @@ extern int gasnetc_AM_CommitRequestMediumM(
     gasneti_assert(!rc || (commit_flags & GEX_FLAG_IMMEDIATE));
     return rc;
 }
+
+int gasnetc_AM_CancelRequestMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REQ(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelRequest(sd, gasneti_Medium, flags);
+    } else {
+	// (###) Add code here to release any resources allocated by the
+	// preceeding call to gasnetc_prepare_req_medium() arguments, using
+	// the values it stored in 'sd', or in locations referenced by 'sd'.
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
+}
 #endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMRequestLong)
@@ -853,10 +875,11 @@ extern int gasnetc_AMReplyMediumM(
 
 #else // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
-// This provides a template implementing the following three external functions:
+// This provides a template implementing the following four external functions:
 //     int gasnetc_AMReplyMediumM()
 //     int gasnetc_AM_PrepareReplyMedium()
 //     int gasnetc_AM_CommitReplyMediumM()
+//     int gasnetc_AM_CancelReplyMedium()
 // See comments with GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM for more information.
 
 GASNETI_INLINE(gasnetc_prepare_rep_medium)
@@ -1014,6 +1037,25 @@ extern int gasnetc_AM_CommitReplyMediumM(
     return rc;
 }
 
+int gasnetc_AM_CancelReplyMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REP(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelReply(sd, gasneti_Medium, flags);
+    } else if (sd->_tofree) {
+	// (###) Add code here to release any resources allocated by the
+	// preceeding call to gasnetc_prepare_rep_medium() arguments, using
+	// the values it stored in 'sd', or in locations referenced by 'sd'.
+    }
+
+    gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
+}
 #endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMReplyLong)
