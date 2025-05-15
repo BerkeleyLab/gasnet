@@ -619,10 +619,17 @@ extern int gasnetc_AMRequestMediumM(
     retval = gasnetc_prepare_req_medium(&the_sd,1,jobrank,source_addr,0,nbytes,
                                         lc_opt,flags,numargs GASNETI_THREAD_PASS);
     if (!retval) {
-      // GEX_FLAG_IMMEDIATE was handled in prepare, if at all
-      gasneti_assert_zeroret( gasnetc_commit_req_medium(&the_sd,1,handler,nbytes,0,argptr) );
+      retval = gasnetc_commit_req_medium(&the_sd,1,handler,nbytes,flags,argptr);
+      if (retval) {
+        // (###) gasnetc_commit_req_medium() has indicated "immediate failure".
+        // In this example gasnetc_AM_CommitRequestMediumM() also uses that
+        // function, and a failed commit must *not* modify 'sd'.  So, if using
+        // this pattern one must cleanup resources here.  That may be as simple
+        // as calling gasnetc_AM_CancelRequestMedium().
+      }
     }
   }
+  gasneti_assert(!retval || (flags & GEX_FLAG_IMMEDIATE));
 
   va_end(argptr);
   return retval;
@@ -958,10 +965,17 @@ extern int gasnetc_AMReplyMediumM(
     retval = gasnetc_prepare_rep_medium(&the_sd,1,token,source_addr,0,nbytes,
                                         lc_opt,flags,numargs GASNETI_THREAD_PASS);
     if (!retval) {
-      // GEX_FLAG_IMMEDIATE was handled in prepare, if at all
-      gasneti_assert_zeroret( gasnetc_commit_rep_medium(&the_sd,1,handler,nbytes,0,argptr) );
+      retval = gasnetc_commit_rep_medium(&the_sd,1,handler,nbytes,flags,argptr);
+      if (retval) {
+        // (###) gasnetc_commit_rep_medium() has indicated "immediate failure".
+        // In this example gasnetc_AM_CommitReplyMediumM() also uses that
+        // function, and a failed commit must *not* modify 'sd'.  So, if using
+        // this pattern one must cleanup resources here.  That may be as simple
+        // as calling gasnetc_AM_CancelReplyMedium().
+      }
     }
   }
+  gasneti_assert(!retval || (flags & GEX_FLAG_IMMEDIATE));
 
   va_end(argptr);
   return retval;
