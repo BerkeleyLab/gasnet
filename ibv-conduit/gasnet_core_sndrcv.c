@@ -1088,22 +1088,11 @@ void gasnetc_snd_reap_one(struct ibv_wc *comp_p, gasnetc_hca_t *hca GASNETC_COLL
   }
 }
 
-/* Try to pull completed entries (if any) from the send CQ(s). */
-int gasnetc_snd_reap(int limit) {
+// Try to pull completed entries (if any) from a single send CQ
+static int gasnetc_snd_reap_hca(gasnetc_hca_t *hca, int limit) {
   int count;
   struct ibv_wc comp;
   GASNETC_COLLECT_DECLS
-
-  gasnetc_hca_t *hca;
-#if GASNETC_IB_MAX_HCAS > 1
-  if (gasnetc_snd_poll_multi_hcas) {
-    GASNETC_WEAK_COUNTER_DECL(index, 0);
-    int tmp = GASNETC_WEAK_COUNTER_READ(index);
-    GASNETC_WEAK_COUNTER_WRITE(index, ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1);
-    hca = &gasnetc_hca[tmp];
-  } else
-#endif
-  hca = &gasnetc_hca[0];
 
   gasneti_assert(limit <= GASNETC_SND_REAP_LIMIT);
 
@@ -1123,6 +1112,22 @@ int gasnetc_snd_reap(int limit) {
   }
 
   return count;
+}
+
+// Try to pull completed entries (if any) from the send CQ(s).
+// Services only one HCA per call, round-robin across calls.
+int gasnetc_snd_reap(int limit) {
+  int hca_index = 0;
+
+#if GASNETC_IB_MAX_HCAS > 1
+  if (gasnetc_snd_poll_multi_hcas) {
+    GASNETC_WEAK_COUNTER_DECL(index, 0);
+    hca_index = GASNETC_WEAK_COUNTER_READ(index);
+    GASNETC_WEAK_COUNTER_WRITE(index, ((hca_index == 0) ? gasnetc_num_hcas : hca_index) - 1);
+  }
+#endif
+
+  return gasnetc_snd_reap_hca(&gasnetc_hca[hca_index], limit);
 }
 
 /* Take *unbound* epid, return a qp number */
@@ -1158,9 +1163,12 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid)
 
 /* Take and sreq and bind it to a specific (not wildcard) qp */
 #if GASNETC_DYNAMIC_CONNECT || GASNETC_IBV_SRQ
-gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply GASNETI_THREAD_FARG)
+gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid,
+                                      gasnetc_sreq_t *sreq, int block, int is_reply
+                                      GASNETI_THREAD_FARG)
 #else
-gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq)
+gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid,
+                                      gasnetc_sreq_t *sreq, int block)
 #endif
 {
   gasnetc_cep_t *ceps = gasnetc_get_cep(ep, gasnetc_epid2node(epid));
@@ -1172,8 +1180,6 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
   qpi = gasnetc_epid_select_qpi(ceps, epid);
   cep = &ceps[qpi];
   if_pf (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
-    GASNETC_TRACE_WAIT_BEGIN();
-
   #if GASNETC_DYNAMIC_CONNECT
     /* Close the one dynamic connection race condition. */
     if (GASNETT_PREDICT_FALSE(GASNETC_CEP_SQ_SEMA(cep) == &gasnetc_zero_sema) && is_reply) {
@@ -1184,8 +1190,26 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
        * thus cannot send us a Request until ready to send the ACK.
        */
       gasnetc_conn_implied_ack(ep, gasnetc_epid2node(epid));
+      if (gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
+        goto out;
+      }
     }
   #endif
+
+    // Handle the non-blocking (IMMEDIATE) case
+    if (!block) {
+    #if GASNETC_IMM_MAY_POLL_SQ
+      // Progress sends *once* on the selected HCA and recheck semaphore
+      gasnetc_snd_reap_hca(cep->hca,1);
+      if (gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
+        goto out;
+      }
+    #endif
+      // TODO: If not bound to a specific cep, should scan all remaining CEPs
+      // before giving up.  However, that case is currently unreachable, since
+      // only RMA makes non-bound calls and there is no RMA+IMMEDIATE support.
+      return NULL;
+    }
 
 #if GASNETC_IBV_SRQ
   // When using SRQ, rcv buffers for AM Requests may be under-provisioned,
@@ -1236,6 +1260,7 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
   #define MAYBE_POLL_RCV(_ep, _cep) ((void)0)
 #endif
 
+    GASNETC_TRACE_WAIT_BEGIN();
     GASNETI_SPIN_DOUNTIL(
       gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)),
       {
@@ -1250,6 +1275,9 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasn
 #undef MAYBE_POLL_RCV
 #undef MAYBE_POLL_RCV_PSHM
   }
+
+out:
+  gasneti_assert(cep);
   cep->used = 1;
 
   sreq->epid = gasnetc_epid(epid, qpi);
@@ -1559,6 +1587,13 @@ gasnetc_buffer_t *gasnetc_get_bbuf(int block GASNETI_THREAD_FARG) {
   return gasnetc_get_bbuf_inner(0, block GASNETI_THREAD_PASS);
 }
 
+void gasnetc_put_bbuf(gasnetc_buffer_t *bbuf) {
+  gasneti_assert(bbuf != NULL);
+  if (!gasnetc_maybe_restore_spare_reply_bbuf(bbuf)) {
+    gasnetc_lifo_push(&gasnetc_bbuf_freelist,bbuf);
+  }
+}
+
 #if GASNETC_IBV_SRQ
 // Allocate a pre-pinned bounce buffer, with special case for reply
 gasnetc_buffer_t *gasnetc_get_bbuf_srq(int is_reply, int block GASNETI_THREAD_FARG) {
@@ -1704,14 +1739,36 @@ static void gasnetc_snd_post_fail(int rc, int is_inline) {
 }
 GASNETI_NORETURNP(gasnetc_snd_post_fail)
 
-static void
-gasnetc_snd_post_inner(gasnetc_cep_t * const cep, struct ibv_send_wr *sr_desc, int is_inline GASNETI_THREAD_FARG)
+// Used in the IMMEDIATE case to reserve a CQ slot separate from gasnetc_snd_post*()
+// Returns non-zero on success, zero on failure
+int gasnetc_snd_reserve(gasnetc_cep_t * const cep) {
+  gasnetc_sema_t *sema = cep->snd_cq_sema_p;
+  if (gasnetc_sema_trydown(sema)) return 1;
+
+#if GASNETC_IMM_MAY_POLL_SQ
+  // Progress sends *once* on the selected HCA and recheck semaphore
+  gasnetc_snd_reap_hca(cep->hca, 1);
+  return gasnetc_sema_trydown(sema);
+#else
+  return 0;
+#endif
+}
+
+GASNETI_INLINE(gasnetc_snd_post_inner)
+void gasnetc_snd_post_inner(
+                gasnetc_cep_t * const cep,
+                struct ibv_send_wr *sr_desc,
+                int reserved,
+                int is_inline
+                GASNETI_THREAD_FARG)
 {
-  // Loop until space is available for 1 new entry on the CQ.
-  // If we hold the last one then threads sending to ANY node will stall.
-  // So this is the last resource to acquire
-  GASNETI_SPIN_UNTIL_TRACE(gasnetc_sema_trydown(cep->snd_cq_sema_p),
-                           C, POST_SR_STALL_CQ, gasnetc_poll_snd());
+  if (! reserved) {
+    // Loop until space is available for 1 new entry on the CQ.
+    // If we hold the last one then threads sending to ANY node will stall.
+    // So this is the last resource to acquire
+    GASNETI_SPIN_UNTIL_TRACE(gasnetc_sema_trydown(cep->snd_cq_sema_p),
+                             C, POST_SR_STALL_CQ, gasnetc_poll_snd());
+  }
 
   // Post the operation
   struct ibv_send_wr *bad_wr;
@@ -1719,7 +1776,7 @@ gasnetc_snd_post_inner(gasnetc_cep_t * const cep, struct ibv_send_wr *sr_desc, i
   if_pf (rc) gasnetc_snd_post_fail(rc, is_inline);
 }
 
-void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int is_inline GASNETI_THREAD_FARG) {
+void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int reserved, int is_inline GASNETI_THREAD_FARG) {
   gasnetc_cep_t * const cep = sreq->cep;
 
   /* Must be bound to a qp by now */
@@ -1760,6 +1817,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
   // will not execute until the ibv-level CQE for the Atomic.
   GASNETC_DECL_SR_DESC(amo_sr_desc, 1);
   if (sreq->opcode & gasnetc_op_needs_fence_mask) {
+    gasneti_assert(! reserved); // TODO: IMMEDIATE support for RMA
     gasnetc_sreq_t *amo_sreq = gasnetc_get_sreq(GASNETC_OP_FENCE GASNETI_THREAD_PASS);
     amo_sreq->cep = cep;
     amo_sreq->fence_sreq = sreq;
@@ -1787,13 +1845,14 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
     sr_desc->send_flags = inline_flag; // Strips IBV_SEND_SIGNALED
     sr_desc->next = amo_sr_desc;
 
-    // Try at most twice (w/ a CQ poll between) to obtain a second CQ slot
+    // Try at most twice (w/ a CQ poll between) to obtain a second SQ slot
     // Spinning indefinitely while holding one slot could deadlock if
     // multiple threads in a PAR build are all doing the same.
     // Even in a SEQ or PARSYNC build, there is an advantage to posting the
     // Put without unnecessary delay.
+    gasnetc_hca_t *hca = cep->hca;
     if_pf (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)) &&
-           (gasnetc_snd_reap(1), !gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)))) {
+           (gasnetc_snd_reap_hca(hca,1), !gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)))) {
       // Since we failed to get a second SQ slot we split the two post operations
       GASNETC_STAT_EVENT(POST_SR_SPLIT);
       // Move the remote completion callback from the Put to the Atomic
@@ -1804,22 +1863,22 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
       // Post only the Put, releasing a SQ slot for eventual reclamation
       sr_desc->next = NULL;
       sr_desc->send_flags = inline_flag | IBV_SEND_SIGNALED;
-      gasnetc_snd_post_inner(cep, sr_desc, is_inline GASNETI_THREAD_PASS);
+      gasnetc_snd_post_inner(cep, sr_desc, 0, is_inline GASNETI_THREAD_PASS);
       // Ensure the post call on the normal code path will post the Atomic
       sr_desc = amo_sr_desc;
       is_inline = 0;
       // Now we spin to obtain a SQ slot for just the Atomic operation
       GASNETI_SPIN_UNTIL_TRACE(gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)),
-                               C, POST_SR_STALL_SQ2, gasnetc_snd_reap(1));
+                               C, POST_SR_STALL_SQ2, gasnetc_snd_reap_hca(hca,1));
     }
   }
 #endif
 
   /* Post it */
-  gasnetc_snd_post_inner(cep, sr_desc, is_inline GASNETI_THREAD_PASS);
+  gasnetc_snd_post_inner(cep, sr_desc, reserved, is_inline GASNETI_THREAD_PASS);
 }
-#define gasnetc_snd_post(x,y)		gasnetc_snd_post_common(x,y,0 GASNETI_THREAD_PASS)
-#define gasnetc_snd_post_inline(x,y)	gasnetc_snd_post_common(x,y,1 GASNETI_THREAD_PASS)
+#define gasnetc_snd_post(x,y)           gasnetc_snd_post_common(x,y,0,0 GASNETI_THREAD_PASS)
+#define gasnetc_snd_post_inline(x,y)    gasnetc_snd_post_common(x,y,0,1 GASNETI_THREAD_PASS)
 
 #if GASNETC_USE_RCV_THREAD
 static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)

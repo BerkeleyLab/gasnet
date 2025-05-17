@@ -210,7 +210,7 @@ int gasnete_ratomic_inner(
   sreq->comp.data = initiated_cnt;
 
   (*initiated_cnt) += 1;
-  gasnetc_snd_post_common(sreq, sr_desc, 0 GASNETI_THREAD_PASS);
+  gasnetc_snd_post_common(sreq, sr_desc, 0, 0 GASNETI_THREAD_PASS);
 
   return 0;
 }
