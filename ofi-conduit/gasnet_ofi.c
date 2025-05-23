@@ -2660,7 +2660,7 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
     gasneti_assume((source_addr != NULL) || !nbytes);
     int rc = gasnetc_medium_commit(header, /*fixed*/1, dest, handler, source_addr, nbytes,
                                  numargs, argptr, isreq, flags GASNETI_THREAD_PASS);
-    gasneti_assert(!rc || (flags && GEX_FLAG_IMMEDIATE));
+    gasneti_assert(!rc || (flags & GEX_FLAG_IMMEDIATE));
     if (rc) gasnetc_ofi_free_am_header(header);
     return rc;
 }
