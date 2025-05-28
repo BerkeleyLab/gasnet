@@ -2706,6 +2706,9 @@ extern int gasnetc_attach_primary(gex_Flags_t flags) {
 
   gasnete_init(); /* init the extended API */
 
+  /* ensure extended API is initialized across nodes */
+  gasneti_bootstrapBarrier_am();
+
 #if GASNETC_BUILD_IBVRATOMIC
   // Setup for offloaded remote atomics
   int i = gasnetc_ratomic_init(gasnetc_ep0);
@@ -2715,9 +2718,6 @@ extern int gasnetc_attach_primary(gex_Flags_t flags) {
 #endif
 
   gasneti_nodemapFini();
-
-  /* ensure extended API is initialized across nodes */
-  gasneti_bootstrapBarrier_am();
 
 #if GASNETC_USE_RCV_THREAD || GASNETC_USE_SND_THREAD
   /* Start progress thread(s), if applicable */
