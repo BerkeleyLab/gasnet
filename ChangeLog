@@ -77,6 +77,7 @@ GASNet-EX ChangeLog
     See GASNET_HWLOC_QUERY in the top-level GASNet README for details.
   - Improved tracing and statistics support for the `gex_AD_*()` APIs
   - Improved pseudo-random number generation used in many tests.
+  - Support for compilation of GASNet-EX with GCC-15
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4165 - ucx: AMMediumRequest bandwidth problems
@@ -106,6 +107,8 @@ GASNet-EX ChangeLog
   - bug4772 - regression in low-memory error handling with single-process runs
   - bug4773 - (partial fix) improved error handling in segment allocation
   - bug4774 - Add argument-checking to GASNet object query accessors
+  - bug4787 - GCC-15 errors and warnings regarding incompatible pointers-to-function
+  - bug4788 - amx/testam.c not C23-compatible
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0

@@ -1644,6 +1644,12 @@ typedef struct {
 // at a fixed index, or 0 for "don't care" (see gex_EP_RegisterHandlers() for
 // more information on this case).
 //
+// Because the gex_fnptr field is used to hold pointers to functions with many
+// possible signatures, C++ and C23 (or higher) require explicit casts to the
+// type gex_AM_Fn_t when populating this field.  Since a client author might
+// not control the default C language level of the compiler, casts in C clients
+// should be considered "best practice".
+//
 // The gex_nargs and gex_flags fields are used by the client to supply the implementation 
 // with assertions regarding the future invocations and behavior of each AM handler.
 // If a handler invocation (eg via an AM injection targeting a given handler) or

@@ -255,7 +255,7 @@ extern int gasneti_amtbl_init(gasneti_EP_t i_ep) {
     output[i].gex_index = 0; // marks an unused entry
     output[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
     output[i].gex_flags = GASNETI_FLAG_AM_ANY;
-    output[i].gex_fnptr = gasneti_defaultAMHandler;
+    output[i].gex_fnptr = (gex_AM_Fn_t)gasneti_defaultAMHandler;
     output[i].gex_cdata = (void *)(uintptr_t)i;
     output[i].gex_name  = fnname;
   }
