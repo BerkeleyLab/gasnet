@@ -17,6 +17,20 @@
 // one should clone this file to the conduit directory and make the
 // changes indicated by comments starting with (###).
 
+// Build UCX remote atomics by default in fast and large segment modes,
+// unless disabled at configure time.
+#if defined(GASNETC_BUILD_UCXRATOMIC)
+  // Normalize any forced value
+  #if !GASNETC_BUILD_UCXRATOMIC
+    #undef GASNETC_BUILD_UCXRATOMIC
+  #else
+    #undef GASNETC_BUILD_UCXRATOMIC
+    #define GASNETC_BUILD_UCXRATOMIC 1
+  #endif
+#elif (GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE) && GASNETC_UCX_ATOMICS_CONFIGURE
+  #define GASNETC_BUILD_UCXRATOMIC 1
+#endif
+
 // ****
 // Section 1: control/configure AM-based reference implementation
 //
@@ -33,7 +47,7 @@
 // only in the absence of conduit-specific atomics.
 //
 // (###) Conduits cloning the file *must* remove (or comment-out) this define!
-#if !defined(GASNET_SEGMENT_FAST) && !defined(GASNET_SEGMENT_LARGE)
+#if !GASNETC_BUILD_UCXRATOMIC
   #define GASNETE_RATOMIC_AMONLY 1
 #endif
 
@@ -104,7 +118,7 @@
 // HOWEVER, that is almost never a safe determination to make, since
 // Tools may use mutexes, etc.   TL;DR: use 0 for offloadable types.
 //
-#if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+#if GASNETC_BUILD_UCXRATOMIC
 #define GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE_gex_dt_I32 0
 #define GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE_gex_dt_U32 0
 #define GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE_gex_dt_I64 0
@@ -129,10 +143,12 @@
 //     GASNETC_SIZEOF_CLIENT_T
 // which are documented in template-conduit/gasnet_core_fwd.h
 
-#define GASNETC_AD_EXTRA_DECLS \
-  extern void gasnete_ucxratomic_init_hook(gasneti_AD_t);
-#define GASNETC_AD_INIT_HOOK(i_ad) gasnete_ucxratomic_init_hook(i_ad)
-//#define GASNETC_AD_FINI_HOOK(i_ad) (###)
-//#define GASNETC_SIZEOF_AD_T() (###)
+#if GASNETC_BUILD_UCXRATOMIC
+  #define GASNETC_AD_EXTRA_DECLS \
+    extern void gasnete_ucxratomic_init_hook(gasneti_AD_t);
+  #define GASNETC_AD_INIT_HOOK(i_ad) gasnete_ucxratomic_init_hook(i_ad)
+  //#define GASNETC_AD_FINI_HOOK(i_ad) (###)
+  //#define GASNETC_SIZEOF_AD_T() (###)
+#endif
 
 #endif // _GASNET_RATOMIC_FWD_H

@@ -18,6 +18,10 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX-YY-ZZ: PENDING
 
+* Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
+  - New configure option `--disable-ucx-atomics` can be used to disable
+    compilation of offloaded atomics in ucx-conduit.
+
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4811 - ofi: startup crashes with --enable-segment-everything
 
