@@ -14,11 +14,9 @@ GASNet-EX ChangeLog
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
   - Unified Communication X (ucx-conduit) [EXPERIMENTAL]
-  Users wishing to use other retired conduits may need to download 
-  the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-20XX-YY-ZZ: PENDING
+2025-08-28: GASNet-EX 2025.8.0
 
 * Memory Kinds (support for non-host memory)
   - Fixed support for device memory allocated via cuMemMap (bug 4767)
