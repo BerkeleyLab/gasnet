@@ -101,8 +101,8 @@ GASNet Release Procedure
   especially documentation and auxiliary files.  Check that other/contrib
   contains any cross-configure scripts that are intended for distribution.
   The following command may be used to list any files which have been
-  added to the Git repository since the previous release:
-    $ git diff --name-status [previous-release-tag] | grep ^A
+  added to the Git repository, or renamed, since the previous release:
+    $ git diff --name-status [previous-release-tag] | grep '^[AR]'
 
 * Verify that ./unBootstrap removes all generated files:
   In the repository directory:
