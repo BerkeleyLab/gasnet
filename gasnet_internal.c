@@ -158,6 +158,8 @@ gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark = NULL;
   gasneti_progressfn_t gasneti_debug_progressfn_counted = gasneti_disabled_progressfn;
 #endif
 
+void gasneti_empty_pf(void) {}
+
 gasnet_seginfo_t *gasneti_seginfo = NULL;
 gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
 
@@ -453,6 +455,10 @@ gasneti_Client_t gasneti_import_client(gex_Client_t _client) {
   GASNETI_IMPORT_MAGIC(_real_client, CLIENT);
   return _real_client;
 }
+gasneti_Client_t gasneti_import_client_valid(gex_Client_t client) {
+  gasneti_assert(client != GEX_CLIENT_INVALID);
+  return gasneti_import_client(client);
+}
 #endif
 
 #ifndef gasneti_export_client
@@ -516,6 +522,10 @@ gasneti_Segment_t gasneti_import_segment(gex_Segment_t _segment) {
   const gasneti_Segment_t _real_segment = GASNETI_IMPORT_POINTER(gasneti_Segment_t,_segment);
   GASNETI_IMPORT_MAGIC(_real_segment, SEGMENT);
   return _real_segment;
+}
+gasneti_Segment_t gasneti_import_segment_valid(gex_Segment_t segment) {
+  gasneti_assert(segment != GEX_SEGMENT_INVALID);
+  return gasneti_import_segment(segment);
 }
 #endif
 
@@ -698,6 +708,10 @@ gasneti_EP_t gasneti_import_ep(gex_EP_t _ep) {
   const gasneti_EP_t _real_ep = GASNETI_IMPORT_POINTER(gasneti_EP_t,_ep);
   GASNETI_IMPORT_MAGIC(_real_ep, EP);
   return _real_ep;
+}
+gasneti_EP_t gasneti_import_ep_valid(gex_EP_t ep) {
+  gasneti_assert(ep != GEX_EP_INVALID); 
+  return gasneti_import_ep(ep);
 }
 #endif
 
@@ -1598,6 +1612,9 @@ static int gasneti_nativeOfiProvider(void) {
     gasneti_device_probe_t dev_list[] = {
       GASNETI_IBV_DEVICES, // verbs or psm2 providers
       GASNETI_CXI_DEVICES  // cxi provider
+      #if !GASNET_SEGMENT_EVERYTHING
+        , GASNETI_GNI_DEVICES // gni provider
+      #endif
     };
     if (gasneti_probeInfiniBandHCAs() & GASNETI_HCA_TRUESCALE) {
       // Assume no good if TrueScale HCA is found (we assume single fabric)
@@ -2047,7 +2064,7 @@ const char *gasneti_format_host_detect(void) {
  * NOTE: may modify gasneti_nodemap[] if env var GASNET_SUPERNODE_MAXSIZE is set,
  *        or if gasneti_nodemap_local_count would exceed GASNETI_PSHM_MAX_NODES.
  * TODO: splitting by socket or other criteria for/with GASNET_SUPERNODE_MAXSIZE.
- * TODO: keep widths around for conduits to use? (at least ibv and aries both use)
+ * TODO: keep widths around for conduits to use? (at least ibv uses)
  */
 extern void gasneti_nodemapParse(void) {
   gex_Rank_t i,j,limit;
@@ -2213,11 +2230,11 @@ extern void gasneti_nodemapParse(void) {
 //     Both `sz` and `stride` are ignored.
 //   }
 //
-// TODO: The "four case" above conflate the scalar/vector nature of `ids`
+// TODO: The "four cases" above conflate the scalar/vector nature of `ids`
 // with the availability of an `exchangefn`, with the result that a vector of
 // conduit-specific ids cannot be ignored in favor of one of the standard
-// GASNET_HOST_DETECT options (making "conduit" and "trivial" the only supported
-// options for aries-conduit in particular).  This could be fixed with an
+// GASNET_HOST_DETECT options (which had made "conduit" and "trivial" the only
+// supported options for aries-conduit).  This could be fixed with an
 // adjustment such as making non-zero `stride` the indicator for a vector `ids`.
 //
 // TODO: There is a proposed "greedy" algorithm which uses all of the available

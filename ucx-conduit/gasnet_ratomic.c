@@ -77,19 +77,6 @@ ucp_atomic_post_op_t amo_post_op_map_gex_dt_I32(gasneti_op_idx_t op_idx) {
 #define amo_post_op_map_gex_dt_I64 amo_post_op_map_gex_dt_I32
 #define amo_post_op_map_gex_dt_U64 amo_post_op_map_gex_dt_I32
 
-GASNETI_INLINE(gasnete_ratomic_jobrank)
-gex_Rank_t gasnete_ratomic_jobrank(gasneti_TM_t i_tm, gex_Rank_t tgt_rank,
-                                   gex_Flags_t flags)
-{
-  if (flags & GEX_FLAG_RANK_IS_JOBRANK) {
-    gasneti_assert(GEX_RANK_INVALID !=
-        gasneti_i_tm_jobrank_to_rank(i_tm, tgt_rank));
-    return tgt_rank;
-  } else {
-    return gasneti_i_tm_rank_to_jobrank(i_tm, tgt_rank);
-  }
-}
-
 static
 void gasnetc_ucx_amo_cb(void *request, ucs_status_t status)
 {
@@ -203,6 +190,43 @@ int gasnete_ratomic_fetch_nbi(const int length, void *result_p,
   gasnete_ratomic_fetch_inner(rank, length, tgt_addr, op, op_cnt, result_p,
                               operand1, operand2, &iop->initiated_rmw_cnt,
                               iop->next ? gasnetc_cb_nar_rmw : gasnetc_cb_iop_rmw);
+  GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
+  return 0;
+}
+
+int gasnete_ratomic_set_nbi(const int length, void *result_p,
+                            gasneti_TM_t i_tm, gex_Rank_t tgt_rank,
+                            void *tgt_addr, ucp_atomic_fetch_op_t op,
+                            uint64_t operand1,
+                            gex_Flags_t flags GASNETI_THREAD_FARG)
+{
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasnete_iop_t * const iop = mythread->current_iop;
+  gex_Rank_t rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
+
+  GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
+  // TODO: add support GEX_FLAG_IMMEDIATE flag
+  gasnete_ratomic_fetch_inner(rank, length, tgt_addr, op, 1, result_p,
+                              operand1, 0, &iop->initiated_put_cnt,
+                              iop->next ? gasnetc_cb_nar_put : gasnetc_cb_iop_put);
+  GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
+  return 0;
+}
+
+int gasnete_ratomic_get_nbi(const int length, void *result_p,
+                            gasneti_TM_t i_tm, gex_Rank_t tgt_rank,
+                            void *tgt_addr, ucp_atomic_fetch_op_t op,
+                            gex_Flags_t flags GASNETI_THREAD_FARG)
+{
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasnete_iop_t * const iop = mythread->current_iop;
+  gex_Rank_t rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
+
+  GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
+  // TODO: add support GEX_FLAG_IMMEDIATE flag
+  gasnete_ratomic_fetch_inner(rank, length, tgt_addr, op, 0, result_p,
+                              0, 0, &iop->initiated_get_cnt,
+                              iop->next ? gasnetc_cb_nar_get : gasnetc_cb_iop_get);
   GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
   return 0;
 }
@@ -493,9 +517,9 @@ int gasnete_ratomic_post_nbi(const int length,
     {                                                             \
       ucp_atomic_fetch_op_t op = amo_fetch_op_map##dtcode(op_idx);\
       return                                                      \
-        gasnete_ratomic_fetch_nbi(sizeof(type), NULL, ad->_tm,    \
-                              tgt_rank, tgt_addr, op, 1, operand1,\
-                              0, flags GASNETI_THREAD_PASS);      \
+        gasnete_ratomic_set_nbi(sizeof(type), NULL, ad->_tm,      \
+                                tgt_rank, tgt_addr, op, operand1, \
+                                flags GASNETI_THREAD_PASS);       \
     }                                                             \
     GASNETI_INLINE(prefix##_NBI_G0)                               \
     int prefix##_NBI_G0(                                          \
@@ -506,9 +530,9 @@ int gasnete_ratomic_post_nbi(const int length,
     {                                                             \
       ucp_atomic_fetch_op_t op = amo_fetch_op_map##dtcode(op_idx);\
       return                                                      \
-        gasnete_ratomic_fetch_nbi(sizeof(type), result_p, ad->_tm,\
-                                 tgt_rank, tgt_addr, op, 0, 0, 0, \
-                                 flags GASNETI_THREAD_PASS);      \
+        gasnete_ratomic_get_nbi(sizeof(type), result_p, ad->_tm,  \
+                                tgt_rank, tgt_addr, op,           \
+                                flags GASNETI_THREAD_PASS);       \
     }
 GASNETE_DT_INT_APPLY(GASNETE_UCXRATOMIC_MID)
 
@@ -618,7 +642,7 @@ void gasnete_ucxratomic_init_hook(gasneti_AD_t real_ad)
         if (ops & GASNETE_UCXRATOMIC_BADOPS##dtcode) goto use_am; \
         real_ad->_fn_tbl = (gasnete_ratomic_fn_tbl_t) &gasnete_ucxratomic##dtcode##_fn_tbl; \
         real_ad->_tools_safe = 0; \
-        GASNETI_TRACE_PRINTF(O,("gex_AD_Create(dt=%d, ops=0x%x) -> UCX", (int)dt, (unsigned int)ops)); \
+        real_ad->_is_ref = 0; \
         return;
   switch(dt) {
       GASNETE_DT_INT_APPLY(GASNETE_UCXRATOMIC_TBL_CASE)

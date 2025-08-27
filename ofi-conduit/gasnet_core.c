@@ -135,7 +135,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   gasneti_assert_zeroret(gasnetc_exit_init());
 
   #if GASNET_PSHM
-  gasneti_pshm_init(gasneti_bootstrapSNodeBroadcast, 0);
+  gasneti_pshm_init(gasneti_bootstrapNbrhdBroadcast, 0);
   #endif
 
   //  Create first Client, EP and TM *here*, for use in subsequent bootstrap communication
@@ -191,7 +191,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach_primary(void) {
+extern int gasnetc_attach_primary(gex_Flags_t flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
@@ -289,7 +289,7 @@ extern int gasnetc_Client_Init(
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
-    if (GASNET_OK != gasnetc_attach_primary())
+    if (GASNET_OK != gasnetc_attach_primary(flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
     /* ensure everything is initialized across all nodes */
@@ -400,23 +400,23 @@ static void gasnetc_exit_sighandler(int sig) {
   /* note - can't call trace macros here, or even sprintf */
   if (sig == SIGALRM) {
     static const char msg[] = "gasnet_exit(): WARNING: timeout during exit... goodbye.  [";
-    (void) write(STDERR_FILENO, msg, sizeof(msg) - 1);
-    (void) write(STDERR_FILENO, state, state_len);
-    (void) write(STDERR_FILENO, "]\n", 2);
+    gasneti_unused_result( write(STDERR_FILENO, msg, sizeof(msg) - 1) );
+    gasneti_unused_result( write(STDERR_FILENO, state, state_len) );
+    gasneti_unused_result( write(STDERR_FILENO, "]\n", 2) );
   } else {
     static const char msg1[] = "gasnet_exit(): ERROR: signal ";
     static const char msg2[] = " received during exit... goodbye.  [";
     char digit;
 
-    (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
+    gasneti_unused_result( write(STDERR_FILENO, msg1, sizeof(msg1) - 1) );
 
     char sigstr[4];
     size_t n = gasneti_utoa(sig, sigstr, sizeof(sigstr), 10);
-    (void) write(STDERR_FILENO, sigstr, n);
+    gasneti_unused_result( write(STDERR_FILENO, sigstr, n) );
 
-    (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
-    (void) write(STDERR_FILENO, state, state_len);
-    (void) write(STDERR_FILENO, "]\n", 2);
+    gasneti_unused_result( write(STDERR_FILENO, msg2, sizeof(msg2) - 1) );
+    gasneti_unused_result( write(STDERR_FILENO, state, state_len) );
+    gasneti_unused_result( write(STDERR_FILENO, "]\n", 2) );
   }
   (void) fsync(STDERR_FILENO);
 
@@ -527,6 +527,11 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_bootstrapAbort(exitcode);
     gasneti_killmyprocess(exitcode);
   }
+
+#if GASNET_DEBUG
+  // Disarm gasneti_checknpam() so we can use AMs for coordination
+  gasneti_checknpam_disarm();
+#endif
 
   const unsigned int timeout = (unsigned int)gasnetc_exittimeout;
 
@@ -969,9 +974,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     return gasneti_export_srcdesc(sd);
 }
 
-extern void gasnetc_AM_CommitRequestMediumM(
+extern int gasnetc_AM_CommitRequestMediumM(
                        gex_AM_Index_t          handler,
-                       size_t                  nbytes
+                       size_t                  nbytes,
+                       gex_Flags_t             commit_flags
                        GASNETI_THREAD_FARG,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
@@ -980,18 +986,40 @@ extern void gasnetc_AM_CommitRequestMediumM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs_arg,Medium);
+    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,commit_flags,nargs_arg,Medium);
 
+    int rc = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
-        gasnetc_ofi_CommitMedium(sd, /*isreq*/1, handler, nbytes, argptr GASNETI_THREAD_PASS);
+        rc = gasnetc_ofi_CommitMedium(sd, /*isreq*/1, handler, nbytes, commit_flags, argptr GASNETI_THREAD_PASS);
+        gasneti_assert(!rc || (commit_flags & GEX_FLAG_IMMEDIATE));
     }
     va_end(argptr);
 
+    if (!rc) gasneti_reset_srcdesc(sd);
+
+    return rc;
+}
+
+int gasnetc_AM_CancelRequestMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REQ(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelRequest(sd, gasneti_Medium, flags);
+    } else {
+        gasnetc_ofi_CancelMedium(sd);
+    }
+
     gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
 }
 
 #endif // GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM
@@ -1035,9 +1063,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     return gasneti_export_srcdesc(sd);
 }
 
-extern void gasnetc_AM_CommitReplyMediumM(
+extern int gasnetc_AM_CommitReplyMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
+                       gex_Flags_t             commit_flags,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
                      #endif
@@ -1045,19 +1074,41 @@ extern void gasnetc_AM_CommitReplyMediumM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs_arg,Medium);
+    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,commit_flags,nargs_arg,Medium);
 
+    int rc = GASNET_OK; // assume success
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitReply(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
         GASNET_POST_THREADINFO(sd->_thread);
-        gasnetc_ofi_CommitMedium(sd, /*isreq*/0, handler, nbytes, argptr GASNETI_THREAD_PASS);
+        rc = gasnetc_ofi_CommitMedium(sd, /*isreq*/0, handler, nbytes, commit_flags, argptr GASNETI_THREAD_PASS);
+        gasneti_assert(!rc || (commit_flags & GEX_FLAG_IMMEDIATE));
     }
     va_end(argptr);
 
+    if (!rc) gasneti_reset_srcdesc(sd);
+
+    return rc;
+}
+
+int gasnetc_AM_CancelReplyMedium(
+                       gex_AM_SrcDesc_t        sd_arg,
+                       gex_Flags_t             flags)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_CANCEL_REP(sd,flags,Medium);
+
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CancelReply(sd, gasneti_Medium, flags);
+    } else {
+        gasnetc_ofi_CancelMedium(sd);
+    }
+
     gasneti_reset_srcdesc(sd);
+    return GASNET_OK;
 }
 
 #endif // GASNET_NATIVE_NP_ALLOC_REP_MEDIUM

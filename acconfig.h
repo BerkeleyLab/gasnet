@@ -248,6 +248,9 @@
 /* has sched_yield() */
 #undef HAVE_SCHED_YIELD
 
+/* has sigaction() and a definition of the SA_RESTART flag */
+#undef GASNETI_HAVE_SA_RESTART
+
 /* have sysctl machdep.tsc_freq */
 #undef GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ
 
@@ -366,6 +369,10 @@
 /* gcc support for "U" and "h" register classes on SPARC32 */
 #undef GASNETI_HAVE_SPARC32_64BIT_ASM
 
+/* has _builtin_bswap{32,64} */
+#undef GASNETI_HAVE_CC_BUILTIN_BSWAP32
+#undef GASNETI_HAVE_CC_BUILTIN_BSWAP64
+
 /* has _builtin_c[lt]z */
 #undef GASNETI_HAVE_CC_BUILTIN_CLZ
 #undef GASNETI_HAVE_CC_BUILTIN_CLZL
@@ -469,13 +476,9 @@
 #undef GASNETI_DISABLE_ALIGNED_SEGMENTS
 
 /* GASNet smp-conduit */
+#undef GASNETC_SMP_SPAWNER_CONF
 #undef GASNETC_HAVE_O_ASYNC
 #undef GASNETC_USE_SOCKETPAIR
-
-/* GASNet aries-conduit settings */
-#undef GASNETC_GNI_MAX_MEDIUM_DFLT
-#undef GASNETC_GNI_MULTI_DOMAIN
-#undef GASNETC_GNI_UDREG
 
 /* GASNet ofi-conduit settings */
 #undef GASNETC_OFI_SPAWNER_CONF
@@ -503,6 +506,7 @@
 #undef GASNETC_IBV_SPAWNER_CONF
 #undef HAVE_IBV_SRQ
 #undef HAVE_IBV_TRANSPORT_TYPE
+#undef HAVE_IBV_CREATE_QP_EX
 #undef GASNETC_IBV_MAX_MEDIUM
 #undef GASNETC_IBV_ODP
 #undef GASNETC_IBV_ODP_MLNX
@@ -511,6 +515,7 @@
 #undef GASNETC_IBV_RCV_THREAD
 #undef GASNETC_IBV_SND_THREAD
 #undef GASNETC_IBV_CONN_THREAD
+#undef GASNETC_IBV_ATOMICS_CONFIGURE
 #undef GASNETC_IBV_MAX_HCAS_CONFIGURE
 #undef GASNETC_IBV_PHYSMEM_MAX_CONFIGURE
 #undef GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE

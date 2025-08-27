@@ -73,6 +73,7 @@ static int gasneti_MK_Segment_Create_cuda_uva(
   CUresult result;
   void * to_free = NULL;
   int retval = GASNET_OK;
+  int use_sync_memops = kind->use_sync_memops;
 
   gasneti_check_cudacall(cuCtxPushCurrent(kind->ctx));
 
@@ -109,6 +110,12 @@ static int gasneti_MK_Segment_Create_cuda_uva(
     // We currently accept memory allocated by *any* context for the same device.
     // TODO: should we be more strict by checking equality of contexts instead of devices?
     CUdevice dev;
+    if (ctx == NULL) {
+      // No context, even though other attributres are OK.
+      // This would occur, for instance, with a cuMemMap() (which does
+      // not support the SYNC_MEMOPS attribute).  See bug 4767.
+      use_sync_memops = 0;
+    } else
     if ((result = cuCtxPushCurrent(ctx)) ||
         (result = cuCtxGetDevice(&dev))  ||
         (result = cuCtxPopCurrent(&ctx))) {
@@ -131,7 +138,7 @@ static int gasneti_MK_Segment_Create_cuda_uva(
     addr = to_free = (void *) dptr;
   }
 
-  if (kind->use_sync_memops) {
+  if (use_sync_memops) {
     int one = 1;
     gasneti_check_cudacall(cuPointerSetAttribute(&one, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, dptr));
   }
@@ -167,6 +174,28 @@ static void gasneti_MK_Segment_Destroy_cuda_uva(
   }
 }
 
+static int gasneti_cuda_context_push(gasneti_Segment_t i_segment)
+{
+    my_MK_t kind = (my_MK_t) gasneti_import_mk_nonhost(i_segment->_kind);
+    // cuCtx{Push,Pop}Current may return errors from asynchronous kernel launches
+    // and we currently lack a mechanism to propagate these to the client,
+    // so any CUDA errors deteced here are treated as fatal.
+    gasneti_check_cudacall( cuCtxPushCurrent(kind->ctx) );
+    return GASNET_OK;
+}
+
+static int gasneti_cuda_context_pop(gasneti_Segment_t i_segment)
+{
+    my_MK_t kind = (my_MK_t) gasneti_import_mk_nonhost(i_segment->_kind);
+    CUcontext prev_ctx;
+    // cuCtx{Push,Pop}Current may return errors from asynchronous kernel launches
+    // and we currently lack a mechanism to propagate these to the client,
+    // so any CUDA errors deteced here are treated as fatal.
+    gasneti_check_cudacall( cuCtxPopCurrent(&prev_ctx) );
+    gasneti_assert(prev_ctx == kind->ctx);
+    return GASNET_OK;
+}
+
 //
 // Class-specific "impl(ementation)": constants and function pointers.
 //
@@ -192,6 +221,10 @@ static gasneti_mk_impl_t *get_impl(void) {
                             = &gasneti_MK_Segment_Create_cuda_uva;
       the_impl.mk_segment_destroy
                             = &gasneti_MK_Segment_Destroy_cuda_uva;
+      the_impl.mk_segment_context_push
+                            = &gasneti_cuda_context_push;
+      the_impl.mk_segment_context_pop
+                            = &gasneti_cuda_context_pop;
 
       gasneti_sync_writes();
       result = &the_impl;
