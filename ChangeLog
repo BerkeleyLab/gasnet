@@ -118,7 +118,7 @@ GASNet-EX ChangeLog
   - bug4787 - GCC-15 errors and warnings regarding incompatible pointers-to-function
   - bug4788 - amx/testam.c not C23-compatible
   - bug4797 - Intermittent init-time crash inside gasneti_bootstrapBarrier_am()
-  - bug???? - gex_EP_BindSegment failures with CUDA device memory and SHS 12.0.1
+  - bug4808 - gex_EP_BindSegment failures with CUDA device memory and SHS 12.0.1
 
 ----------------------------------------------------------------------
 2024-05-23: GASNet-EX 2024.5.0
