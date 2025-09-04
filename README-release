@@ -263,6 +263,12 @@ GASNet Release Procedure
   + "tar xfz ..." to extract the new GASNet release (not Tools)
   + Move the "dist-ex" symbolic link:
     $ ln -sfn GASNet-2040.8.0 dist-ex
+  + If there are new AMMUP, AMMPI releases:
+    - Update the .timestamps file in each download/ directory
+        $ ls -alt > ! .timestamps
+    - extract each new tarball
+    - update dist/ symlink in each amx directory to the unpacked source
+    - ensure new version number appears in each index.html 
 
 * Update release mirrors:
   + https://bitbucket.org/berkeleylab/gasnet/downloads/
