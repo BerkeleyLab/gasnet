@@ -19,7 +19,7 @@ GASNet-EX ChangeLog
 20XX-YY-ZZ: PENDING
 
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
-  - bug???? - ofi: startup crashes with --enable-segment-everything
+  - bug4811 - ofi: startup crashes with --enable-segment-everything
 
 ----------------------------------------------------------------------
 2025-08-28: GASNet-EX 2025.8.0
