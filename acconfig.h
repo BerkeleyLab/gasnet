@@ -182,6 +182,11 @@
 #undef GASNETI_HAVE_CXX_SYNC_ATOMICS_64
 #undef GASNETI_HAVE_MPI_CC_SYNC_ATOMICS_64
 
+/* Which compilers provide built-in memory fence */
+#undef GASNETI_HAVE_CC_SYNC_SYNCHRONIZE
+#undef GASNETI_HAVE_CXX_SYNC_SYNCHRONIZE
+#undef GASNETI_HAVE_MPI_CC_SYNC_SYNCHRONIZE
+
 /* Which atomics implementations are built in tools library */
 #undef GASNETI_ATOMIC_IMPL_CONFIGURE
 #undef GASNETI_ATOMIC32_IMPL_CONFIGURE

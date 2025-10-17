@@ -1295,6 +1295,9 @@ GASNET_TRY_CACHE_LINK([$1 for 64-bit __sync atomics support], lowername[]_sync_a
            + __sync_val_compare_and_swap(&(x.ctr), nval, oval)
            + __sync_fetch_and_add(&(x.ctr), op);
   ],[ AC_DEFINE(GASNETI_HAVE_[]uppername[]_SYNC_ATOMICS_64) ])
+GASNET_TRY_CACHE_LINK([$1 for __sync_synchronize support], lowername[]_sync_synchronize, [], [
+    __sync_synchronize();
+  ],[ AC_DEFINE(GASNETI_HAVE_[]uppername[]_SYNC_SYNCHRONIZE) ])
 GASNET_POPVAR(flagsvar)
 popdef([flagsvar])
 popdef([uppername])
