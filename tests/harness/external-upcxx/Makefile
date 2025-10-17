@@ -50,7 +50,9 @@ ifeq ($(UPCXX_GASNET_SOURCES),1)
   # UPCXX_GASNET=srcdir and UPCXX_TARBALL_GASNET configure GASNet
   CONFIGURE_FRAGMENTS:=$(GASNET_BLDDIR)
   # Don't pollute configure with harness flags
-  UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
+  UNSET_HARNESS_VARS = unset CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
+else
+  UNSET_HARNESS_VARS = :
 endif
 CONFIGURE_FRAGMENTS ?= $(CONFIGURE_GASNET)
 UPCXX_TESTMODE  ?= wrap
@@ -96,6 +98,7 @@ DO_ENV := : # empty command to be safely preceded or followed by '&&' or ';'
 endif
 
 CONFIGURE_ENV = \
+	$(UNSET_HARNESS_VARS) && \
 	export $(GASNET_VARS) && $(DO_ENV) && \
         export CC="$$CC $(strip $(UPCXX_EXTRA_FLAGS))" CXX="$$CXX $(strip $(UPCXX_EXTRA_FLAGS))"
 
@@ -263,7 +266,7 @@ _upcxx: force
 	                 --enable-single=$(GASNET_CODEMODE) $(UPCXX_CONFIGURE_EXTRA) || exit 1; \
 	) $(TO_LOG)
 	@( echo ======== Build UPCXX RT libs ========; set -x; \
-	   $(LIB_BUILD_ENV) \
+	   $(UNSET_HARNESS_VARS); $(LIB_BUILD_ENV) \
 	   $(MAKE) $(UPCXX_MAKE_J) -C $(UPCXX_BLDDIR) all || exit 1; \
 	) $(TO_LOG)
 	@touch upcxx-built
