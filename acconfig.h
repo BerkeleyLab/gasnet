@@ -501,6 +501,7 @@
 /* GASNet ucx-conduit settings */
 #undef GASNETC_UCX_SPAWNER_CONF
 #undef GASNETC_UCX_MAX_MEDIUM_DFLT
+#undef GASNETC_UCX_ATOMICS_CONFIGURE
 
 /* GASNet ibv-conduit features and bug work-arounds */
 #undef GASNETC_IBV_SPAWNER_CONF

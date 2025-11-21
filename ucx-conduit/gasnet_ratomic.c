@@ -12,6 +12,8 @@
 #include <gasnet_ratomic_internal.h>
 #include "gasnet_ucx_req.h"
 
+#if GASNETC_BUILD_UCXRATOMIC // Else entire file is empty
+
 #define GASNETE_DT_INT_APPLY(FN) \
         FN(_gex_dt_I32) FN(_gex_dt_U32) \
         FN(_gex_dt_I64) FN(_gex_dt_U64)
@@ -654,3 +656,5 @@ use_am:
   gasnete_amratomic_init_hook(real_ad);
   return;
 }
+
+#endif // GASNETC_BUILD_UCXRATOMIC

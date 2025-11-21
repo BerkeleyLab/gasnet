@@ -3829,6 +3829,13 @@ else
       [ucx_max_medium=$ucx_max_med_dflt])
     AC_DEFINE_UNQUOTED(GASNETC_UCX_MAX_MEDIUM_DFLT, [$ucx_max_medium])
 
+    GASNET_IF_DISABLED([ucx-atomics],
+      [Disable atomics offload support in ucx-conduit (enabled by default in FAST and LARGE segment modes)],
+      [:],
+      [if test "$segconfig" = fast -o "$segconfig" = large; then
+         AC_DEFINE(GASNETC_UCX_ATOMICS_CONFIGURE)
+       fi])
+
     CONDUIT_SPAWNER
 fi
 AC_SUBST(UCX_CFLAGS)

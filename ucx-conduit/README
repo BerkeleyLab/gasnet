@@ -69,6 +69,11 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The value cannot be less than 512.
     The default value is 65456.
 
+  `--disable-ucx-atomics`
+    By default support for offloaded atomics will be included in builds for
+    `GASNET_SEGMENT_FAST` and `GASNET_SEGMENT_LARGE`.
+    This option may be used to disable offloaded atomics.
+
 @ Section: Job Spawning @
 
 If using UPC++, Chapel, etc. the language-specific commands should be used
