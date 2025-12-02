@@ -6,6 +6,14 @@ LEGION_GASNET     ?= # Path to an existing installation, if any
 LEGION_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 LEGION_MAKE_ARGS  ?= -j4
 
+REALM_INSTDIR     ?= $(HARNESS_WORKDIR)/realm-inst
+REALM_CMAKE_EXTRA ?= # For instance to enable/disable HIP
+ifneq ($(DEBUG),1)
+REALM_BUILD_TYPE  ?= Release
+else
+REALM_BUILD_TYPE  ?= Debug
+endif
+
 # legacy harness support
 GASNET_BLDDIR ?= $(TOP_BUILDDIR)/gasnet
 
@@ -20,6 +28,7 @@ TAR               ?= tar
 UNZIP             ?= unzip
 P7ZIP             ?= 7za
 GIT               ?= git
+CMAKE             ?= cmake
 
 # Strip whitespace to simplify later use
 LEGION_GASNET  := $(strip $(LEGION_GASNET))
@@ -36,7 +45,7 @@ echovars: force; @echo "CC='$(GASNET_CC)' CXX='$(GASNET_CXX)'"
 .PHONY: echovars
 endif
 
-RUNTIME_TARGETS = librealm.a liblegion.a
+RUNTIME_TARGETS = liblegion.a
 SEED_DIR = $(LEGION_BLDDIR)/examples/circuit # NOTE: must not be an OMP or CUDA test
 ifeq ($(LEGION_GASNET1),1)
   LEGION_NET_ENV = USE_GASNET=1 GASNET="$(LEGION_GASNET_INST)"
@@ -45,6 +54,7 @@ else
 endif
 COMMON_ENV = \
 	LG_RT_DIR="$(LEGION_BLDDIR)/runtime" \
+	Realm_ROOT=$(REALM_INSTDIR) \
 	$(LEGION_NET_ENV) CONDUIT=$(LEGION_CONDUIT) \
 	$(GASNET_VARS)
 DO_MAKE = env $(COMMON_ENV) $(LEGION_TEST_ENV) $(MAKE) $(LEGION_MAKE_ARGS)
@@ -142,8 +152,34 @@ launcher:
 	  *) ln -s "$(LEGION_GASNET_INST)"/bin/gasnetrun_$(LEGION_CONDUIT) $@;; \
 	esac
 
+# Build the Realm library from embedded sources
+# Notes:
+# + VERSION file support is broken (and not critical)
+# + GASNet_ROOT vs GASNet_ROOT_DIR depends on version
+# TODO: retire (1) GASNet_ROOT setting and (2) deletion of VERSION when able
+librealm: force
+	( echo ======== Installing Realm in $(REALM_INSTDIR) ========; \
+	  cd $(LEGION_BLDDIR)/realm && \
+	  rm -f VERSION && \
+	  mkdir bld && cd bld && \
+	  set -x && \
+	  $(CMAKE) -S .. \
+		-DCMAKE_BUILD_TYPE=$(REALM_BUILD_TYPE) \
+		-DCMAKE_INSTALL_PREFIX=$(REALM_INSTDIR) \
+		-DREALM_ENABLE_GASNETEX=ON \
+		-DREALM_ENABLE_UCX=OFF \
+		-DREALM_ENABLE_MPI=OFF \
+		-DGASNet_ROOT=$(LEGION_GASNET_INST) \
+		-DGASNet_ROOT_DIR=$(LEGION_GASNET_INST) \
+		-DGASNET_CONDUIT=$(LEGION_CONDUIT) \
+		$(REALM_CMAKE_EXTRA) \
+		&& \
+	  $(DO_MAKE) all install \
+	) $(TO_LOG)
+.PHONY: librealm
+
 # Pre-build the runtime libs to separate the output from that of first test build
-rtlibs: force
+rtlibs: librealm force
 	( echo ======== Prebuild Legion RT libs in $(SEED_DIR) ========; \
 	  $(DO_MAKE) -C $(SEED_DIR) $(RUNTIME_TARGETS) \
 	) $(TO_LOG)
