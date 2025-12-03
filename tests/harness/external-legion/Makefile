@@ -59,6 +59,10 @@ COMMON_ENV = \
 	$(GASNET_VARS)
 DO_MAKE = env $(COMMON_ENV) $(LEGION_TEST_ENV) $(MAKE) $(LEGION_MAKE_ARGS)
 
+# TEMPORARY work-arounds for issues in Legion 'stable' (but not 'master') 2025.12.02 -PHH
+REALM_CMAKE_EXTRA += -DREALM_ENABLE_HIP=OFF
+LEGION_MAKE_ARGS += LEGION_LIBS="-L. -llegion -lrealm"
+
 # Parametrized support for download/unpack
 LEGION_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default auto-detects using LEGION_URL suffix
 LEGION_DOWNLOAD := $(strip $(LEGION_DOWNLOAD))
