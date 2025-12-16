@@ -167,6 +167,7 @@ librealm: force
 	  rm -f VERSION && \
 	  mkdir bld && cd bld && \
 	  set -x && \
+	  env CC='$(GASNET_CC)' CXX='$(GASNET_CXX)' \
 	  $(CMAKE) -S .. \
 		-DCMAKE_BUILD_TYPE=$(REALM_BUILD_TYPE) \
 		-DCMAKE_INSTALL_PREFIX=$(REALM_INSTDIR) \
