@@ -230,9 +230,14 @@ typedef union {
   GASNETI_TRACE_EVENT_TIME(C,name,gasneti_ticks_now() - _waitstart)
 
 #define GASNETC_STAT_EVENT(name) \
-  _GASNETI_STAT_EVENT(C,name)
+  GASNETI_STAT_EVENT(C,name)
 #define GASNETC_STAT_EVENT_VAL(name,val) \
-  _GASNETI_STAT_EVENT_VAL(C,name,val)
+  GASNETI_STAT_EVENT_VAL(C,name,val)
+
+#define GASNETC_TRACE_EVENT(name) \
+  GASNETI_TRACE_EVENT(C,name)
+#define GASNETC_TRACE_EVENT_VAL(name,val) \
+  GASNETI_TRACE_EVENT_VAL(C,name,val)
 
 /* ------------------------------------------------------------------------------------ */
 /* Configuration */
