@@ -1073,7 +1073,8 @@ extern gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_
   #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),1)
   #define gasnetc_bind_cep_am(ep,id,s,b,i)  gasnetc_bind_cep_inner((ep),(id),(s),(b))
 #endif
-extern int gasnetc_snd_reserve(gasnetc_cep_t * const cep);
+extern int gasnetc_snd_cq_reserve(gasnetc_cep_t * const cep);
+
 extern void gasnetc_snd_post_common(
                   gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc,
                   int reserved, int is_inline GASNETI_THREAD_FARG);

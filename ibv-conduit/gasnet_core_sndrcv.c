@@ -1741,7 +1741,7 @@ GASNETI_NORETURNP(gasnetc_snd_post_fail)
 
 // Used in the IMMEDIATE case to reserve a CQ slot separate from gasnetc_snd_post*()
 // Returns non-zero on success, zero on failure
-int gasnetc_snd_reserve(gasnetc_cep_t * const cep) {
+int gasnetc_snd_cq_reserve(gasnetc_cep_t * const cep) {
   gasnetc_sema_t *sema = cep->snd_cq_sema_p;
   if (gasnetc_sema_trydown(sema)) return 1;
 
