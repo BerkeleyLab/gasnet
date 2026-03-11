@@ -178,7 +178,12 @@ librealm: force
 		-DGASNET_CONDUIT=$(LEGION_CONDUIT) \
 		$(REALM_CMAKE_EXTRA) \
 		&& \
-	  $(DO_MAKE) all install \
+	  $(DO_MAKE) all install && \
+	  : Remaining lines disable broken pkg-config logic and resolves lib-vs-lib64 && \
+	  ( cd $(REALM_INSTDIR) && \
+	    rm share/pkgconfig/realm.pc && \
+	    ( [[ -d lib64 ]] && ln -s lib64 lib || true ) \
+	  ) \
 	) $(TO_LOG)
 .PHONY: librealm
 
