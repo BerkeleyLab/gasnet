@@ -634,6 +634,16 @@ Known problems:
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4461
 
+* Bug 4486
+  Use of certain versions of Intel MPI for spawning, or in a hybrid MPI +
+  GASNet application, causes problems with the psm2 provider (which permits
+  only a single open per process).  This is believed to impact Intel MPI
+  starting with version 2019.x and continuing until version 2021.11.0 when a
+  work-around became available.
+  The most up-to-date information on this bug, including the work-around
+  mentioned above, is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4486
+
 * Bug 4517
   In libfabric 1.11 and earlier, the verbs;ofi_rxm provider used on the
   Slingshot-10 network of some HPE Cray EX systems has been observed to
@@ -772,7 +782,7 @@ Known problems:
 * See the GASNet Bugzilla server for details on additional known bugs:
   https://gasnet-bugs.lbl.gov/
 
-* Limits to MPI interoperability (includes bugs 4455 and 4638)
+* Limits to MPI interoperability (includes bugs 4455, 4486, and 4638)
   Depending on the libfabric provider in use, it may not be possible to have both
   MPI and GASNet using the native network API in the same application.  There
   are known issues with the psm2 and cxi providers, though the latter's issue
