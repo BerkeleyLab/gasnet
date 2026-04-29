@@ -206,7 +206,7 @@ gasneti_auxseg_request_t gasnetc_atomics_auxseg_alloc(gasnet_seginfo_t *auxseg_i
   int request = 1;
 
   // A second cache line for use as remote AMO target in fenced puts, if enabled
-  request += GASNETC_USE_FENCED_PUTS ? 1 :0;
+  request += gasnetc_use_fenced_puts ? 1 :0;
 
 #if GASNETC_BUILD_IBVRATOMIC
   // Some number of cache lines for buffering fetching RAtomics
@@ -219,7 +219,7 @@ gasneti_auxseg_request_t gasnetc_atomics_auxseg_alloc(gasnet_seginfo_t *auxseg_i
   if (auxseg_info) { /* auxseg granted */
     gasnetc_ratomic_sink = (uint64_t*)auxseg_info[gasneti_mynode].addr;
   #if GASNETC_IB_MAX_HCAS > 1
-    if (GASNETC_USE_FENCED_PUTS) {
+    if (gasnetc_use_fenced_puts) {
       // TODO: this use of auxseg is yet another O(ranks) table we must seek to eliminate
       // TODO: at a minimum we can save about half the space by only keeping addr (not len)
       gasneti_assert(!gasnetc_fence_auxseg);
@@ -1741,7 +1741,7 @@ GASNETI_NORETURNP(gasnetc_snd_post_fail)
 
 // Used in the IMMEDIATE case to reserve a CQ slot separate from gasnetc_snd_post*()
 // Returns non-zero on success, zero on failure
-int gasnetc_snd_reserve(gasnetc_cep_t * const cep) {
+int gasnetc_snd_cq_reserve(gasnetc_cep_t * const cep) {
   gasnetc_sema_t *sema = cep->snd_cq_sema_p;
   if (gasnetc_sema_trydown(sema)) return 1;
 
@@ -3214,6 +3214,46 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
   /* Init thread-local data */
   gasnetc_per_thread_setup();
 
+  // Allocate node->cep lookup table
+  { size_t size = gasneti_nodes*sizeof(gasnetc_cep_t *);
+    if (! ep->cep_table) {
+      ep->cep_table = (gasnetc_cep_t **)
+        gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, size);
+      gasneti_leak_aligned(ep->cep_table);
+    }
+    memset(ep->cep_table, 0, size);
+  }
+
+  // Determine the inline data limit given the QP parameters we will use.
+  {
+    const size_t orig_inline_limit = gasnetc_inline_limit;
+
+    for (int i = 0; i < gasnetc_num_ports; ++i) {
+      gasnetc_check_inline_limit(i, gasnetc_op_oust_pp);
+      if (gasnetc_use_srq) {
+        // Corresponds to a Request QP
+        gasnetc_check_inline_limit(i, gasnetc_am_oust_pp);
+      }
+    }
+
+    // warn on reduced inline limit
+    if ((orig_inline_limit != (size_t)-1) && (gasnetc_inline_limit < orig_inline_limit)) {
+      if (gasnet_getenv("GASNET_INLINESEND_LIMIT") != NULL)
+        gasneti_console_message("WARNING",
+             "Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d",
+                (int)orig_inline_limit, (int)gasnetc_inline_limit);
+    }
+
+    GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
+
+    gasnetc_am_inline_limit_sndrcv = MIN(gasnetc_inline_limit, sizeof(gasnetc_am_tmp_buf_t));
+  #if !GASNETC_PIN_SEGMENT
+    gasnetc_putinmove_limit_adjusted = gasnetc_putinmove_limit
+                                     ? (gasnetc_putinmove_limit + gasnetc_inline_limit)
+                                     : 0;
+  #endif
+  }
+
   return GASNET_OK;
 }
 
@@ -3266,15 +3306,6 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
     hca->num_qps++;
     gasneti_assert_uint(hca->num_qps ,<=, hca->max_qps);
   }
-}
-
-extern void gasnetc_sndrcv_init_inline(void) {
-  gasnetc_am_inline_limit_sndrcv = MIN(gasnetc_inline_limit, sizeof(gasnetc_am_tmp_buf_t));
-#if !GASNETC_PIN_SEGMENT
-  gasnetc_putinmove_limit_adjusted = gasnetc_putinmove_limit
-	  				? (gasnetc_putinmove_limit + gasnetc_inline_limit)
-					: 0;
-#endif
 }
 
 extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep) {

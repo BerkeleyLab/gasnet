@@ -4235,7 +4235,7 @@ int gasnetc_am_commit(    gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
     // This is important when have_flow!=0, since there is no means to reverse
     // the "grab" of banked credits while honoring `GASNET_AM_CREDITS_SLACK` (at
     // least not in a PAR build).
-    if (immediate && !gasnetc_snd_reserve(cep)) {
+    if (immediate && !gasnetc_snd_cq_reserve(cep)) {
       goto out_reserve_failed;
     }
 

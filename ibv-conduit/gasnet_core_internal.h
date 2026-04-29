@@ -230,9 +230,14 @@ typedef union {
   GASNETI_TRACE_EVENT_TIME(C,name,gasneti_ticks_now() - _waitstart)
 
 #define GASNETC_STAT_EVENT(name) \
-  _GASNETI_STAT_EVENT(C,name)
+  GASNETI_STAT_EVENT(C,name)
 #define GASNETC_STAT_EVENT_VAL(name,val) \
-  _GASNETI_STAT_EVENT_VAL(C,name,val)
+  GASNETI_STAT_EVENT_VAL(C,name,val)
+
+#define GASNETC_TRACE_EVENT(name) \
+  GASNETI_TRACE_EVENT(C,name)
+#define GASNETC_TRACE_EVENT_VAL(name,val) \
+  GASNETI_TRACE_EVENT_VAL(C,name,val)
 
 /* ------------------------------------------------------------------------------------ */
 /* Configuration */
@@ -438,10 +443,9 @@ extern uint64_t *gasnetc_ratomic_sink; // TODO: one per HCA
 
   // Use AMO after Put to fence for strict memory model adherence
   extern int gasnetc_use_fenced_puts;
-  #define GASNETC_USE_FENCED_PUTS gasnetc_use_fenced_puts
   #define GASNETC_HAVE_FENCED_PUTS 1
 #else
-  #define GASNETC_USE_FENCED_PUTS 0
+  #define gasnetc_use_fenced_puts 0
   #undef GASNETC_HAVE_FENCED_PUTS
 #endif
 
@@ -449,7 +453,7 @@ extern uint64_t *gasnetc_ratomic_sink; // TODO: one per HCA
 
 // Either 0 or 1 to control use of IBV_SEND_SIGNALED
 // Currently only for fencing on multi-rail
-#define GASNETC_USE_SEND_SIGNALLED GASNETC_USE_FENCED_PUTS
+#define GASNETC_USE_SEND_SIGNALLED gasnetc_use_fenced_puts
 
 /* ------------------------------------------------------------------------------------ */
 // Optional per-cq serialization of calls to ibv_poll_cq()
@@ -979,6 +983,7 @@ typedef union {
 extern size_t gasnetc_xrc_preinit(const uint16_t *remote_lids);
 extern int gasnetc_xrc_init(void **shared_mem_p);
 #endif
+extern void gasnetc_check_inline_limit(int port_num, int send_wr);
 extern int gasnetc_connect_init(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
 extern int gasnetc_connect_fini(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
 #if GASNETC_IBV_SHUTDOWN
@@ -1019,7 +1024,6 @@ extern void gasnetc_sys_close_reqh(gex_Token_t);
 extern void gasnetc_sndrcv_quiesce(void);
 extern int gasnetc_sndrcv_shutdown(void);
 extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep);
-extern void gasnetc_sndrcv_init_inline(void);
 extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_start_thread(gex_Flags_t);
 extern void gasnetc_sndrcv_stop_thread(int block);
@@ -1069,7 +1073,8 @@ extern gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_
   #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),1)
   #define gasnetc_bind_cep_am(ep,id,s,b,i)  gasnetc_bind_cep_inner((ep),(id),(s),(b))
 #endif
-extern int gasnetc_snd_reserve(gasnetc_cep_t * const cep);
+extern int gasnetc_snd_cq_reserve(gasnetc_cep_t * const cep);
+
 extern void gasnetc_snd_post_common(
                   gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc,
                   int reserved, int is_inline GASNETI_THREAD_FARG);
