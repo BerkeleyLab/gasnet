@@ -24,7 +24,7 @@ GASNet Release Procedure
     $ git checkout -b release/2040.8.0 develop
 
 * To allow collaboration on the release work, one may optionally "publish"
-  the release branch on bitbucket:
+  the release branch on GitHub:
     $ git push -u origin release/2040.8.0
 
 * Increment the version number for each item or software module that has
@@ -150,12 +150,12 @@ GASNet Release Procedure
 
 * Clone a *second* copy of the repository for the tools-only distribution:
     $ git clone --branch release/2040.8.0 \
-            https://bitbucket.org/berkeleylab/gasnet gasnet-tools
+            https://github.com/BerkeleyLab/gasnet gasnet-tools
     $ cd gasnet-tools
     $ ./Bootstrap -o
   make a separate build directory, configure and "gmake all distcheck"
   to build the tools-only tarball.
-  The use of the URL for anonymous access to BitBucket is INTENTIONAL,
+  The use of the URL for anonymous access to GitHub is INTENTIONAL,
   so that you cannot accidentally commit the re-writes done by the
   "-o" option to ./Bootstrap.
 
@@ -220,7 +220,7 @@ GASNet Release Procedure
     $ git push origin master gex-2040.8.0
   This is the only step of this entire procedure that cannot be undone.
 
-* If you chose to "publish" the release branch on bitbucket, then use the
+* If you chose to "publish" the release branch on GitHub, then use the
   following command to delete the (now unused) release branch:
     $ git push --delete origin release/2040.8.0
 
@@ -404,7 +404,7 @@ Snapshot Releases
 
 --------------------------------------------------------------------------
   The canonical version of this document is located here:
-    https://bitbucket.org/berkeleylab/gasnet/src/develop/README-release
+    https://github.com/BerkeleyLab/gasnet/blob/develop/README-release
 
   For more information, please email: gasnet-devel@lbl.gov
   or visit the GASNet home page at:   https://gasnet.lbl.gov

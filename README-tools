@@ -1487,7 +1487,7 @@ COMPILER.
 
 --------------------------------------------------------------------------
   The canonical version of this document is located here:
-    https://bitbucket.org/berkeleylab/gasnet/src/master/README-tools
+    https://github.com/BerkeleyLab/gasnet/blob/main/README-tools
 
   For more information, please email: gasnet-users@lbl.gov
   or visit the GASNet home page at:   https://gasnet.lbl.gov
