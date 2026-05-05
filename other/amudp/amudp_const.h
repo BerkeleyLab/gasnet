@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/amudp.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/amudp.h $
  * Description: AMUDP Namespace-clean Header for constants
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

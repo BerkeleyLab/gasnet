@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_event_internal.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/gasnet_event_internal.h $
  * Description: GASNet header for internal definitions for event management
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,4 +1,4 @@
-//   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/sockutil.h $
+//   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/sockutil.h $
 // Description: Simple sock utils
 // Copyright 1999, Dan Bonachea
 

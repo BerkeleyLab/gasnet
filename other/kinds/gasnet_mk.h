@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/kinds/gasnet_mk.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/kinds/gasnet_mk.h $
  * Description: GASNet Memory Kinds API types and declarations
  * Copyright (c) 2020, The Regents of the University of California
  * Terms of use are as specified in license.txt

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/ratomic/gasnet_refratomic.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/ratomic/gasnet_refratomic.c $
  * Description: Reference implemetation of GASNet Remote Atomics, using Active Messages
  * Copyright 2017, The Regents of the University of California
  * Terms of use are as specified in license.txt

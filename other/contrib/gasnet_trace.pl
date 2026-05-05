@@ -1,7 +1,7 @@
 #! /usr/bin/env perl
 
 #############################################################
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/other/contrib/gasnet_trace.pl $
+#   $Source: github.com:BerkeleyLab/gasnet.git/other/contrib/gasnet_trace.pl $
 #
 # All files in this directory (except where otherwise noted) are subject to the
 #following licensing terms:

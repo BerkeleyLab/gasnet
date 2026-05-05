@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ibv-conduit/gasnet_ratomic.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ibv-conduit/gasnet_ratomic.c $
  * Description: GASNet Remote Atomics Implementation using IBV NIC offload
  * Copyright 2025, The Regents of the University of California
  * Terms of use are as specified in license.txt

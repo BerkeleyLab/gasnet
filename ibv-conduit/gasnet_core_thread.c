@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ibv-conduit/gasnet_core_thread.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ibv-conduit/gasnet_core_thread.c $
  * Description: GASNet ibv conduit implementation, progress thread logic
  * Copyright 2012, LBNL
  * Terms of use are as specified in license.txt

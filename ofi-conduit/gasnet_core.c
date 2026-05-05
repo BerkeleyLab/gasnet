@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ofi-conduit/gasnet_core.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ofi-conduit/gasnet_core.c $
  * Description: GASNet libfabric (OFI) conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2015, Intel Corporation

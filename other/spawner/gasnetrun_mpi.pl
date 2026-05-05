@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/mpi-conduit/contrib/gasnetrun_mpi.pl $
+#   $Source: github.com:BerkeleyLab/gasnet.git/mpi-conduit/contrib/gasnetrun_mpi.pl $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 

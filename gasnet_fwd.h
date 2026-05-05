@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/gasnet_fwd.h $
  * Description: GASNet Header for selected constants and simple types
  * Copyright 2018, The Regents of the University of California
  * Terms of use are as specified in license.txt

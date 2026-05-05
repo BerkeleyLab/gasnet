@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/amx_internal.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/amx/amx_internal.c $
  * Description: AMX internal support code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2018, The Regents of the University of California

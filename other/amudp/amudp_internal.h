@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/amudp_internal.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/amudp_internal.h $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testratomic.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testratomic.c $
  * Description: GASNet remote atomics correctness tests
  * Copyright (c) 2017, The Regents of the University of California
  * Terms of use are as specified in license.txt

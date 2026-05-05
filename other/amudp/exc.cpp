@@ -1,4 +1,4 @@
-//   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/exc.cpp $
+//   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/exc.cpp $
 // Description: Exception handlers for fserver
 // Copyright 1999, Dan Bonachea & Scott McPeak
 

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/mpi-conduit/gasnet_core_internal.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/mpi-conduit/gasnet_core_internal.h $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

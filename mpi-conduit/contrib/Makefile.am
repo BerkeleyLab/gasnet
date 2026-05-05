@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/mpi-conduit/contrib/Makefile.am $
+#   $Source: github.com:BerkeleyLab/gasnet.git/mpi-conduit/contrib/Makefile.am $
 # Description: Makefile for GASNet MPI spawner
 # Copyright (c) 2015 Intel Corporation. All rights reserved.
 # Terms of use are as specified in license.txt

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_event.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/gasnet_event.c $
  * Description: GASNet event/eop/iop common code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

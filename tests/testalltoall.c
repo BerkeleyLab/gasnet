@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testalltoall.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testalltoall.c $
  * Description: GASNet AM all-to-all correctness tests
  * Copyright (c) 2020, The Regents of the University of California
  * Terms of use are as specified in license.txt

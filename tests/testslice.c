@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testslice.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testslice.c $
  * Description: GASNet randomized get/put correctness validation test
  * Copyright 2007, Parry Husbands and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

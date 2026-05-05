@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/smp-conduit/gasnet_core_help.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/smp-conduit/gasnet_core_help.h $
  * Description: GASNet smp conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

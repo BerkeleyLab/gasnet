@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/kinds/gasnet_kinds_internal.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/kinds/gasnet_kinds_internal.h $
  * Description: GASNet Memory Kinds Internal Header
  * Copyright (c) 2020, The Regents of the University of California
  * Terms of use are as specified in license.txt

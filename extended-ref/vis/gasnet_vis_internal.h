@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/vis/gasnet_vis_internal.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/vis/gasnet_vis_internal.h $
  * Description: Internal definitions for GASNet Vector, Indexed & Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

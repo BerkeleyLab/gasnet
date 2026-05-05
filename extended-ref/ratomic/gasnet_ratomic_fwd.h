@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/ratomic/gasnet_ratomic_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/ratomic/gasnet_ratomic_fwd.h $
  * Description: GASNet Remote Atomics API Header (forward decls)
  * Copyright 2017, The Regents of the University of California
  * Terms of use are as specified in license.txt

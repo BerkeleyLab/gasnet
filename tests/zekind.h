@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/zekind.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/zekind.h $
  * Description: common code for test using ZE memory kind
  * Copyright (c) 2023, The Regents of the University of California
  * Terms of use are as specified in license.txt

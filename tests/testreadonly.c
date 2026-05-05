@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testreadonly.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testreadonly.c $
  * Description: GASNet read-only data correctness tests
  * Copyright (c) 2019, The Regents of the University of California
  * Terms of use are as specified in license.txt

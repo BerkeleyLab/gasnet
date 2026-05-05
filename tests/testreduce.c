@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testreduce.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testreduce.c $
  * Description: test of user-defined reductions
  * Copyright 2018, The Regents of the University of California
  * Terms of use are as specified in license.txt

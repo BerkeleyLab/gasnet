@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/vis/gasnet_vector.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/vis/gasnet_vector.c $
  * Description: GASNet Vector implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ibv-conduit/gasnet_core_internal.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ibv-conduit/gasnet_core_internal.h $
  * Description: GASNet ibv conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

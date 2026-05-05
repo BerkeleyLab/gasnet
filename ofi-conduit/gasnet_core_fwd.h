@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ofi-conduit/gasnet_core_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ofi-conduit/gasnet_core_fwd.h $
  * Description: GASNet header for libfabric (OFI) conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2015, Intel Corporation

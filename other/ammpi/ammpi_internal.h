@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/ammpi/ammpi_internal.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/ammpi/ammpi_internal.h $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

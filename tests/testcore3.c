@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testcore3.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testcore3.c $
  * Description: GASNet Active Messages conformance test
  * Copyright (c) 2010, The Regents of the University of California
  * Terms of use are as specified in license.txt

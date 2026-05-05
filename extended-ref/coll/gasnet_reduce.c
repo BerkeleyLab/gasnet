@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_reduce.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/coll/gasnet_reduce.c $
  * Description: Reference implemetation of GASNet-EX Reductions
  * Copyright (c) 2018 The Regents of the University of California.
  * Terms of use are as specified in license.txt

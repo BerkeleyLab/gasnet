@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_team.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/gasnet_team.c $
  * Description: GASNet implementation of teams
  * Copyright 2018, The Regents of the University of California
  * Terms of use are as specified in license.txt

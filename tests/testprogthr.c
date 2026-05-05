@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testprogthr.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testprogthr.c $
  * Description: GASNet progress threads tests
  * Copyright 2024, The Regents of the University of California
  * Terms of use are as specified in license.txt

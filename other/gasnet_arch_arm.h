@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/gasnet_arch_arm.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/gasnet_arch_arm.h $
  * Description: GASNet ARM-specific Helpers (Internal code, not for client use)
  * Copyright 2018, The Regents of the University of California
  * Terms of use are as specified in license.txt

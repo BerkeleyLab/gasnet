@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/kinds/gasnet_cuda_uva.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/kinds/gasnet_cuda_uva.c $
  * Description: GASNet Memory Kinds Implementation for CUDA UVA devices
  * Copyright (c) 2020, The Regents of the University of California
  * Terms of use are as specified in license.txt

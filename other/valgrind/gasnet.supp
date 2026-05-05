@@ -1,7 +1,7 @@
 # This file is a suppression file for using Valgrind with GASNet.
 # See the valgrind documentation for info on the use and format of this file.
 #
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/other/contrib/gasnet.supp $
+#   $Source: github.com:BerkeleyLab/gasnet.git/other/contrib/gasnet.supp $
 #
 
 # PLPA calls sched_setaffinity() with a NULL mask argument on purpose.

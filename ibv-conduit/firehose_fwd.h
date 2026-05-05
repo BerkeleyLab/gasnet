@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ibv-conduit/firehose_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ibv-conduit/firehose_fwd.h $
  * Description: Configuration of firehose code to fit ibv-conduit
  * Copyright 2003, The Regents of the University of California
  * Terms of use are as specified in license.txt

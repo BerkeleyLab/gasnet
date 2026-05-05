@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/kinds/gasnet_hip.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/kinds/gasnet_hip.c $
  * Description: GASNet Memory Kinds Implementation for HIP devices
  * Copyright (c) 2021, The Regents of the University of California
  * Terms of use are as specified in license.txt

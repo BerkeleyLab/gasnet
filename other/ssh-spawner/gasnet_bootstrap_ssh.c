@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/ssh-spawner/gasnet_bootstrap_ssh.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/ssh-spawner/gasnet_bootstrap_ssh.c $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt

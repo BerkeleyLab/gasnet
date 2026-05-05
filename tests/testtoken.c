@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testtoken.c $
+/* $Source: github.com:BerkeleyLab/gasnet.git/tests/testtoken.c $
  * Copyright (c) 2023, The Regents of the University of California
  *
  * Description: Tests of gex_Token_Info()

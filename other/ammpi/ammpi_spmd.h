@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/ammpi/ammpi_spmd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/ammpi/ammpi_spmd.h $
  * Description: AMMPI Header for SPMD interface
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

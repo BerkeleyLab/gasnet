@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testacc.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testacc.c $
  * Description: GASNet memory model conformance test using a lock-protected accumulator
  * Copyright (c) 2019, The Regents of the University of California
  * Terms of use are as specified in license.txt

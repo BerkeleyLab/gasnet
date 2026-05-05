@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/firehose/firehose.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/firehose/firehose.h $
  * Description: Public Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

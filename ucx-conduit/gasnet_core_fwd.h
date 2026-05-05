@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_core_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ucx-conduit/gasnet_core_fwd.h $
  * Description: GASNet header for ucx conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2019, Mellanox Technologies LTD. All rights reserved.

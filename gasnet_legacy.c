@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_legacy.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/gasnet_legacy.c $
  * Description: GASNet-1 legacy API support layer
  * Copyright 2018, The Regents of the University of California.
  * Terms of use are as specified in license.txt

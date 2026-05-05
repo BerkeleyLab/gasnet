@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/amx_internal_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/amx/amx_internal_fwd.h $
  * Description: AMX internal header file, forward defines
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2018, The Regents of the University of California

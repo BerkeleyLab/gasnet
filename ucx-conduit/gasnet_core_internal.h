@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_core_internal.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ucx-conduit/gasnet_core_internal.h $
  * Description: GASNet ucx conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2019-2020, Mellanox Technologies LTD. All rights reserved.

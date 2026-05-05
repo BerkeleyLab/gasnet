@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/portable_platform.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/portable_platform.h $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea 
  * Copyright 2018, The Regents of the University of California

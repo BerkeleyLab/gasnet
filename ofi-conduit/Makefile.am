@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/ofi-conduit/Makefile.am $
+#   $Source: github.com:BerkeleyLab/gasnet.git/ofi-conduit/Makefile.am $
 # Description: Makefile for GASNet ofi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Copyright 2015, Intel Corporation

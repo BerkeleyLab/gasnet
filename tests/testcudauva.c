@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testcudauva.c $
+/* $Source: github.com:BerkeleyLab/gasnet.git/tests/testcudauva.c $
  * Copyright (c) 2021, The Regents of the University of California
  *
  * Description: test of GEX_MK_CLASS_CUDA_UVA

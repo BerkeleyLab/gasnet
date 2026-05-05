@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/ibv-conduit/contrib/Makefile.am $
+#   $Source: github.com:BerkeleyLab/gasnet.git/ibv-conduit/contrib/Makefile.am $
 # Description: Makefile for GASNet IBV spawner
 # Terms of use are as specified in ibv-conduit/license.txt
 

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/amudp_spawn.cpp $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/amudp_spawn.cpp $
  * Description: AMUDP Implementations of SPMD spawn functions for various environments
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

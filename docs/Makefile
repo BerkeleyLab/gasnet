@@ -1,4 +1,4 @@
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/docs/Makefile $
+#   $Source: github.com:BerkeleyLab/gasnet.git/docs/Makefile $
 # Description: Makefile for GASNet documentation
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 

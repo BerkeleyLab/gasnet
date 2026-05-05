@@ -1,4 +1,4 @@
-dnl   $Source: bitbucket.org:berkeleylab/gasnet.git/acinclude.m4 $
+dnl   $Source: github.com:BerkeleyLab/gasnet.git/acinclude.m4 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt

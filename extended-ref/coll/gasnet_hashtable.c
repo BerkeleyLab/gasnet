@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_hashtable.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/coll/gasnet_hashtable.c $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, The Regents of the University of California
  * Terms of use are as specified in license.txt

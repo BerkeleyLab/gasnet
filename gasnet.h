@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/gasnet.h $
  * Description: GASNet -> GASNet-EX transitional header
  * Copyright 2016, The Regents of the University of California
  * Terms of use are as specified in license.txt

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/smp-conduit/gasnet_extended_help_extra.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/smp-conduit/gasnet_extended_help_extra.h $
  * Description: GASNet Extended smp-specific Header
  * Terms of use are as specified in license.txt
  */

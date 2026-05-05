@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/ammpi/ammpi_reqrep.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/ammpi/ammpi_reqrep.c $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

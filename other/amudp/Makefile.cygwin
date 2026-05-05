@@ -1,4 +1,4 @@
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/Makefile.solaris $
+#   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/Makefile.solaris $
 # Description: Cygwin (https://cygwin.com/) Makefile fragment
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

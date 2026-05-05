@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testcore5.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testcore5.c $
  * Description: GASNet Active Messages var args conformance/correctness test
  * Copyright (c) 2013, The Regents of the University of California
  * Terms of use are as specified in license.txt

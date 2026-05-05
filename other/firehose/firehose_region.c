@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/firehose/firehose_region.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/firehose/firehose_region.c $
  * Description: 
  * Copyright 2004, The Regents of the University of California
  * Terms of use are as specified in license.txt
