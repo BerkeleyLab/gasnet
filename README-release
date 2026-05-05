@@ -17,7 +17,7 @@ GASNet Release Procedure
   to remove untracked files.  Otherwise it's very easy for stray files to end
   up in the release.
 
-* Under normal circumstances you will generating a release on the 'master'
+* Under normal circumstances you will generating a release on the 'main'
   branch after use of a "release branch" to merge in all the new work from
   'develop' and update version numbers, etc.  This procedure begins with the
   creation of the "release branch" for a hypothetical 2040.8.0 release:
@@ -163,17 +163,17 @@ GASNet Release Procedure
   tarballs for both GASNet and GASNet_Tools
 
 * Before merging the release branch be sure you have up-to-date clones of both
-  'master' and 'develop'.  While it is unlikely that 'master' has changed since
+  'main' and 'develop'.  While it is unlikely that 'main' has changed since
   you began, concurrent development on 'develop' should be considered normal.
   Since you haven't committed anything to either branch in your local repo,
   the following should be safe:
     $ git checkout develop
     $ git pull --ff-only
-    $ git checkout master
+    $ git checkout main
     $ git pull --ff-only
 
 * Advanced warning #1:
-  If there were any "hot fixes" on 'master' since the previous release
+  If there were any "hot fixes" on 'main' since the previous release
   then you will may need to resolve conflicts in the "git ... finish ..." or
   "git merge ..." step below.  If you are motivated to accept any conflict
   resolution other than "-X theirs" (meaning: "use the release branch in the
@@ -187,23 +187,23 @@ GASNet Release Procedure
   you will need to take extra steps to deal with this.  The preferred sequence 
   would be create/rebase the release branch prior to the introduction of the
   problematic feature. If this is not possible, then fix things up on the release 
-  branch before it is merged to 'master', and consider skipping the release
+  branch before it is merged to 'main', and consider skipping the release
   branch merge to develop. Individual unrelated improvements on the release
   branch can instead be cherry-picked to develop.
 
-* Now merge the release branch to 'master' (where the general public will
+* Now merge the release branch to 'main' (where the general public will
   expect to find sources intended for general consumption), tag the release,
-  and delete the transient release branch. (We no longer merge master back 
+  and delete the transient release branch. (We no longer merge main back 
   to develop, due to lack of perceived benefit).
-    $ git checkout master
+    $ git checkout main
     $ git merge --edit --no-ff release/2040.8.0
-    $ git tag -a gex-2040.8.0 -m "GASNet release 2040.8.0" master
+    $ git tag -a gex-2040.8.0 -m "GASNet release 2040.8.0" main
 
 * Check the tag landed in the correct place as follows:
     $ git show gex-2040.8.0
   The output should show the commit message for the *merge*.  If it shows any
   of the earlier commits, move it using "--force":
-    $ git tag --force -a gex-2040.8.0 -m "GASNet release 2040.8.0" master
+    $ git tag --force -a gex-2040.8.0 -m "GASNet release 2040.8.0" main
   OR, just "--force" it without checking - this is perfectly safe.
 
 * Bump package patch version to .1 on develop and create annotated tag
@@ -217,7 +217,7 @@ GASNet Release Procedure
   20XX-YY-ZZ: PENDING
 
 * Check carefully that everything is exactly as you wish before you push:
-    $ git push origin master gex-2040.8.0
+    $ git push origin main gex-2040.8.0
   This is the only step of this entire procedure that cannot be undone.
 
 * If you chose to "publish" the release branch on GitHub, then use the
@@ -231,10 +231,10 @@ GASNet Release Procedure
   release tag.
 
 * If the GASNet or tools spec versions have changed, they get tags too:
-    $ git tag gex-spec-2.1 master
+    $ git tag gex-spec-2.1 main
     $ git push origin gex-spec-2.1
   and/or
-    $ git tag gasnet-tools-spec-1.32 master
+    $ git tag gasnet-tools-spec-1.32 main
     $ git push origin gasnet-tools-spec-1.32
 
 * In Bugzilla (before publishing the release):

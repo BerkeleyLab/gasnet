@@ -69,7 +69,7 @@ top-level/
  \__ template-conduit/
  \__ other/
 
-* top-level: contains the GASNet configuration scripts and master Makefile and
+* top-level: contains the GASNet configuration scripts and primary Makefile and
 GASNet headers.
 
   When making changes to GASNet (esp the configure script), please remember that
@@ -79,7 +79,7 @@ the configuration scripts, header files, etc. should not rely on anything from
 outside directories not included in this distribution (other than basic system
 headers and lower-level networking libraries).
 
-* Header files: The GASNet master header file (gasnetex.h) #includes
+* Header files: The GASNet primary header file (gasnetex.h) #includes
 several files which should be provided by each conduit:
 
 <gasnetex.h> includes the following files:

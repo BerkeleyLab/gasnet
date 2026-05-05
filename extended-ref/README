@@ -113,7 +113,7 @@ GASNETE_BARRIER_DEFAULT can be used to set the default barrier.
   everybody sends notifies to a single node, where we count them up
   central node eventually notices the barrier is complete (probably
   when it calls wait) and then it broadcasts the completion to all the nodes
- The main problem is the need for the master to call wait before the barrier can
+ The main problem is the need for the central node to call wait before the barrier can
   make progress - we really need a way for the "last thread" to notify all 
   the threads when completion is detected, but AM semantics don't provide a 
   simple way to do this.
