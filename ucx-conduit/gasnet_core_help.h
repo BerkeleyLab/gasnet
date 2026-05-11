@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_core_help.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ucx-conduit/gasnet_core_help.h $
  * Description: GASNet ucx conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2019, Mellanox Technologies LTD. All rights reserved.

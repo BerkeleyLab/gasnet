@@ -1,4 +1,4 @@
-/*    $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/socket.h $
+/*    $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/socket.h $
  *  Description: portable header socket functions
  *  (c) Scott McPeak, 1998-1999, Modified by Dan Bonachea
  */

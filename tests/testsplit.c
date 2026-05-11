@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testsplit.c $
+/* $Source: github.com:BerkeleyLab/gasnet.git/tests/testsplit.c $
  * Copyright (c) 2018, The Regents of the University of California
  */
 

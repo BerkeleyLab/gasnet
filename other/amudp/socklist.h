@@ -1,4 +1,4 @@
-//   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/socklist.h $
+//   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/socklist.h $
 // Description: 
 // Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

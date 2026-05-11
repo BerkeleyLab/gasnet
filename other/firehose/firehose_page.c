@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/firehose/firehose_page.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/firehose/firehose_page.c $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

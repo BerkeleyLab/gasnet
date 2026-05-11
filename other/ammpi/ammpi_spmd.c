@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/ammpi/ammpi_spmd.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/ammpi/ammpi_spmd.c $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

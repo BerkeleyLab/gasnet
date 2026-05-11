@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ofi-conduit/gasnet_extended_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ofi-conduit/gasnet_extended_fwd.h $
  * Description: GASNet Extended API Header for OFI conduit (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

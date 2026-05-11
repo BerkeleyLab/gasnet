@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testteam.c $
+/* $Source: github.com:BerkeleyLab/gasnet.git/tests/testteam.c $
  * Copyright (c) 2009, The Regents of the University of California
  */
 

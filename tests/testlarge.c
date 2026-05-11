@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testlarge.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testlarge.c $
  * Description: GASNet bulk (EVENT_DEFER) get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts

@@ -50,7 +50,7 @@ Other documentation:
    tracking database, is available from https://gasnet.lbl.gov
  * Anyone planning to modify or add to the GASNet code base should also read
    the developer documents, available in the GASNet git repository, which 
-   can be browsed online: https://bitbucket.org/berkeleylab/gasnet/src/develop
+   can be browsed online: https://github.com/BerkeleyLab/gasnet/tree/develop
    + README-devel: GASNet design information and coding standards
    + README-git: Rules developers are expected to follow when committing
    + template-conduit: A fill-in-the-blanks conduit code skeleton
@@ -1704,7 +1704,7 @@ GASNet has several mailing lists for support:
 
 --------------------------------------------------------------------------
   The canonical version of this document is located here:
-    https://bitbucket.org/berkeleylab/gasnet/src/master/README
+    https://github.com/BerkeleyLab/gasnet/blob/main/README
 
   For more information, please email: gasnet-users@lbl.gov
   or visit the GASNet home page at:   https://gasnet.lbl.gov

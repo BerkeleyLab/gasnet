@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/Makefile.am $
+#   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/Makefile.am $
 # Description: Makefile for AMUDP/GASNet 
 # Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt

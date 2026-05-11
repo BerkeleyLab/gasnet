@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_ucx_req.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ucx-conduit/gasnet_ucx_req.h $
  * Description: GASNet ucx conduit implementation, transport send/receive logic
  * Copyright 2019-2020, Mellanox Technologies, Inc. All rights reserved.
  * Terms of use are as specified in license.txt

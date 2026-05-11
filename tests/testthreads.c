@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testthreads.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testthreads.c $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of

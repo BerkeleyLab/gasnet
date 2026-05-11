@@ -1,7 +1,7 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/portable_platform.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/portable_platform.h $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea 
- * Copyright 2018, The Regents of the University of California
+ * Copyright 2026, The Regents of the University of California
  * Terms of Use: In ADDITION to the license information in license.txt, 
  *  anyone redistributing this header agrees not to change any part of this notice, or
  *  the version handshake in the header versioning section below. 
@@ -12,7 +12,7 @@
  *  who compose multiple projects using the PLATFORM_ namespace.
  *
  * The canonical version of this header is hosted in the GASNet project at:
- *   https://bitbucket.org/berkeleylab/gasnet   
+ *   https://github.com/BerkeleyLab/gasnet
  *
  * Developers who clone this header into their own project are HIGHLY encouraged to  
  * contribute any improvements (especially addition of new platforms) back to the 

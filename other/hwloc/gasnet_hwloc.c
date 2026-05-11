@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/hwloc/gasnet_hwloc.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/hwloc/gasnet_hwloc.c $
  * Description: GASNet conduit-independent hwloc utilities
  * Copyright 2021, The Regents of the University of California
  * Terms of use are as specified in license.txt

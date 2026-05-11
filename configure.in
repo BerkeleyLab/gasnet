@@ -1,6 +1,6 @@
 dnl -*- m4 -*-
 
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/configure.in $
+#   $Source: github.com:BerkeleyLab/gasnet.git/configure.in $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Copyright (c) 2014-2015 Intel Corporation. All rights reserved.

@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/license.txt $
+/* $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/license.txt $
  * All files in this directory and all sub-directories (except where otherwise noted)
  * are subject to the following licensing terms: 
  *

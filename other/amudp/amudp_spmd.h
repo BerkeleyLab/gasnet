@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/amudp_spmd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/amudp_spmd.h $
  * Description: AMUDP Header for SPMD interface
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

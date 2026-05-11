@@ -1,4 +1,4 @@
-//   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/sockaddr.h $
+//   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/sockaddr.h $
 // Description: Objects for encapsulating and hashing SockAddr's
 // Copyright 1998, Dan Bonachea
 

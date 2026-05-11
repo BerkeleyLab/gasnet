@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/ratomic/gasnet_ratomic_internal.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/ratomic/gasnet_ratomic_internal.h $
  * Description: GASNet Remote Atomics Internal Header
  * Copyright 2017, The Regents of the University of California
  * Terms of use are as specified in license.txt

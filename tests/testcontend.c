@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testcontend.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testcontend.c $
  *
  * Description: GASNet threaded contention tester.
  *   The test initializes GASNet and forks off up to 256 threads.  

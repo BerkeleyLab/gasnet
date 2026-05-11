@@ -1,4 +1,4 @@
-/*    $Source: bitbucket.org:berkeleylab/gasnet.git/other/portable_inttypes.h $ */
+/*    $Source: github.com:BerkeleyLab/gasnet.git/other/portable_inttypes.h $ */
 /*  Description: portable_inttypes.h  */
 /*  Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> */
 

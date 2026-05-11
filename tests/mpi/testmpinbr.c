@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/mpi/testmpinbr.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/mpi/testmpinbr.c $
  * Description: MG-like neighbor exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

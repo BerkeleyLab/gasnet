@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testlockcontend.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testlockcontend.c $
  * Description: GASNet lock performance test
  *   Measures the overhead associated with contended locks
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

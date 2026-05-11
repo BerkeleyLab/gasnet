@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_team.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/coll/gasnet_team.h $
  * Description: GASNet team data structure
  * Copyright 2009, The Regents of the University of California
  * Terms of use are as specified in license.txt 

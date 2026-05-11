@@ -1,4 +1,4 @@
-//   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/sig.cpp $
+//   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/sig.cpp $
 // Description: signal handling module
 // Copyright 1999, Dan Bonachea
 

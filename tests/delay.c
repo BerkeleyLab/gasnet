@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/delay.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/delay.c $
  * Description: 
  * Copyright 2004, The Regents of the University of California
  * Terms of use are as specified in license.txt

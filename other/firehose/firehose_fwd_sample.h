@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/firehose/firehose_fwd_sample.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/firehose/firehose_fwd_sample.h $
  * Description: Firehose forward declarations
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/mpi-conduit/gasnet_core.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/mpi-conduit/gasnet_core.c $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

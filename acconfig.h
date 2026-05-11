@@ -1,4 +1,4 @@
-/*    $Source: bitbucket.org:berkeleylab/gasnet.git/acconfig.h $ */
+/*    $Source: github.com:BerkeleyLab/gasnet.git/acconfig.h $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */

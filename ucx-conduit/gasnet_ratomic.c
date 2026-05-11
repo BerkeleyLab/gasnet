@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_ratomic.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ucx-conduit/gasnet_ratomic.c $
  * Description: GASNet Remote Atomics API Header (forward decls)
  * Copyright 2019-2020, Mellanox Technologies, Inc. All rights reserved.
  * Terms of use are as specified in license.txt

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testhello.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testhello.c $
  * Description: GASNet "Hello, World" test/example
  * Copyright 2010, The Regents of the University of California
  * Terms of use are as specified in license.txt

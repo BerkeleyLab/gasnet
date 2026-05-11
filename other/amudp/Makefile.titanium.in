@@ -1,4 +1,4 @@
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/Makefile.titanium.in $
+#   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/Makefile.titanium.in $
 # Description: setup necessary variables needed by Makefile
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

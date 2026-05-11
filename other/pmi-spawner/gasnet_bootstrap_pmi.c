@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/pmi-spawner/gasnet_bootstrap_pmi.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/pmi-spawner/gasnet_bootstrap_pmi.c $
  * Description: GASNet conduit-independent pmi-based spawner
  * Copyright 2013, The Regents of the University of California
  * Terms of use are as specified in license.txt

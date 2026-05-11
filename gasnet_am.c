@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_am.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/gasnet_am.c $
  * Description: GASNet conduit-independent code for Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2018, The Regents of the University of California

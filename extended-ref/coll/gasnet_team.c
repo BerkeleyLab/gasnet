@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_team.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/coll/gasnet_team.c $
  *
  * Description: GASNet generic team implementation for collectives 
  * Copyright 2009, The Regents of the University of California

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_bootstrap.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/extended-ref/coll/gasnet_bootstrap.c $
  * Description: Conduit-independent AM-based bootstrap collectives
  * Copyright 2022, The Regents of the University of California
  * Terms of use are as specified in license.txt

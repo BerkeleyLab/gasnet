@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/mpi-spawner/gasnet_bootstrap_mpi.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/mpi-spawner/gasnet_bootstrap_mpi.c $
  * Description: GASNet conduit-independent mpi-based spawner
  * Copyright 2003, The Regents of the University of California
  * Terms of use are as specified in license.txt

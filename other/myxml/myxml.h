@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/myxml/myxml.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/myxml/myxml.h $
  * Description: code to manage xml data
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt

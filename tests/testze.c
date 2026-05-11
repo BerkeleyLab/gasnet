@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testze.c $
+/* $Source: github.com:BerkeleyLab/gasnet.git/tests/testze.c $
  * Copyright (c) 2022, The Regents of the University of California
  *
  * Description: test of GEX_MK_CLASS_ZE

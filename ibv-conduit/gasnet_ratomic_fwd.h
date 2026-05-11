@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ibv-conduit/gasnet_ratomic_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ibv-conduit/gasnet_ratomic_fwd.h $
  * Description: GASNet Remote Atomics API Header (ibv-conduit specific forward decls)
  * Copyright 2025, The Regents of the University of California
  * Terms of use are as specified in license.txt

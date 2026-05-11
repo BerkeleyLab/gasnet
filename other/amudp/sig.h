@@ -1,4 +1,4 @@
-//   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/sig.h $
+//   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/sig.h $
 // Description: signal handling module
 // Copyright 1999, Dan Bonachea
 

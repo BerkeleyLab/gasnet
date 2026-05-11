@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testteambcast.c $
+/* $Source: github.com:BerkeleyLab/gasnet.git/tests/testteambcast.c $
  * See license.txt for terms
  * Rajesh Nishtala and Yili Zheng
  */

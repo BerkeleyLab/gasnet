@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ibv-conduit/gasnet_core_connect.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ibv-conduit/gasnet_core_connect.c $
  * Description: Connection management code
  * Copyright 2011, The Regents of the University of California
  * Terms of use are as specified in license.txt

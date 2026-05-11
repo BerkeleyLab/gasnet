@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/amudprun.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/amudprun.c $
  * Description: Stand-alone AMUDP job launcher
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

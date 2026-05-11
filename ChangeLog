@@ -1946,7 +1946,7 @@ GASNet-1 ChangeLog
 * General
   - Several fixes for missing or incorrect PowerPC memory fences
   - GASNet development now takes place in a public repository.
-    See https://bitbucket.org/berkeleylab/gasnet
+    See https://github.com/BerkeleyLab/gasnet
   - Numerous small changes for the switch from CVS to Git
 
 * Removal of unmaintained platform support

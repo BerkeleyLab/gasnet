@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ibv-conduit/gasnet_core_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/ibv-conduit/gasnet_core_fwd.h $
  * Description: GASNet header for ibv conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

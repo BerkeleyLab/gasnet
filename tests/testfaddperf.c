@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testfaddperf.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/tests/testfaddperf.c $
  * Description: GASNet remote atomics performance test
  *   Measures average round-trip time and average flood throughput
  *   of the GEX_OP_(F)ADD remote atomic operations

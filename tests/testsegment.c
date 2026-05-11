@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testsegment.c $
+/* $Source: github.com:BerkeleyLab/gasnet.git/tests/testsegment.c $
  * Copyright (c) 2020, The Regents of the University of California
  *
  * Description: GASNet "disaggregated Attach" test.

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/kinds/gasnet_ze.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/kinds/gasnet_ze.c $
  * Description: GASNet Memory Kinds Implementation for oneAPI Level Zero
  * Copyright (c) 2022, The Regents of the University of California
  * Terms of use are as specified in license.txt

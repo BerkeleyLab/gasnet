@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/other/firehose/Makefile.am $
+#   $Source: github.com:BerkeleyLab/gasnet.git/other/firehose/Makefile.am $
 # Description: Makefile for GASNet other/firehose
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt

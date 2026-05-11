@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/amudp_cdefs.c $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/amudp_cdefs.c $
  * Description: AMUDP definitions that must be compiled in C mode
  * Copyright 2005, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

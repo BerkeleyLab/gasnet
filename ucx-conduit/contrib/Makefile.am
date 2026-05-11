@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/contrib/Makefile.am $
+#   $Source: github.com:BerkeleyLab/gasnet.git/ucx-conduit/contrib/Makefile.am $
 # Description: Makefile for GASNet UCX spawner
 # Terms of use are as specified in ucx-conduit/license.txt
 

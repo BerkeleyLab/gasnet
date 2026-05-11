@@ -1,5 +1,5 @@
 #!/bin/sh
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/unBootstrap $
+#   $Source: github.com:BerkeleyLab/gasnet.git/unBootstrap $
 # Terms of use are as specified in license.txt
 # Description:
 # This scripts undoes the effects of a "Bootstrap", 

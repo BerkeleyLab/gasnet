@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_atomic_fwd.h $
+/*   $Source: github.com:BerkeleyLab/gasnet.git/gasnet_atomic_fwd.h $
  * Description: GASNet header for platform-specific selection of atomic implementation
  * Copyright 2018, Regents of the University of California
  * Terms of use are as specified in license.txt

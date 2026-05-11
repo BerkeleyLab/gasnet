@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/template-conduit/Makefile.am $
+#   $Source: github.com:BerkeleyLab/gasnet.git/template-conduit/Makefile.am $
 # Description: Makefile for GASNet <conduitname> conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt

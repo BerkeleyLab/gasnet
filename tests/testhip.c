@@ -1,4 +1,4 @@
-/* $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testhip.c $
+/* $Source: github.com:BerkeleyLab/gasnet.git/tests/testhip.c $
  * Copyright (c) 2021, The Regents of the University of California
  *
  * Description: test of GEX_MK_CLASS_HIP

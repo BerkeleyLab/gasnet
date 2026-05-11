@@ -16,7 +16,7 @@ GASNet Revision Control Practices
 * All developers doing commits must be on the gasnet-devel@lbl.gov email list,
   which receives GASNet commit messages.
 
-* You should commit only to the 'develop' branch - do NOT commit to 'master'
+* You should commit only to the 'develop' branch - do NOT commit to 'main'
   except for stable public releases (may include snapshots, etc. but NOT normal
   day-to-day development work).
 
@@ -87,9 +87,9 @@ GASNet Revision Control Practices
   message can be seeded with those summaries by passing "--log" to "git merge".
   Similarly the commit message for a "git cherry-pick" can be seeded with the
   SHA1 of the cherry-picked commit by passing "-x" (which should only be used
-  to reference commits which have been pushed to BitBucket).
+  to reference commits which have been pushed to GitHub).
 
-* Our git repository at BitBucket is configure to DENY any history re-writes on
+* Our git repository at GitHub is configured to DENY any history re-writes on
   the 'develop' branch.  This means you cannot 'git amend' or otherwise make
   any modifications to history once you've pushed to 'origin/develop'.  Keep
   this in mind along with the fact that anything you push to the server is
@@ -107,10 +107,10 @@ GASNet Revision Control Practices
   Makefiles).
 
 * If you wish to share intermediate or untested versions of your code for review
-  or testing by other developers, you can push your feature branch to BitBucket.
+  or testing by other developers, you can push your feature branch to GitHub.
   Please use a developer fork of the main repository for this purpose - do NOT
   push topic branches to the main repository (which should only contain long-lived
-  branches of potential interest to end users). BitBucket pull requests provide
+  branches of potential interest to end users). GitHub pull requests provide
   a forum for review, and are the preferred means for incorporating major changes -
   see sections on "Forking Development" and "Pull Requests".
   Code contributions from external collaborators should be generally be submitted
@@ -128,7 +128,7 @@ GASNet Revision Control Practices
   the entire repository after any given commit, and tools to find them easily.
   Additionally our use of the git-flow workflow ensures that even after merging,
   the sequence of commits that comprise a given feature branch is easily
-  identifiable (and therefore can quickly be reverted or applied to 'master' if
+  identifiable (and therefore can quickly be reverted or applied to 'main' if
   necessary).  This is not to say that there is NO use for tags with git.  They
   are especially important when you want to be able to correlate points in time
   across multiple repositories (e.g. a GASNet commit which provides a feature
@@ -169,9 +169,9 @@ alternatives required for git-1.7 are included, but no effort has been expended
 to back-port to older git releases.  If future versions of git break these
 instructions, we'll update this document appropriately.
 
-Since GASNet is hosted on BitBucket.org you will require an account there if
+Since GASNet is hosted on github.com you will require an account there if
 you are going to push (upload) anything to the repository.  Contact us at
-gasnet-devel@lbl.gov to request Write permission for your BitBucket account.
+gasnet-devel@lbl.gov to request Write permission for your GitHub account.
 
 Example commands in this document will be written like
     $ git ...
@@ -186,9 +186,9 @@ The GASNet project is following the git-flow model.
 (See http://nvie.com/posts/a-successful-git-branching-model/)
 The basic ideas:
 
- + A long-lived 'master' branch holds public releases, and should generally
-   have a tag for each commit.  If something is not worthy of a tag, then it
-   probably doesn't belong in 'master').
+ + A long-lived 'main' branch holds public releases, and should generally
+   have a tag for each (merge) commit.  If something is not worthy of a tag,
+   then it probably doesn't belong in 'main').
    This is the default branch for most *users* to find stable versions.
 
  + A long-lived 'develop' branch is used for continuous integration.
@@ -200,15 +200,15 @@ The basic ideas:
    often will exist only in the developer's local repository.
 
  + Transient "release branches" (also off of 'develop') are used to move work
-   from the 'develop' branch to 'master'.  Ideally the only commits to a
+   from the 'develop' branch to 'main'.  Ideally the only commits to a
    release branch will be version number changes and related updates to
    documentation.  However this is also the place to fix "issues" found while
    testing the release.  When release preparation is complete, release branches
-   are merged to BOTH develop and master (and then deleted).
+   are merged to BOTH develop and main (and then deleted).
 
  + Transient "hotfix branches" are for fixing urgent issues in the code on
-   'master'.  They work just like release branches except that they branch from
-   'master' instead of from 'develop'.
+   'main'.  They work just like release branches except that they branch from
+   'main' instead of from 'develop'.
 
  + All branch merges are done following a rebase (to keep linear history) but
    with --no-ff to force a "true merge" which preserves a clear start and end
@@ -222,10 +222,8 @@ remember (and type) if you do use git-flow.  You can obtain git-flow from
 github at
     https://github.com/nvie/gitflow/wiki
 
-To enable use the git-flow extensions, GASNet is using the branch names
-"master" and "develop" to match the git-flow defaults.  Similarly, the use of
-"feature/", "release/" and "hotfix/" are strongly recommended when naming
-branches of the corresponding types to match the git-flow defaults.
+The use of "feature/", "release/" and "hotfix/" are strongly recommended when
+naming branches of the corresponding types to match the git-flow defaults.
    
 Git-flow is just a collection of wrappers around standard git operations, with
 no hidden state or "magic".  So, as long as the naming conventions for branches
@@ -238,16 +236,13 @@ Setup
 -----
 
 To clone the GASNet repo use either of the following:
-    $ git clone https://USER@bitbucket.org/berkeleylab/gasnet
+    $ git clone https://USER@github.com/BerkeleyLab/gasnet
 or
-    $ git clone git@bitbucket.org:berkeleylab/gasnet.git
+    $ git clone git@github.com:BerkeleyLab/gasnet.git
 The first option (https) will require your password for every push, while the
-second (ssh) requires that you upload an ssh public key to BitBucket.  See
-    https://confluence.atlassian.com/display/BITBUCKET/Set+up+SSH+for+Git
-for help with the key upload.  If you have a suitable key already, you can
-probably skip right to step #6.
+second (ssh) requires that you upload an ssh public key to GitHub.
 
-If you do not have a BitBucket account then you can still clone the repo, but
+If you do not have a GitHub account then you can still clone the repo, but
 will not be able to push your changes back.  See the section "Forking
 Development" for information on what you can do without Write access to the
 repo.
@@ -279,8 +274,8 @@ Tracking 'origin'
 -----------------
 
 Unless you have done something unusual, the 'develop' branch in your clone from
-BitBucket should automatically be tracking 'origin/develop' (and 'master' will
-track 'origin/master').  The most basic command for tracking updates is "git
+GitHub should automatically be tracking 'origin/develop' (and 'main' will
+track 'origin/main').  The most basic command for tracking updates is "git
 pull", BUT there are some risks that are associate with pull, as described in
 detail at https://coderwall.com/p/jiswdq
 
@@ -396,21 +391,21 @@ and thus live on a single machine.  For a project like GASNet in
 particular, it is seldom sufficient to develop and test on a single
 platform.  Additionally, collaboration is tough with the branch living in
 your own clone of the repo.  So, in this section we look at how to
-"publish" your feature branch by making it appear on BitBucket along with
-the standard 'develop' and 'master' branches.  This means others can
+"publish" your feature branch by making it appear on GitHub along with
+the standard 'develop' and 'main' branches.  This means others can
 collaborate with you on the work (perhaps just reviewing the work, but
 potentially contributing to it as well), and you can easily clone your
 feature branch to multiple machines where you can test.
 
 If you're looking only for the ability to clone your branch, git does have
 the ability (not described here) to use its ssh-based protocol to clone
-your repos without using a hosting service like BitBucket.  If you don't
+your repos without using a hosting service like GitHub.  If you don't
 want to work "in the open", but want the convenience of a hosted git, then
 see the "Forking Development" section, below, for a more private
 alternative to "publishing" of your feature branches
 
 Publishing of a feature branch just means pushing it to the GASNet repo at
-BitBucket and telling your local repo to consider that to be the "upstream"
+GitHub and telling your local repo to consider that to be the "upstream"
 for all push, pull and fetch operations.  Assuming your branch has been
 named "feature/pub-example" all it takes is one simple command:
     $ git push -u origin feature/pub-example
@@ -423,22 +418,22 @@ whether or not "git flow feature start" was used to create the branch (so
 long as one uses the "feature/" prefix consistently with plain git).
 
 As with work committed to 'develop', your work exists only in your local
-repository until you explicitly push it to BitBucket:
+repository until you explicitly push it to GitHub:
     $ git push origin feature/pub-example
 Or, potentially just "git push" depending on your configuration.
 
 Regardless of whether one uses the git-flow or plain git steps to "finish"
 the feature branch, there is one additional step which is needed at the
-end to delete the branch on the BitBucket repo:
+end to delete the branch on the GitHub repo:
     $ git push origin :feature/pub-example
 
 + Rebasing published branches
 
 A friendly reminder: it is considered rude to rewrite history in public.
-While we have configured the BitBucket repo to disallow rebases on the
-'develop' and 'master' branches, there is no such control on the branches
+While we have configured the GitHub repo to disallow rebases on the
+'develop' and 'main' branches, there is no such control on the branches
 you may choose to publish.  If you rebase or amend any commits that have
-been pushed to BitBucket there is no mechanism to stop you, and you *will*
+been pushed to GitHub there is no mechanism to stop you, and you *will*
 cause problems for any repo which has pulled the effected commits.  A very
 simple rule is that if you need to pass "--force" (or "-f") to a "git push"
 then you've done something "bad".
@@ -488,15 +483,15 @@ Forking Development
 -------------------
 
 The steps described above under "General Development" and "Publishing
-Branches" both assume you have Write access to the GASNet repo on BitBucket.
+Branches" both assume you have Write access to the GASNet repo on GitHub.
 The "Publishing Branches" section additionally assumes you want your
 work-in-progress visible to the entire world.  However, you can also create a
-"fork" of the GASNet repo under your own account on BitBucket.  This does not
+"fork" of the GASNet repo under your own account on GitHub.  This does not
 require Write access to the GASNet repo and additionally allows you (as the
 owner of the forked repo) to have full control over access permissions.
 
 The concept of a "fork" is simply a hosted (could be any provider, not
-necessarily BitBucket) clone of a repo (commonly called the "upstream" repo)
+necessarily GitHub) clone of a repo (commonly called the "upstream" repo)
 that is not pushed to its upstream.
 
 In the case you are an "external" developer without Write access to the GASNet
@@ -510,13 +505,13 @@ considerably).  See more in "Pull Requests" below.
 To create a fork from a given branch there are three steps:
    1. Create an empty git repository with your hosting provider, and
       set access permissions as you wish.
-      For the purpose of this example you are USER@bitbucket.org and
+      For the purpose of this example you are USER@github.com and
       have created a repo named 'my-example-fork'.
    2. Using either a new or existing clone of the GASNet repo, checkout
       the branch you want to fork from.
       This should almost always be 'develop'.
    3. From within this checkout push a copy to your empty repo.
-    $ git push git@bitbucket.org:USER/my-example-fork HEAD:master
+    $ git push git@github.com:USER/my-example-fork HEAD:main
 
 All you have done above is copy your HEAD (presumably the tip of GASNet's
 'develop') to your own repo.  This does not modify your clone of the GASNet
@@ -536,12 +531,12 @@ We need to create a "remote" to refer to the new repo, and a branch to track
 it:
    [ still in your clone of the GASNet repo ]
    1. Create a remote to name the new repo and fetch its meta data:
-    $ git remote add USER/example git@bitbucket.org:USER/my-example-fork
+    $ git remote add USER/example git@github.com:USER/my-example-fork
     $ git fetch USER/example
-   2. Create a branch to track 'master' in the new remote:
-    $ git branch -t feature/example-fork USER/example/master
+   2. Create a branch to track 'main' in the new remote:
+    $ git branch -t feature/example-fork USER/example/main
    3. Ensure push without a refspec sends your updates to the right place:
-    $ git config remote.USER/example.push feature/example-fork:master
+    $ git config remote.USER/example.push feature/example-fork:main
 The third step is unnecessary if you have push.default set to "upstream" in
 your git configuration.  However, that is a matter of preference and so the
 third step appears here for completeness.  If you do use this step and are
@@ -560,13 +555,13 @@ will be pushed.
 + Option 2: GASNet as upstream
 
 The second option reverses the roles of the original and the fork, and may be
-more appropriate for an external developer because their work is 'master' in
+more appropriate for an external developer because their work is 'main' in
 the forked repo.  This option starts with cloning the fork, and then adds a
 remote and branch for tracking the original repo:
    [ starting in some location NOT in your clone of the GASNet repo ]
-    $ git clone git@bitbucket.org:USER/my-example-fork
+    $ git clone git@github.com:USER/my-example-fork
     $ cd my-example-fork
-    $ git remote add upstream https://bitbucket.org/berkeleylab/gasnet
+    $ git remote add upstream https://github.com/BerkeleyLab/gasnet
     $ git fetch upstream
     $ git branch -t upstream upstream/develop
 
@@ -622,7 +617,7 @@ under "GASNet as upstream", above, then you already have an "upstream" branch
 to track what you forked from.  So, the steps to rebase are:
     $ git checkout upstream
     $ git pull
-    $ git rebase [-i] upstream master
+    $ git rebase [-i] upstream main
 If you think you may need (or just want) to cleanup your history, then the '-i'
 option will cause an interactive rebase.
 
@@ -631,7 +626,7 @@ GASNet developers have access to clone your repository.
 
 + Generating a pull request
 
-Now it is time for the pull request.  If using BitBucket, then there is a GUI
+Now it is time for the pull request.  If using GitHub, then there is a GUI
 for this, and you will find documentation on their site.  If using another
 hosting service, or if you just don't like the GUI, then you just need to
 email the repo URL to us at gasnet-devel@lbl.gov with an explanation of the work
@@ -682,39 +677,39 @@ the merge commit should be manually edited to follow this pattern:
  Merge pull request #NNN into BRANCHNAME
 Where NNN is the PR number and BRANCHNAME is the target branch (usually `develop`).
 This creates an archival backreference that can be used to easily find the PR and
-associated comments during history audits in the future. The BitBucket UI
+associated comments during history audits in the future. The GitHub UI
 recognizes the "pull request #NNN" substring and converts it into a hyperlink
 in commit listings displayed through the web interface.
 
 Releases
 --------
 
-Even with Write access to the BitBucket repo, users don't have push rights to
-'master' by default.  If you need to produce releases, ask one of the
+Even with Write access to the GitHub repo, users don't have push rights to
+'main' by default.  If you need to produce releases, ask one of the
 repository Admins to grant you push access.
 
 For a release branch the steps using git-flow are much the same as for
 development.  For a hypothetical release of version 9.8.0:
-    [begin with an up-to-date 'develop' and 'master']
+    [begin with an up-to-date 'develop' and 'main']
     $ git flow release start 9.8.0
     [prepare the release following the procedure in README-release]
     $ git flow release finish -m "GASNet release 9.8.0" 9.8.0
-    $ git push --tags origin develop master
+    $ git push --tags origin develop main
 
 When using plain git commands there is just a minor difference because we don't
 want to rebase onto 'develop' once the branch has started (because we
 explicitly branched to keep concurrent changes on 'develop' from entering the
 release).  We do still want a non-fast-forward commit.  The steps look like:
-    [begin with an up-to-date 'develop' AND 'master']
+    [begin with an up-to-date 'develop' AND 'main']
     $ git checkout -b release/9.8.0 develop
     [prepare the release following the procedure in README-release]
-    $ git checkout master
+    $ git checkout main
     $ git merge --edit --no-ff release/9.8.0
-    $ git tag -a gasnet-9.8.0 -m "GASNet release 9.8.0" master
+    $ git tag -a gasnet-9.8.0 -m "GASNet release 9.8.0" main
     $ git checkout develop
     $ git merge --edit --no-ff release/9.8.0
     $ git branch -d release/9.8.0
-    $ git push --tags origin develop master
+    $ git push --tags origin develop main
 If using git-1.7 there is no support for "merge --edit"; see the text
 regarding merging feature branches for the merge+commit alternative.
 
@@ -773,7 +768,7 @@ Proprietary (NDA) information
 [TODO: describe a detailed protocol]
 
 At a VERY high-level:
-+ Do NOT conduct NDA work using the BitBucket repository.
++ Do NOT conduct NDA work using the GitHub repository.
 + Work from a clone on a "controlled" machine.
 + Don't clone your repo containing NDA-covered to any "uncontrolled" machine.
 + Consider using "git archive" to move files w/o conveying any history or
@@ -783,7 +778,7 @@ At a VERY high-level:
 
 --------------------------------------------------------------------------
   The canonical version of this document is located here:
-    https://bitbucket.org/berkeleylab/gasnet/src/develop/README-git
+    https://github.com/BerkeleyLab/gasnet/blob/develop/README-git
 
   For more information, please email: gasnet-devel@lbl.gov
   or visit the GASNet home page at:   https://gasnet.lbl.gov

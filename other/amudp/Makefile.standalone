@@ -1,4 +1,4 @@
-#   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amudp/Makefile.standalone $
+#   $Source: github.com:BerkeleyLab/gasnet.git/other/amudp/Makefile.standalone $
 # Description: Makefile for AMUDP
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 srcdir = .
