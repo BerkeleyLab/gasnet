@@ -1,0 +1,280 @@
+name: Smoke Test
+
+on: 
+  push:
+    paths-ignore: &paths_ignore
+      - 'docs/**'
+      - '**.txt'
+      - '**.md'
+      - 'ChangeLog'
+      - '**/README*'
+      - 'mpi-conduit/contrib/mpirun_h/**'
+      - 'other/contrib/cross-configure-*'
+      - 'other/valgrind/*.supp'
+  pull_request:
+    paths-ignore: *paths_ignore
+  workflow_dispatch:
+    inputs:
+      configure_args:
+        description: 'Additional configure arguments'
+        type: string
+        required: false
+      test_list:
+        description: 'Conduit tests to run (or "all")'
+        type: string
+        default: 'testgasnet testinternal testthreads'
+        required: true
+      test_nodes:
+        description: 'Test process count'
+        type: integer
+        default: 4
+        required: true
+      env_vars:
+        description: 'Environment variable settings'
+        type: string
+        default: 'GASNET_STATSFILE=- GASNET_MALLOC_INIT=1'
+        required: false
+        
+
+concurrency:
+  # De-duplicate concurrent workflow runs on the same branch/ref
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}-${{ ( github.event_name == 'workflow_dispatch' && github.run_id ) || 'auto' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && 
+                          github.ref != 'refs/heads/stable' && 
+                          github.ref != 'refs/heads/develop' }}
+
+jobs:
+  build:
+    name: ${{ matrix.compiler }}-${{ matrix.version }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash --noprofile --norc -e -x -o pipefail {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-14, macos-15, macos-15-intel, macos-26, macos-26-intel, ubuntu-24.04 ]
+        compiler: [ gcc ]
+        version: [ 12, 13, 14, 15 ]
+        extra_flags: [ -g ]
+
+        include:
+          - os: ubuntu-22.04
+            compiler: gcc
+            version: 12 # no package available for gcc 13+
+
+          # --- LLVM clang coverage ---
+
+          - os: macos-14
+            compiler: clang
+            version: 22
+          - os: macos-15
+            compiler: clang
+            version: 22
+          - os: macos-15-intel
+            compiler: clang
+            version: 22
+          - os: macos-26
+            compiler: clang
+            version: 22
+          - os: macos-26-intel
+            compiler: clang
+            version: 22
+
+          # https://hub.docker.com/r/phhargrove/llvm-flang/tags
+          - os: ubuntu-24.04
+            compiler: clang
+            version: 22
+            container: phhargrove/llvm-flang:22.1.0-latest
+          - os: ubuntu-24.04
+            compiler: clang
+            version: 21
+            container: phhargrove/llvm-flang:21.1.0-latest
+          - os: ubuntu-24.04
+            compiler: clang
+            version: 20
+            container: phhargrove/llvm-flang:20.1.0-latest
+          - os: ubuntu-24.04
+            compiler: clang
+            version: 19
+            extra_flags: -g -mmlir -allow-assumed-rank
+            container: phhargrove/llvm-flang:19.1.1-latest
+
+          # --- Intel coverage ---
+
+          # https://hub.docker.com/r/intel/oneapi-hpckit/tags
+          - os: ubuntu-24.04
+            compiler: icx
+            version: latest
+            container: intel/oneapi-hpckit:latest
+
+          - os: ubuntu-24.04
+            compiler: icx
+            version: 2025.2.0
+            container: intel/oneapi-hpckit:2025.2.0-0-devel-ubuntu24.04
+
+          - os: ubuntu-24.04
+            compiler: icx
+            version: 2025.1.0
+            container: intel/oneapi-hpckit:2025.1.0-0-devel-ubuntu24.04
+
+          - os: ubuntu-22.04
+            compiler: icx
+            version: 2025.0.0
+            container: intel/oneapi-hpckit:2025.0.0-0-devel-ubuntu22.04 
+
+    container:
+      image: ${{ matrix.container }}
+
+    env:
+      COMPILER_VERSION: ${{ matrix.version }}
+      CC: ${{ matrix.compiler }}
+      CFLAGS: ${{ matrix.extra_flags }}
+      CONFIGURE_ARGS: --disable-mpi-compat --enable-rpath --enable-debug ${{ inputs.configure_args }}
+      GASNET_BACKTRACE: 1
+      GASNET_SPAWN_VERBOSE: 1
+      GASNET_VERBOSEENV: 1
+      GASNET_SPAWNFN: L
+      GASNET_MASTERIP: 127.0.0.1
+      GASNET_TEST_TIME_SLACK: 0.1
+      MAKE_FLAGS: -j 4
+      TEST_NODES: ${{ inputs.test_nodes || 4 }}
+      TEST_FILTER: |-
+        ${{ case( github.event_name == 'workflow_dispatch' && inputs.test_list != 'all', 
+                    format('TESTS={0}', inputs.test_list),
+                  github.event_name == 'workflow_dispatch', '_dummy_TESTS=all', 
+                  'TESTS=testgasnet testinternal testthreads'
+        ) }}
+      ERR_CHECK: '! grep -q -e "\bERROR" -e "Caught a signal" -e "Caught a fatal signal" -e ": command not found" -e "No such file or directory"'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Install Ubuntu Native Dependencies
+      if: ${{ contains(matrix.os, 'ubuntu') && matrix.container == '' && matrix.compiler == 'gcc' }}
+      run: |
+        sudo apt update
+        #sudo apt list -a 'gcc-*'
+        sudo apt install -y build-essential autoconf2.69 automake
+        if (( ${COMPILER_VERSION} < 15 )) ; then
+          sudo apt install -y gcc-${COMPILER_VERSION}
+        else
+          curl -L https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o install-homebrew.sh
+          chmod +x install-homebrew.sh
+          env CI=1 ./install-homebrew.sh
+          HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
+          ${HOMEBREW_PREFIX}/bin/brew install -v gcc@${COMPILER_VERSION} binutils
+          ls -al ${HOMEBREW_PREFIX}/bin
+          echo "PATH=${HOMEBREW_PREFIX}/bin:${PATH}" >> "$GITHUB_ENV"
+          : Homebrew GCC@15 needs binutils 2.44+
+          HOMEBREW_BINUTILS=$(ls -d ${HOMEBREW_PREFIX}/Cellar/binutils/2.*/bin )
+          ls -al ${HOMEBREW_BINUTILS}
+          echo "FFLAGS=$FFLAGS -B ${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
+          echo "CFLAGS=$CFLAGS -B ${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
+          echo "CXXFLAGS=$CXXFLAGS -B ${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
+        fi
+
+    - name: Install Ubuntu Container Dependencies
+      if: ${{ contains(matrix.os, 'ubuntu') && matrix.container != '' }}
+      run: |
+        apt update
+        apt install -y build-essential autoconf2.69 automake
+
+    - name: Install macOS Dependencies
+      if: contains(matrix.os, 'macos')
+      run: |
+        brew update
+        brew install automake # autoconf
+        if [[ "${{ matrix.compiler }}@${{ matrix.version }}" == gcc@12 ]] ; then
+          brew install gcc@12
+        fi
+
+    - name: Install LLVM on macOS
+      if: contains(matrix.os, 'macos') && matrix.compiler == 'clang'
+      run: |
+        brew install llvm@${COMPILER_VERSION} 
+        # Prepend homebrew clang to PATH:
+        echo "PATH=$(brew --prefix)/opt/llvm/bin:${PATH}" >> "$GITHUB_ENV"
+
+    - name: Setup Compilers
+      run: |
+        if test "$CC" = "clang" ; then
+          echo "CXX=clang++" >> "$GITHUB_ENV"
+        elif test "$CC" = "icx" ; then 
+          echo "CXX=icpx" >> "$GITHUB_ENV"
+        else 
+          echo "CC=gcc-${COMPILER_VERSION}" >> "$GITHUB_ENV"
+          echo "CXX=g++-${COMPILER_VERSION}" >> "$GITHUB_ENV"
+          # XCode 26 / gcc bug workaround: 
+          # <mach/mach_time.h> generates xnu_static_assert_struct_size errors from <mach/message.h>
+          if [[ ${{ matrix.os }} =~ macos-26 ]] ; then
+            echo "CONFIGURE_ARGS=$CONFIGURE_ARGS --enable-force-posix-realtime" >> "$GITHUB_ENV"
+          fi
+        fi
+
+    - name: Set Workflow Dispatch Environment
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        for setting in ${{ inputs.env_vars }}; do
+          echo $setting >> "$GITHUB_ENV"
+        done
+
+    - name: Version info
+      run: |
+        set +x
+        echo == Platform version info ==
+        uname -a
+        if test -r /etc/os-release ; then grep -e NAME -e VERSION /etc/os-release  ; fi
+        if test -x /usr/bin/sw_vers ; then /usr/bin/sw_vers ; fi
+        echo
+        echo == Tool version info ==
+        echo PATH="$PATH"
+        for tool in ${CC} ${CXX} make ; do
+          ( echo ; set -x ; w=$(which $tool) ; ls -al $w ; ls -alhL $w ; $tool --version )
+        done
+
+    - name: Bootstrap
+      run: |
+        ./Bootstrap
+
+    - name: configure
+      run: |
+        ./configure --prefix=$PWD/inst ${CONFIGURE_ARGS}
+
+    - name: make all
+      run: |
+        make ${MAKE_FLAGS} all
+
+    - name: make install
+      run: |
+        make ${MAKE_FLAGS} install
+
+    - name: make check
+      run: |
+        make ${MAKE_FLAGS} check 2>&1 | tee output
+          eval $ERR_CHECK output
+        mv smp-conduit/testtools .
+        rm -f */testtools
+
+    - name: Run smp-conduit tests
+      run: |
+        make ${MAKE_FLAGS} -C smp-conduit run-tests TEST_NODES=${TEST_NODES} "${TEST_FILTER}" 2>&1 | tee output
+          grep -q -e 'Test results: 0 failures' output
+          eval $ERR_CHECK output
+
+    - name: Run udp-conduit tests
+      run: |
+        if [[ ${TEST_NODES} > 2 ]] ; then 
+          export GASNET_SUPERNODE_MAXSIZE=2
+        fi
+        make ${MAKE_FLAGS} -C udp-conduit run-tests TEST_NODES=${TEST_NODES} "${TEST_FILTER}" 2>&1 | tee output
+          grep -q -e 'Test results: 0 failures' output
+          eval $ERR_CHECK output
+
+    - name: Run testtools
+      run: |
+        ./testtools 2>&1 | tee output
+          eval $ERR_CHECK output
+
+
