@@ -1998,13 +1998,12 @@ GASNETI_PUREP(gasneti_pshm_aux2local)
 //     This is the most costly option.
 //     Use any of the versions above when possible.
 #define GASNETI_MEMCPY(dst,src,nbytes) do {                \
-    static uint8_t _fm_dummy;                              \
     void       *_fm_d = (dst);                             \
     void const *_fm_s = (src);                             \
     size_t      _fm_n = (nbytes);                          \
     gasneti_assume(_fm_s && _fm_d);                        \
-    gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_s, 1)); \
-    gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_d, 1)); \
+    gasneti_assert((gasneti_unused_result(*(volatile uint8_t*)_fm_s), 1)); \
+    gasneti_assert((gasneti_unused_result(*(volatile uint8_t*)_fm_d), 1)); \
     gasneti_assume(!_fm_n || ((uintptr_t)_fm_s >= (uintptr_t)_fm_d+_fm_n)   \
                           || ((uintptr_t)_fm_d >= (uintptr_t)_fm_s+_fm_n)); \
     (void) memcpy(_fm_d, _fm_s, _fm_n);                    \
