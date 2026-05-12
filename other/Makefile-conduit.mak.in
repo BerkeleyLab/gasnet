@@ -371,7 +371,7 @@ do-pkgconfig-conduit: force
 	cat $(pkgconfig_conduit) | \
 	sed -e 's@#conduit_name#@$(CONDUIT_NAME)@g'  \
 	    -e 's@#thread_model#@$(thread_model)@g'  \
-	    -e "s@#version#@$(VERSION)$${GASNET_DESC:+ ($$GASNET_DESC)}@g" \
+	    -e "s@#version#@$(VERSION)$${GASNET_DESC:+ # ($$GASNET_DESC)}@g" \
 	>> $(pkgconfig_file)
 
 
