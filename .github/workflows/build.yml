@@ -270,8 +270,12 @@ jobs:
 
     - name: Run udp-conduit tests
       run: |
-        if [[ ${TEST_NODES} > 2 ]] ; then 
-          export GASNET_SUPERNODE_MAXSIZE=2
+        if [[ -z "$GASNET_SUPERNODE_MAXSIZE" ]] ; then
+          if [[ ${TEST_NODES} > 2 ]] ; then
+            export GASNET_SUPERNODE_MAXSIZE=2
+          else
+            export GASNET_SUPERNODE_MAXSIZE=1
+          fi
         fi
         make ${MAKE_FLAGS} -C udp-conduit run-tests TEST_NODES=${TEST_NODES} "${TEST_FILTER}" 2>&1 | tee output
           grep -q -e 'Test results: 0 failures' output
