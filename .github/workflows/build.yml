@@ -35,9 +35,9 @@ on:
         default: 4
         required: true
       env_vars:
-        description: 'Environment variable settings'
+        description: 'Environment vars: k1=v1 k2=v2'
         type: string
-        default: 'GASNET_STATSFILE=- GASNET_MALLOC_INIT=1'
+        default: ''
         required: false
         
 
