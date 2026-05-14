@@ -1,4 +1,5 @@
 name: Smoke Test
+run-name: ${{ github.event_name == 'workflow_dispatch' && 'Manual:' || '' }} ${{ inputs.run_name }}
 
 on: 
   push:
@@ -15,6 +16,10 @@ on:
     paths-ignore: *paths_ignore
   workflow_dispatch:
     inputs:
+      run_name:
+        description: 'Descriptive name for this run'
+        type: string
+        required: false
       configure_args:
         description: 'Additional configure arguments'
         type: string
@@ -30,9 +35,9 @@ on:
         default: 4
         required: true
       env_vars:
-        description: 'Environment variable settings'
+        description: 'Environment vars: k1=v1 k2=v2'
         type: string
-        default: 'GASNET_STATSFILE=- GASNET_MALLOC_INIT=1'
+        default: ''
         required: false
         
 
@@ -125,6 +130,7 @@ jobs:
 
     container:
       image: ${{ matrix.container }}
+      options: --shm-size=2gb
 
     env:
       COMPILER_VERSION: ${{ matrix.version }}
@@ -227,6 +233,7 @@ jobs:
         uname -a
         if test -r /etc/os-release ; then grep -e NAME -e VERSION /etc/os-release  ; fi
         if test -x /usr/bin/sw_vers ; then /usr/bin/sw_vers ; fi
+        if test -d /dev/shm ; then df -h /dev/shm ; fi
         echo
         echo == Tool version info ==
         echo PATH="$PATH"
@@ -265,8 +272,12 @@ jobs:
 
     - name: Run udp-conduit tests
       run: |
-        if [[ ${TEST_NODES} > 2 ]] ; then 
-          export GASNET_SUPERNODE_MAXSIZE=2
+        if [[ -z "$GASNET_SUPERNODE_MAXSIZE" ]] ; then
+          if [[ ${TEST_NODES} > 2 ]] ; then
+            export GASNET_SUPERNODE_MAXSIZE=2
+          else
+            export GASNET_SUPERNODE_MAXSIZE=1
+          fi
         fi
         make ${MAKE_FLAGS} -C udp-conduit run-tests TEST_NODES=${TEST_NODES} "${TEST_FILTER}" 2>&1 | tee output
           grep -q -e 'Test results: 0 failures' output
