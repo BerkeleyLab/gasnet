@@ -25,6 +25,7 @@ GASNet-EX ChangeLog
 * Notable bugs fixed in this release: (details at https://gasnet-bugs.lbl.gov)
   - bug4811 - ofi: startup crashes with --enable-segment-everything
   - bug4821 - Some tests request an incorrectly large segment size
+  - bug4822 - gex_Segment_Attach() does not validate the size argument
 
 ----------------------------------------------------------------------
 2025-08-28: GASNet-EX 2025.8.0
