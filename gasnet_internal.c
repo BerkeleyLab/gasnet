@@ -607,10 +607,21 @@ extern int gex_Segment_Attach(
   if (once) once = 0;
   else gasneti_fatalerror("gex_Segment_Attach: current implementation can be called at most once");
 
+  // Final value for EVERYTHING, error value for FAST/LARGE
+  *segment_p = GEX_SEGMENT_INVALID;
+
   #if GASNET_SEGMENT_EVERYTHING
-    *segment_p = GEX_SEGMENT_INVALID;
     gex_Event_Wait(gex_Coll_BarrierNB(e_tm, 0));
   #else
+    if (length == 0) {
+      GASNETI_RETURN_ERRR(BAD_ARG, "size must be non-zero");
+    }
+    if ((length % GASNET_PAGESIZE) != 0) {
+      GASNETI_RETURN_ERRR(BAD_ARG, "size is not page-aligned");
+    }
+    if (length > gasneti_MaxLocalSegmentSize) {
+      GASNETI_RETURN_ERRR(BAD_ARG, "size is too large, exceeds current value of gasnet_getMaxLocalSegmentSize()");
+    }
     /* create a segment collectively */
     // TODO-EX: this implementation only works *once*
     // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
