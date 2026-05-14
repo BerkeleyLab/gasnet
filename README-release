@@ -373,7 +373,15 @@ Snapshot Releases
   + Note lack of any `-snapshot` in these steps
   + This work should be subject to PR which is fast-forward merged, just as when preparing for a normal release
 * Step 2. advance `stable` in the normal manner
-  + The "normal manner" includes an annotated `gex-stable-YYYY_MM_DD` tag
+  + The "normal manner" includes an annotated `gex-stable-YYYY_MM_DD` tag,
+    and advancing the "floating" `gex-stable` annotated tag with a force push.
+  + Once that's done, edit the `gex-stable` pre-release on GitHub:
+    - Click edit button on https://github.com/BerkeleyLab/gasnet/releases/tag/gex-stable
+    - Update the textual summary of changes since last release
+    - Delete the current GASNet-stable.tar.gz tarball and upload the new one.
+    - Leave "pre-release" checked and "latest release" UN-checked.
+    - Click "Update Release" button.
+    - Confirm the new commit hash.
   + If applicable, new spec and amx version tags should be applied to `stable`:
     - `gex-spec-*`, `gasnet-tools-spec-*`, `AMMPI_*`, `AMUDP_*`
   + Note lack of any tag for `gex-YYYY.MM.0`
