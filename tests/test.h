@@ -1015,9 +1015,21 @@ static size_t test_num_am_handlers = 0;
   * Wrap gasnet_attach() or gex_Segment_Attach() to validate
   * the allocated segment size, alignment, etc.
   */
+  static void _test_validate_seg_request(uintptr_t length) {
+      assert_always(length > 0);
+      assert_always(((uintptr_t)length) % PAGESZ == 0);
+      uintptr_t max_local = gasnet_getMaxLocalSegmentSize(); 
+      if (length > max_local) {
+        FATALERR("Test requested a GASNet segment of size=%lu, "
+                  "but this exceeds the currently available gasnet_getMaxLocalSegmentSize()=%lu.\n"
+                  "You may need to adjust the memory resource limits of this system/shell, "
+                  "otherwise adjust test parameters to reduce segment utilization requirements.",
+                  (unsigned long)length, (unsigned long)max_local);
+      }
+  }
  #ifdef _INCLUDED_GASNET_H
-  static int _test_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize, uintptr_t minheapoffset)
-  {
+  static int _test_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize, uintptr_t minheapoffset) {
+       _test_validate_seg_request(segsize);
        GASNET_Safe(gasnet_attach(table, numentries, segsize, minheapoffset));
        gex_Rank_t i;
        gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(TEST_PROCS*sizeof(gasnet_seginfo_t));
@@ -1039,8 +1051,8 @@ static size_t test_num_am_handlers = 0;
   static int _test_Segment_Attach(
                 gex_Segment_t     *segment_p,
                 gex_TM_t          tm,
-                uintptr_t         length)
-  {
+                uintptr_t         length) {
+      _test_validate_seg_request(length);
       GASNET_Safe(gex_Segment_Attach(segment_p, tm, length));
       BARRIER();
       for (gex_Rank_t i=0; i < TEST_PROCS; i++) {
