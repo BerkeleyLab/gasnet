@@ -6,6 +6,9 @@
 
 #include <gasnetex.h>
 
+#ifndef TEST_SEGSZ
+  #define TEST_SEGSZ PAGESZ
+#endif
 #include <test.h>
 
 #ifndef PERFORM_MIXED_NAMED_ANON_TESTS
