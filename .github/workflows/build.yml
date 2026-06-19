@@ -60,7 +60,7 @@ jobs:
       matrix:
         os: [ macos-14, macos-15, macos-15-intel, macos-26, macos-26-intel, ubuntu-24.04 ]
         compiler: [ gcc ]
-        version: [ 12, 13, 14, 15 ]
+        version: [ 12, 13, 14, 15, 16 ]
         extra_flags: [ -g ]
 
         include:
@@ -163,7 +163,7 @@ jobs:
         sudo apt update
         #sudo apt list -a 'gcc-*'
         sudo apt install -y build-essential autoconf2.69 automake
-        if (( ${COMPILER_VERSION} < 15 )) ; then
+        if [[ ${COMPILER_VERSION} -lt 15 ]] ; then
           sudo apt install -y gcc-${COMPILER_VERSION}
         else
           curl -L https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o install-homebrew.sh
@@ -194,6 +194,9 @@ jobs:
         brew install automake # autoconf
         if [[ "${{ matrix.compiler }}@${{ matrix.version }}" == gcc@12 ]] ; then
           brew install gcc@12
+        fi
+        if [[ ${{ matrix.compiler }} == 'gcc' && ${COMPILER_VERSION} -gt 15 ]] ; then
+          brew install gcc@${COMPILER_VERSION}
         fi
 
     - name: Install LLVM on macOS
