@@ -1616,6 +1616,12 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int
   gasneti_assert(count > 0);
   gasneti_assert(type);
 
+  gasneti_assert(sreq->opcode != GASNETC_OP_FREE);
+  gasneti_assert(sreq->opcode != GASNETC_OP_INVALID);
+
+  /* A valid callback will never take NULL as its data */
+  gasneti_assert(sreq->comp.cb == NULL || sreq->comp.data != NULL);
+
   GASNETI_TRACE_PRINTF(D,("%s sreq=%p peer=%d qp=%d hca=%d\n", type, (void *)sreq,
 			  gasnetc_epid2node(sreq->cep->epid),
 			  gasnetc_epid2qpi(sreq->cep->epid) - 1,
@@ -1782,15 +1788,6 @@ void gasnetc_snd_post_inner(
 
 void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int reserved, int is_inline GASNETI_THREAD_FARG) {
   gasnetc_cep_t * const cep = sreq->cep;
-
-  /* Must be bound to a qp by now */
-  gasneti_assert(cep != NULL );
-
-  gasneti_assert(sreq->opcode != GASNETC_OP_FREE);
-  gasneti_assert(sreq->opcode != GASNETC_OP_INVALID);
-
-  /* A valid callback will never take NULL as its data */
-  gasneti_assert(sreq->comp.cb == NULL || sreq->comp.data != NULL);
 
   // setup some remaining fields
   const enum ibv_send_flags inline_flag = is_inline ? IBV_SEND_INLINE
