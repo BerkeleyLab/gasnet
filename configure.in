@@ -3912,6 +3912,31 @@ if test "$enabled_ibv" = yes; then
     ], [
       (void) ibv_create_qp_ex(NULL, NULL);
     ], [ AC_DEFINE(HAVE_IBV_CREATE_QP_EX) ] )
+
+    GASNET_IF_DISABLED(ibv-wr-api,
+      [Disable use of verbs work request API (default is to probe)],
+      [:],
+      [GASNET_TRY_CACHE_LINK(for verbs work request API support, ibv_wr_api, [
+         INCLUDE_VERBS_H
+         #if !HAVE_IBV_CREATE_QP_EX
+         #error WR API requires ibv_create_qp_ex
+         #endif
+       ], [
+         struct ibv_qp_init_attr_ex init_attr_ex;
+         init_attr_ex.send_ops_flags = IBV_QP_EX_WITH_SEND_WITH_IMM |
+                                       IBV_QP_EX_WITH_RDMA_WRITE |
+                                       IBV_QP_EX_WITH_RDMA_READ;
+         init_attr_ex.comp_mask = IBV_QP_INIT_ATTR_SEND_OPS_FLAGS;
+         struct ibv_qp *qp = NULL;
+         struct ibv_qp_ex *qpx = ibv_qp_to_qp_ex(qp);
+         ibv_wr_start(qpx);
+         ibv_wr_send_imm(qpx, 0);
+         ibv_wr_rdma_write(qpx, 0, 0);
+         ibv_wr_rdma_read(qpx, 0, 0);
+         ibv_wr_atomic_fetch_add(qpx, 0, 0, 0);
+         ibv_wr_complete(qpx);
+       ], [ AC_DEFINE(GASNETC_HAVE_IBV_WR_API) ] )
+     ])
   fi
 
   popdef([INCLUDE_VERBS_H])
