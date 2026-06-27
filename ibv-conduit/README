@@ -204,6 +204,11 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   behavior.  For more information, see the `GASNET_RCV_THREAD_POLL_MODE`
   environment variable documentation, below.
 
+  By default, ibv-conduit will use the Verbs Work Request API if support is
+  detected at configure time.  One can configure using `--disable-ibv-wr-api`
+  to force use of the older `ibv_post_send()` interface.  There is no mechanism
+  to choose between the two implementations at run time.
+
 @ Section: Job Spawning @
 
   If using UPC++, Chapel, etc. the language-specific commands should be used
