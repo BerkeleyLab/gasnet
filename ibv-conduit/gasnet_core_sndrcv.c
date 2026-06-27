@@ -105,7 +105,11 @@ typedef struct {
  * ------------------------------------------------------------------------------------ */
 
 #if GASNETC_HAVE_FENCED_PUTS
-static int gasnetc_op_needs_fence_mask;
+  static int gasnetc_op_needs_fence_mask;
+  static enum ibv_send_flags gasnetc_signal_flag;
+#else
+  #define gasnetc_op_needs_fence_mask 0
+  #define gasnetc_signal_flag (enum ibv_send_flags)0
 #endif
 
 #if !GASNETC_PIN_SEGMENT
@@ -1791,9 +1795,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
   // setup some remaining fields
   const enum ibv_send_flags inline_flag = is_inline ? IBV_SEND_INLINE
                                                     : (enum ibv_send_flags)0;
-  const enum ibv_send_flags signal_flag = GASNETC_USE_SEND_SIGNALLED ? IBV_SEND_SIGNALED
-                                                                     : (enum ibv_send_flags)0;
-  sr_desc->send_flags = inline_flag | signal_flag;
+  sr_desc->send_flags = inline_flag | gasnetc_signal_flag;
   sr_desc->wr_id = (uintptr_t)sreq;
 #if GASNETC_IBV_XRC_OFED
   sr_desc->qp_type.xrc.remote_srqn = cep->xrc_remote_srq_num; /* Even if unused */
@@ -3206,8 +3208,9 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
 #endif
 
 #if GASNETC_HAVE_FENCED_PUTS
-  // Speed critical path checks
+  // Speed critical paths
   gasnetc_op_needs_fence_mask = gasnetc_use_fenced_puts ?  GASNETC_OP_NEEDS_FENCE : 0;
+  gasnetc_signal_flag = gasnetc_use_fenced_puts ? IBV_SEND_SIGNALED : (enum ibv_send_flags)0;
 #endif
 
   /* Init thread-local data */
