@@ -1749,7 +1749,7 @@ static void gasnetc_snd_post_fail(int rc, int is_inline) {
 }
 GASNETI_NORETURNP(gasnetc_snd_post_fail)
 
-// Used in the IMMEDIATE case to reserve a CQ slot separate from gasnetc_snd_post*()
+// Used in the IMMEDIATE case to reserve a CQ slot separate from gasnetc_*post*()
 // Returns non-zero on success, zero on failure
 int gasnetc_snd_cq_reserve(gasnetc_cep_t * const cep) {
   gasnetc_sema_t *sema = cep->snd_cq_sema_p;
@@ -1786,7 +1786,15 @@ void gasnetc_snd_post_inner(
   if_pf (rc) gasnetc_snd_post_fail(rc, is_inline);
 }
 
-void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int reserved, int is_inline GASNETI_THREAD_FARG) {
+// Wrapper around ibv_post_send()
+// Handles all opcodes with the necessary metadata in sr_desc
+static void gasnetc_snd_post_common(
+                gasnetc_sreq_t *sreq,
+                struct ibv_send_wr *sr_desc,
+                int reserved,
+                int is_inline
+                GASNETI_THREAD_FARG)
+{
   gasnetc_cep_t * const cep = sreq->cep;
 
   // setup some remaining fields
@@ -1800,15 +1808,6 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
   sr_desc->xrc_remote_srq_num = cep->xrc_remote_srq_num; /* Even if unused */
 #endif
   sr_desc->next = NULL;
-
-  /* Trace and debug */
-  if (is_inline) {
-    GASNETC_STAT_EVENT(POST_INLINE_SR);
-    gasnetc_snd_validate(sreq, sr_desc, 1, "POST_INLINE_SR");
-  } else {
-    GASNETC_STAT_EVENT_VAL(POST_SR, sr_desc->num_sge);
-    gasnetc_snd_validate(sreq, sr_desc, 1, "POST_SR");
-  }
 
 #if GASNETC_HAVE_FENCED_PUTS
   // When GASNET_USE_FENCED_PUTS is enabled, we must post both the Put and an
@@ -1844,7 +1843,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
     sr_desc->send_flags = inline_flag; // Strips IBV_SEND_SIGNALED
     sr_desc->next = amo_sr_desc;
 
-    // Try at most twice (w/ a CQ poll between) to obtain a second SQ slot
+    // Here we try to obtain a second SQ slot, *without* spinning.
     // Spinning indefinitely while holding one slot could deadlock if
     // multiple threads in a PAR build are all doing the same.
     // Even in a SEQ or PARSYNC build, there is an advantage to posting the
@@ -1875,8 +1874,77 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
   /* Post it */
   gasnetc_snd_post_inner(cep, sr_desc, reserved, is_inline GASNETI_THREAD_PASS);
 }
-#define gasnetc_snd_post(x,y)           gasnetc_snd_post_common(x,y,0,0 GASNETI_THREAD_PASS)
-#define gasnetc_snd_post_inline(x,y)    gasnetc_snd_post_common(x,y,0,1 GASNETI_THREAD_PASS)
+
+void gasnetc_post_send_imm(
+                gasnetc_sreq_t *am_sreq,
+                struct ibv_send_wr *sr_desc,
+                uint32_t imm_data,
+                int reserved,
+                int is_inline
+                GASNETI_THREAD_FARG)
+{
+    GASNETC_TRACE_EVENT_VAL(POST_SEND_IMM, is_inline ? 0 : sr_desc->num_sge);
+    sr_desc->opcode = IBV_WR_SEND_WITH_IMM;
+    sr_desc->imm_data = imm_data;
+    gasnetc_snd_validate(am_sreq, sr_desc, 1, "POST_SEND_IMM");
+    gasnetc_snd_post_common(am_sreq, sr_desc, reserved, is_inline GASNETI_THREAD_PASS);
+}
+
+GASNETI_INLINE(gasnetc_post_write)
+void gasnetc_post_write(
+                gasnetc_sreq_t *put_sreq,
+                struct ibv_send_wr *sr_desc,
+                int is_inline
+                GASNETI_THREAD_FARG)
+{
+    GASNETC_TRACE_EVENT_VAL(POST_WRITE, is_inline ? 0 : sr_desc->num_sge);
+    gasneti_assert_uint(sr_desc->opcode ,==, IBV_WR_RDMA_WRITE);
+    gasnetc_snd_validate(put_sreq, sr_desc, 1, "POST_WRITE");
+    gasnetc_snd_post_common(put_sreq, sr_desc, 0, is_inline GASNETI_THREAD_PASS);
+}
+
+GASNETI_INLINE(gasnetc_post_read)
+void gasnetc_post_read(
+                gasnetc_sreq_t *get_sreq,
+                struct ibv_send_wr *sr_desc
+                GASNETI_THREAD_FARG)
+{
+    GASNETC_TRACE_EVENT_VAL(POST_READ, sr_desc->num_sge);
+    gasneti_assert_uint(sr_desc->opcode ,==, IBV_WR_RDMA_READ);
+    gasnetc_snd_validate(get_sreq, sr_desc, 1, "POST_READ");
+    gasnetc_snd_post_common(get_sreq, sr_desc, 0, 0 GASNETI_THREAD_PASS);
+}
+
+void gasnetc_post_fetch_add(
+                gasnetc_sreq_t *fadd_sreq,
+                struct ibv_send_wr *sr_desc,
+                uint64_t op1
+                GASNETI_THREAD_FARG)
+{
+    GASNETC_TRACE_EVENT(POST_FADD);
+    sr_desc->opcode = IBV_WR_ATOMIC_FETCH_AND_ADD;
+    sr_desc->num_sge = 1;
+    sr_desc->sg_list[0].length = sizeof(uint64_t);
+    sr_desc->wr.atomic.compare_add = op1;
+    gasnetc_snd_validate(fadd_sreq, sr_desc, 1, "POST_FADD");
+    gasnetc_snd_post_common(fadd_sreq, sr_desc, 0, 0 GASNETI_THREAD_PASS);
+}
+
+void gasnetc_post_cmp_swp(
+                gasnetc_sreq_t *cswap_sreq,
+                struct ibv_send_wr *sr_desc,
+                uint64_t op1, uint64_t op2
+                GASNETI_THREAD_FARG)
+{
+    GASNETC_TRACE_EVENT(POST_FCAS);
+    sr_desc->opcode = IBV_WR_ATOMIC_CMP_AND_SWP;
+    sr_desc->num_sge = 1;
+    sr_desc->sg_list[0].length = sizeof(uint64_t);
+    sr_desc->wr.atomic.compare_add = op1;
+    sr_desc->wr.atomic.swap = op2;
+    gasnetc_snd_validate(cswap_sreq, sr_desc, 1, "POST_FCAS");
+    gasnetc_snd_post_common(cswap_sreq, sr_desc, 0, 0 GASNETI_THREAD_PASS);
+}
 
 #if GASNETC_USE_RCV_THREAD
 static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
@@ -1953,7 +2021,7 @@ static void gasnetc_snd_thread(struct ibv_wc *comp_p, void *arg)
  * ###############################################################
  */
 
-/* Assemble and post a bounce-buffer PUT or GET */
+// Assemble and all-but-post a bounce-buffer PUT or GET
 GASNETI_INLINE(gasnetc_bounce_common)
 void gasnetc_bounce_common(
                 gasnetc_EP_t ep, gasnetc_epid_t epid,
@@ -1972,9 +2040,6 @@ void gasnetc_bounce_common(
   gasnetc_cep_t *cep = gasnetc_bind_cep(ep, epid, sreq);
   sr_desc->wr.rdma.rkey = gasnetc_seg_rkey(cep, rem_epidx);
   sr_desc->sg_list[0].lkey = GASNETC_SND_LKEY(cep);
-
-  gasnetc_snd_post(sreq, sr_desc);
-  sr_desc->wr.rdma.remote_addr += len;
 }
 
 // Assemble and all-but-post a zero-copy PUT or GET using either the seg_lkey,
@@ -2115,7 +2180,8 @@ void gasnetc_do_put_inline(
   cep = gasnetc_bind_cep(ep, epid, sreq);
   sr_desc->wr.rdma.rkey = gasnetc_seg_rkey(cep, rem_epidx);
 
-  gasnetc_snd_post_inline(sreq, sr_desc);
+  gasnetc_post_write(sreq, sr_desc, /*inline=*/1 GASNETI_THREAD_PASS);
+
   sr_desc->wr.rdma.remote_addr += nbytes;
   sr_desc->sg_list[0].addr += nbytes;
 }
@@ -2152,7 +2218,9 @@ void gasnetc_do_put_bounce(
     }
 
     gasnetc_bounce_common(ep, epid, rem_epidx, sr_desc, count, sreq, IBV_WR_RDMA_WRITE GASNETI_THREAD_PASS);
+    gasnetc_post_write(sreq, sr_desc, /*inline=*/0 GASNETI_THREAD_PASS);
 
+    sr_desc->wr.rdma.remote_addr += count;
     src += count;
     nbytes -= count;
   } while (nbytes);
@@ -2200,7 +2268,7 @@ size_t gasnetc_do_put_zerocp(
       sreq->comp.cb = cb;
     }
 
-    gasnetc_snd_post(sreq, sr_desc);
+    gasnetc_post_write(sreq, sr_desc, /*inline=*/0 GASNETI_THREAD_PASS);
     sr_desc->wr.rdma.remote_addr += count;
     sr_desc->sg_list[0].addr += count;
   } while (nbytes);
@@ -2239,7 +2307,9 @@ void gasnetc_do_get_bounce(
     sreq->comp.data = remote_cnt;
 
     gasnetc_bounce_common(ep, epid, rem_epidx, sr_desc, count, sreq, IBV_WR_RDMA_READ GASNETI_THREAD_PASS);
+    gasnetc_post_read(sreq, sr_desc GASNETI_THREAD_PASS);
 
+    sr_desc->wr.rdma.remote_addr += count;
     dst += count;
   } while (nbytes);
   sr_desc->sg_list[0].addr = dst;
@@ -2282,7 +2352,7 @@ void gasnetc_do_get_zerocp(
     sreq->comp.cb = remote_cb;
     sreq->comp.data = remote_cnt;
 
-    gasnetc_snd_post(sreq, sr_desc);
+    gasnetc_post_read(sreq, sr_desc GASNETI_THREAD_PASS);
     sr_desc->wr.rdma.remote_addr += count;
     sr_desc->sg_list[0].addr += count;
   } while (nbytes);
@@ -2319,7 +2389,7 @@ void gasnetc_fh_put_inline(gasnetc_sreq_t *sreq GASNETI_THREAD_FARG) {
   cep = gasnetc_bind_cep(sreq->fh_ep, sreq->epid, sreq);
   sr_desc->wr.rdma.rkey = GASNETC_FH_RKEY(cep, fh_rem);
 
-  gasnetc_snd_post_inline(sreq, sr_desc);
+  gasnetc_post_write(sreq, sr_desc, /*inline=*/1 GASNETI_THREAD_PASS);
 
   if_pf (lc_cb) lc_cb(lc); /* locally complete */
 }
@@ -2361,7 +2431,7 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq GASNETI_THREAD_FARG) {
     /* Send all ops on same qp to get point-to-point ordering for proper fh_release() */
     epid = sreq->epid;
 
-    gasnetc_snd_post(sreq, sr_desc);
+    gasnetc_post_write(sreq, sr_desc, /*inline=*/0 GASNETI_THREAD_PASS);
 
     src += GASNETC_BUFSZ;
     dst += GASNETC_BUFSZ;
@@ -2385,7 +2455,7 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq GASNETI_THREAD_FARG) {
   sr_desc->wr.rdma.rkey = GASNETC_FH_RKEY(cep, fh_rem);
   sr_desc->sg_list[0].lkey = GASNETC_SND_LKEY(cep);
 
-  gasnetc_snd_post(orig_sreq, sr_desc);
+  gasnetc_post_write(orig_sreq, sr_desc, /*inline=*/0 GASNETI_THREAD_PASS);
 }
 
 GASNETI_INLINE(gasnetc_fh_post)
@@ -2432,7 +2502,11 @@ void gasnetc_fh_post(gasnetc_sreq_t *sreq, enum ibv_wr_opcode op GASNETI_THREAD_
   }
   gasneti_assert(remain == 0);
 
-  gasnetc_snd_post(sreq, sr_desc);
+  if (op == IBV_WR_RDMA_WRITE) {
+    gasnetc_post_write(sreq, sr_desc, /*inline=*/0 GASNETI_THREAD_PASS);
+  } else {
+    gasnetc_post_read(sreq, sr_desc GASNETI_THREAD_PASS);
+  }
 }
 
 static void gasnetc_fh_do_put(gasnetc_sreq_t *sreq GASNETI_THREAD_FARG) {

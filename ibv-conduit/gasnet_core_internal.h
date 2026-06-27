@@ -1075,9 +1075,32 @@ extern gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_
 #endif
 extern int gasnetc_snd_cq_reserve(gasnetc_cep_t * const cep);
 
-extern void gasnetc_snd_post_common(
-                  gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc,
-                  int reserved, int is_inline GASNETI_THREAD_FARG);
+extern void gasnetc_post_send_imm(
+                  gasnetc_sreq_t *sreq,
+                  struct ibv_send_wr *sr_desc,
+                  uint32_t imm_data,
+                  int reserved, int is_inline
+                  GASNETI_THREAD_FARG);
+// Currently write and read are static and/or inline within gasnet_core_sndrcv.c
+//extern void gasnetc_post_write(
+//                  gasnetc_sreq_t *sreq,
+//                  struct ibv_send_wr *sr_desc,
+//                  int is_inline
+//                  GASNETI_THREAD_FARG);
+//extern void gasnetc_post_read(
+//                  gasnetc_sreq_t *sreq,
+//                  struct ibv_send_wr *sr_desc
+//                  GASNETI_THREAD_FARG);
+extern void gasnetc_post_fetch_add(
+                  gasnetc_sreq_t *sreq,
+                  struct ibv_send_wr *sr_desc,
+                  uint64_t op1
+                  GASNETI_THREAD_FARG);
+extern void gasnetc_post_cmp_swp(
+                  gasnetc_sreq_t *sreq,
+                  struct ibv_send_wr *sr_desc,
+                  uint64_t op1, uint64_t op2
+                  GASNETI_THREAD_FARG);
 
 extern void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG);
 extern void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG);
