@@ -1857,8 +1857,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
       GASNETC_STAT_EVENT(POST_SR_SPLIT);
       // Move the remote completion callback from the Put to the Atomic
       amo_sreq->opcode = GASNETC_OP_ATOMIC;
-      amo_sreq->comp.cb   = sreq->comp.cb;
-      amo_sreq->comp.data = sreq->comp.data;
+      amo_sreq->comp = sreq->comp;
       sreq->comp.cb = NULL;
       // Post only the Put, releasing a SQ slot for eventual reclamation
       sr_desc->next = NULL;
