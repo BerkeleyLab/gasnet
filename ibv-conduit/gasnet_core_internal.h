@@ -40,6 +40,11 @@
     #endif
   #endif
 
+// Sanity check
+#if GASNETC_HAVE_IBV_WR_API && !HAVE_IBV_CREATE_QP_EX
+  #error GASNETC_HAVE_IBV_WR_API requires HAVE_IBV_CREATE_QP_EX
+#endif
+
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
 
@@ -658,7 +663,12 @@ struct gasnetc_cep_t_ {
   gasnetc_lifo_head_t   *rbuf_freelist; /* Source of rcv buffers for AMs.
                                            Copy of &hca->rbuf_freelist */
   struct ibv_qp         *qp_handle;
+#if GASNETC_HAVE_IBV_WR_API
+  struct ibv_qp_ex      *qp_ex_handle;
+  #define _GASNETC_CEP_PTR_0 6*sizeof(void*)
+#else
   #define _GASNETC_CEP_PTR_0 5*sizeof(void*)
+#endif
 #if GASNETC_IBV_SRQ
   struct ibv_srq        *srq;           // Copy of hca->repl_srq OR hca->rqst_srq
   #define _GASNETC_CEP_PTR_1 1*sizeof(void*)
