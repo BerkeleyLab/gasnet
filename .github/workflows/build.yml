@@ -64,9 +64,13 @@ jobs:
         extra_flags: [ -g ]
 
         include:
+          - os: ubuntu-24.04
+            conduits: &ubuntu_conduits [ mpi, ibv, ofi, ucx ]
+
           - os: ubuntu-22.04
             compiler: gcc
             version: 12 # no package available for gcc 13+
+            conduits: *ubuntu_conduits
 
           # --- LLVM clang coverage ---
 
@@ -90,19 +94,22 @@ jobs:
           - os: ubuntu-24.04
             compiler: clang
             version: 22
+            conduits: *ubuntu_conduits
             container: phhargrove/llvm-flang:22.1.0-latest
           - os: ubuntu-24.04
             compiler: clang
             version: 21
+            conduits: *ubuntu_conduits
             container: phhargrove/llvm-flang:21.1.0-latest
           - os: ubuntu-24.04
             compiler: clang
             version: 20
+            conduits: *ubuntu_conduits
             container: phhargrove/llvm-flang:20.1.0-latest
           - os: ubuntu-24.04
             compiler: clang
             version: 19
-            extra_flags: -g -mmlir -allow-assumed-rank
+            conduits: *ubuntu_conduits
             container: phhargrove/llvm-flang:19.1.1-latest
 
           # --- Intel coverage ---
@@ -111,21 +118,25 @@ jobs:
           - os: ubuntu-24.04
             compiler: icx
             version: latest
+            conduits: *ubuntu_conduits
             container: intel/oneapi-hpckit:latest
 
           - os: ubuntu-24.04
             compiler: icx
             version: 2025.2.0
+            conduits: *ubuntu_conduits
             container: intel/oneapi-hpckit:2025.2.0-0-devel-ubuntu24.04
 
           - os: ubuntu-24.04
             compiler: icx
             version: 2025.1.0
+            conduits: *ubuntu_conduits
             container: intel/oneapi-hpckit:2025.1.0-0-devel-ubuntu24.04
 
           - os: ubuntu-22.04
             compiler: icx
             version: 2025.0.0
+            conduits: *ubuntu_conduits
             container: intel/oneapi-hpckit:2025.0.0-0-devel-ubuntu22.04 
 
     container:
@@ -187,6 +198,37 @@ jobs:
       run: |
         apt update
         apt install -y build-essential autoconf2.69 automake
+
+    - name: Install Ubuntu Conduit Dependencies
+      if: ${{ contains(matrix.os, 'ubuntu') && toJSON(matrix.conduits) != '[]' }}
+      run: |
+        FORCE_CONDUITS=""
+        if [[ $(whoami) == root ]] ; then 
+          SUDO=
+        else
+          SUDO=sudo
+        fi
+        if [[ ${{ contains(matrix.conduits,'ibv') }} == true ]] ; then
+          $SUDO apt install -y libibverbs-dev
+          FORCE_CONDUITS+=" --enable-ibv"
+        fi
+        if [[ ${{ contains(matrix.conduits,'ofi') }} == true ]] ; then
+          $SUDO apt install -y libfabric-dev
+          FORCE_CONDUITS+=" --enable-ofi"
+        fi
+        if [[ ${{ contains(matrix.conduits,'ucx') }} == true ]] ; then
+          $SUDO apt install -y libucx-dev
+          FORCE_CONDUITS+=" --enable-ucx"
+        fi
+        if [[ ${{ contains(matrix.conduits,'mpi') }} == true ]] ; then
+          if [[ ${{ matrix.compiler }} == 'icx' ]] ; then # icx uses Intel MPI
+            echo "MPI_CC=mpiicx" >> "$GITHUB_ENV"
+          else
+            $SUDO apt install -y libopenmpi-dev
+          fi
+          FORCE_CONDUITS+=" --enable-mpi --enable-mpi-compat"
+        fi
+        echo "CONFIGURE_ARGS=$CONFIGURE_ARGS$FORCE_CONDUITS" >> "$GITHUB_ENV"
 
     - name: Install macOS Dependencies
       if: contains(matrix.os, 'macos')
