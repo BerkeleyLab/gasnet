@@ -288,7 +288,7 @@ jobs:
         echo
         echo == Tool version info ==
         echo PATH="$PATH"
-        for tool in ${CC} ${CXX} make ; do
+        for tool in ${CC} ${MPI_CC:-`type -p mpicc`} ${CXX} make ; do
           ( echo ; set -x ; w=$(which $tool) ; ls -al $w ; ls -alhL $w ; $tool --version )
         done
 
