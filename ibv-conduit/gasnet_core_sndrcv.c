@@ -1922,6 +1922,7 @@ void gasnetc_post_send_imm(
 #endif
 
     GASNETC_TRACE_EVENT_VAL(POST_SEND_IMM, is_inline ? 0 : sr_desc->num_sge);
+    if (is_inline) GASNETC_STAT_EVENT(POST_INLINE_SEND);
     gasnetc_snd_validate(am_sreq, sr_desc, 1, "POST_SEND_IMM");
 
 #if GASNETC_HAVE_IBV_WR_API
@@ -1964,6 +1965,7 @@ void gasnetc_post_write(
 #endif
 
     GASNETC_TRACE_EVENT_VAL(POST_WRITE, is_inline ? 0 : sr_desc->num_sge);
+    if (is_inline) GASNETC_STAT_EVENT(POST_INLINE_WRITE);
     gasneti_assert_uint(sr_desc->opcode ,==, IBV_WR_RDMA_WRITE);
     gasnetc_snd_validate(put_sreq, sr_desc, 1, "POST_WRITE");
 

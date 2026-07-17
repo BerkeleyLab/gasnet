@@ -268,6 +268,8 @@
 	CNT(C, GET_RATOMICBUF, cnt)               \
 	TIME(C, GET_RATOMICBUF_STALL, stalled time) \
 	VAL(C, ALLOC_SREQ, sreqs)                 \
+	CNT(C, POST_INLINE_SEND, cnt)             \
+	CNT(C, POST_INLINE_WRITE, cnt)            \
 	VAL(C, POST_SEND_IMM, segments)           \
 	VAL(C, POST_WRITE, segments)              \
 	VAL(C, POST_READ, segments)               \
