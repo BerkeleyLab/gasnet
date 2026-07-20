@@ -1,0 +1,56 @@
+#=============================================================================
+# conduits/CMakeLists.txt - Build all enabled conduits
+#=============================================================================
+
+include(GasNetConduit)
+
+# SMP conduit (always available -- shared memory loopback)
+if(GASNET_ENABLE_SMP)
+  message(STATUS "Configuring smp-conduit")
+  add_subdirectory(smp)
+endif()
+
+# UDP conduit (requires C++ for amudp; optional)
+if(GASNET_ENABLE_UDP)
+  message(STATUS "Configuring udp-conduit")
+  add_subdirectory(udp)
+endif()
+
+# MPI conduit (requires MPI)
+if(GASNET_ENABLE_MPI)
+  message(STATUS "Configuring mpi-conduit")
+  add_subdirectory(mpi)
+endif()
+
+# IB Verbs conduit (requires libibverbs)
+if(GASNET_ENABLE_IBV)
+  find_package(IBVerbs QUIET)
+  if(IBVerbs_FOUND)
+    message(STATUS "Configuring ibv-conduit")
+    add_subdirectory(ibv)
+  else()
+    message(STATUS "libibverbs not found; skipping ibv-conduit")
+  endif()
+endif()
+
+# OFI conduit (requires libfabric)
+if(GASNET_ENABLE_OFI)
+  find_package(Libfabric QUIET)
+  if(Libfabric_FOUND)
+    message(STATUS "Configuring ofi-conduit")
+    add_subdirectory(ofi)
+  else()
+    message(STATUS "libfabric not found; skipping ofi-conduit")
+  endif()
+endif()
+
+# UCX conduit (requires libucp)
+if(GASNET_ENABLE_UCX)
+  find_package(UCX QUIET)
+  if(UCX_FOUND)
+    message(STATUS "Configuring ucx-conduit")
+    add_subdirectory(ucx)
+  else()
+    message(STATUS "UCX not found; skipping ucx-conduit")
+  endif()
+endif()
