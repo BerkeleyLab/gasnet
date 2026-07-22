@@ -177,11 +177,34 @@ gasnetc_parse_filename(const char *filename)
 
 #if HAVE_IBV_CREATE_QP_EX
   typedef struct ibv_qp_init_attr_ex gasnetc_qp_init_attr_t;
-  #define gasnetc_create_qp(hca, attr) ibv_create_qp_ex((hca)->handle, attr)
 #else
   typedef struct ibv_qp_init_attr gasnetc_qp_init_attr_t;
-  #define gasnetc_create_qp(hca, attr) ibv_create_qp((hca)->pd, attr)
 #endif
+
+GASNETI_INLINE(gasnetc_create_qp)
+struct ibv_qp *gasnetc_create_qp(gasnetc_hca_t *hca, gasnetc_qp_init_attr_t *init_attr_p)
+{
+#if GASNETC_HAVE_IBV_WR_API
+  uint64_t ops = IBV_QP_EX_WITH_SEND_WITH_IMM |
+                 IBV_QP_EX_WITH_RDMA_WRITE |
+                 IBV_QP_EX_WITH_RDMA_READ;
+  #if GASNETC_BUILD_IBVRATOMIC
+    ops       |= IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD |
+                 IBV_QP_EX_WITH_ATOMIC_CMP_AND_SWP;
+  #elif GASNETC_HAVE_FENCED_PUTS
+    if (gasnetc_use_fenced_puts) {
+      ops     |= IBV_QP_EX_WITH_ATOMIC_FETCH_AND_ADD;
+    }
+  #endif
+  init_attr_p->send_ops_flags  = ops;
+  init_attr_p->comp_mask      |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS;
+#endif
+#if HAVE_IBV_CREATE_QP_EX
+  return ibv_create_qp_ex(hca->handle, init_attr_p);
+#else
+  return ibv_create_qp(hca->pd, init_attr_p);
+#endif
+}
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNETC_IBV_XRC
@@ -749,6 +772,9 @@ gasnetc_qp_create(gasnetc_conn_info_t *conn_info)
     #endif
 
       cep->qp_handle = hndl;
+    #if GASNETC_HAVE_IBV_WR_API
+      cep->qp_ex_handle = ibv_qp_to_qp_ex(hndl);
+    #endif
       conn_info->local_qpn[qpi] = hndl->qp_num;
     }
 

@@ -40,6 +40,11 @@
     #endif
   #endif
 
+// Sanity check
+#if GASNETC_HAVE_IBV_WR_API && !HAVE_IBV_CREATE_QP_EX
+  #error GASNETC_HAVE_IBV_WR_API requires HAVE_IBV_CREATE_QP_EX
+#endif
+
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
 
@@ -658,7 +663,12 @@ struct gasnetc_cep_t_ {
   gasnetc_lifo_head_t   *rbuf_freelist; /* Source of rcv buffers for AMs.
                                            Copy of &hca->rbuf_freelist */
   struct ibv_qp         *qp_handle;
+#if GASNETC_HAVE_IBV_WR_API
+  struct ibv_qp_ex      *qp_ex_handle;
+  #define _GASNETC_CEP_PTR_0 6*sizeof(void*)
+#else
   #define _GASNETC_CEP_PTR_0 5*sizeof(void*)
+#endif
 #if GASNETC_IBV_SRQ
   struct ibv_srq        *srq;           // Copy of hca->repl_srq OR hca->rqst_srq
   #define _GASNETC_CEP_PTR_1 1*sizeof(void*)
@@ -1075,9 +1085,32 @@ extern gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_
 #endif
 extern int gasnetc_snd_cq_reserve(gasnetc_cep_t * const cep);
 
-extern void gasnetc_snd_post_common(
-                  gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc,
-                  int reserved, int is_inline GASNETI_THREAD_FARG);
+extern void gasnetc_post_send_imm(
+                  gasnetc_sreq_t *sreq,
+                  struct ibv_send_wr *sr_desc,
+                  uint32_t imm_data,
+                  int reserved, int is_inline
+                  GASNETI_THREAD_FARG);
+// Currently write and read are static and/or inline within gasnet_core_sndrcv.c
+//extern void gasnetc_post_write(
+//                  gasnetc_sreq_t *sreq,
+//                  struct ibv_send_wr *sr_desc,
+//                  int is_inline
+//                  GASNETI_THREAD_FARG);
+//extern void gasnetc_post_read(
+//                  gasnetc_sreq_t *sreq,
+//                  struct ibv_send_wr *sr_desc
+//                  GASNETI_THREAD_FARG);
+extern void gasnetc_post_fetch_add(
+                  gasnetc_sreq_t *sreq,
+                  struct ibv_send_wr *sr_desc,
+                  uint64_t op1
+                  GASNETI_THREAD_FARG);
+extern void gasnetc_post_cmp_swp(
+                  gasnetc_sreq_t *sreq,
+                  struct ibv_send_wr *sr_desc,
+                  uint64_t op1, uint64_t op2
+                  GASNETI_THREAD_FARG);
 
 extern void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG);
 extern void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG);

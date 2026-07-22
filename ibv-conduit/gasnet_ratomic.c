@@ -183,8 +183,6 @@ int gasnete_ratomic_inner(
   sr_desc->wr.atomic.remote_addr = (uintptr_t)tgt_addr;
   sr_desc->wr.atomic.rkey = rem_auxseg ? cep->hca->aux_rkeys[jobrank]
                                        : GASNETC_SEG_RKEY(cep);
-  sr_desc->num_sge = 1;
-  sr_desc->sg_list[0].length = sizeof(uint64_t);
 
   if (!fetching) {
     gasneti_assert(! result_p);
@@ -200,17 +198,15 @@ int gasnete_ratomic_inner(
   }
   sr_desc->sg_list[0].lkey = cep->hca->aux_reg.handle->lkey;
 
-  sr_desc->opcode = opcode;
-  sr_desc->wr.atomic.compare_add = operand1;
-  if (opcode == IBV_WR_ATOMIC_CMP_AND_SWP) {
-    sr_desc->wr.atomic.swap = operand2;
-  }
-
   sreq->comp.cb = completion_cb;
   sreq->comp.data = initiated_cnt;
-
   (*initiated_cnt) += 1;
-  gasnetc_snd_post_common(sreq, sr_desc, 0, 0 GASNETI_THREAD_PASS);
+
+  if (opcode == IBV_WR_ATOMIC_CMP_AND_SWP) {
+    gasnetc_post_cmp_swp(sreq, sr_desc, operand1, operand2 GASNETI_THREAD_PASS);
+  } else {
+    gasnetc_post_fetch_add(sreq, sr_desc, operand1 GASNETI_THREAD_PASS);
+  }
 
   return 0;
 }

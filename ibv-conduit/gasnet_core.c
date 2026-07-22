@@ -66,6 +66,10 @@ GASNETI_IDENT(gasnetc_IdentString_MaxHCAs, "$GASNetIbvMaxHCAs: " _STRINGIFY(GASN
   GASNETI_IDENT(gasnetc_IdentString_SerializeCqPoll, "$GASNetIbvSerializeCqPoll: 1 $");
 #endif
 
+#if GASNETC_HAVE_IBV_WR_API
+  GASNETI_IDENT(gasnetc_IdentString_WR, "$GASNetIbvWR: 1 $");
+#endif
+
 int gex_System_QueryHiddenAMConcurrencyLevel(void) {
 #if !GASNETC_USE_RCV_THREAD
   gasneti_assert(! gasnetc_use_rcv_thread);
@@ -4305,9 +4309,6 @@ int gasnetc_am_commit(    gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       GASNETC_DECL_SR_DESC(sr_desc, 2);
       int numargs_field = have_flow ? GASNETC_MAX_ARGS : numargs;
 
-      sr_desc->imm_data   = GASNETC_MSG_GENFLAGS(!is_reply, category, numargs_field, handler,
-						 gasneti_mynode);
-      sr_desc->opcode     = IBV_WR_SEND_WITH_IMM;
       sr_desc->num_sge    = 1;
       sr_desc->sg_list[0].addr   = (uintptr_t)buf;
       sr_desc->sg_list[0].length = head_len + (in_place ? nbytes : copy_len);
@@ -4338,8 +4339,10 @@ int gasnetc_am_commit(    gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       }
       #endif
 
+      uint32_t imm_data = GASNETC_MSG_GENFLAGS(!is_reply, category, numargs_field,
+                                               handler, gasneti_mynode);
       int reserved = (immediate != 0); // CQ slot was pre-reserved if and only if immediate
-      gasnetc_snd_post_common(sreq, sr_desc, reserved, !buf_alloc GASNETI_THREAD_PASS);
+      gasnetc_post_send_imm(sreq, sr_desc, imm_data, reserved, !buf_alloc GASNETI_THREAD_PASS);
     }
 
     return 0;
