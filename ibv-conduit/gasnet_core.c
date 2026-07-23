@@ -947,6 +947,7 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 0);
   GASNETC_ENVINT(gasnetc_nonbulk_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_packedlong_limit, GASNET_PACKEDLONG_LIMIT, GASNETC_DEFAULT_PACKEDLONG_LIMIT, 0, 1);
+  GASNETC_ENVINT(gasnetc_packedlong_alloc_limit, GASNET_PACKEDLONG_ALLOC_LIMIT, gasnetc_packedlong_limit, 0, 1);
   GASNETC_ENVINT(gasnetc_am_gather_min, GASNET_AM_GATHER_MIN, GASNETC_DEFAULT_AM_GATHER_MIN, -1, 1);
   if (gasnetc_am_gather_min == -1) {
     // -1 is the documented value to disable this optimization
@@ -1070,6 +1071,12 @@ static int gasnetc_load_settings(void) {
             "GASNET_PACKEDLONG_LIMIT reduced from %u to %u",
             (unsigned int)gasnetc_packedlong_limit, (unsigned int)GASNETC_MAX_PACKEDLONG);
     gasnetc_packedlong_limit = GASNETC_MAX_PACKEDLONG;
+  }
+  if_pf (gasnetc_packedlong_alloc_limit > GASNETC_MAX_PACKEDLONG_(0)) {
+    fprintf(stderr,
+            "WARNING: GASNET_PACKEDLONG_ALLOC_LIMIT reduced from %u to %u\n",
+            (unsigned int)gasnetc_packedlong_alloc_limit, (unsigned int)GASNETC_MAX_PACKEDLONG_(0));
+    gasnetc_packedlong_alloc_limit = GASNETC_MAX_PACKEDLONG_(0);
   }
 
 #if GASNETC_DYNAMIC_CONNECT
@@ -5178,8 +5185,29 @@ int gasnetc_commit_common(
     gasneti_assert(!lc_opt);
     local_cb = NULL;
     local_cnt = NULL;
-    // TODO: RDMA of Long payload can be beneficial
-    copy_len = nbytes;
+    switch (category) {
+    #if GASNET_NATIVE_NP_ALLOC_REQ_MEDIUM || GASNET_NATIVE_NP_ALLOC_REP_MEDIUM
+      case gasneti_Medium:
+        copy_len = nbytes;
+        break;
+    #endif
+
+    #if GASNET_NATIVE_NP_ALLOC_REQ_LONG || GASNET_NATIVE_NP_ALLOC_REP_LONG
+      case gasneti_Long:
+        if ((nbytes <= gasnetc_packedlong_alloc_limit) || !sd->_buf_alloc || (!GASNETC_PIN_SEGMENT && is_reply)) {
+          // Small enough to send like a Medium OR not in a bounce buffer (forced for firehose Reply)
+          copy_len = nbytes;
+        } else {
+          // Inject RMA
+          int rc = gasnetc_rdma_npam_long_put(sd->_ep,  sd->_cep, sd->_addr, dest_addr, nbytes,
+                                              /*imm*/0  GASNETI_THREAD_PASS);
+          gasneti_assert(!rc); // Never fails, since never "immediate"
+        }
+        break;
+    #endif
+
+      default: gasneti_unreachable_error(("Invalid AM category: 0x%x",(int)category));
+    }
   }
 
   int rc = gasnetc_am_commit(

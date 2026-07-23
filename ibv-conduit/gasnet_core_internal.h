@@ -806,6 +806,7 @@ typedef enum {
         // Long payload puts do NOT need fencing (see bug 4049)
 	GASNETC_OP_LONG_ZEROCP,
 	GASNETC_OP_LONG_BOUNCE,
+	GASNETC_OP_LONG_BUFFERED,
         // Following all have GASNETC_OP_NEEDS_FENCE bit set
 	GASNETC_OP_PUT_INLINE = GASNETC_OP_NEEDS_FENCE,
 	GASNETC_OP_PUT_ZEROCP,
@@ -1049,6 +1050,10 @@ extern int gasnetc_rdma_long_put(
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb
                   GASNETI_THREAD_FARG);
+extern int gasnetc_rdma_npam_long_put(
+                  gasnetc_EP_t ep, gasnetc_cep_t *cep,
+                  void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags
+                  GASNETI_THREAD_FARG);
 extern int gasnetc_rdma_get(
                   gex_TM_t tm, gex_Rank_t rank,
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
@@ -1189,6 +1194,7 @@ extern int		gasnetc_am_credits_slack;
 extern int		gasnetc_alloc_qps;    /* Number of QPs per node in gasnetc_ceps[] */
 extern int		gasnetc_num_qps;      /* How many QPs to use per peer */
 extern size_t		gasnetc_packedlong_limit;
+extern size_t		gasnetc_packedlong_alloc_limit;
 extern size_t		gasnetc_inline_limit;
 extern size_t		gasnetc_nonbulk_bounce_limit;
 #if !GASNETC_PIN_SEGMENT
