@@ -924,6 +924,7 @@ pollentry:
                 int result;
                 do {
                   int status = 0;
+                  errno = 0; // ensure success doesn't output garbage in verbose mode
                   result = waitpid(-1, &status, 0);
                   if (result == -1 && errno == ECHILD) break;
                   if (!AMX_SilentMode) AMX_Info("result=%i status=%i errno=%s",result,status,strerror(errno));
