@@ -61,7 +61,6 @@ jobs:
         os: [ macos-14, macos-15, macos-15-intel, macos-26, macos-26-intel, ubuntu-24.04, ubuntu-26.04-arm ]
         compiler: [ gcc ]
         version: [ 12, 13, 14, 15, 16 ]
-        extra_flags: [ -g ]
 
         include:
           - os: ubuntu-24.04
@@ -151,8 +150,10 @@ jobs:
     env:
       COMPILER_VERSION: ${{ matrix.version }}
       CC: ${{ matrix.compiler }}
-      CFLAGS: ${{ matrix.extra_flags }}
-      CONFIGURE_ARGS: --disable-mpi-compat --enable-rpath --enable-debug ${{ inputs.configure_args }}
+      CFLAGS: ${{ matrix.cflags }}
+      CXXFLAGS: ${{ matrix.cxxflags }}
+      LDFLAGS: ${{ matrix.ldflags }}
+      CONFIGURE_ARGS: --disable-mpi-compat --enable-rpath --enable-debug --enable-smp --enable-udp ${{ inputs.configure_args }}
       GASNET_BACKTRACE: 1
       GASNET_SPAWN_VERBOSE: 1
       GASNET_VERBOSEENV: 1
