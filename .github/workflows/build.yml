@@ -118,12 +118,23 @@ jobs:
 
           # --- Intel coverage ---
 
-          # https://hub.docker.com/r/intel/oneapi-hpckit/tags
+          # https://hub.docker.com/r/intel/oneapi-toolkit/tags
           - os: ubuntu-24.04
             compiler: icx
             version: latest
+            container: intel/oneapi-toolkit:latest
+
+          - os: ubuntu-24.04
+            compiler: icx
+            version: 2026.0.0
+            container: intel/oneapi-toolkit:2026.0.0-devel-ubuntu24.04
+
+          # https://hub.docker.com/r/intel/oneapi-hpckit/tags
+          - os: ubuntu-24.04
+            compiler: icx
+            version: 2025.3.0
             conduits: *ubuntu_conduits
-            container: intel/oneapi-hpckit:latest
+            container: intel/oneapi-hpckit:2025.3.0-0-devel-ubuntu24.04
 
           - os: ubuntu-24.04
             compiler: icx
