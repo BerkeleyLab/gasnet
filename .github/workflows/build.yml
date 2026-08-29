@@ -75,26 +75,26 @@ jobs:
 
           - os: macos-14
             compiler: clang
-            version: 22
+            version: 23
           - os: macos-15
             compiler: clang
-            version: 22
-          - os: macos-15-intel
-            compiler: clang
-            version: 22
+            version: 23
           - os: macos-26
             compiler: clang
-            version: 22
+            version: 23
+          - os: macos-15-intel
+            compiler: clang
+            version: 23
           - os: macos-26-intel
             compiler: clang
-            version: 22
+            version: 23
 
           # https://hub.docker.com/r/phhargrove/llvm-flang/tags
           - os: ubuntu-24.04
             compiler: clang
             version: 23
             conduits: *ubuntu_conduits
-            container: phhargrove/llvm-flang:23.1.0_rc2-latest
+            container: phhargrove/llvm-flang:23.1.0-latest
           - os: ubuntu-24.04
             compiler: clang
             version: 22
