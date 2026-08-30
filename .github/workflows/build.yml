@@ -75,26 +75,26 @@ jobs:
 
           - os: macos-14
             compiler: clang
-            version: 22
+            version: 23
           - os: macos-15
             compiler: clang
-            version: 22
-          - os: macos-15-intel
-            compiler: clang
-            version: 22
+            version: 23
           - os: macos-26
             compiler: clang
-            version: 22
+            version: 23
+          - os: macos-15-intel
+            compiler: clang
+            version: 23
           - os: macos-26-intel
             compiler: clang
-            version: 22
+            version: 23
 
           # https://hub.docker.com/r/phhargrove/llvm-flang/tags
           - os: ubuntu-24.04
             compiler: clang
             version: 23
             conduits: *ubuntu_conduits
-            container: phhargrove/llvm-flang:23.1.0_rc2-latest
+            container: phhargrove/llvm-flang:23.1.0-latest
           - os: ubuntu-24.04
             compiler: clang
             version: 22
@@ -118,12 +118,23 @@ jobs:
 
           # --- Intel coverage ---
 
-          # https://hub.docker.com/r/intel/oneapi-hpckit/tags
+          # https://hub.docker.com/r/intel/oneapi-toolkit/tags
           - os: ubuntu-24.04
             compiler: icx
             version: latest
+            container: intel/oneapi-toolkit:latest
+
+          - os: ubuntu-24.04
+            compiler: icx
+            version: 2026.0.0
+            container: intel/oneapi-toolkit:2026.0.0-devel-ubuntu24.04
+
+          # https://hub.docker.com/r/intel/oneapi-hpckit/tags
+          - os: ubuntu-24.04
+            compiler: icx
+            version: 2025.3.0
             conduits: *ubuntu_conduits
-            container: intel/oneapi-hpckit:latest
+            container: intel/oneapi-hpckit:2025.3.0-0-devel-ubuntu24.04
 
           - os: ubuntu-24.04
             compiler: icx
@@ -235,11 +246,23 @@ jobs:
         fi
         echo "CONFIGURE_ARGS=$CONFIGURE_ARGS$FORCE_CONDUITS" >> "$GITHUB_ENV"
 
-    - name: Install macOS Dependencies
-      if: contains(matrix.os, 'macos')
+    - name: Fix macOS Homebrew Configuration
+      if: ${{ contains(matrix.os, 'macos') }}
       run: |
         # silence Homebrew tap trust warnings:
         (set +e ; brew untap -f aws/tap hashicorp/tap 2>&1 | perl -pe 's/#*.warning./warn: /' ; brew trust azure/bicep )
+        # set some Homebrew knobs to accelerate installation
+        # but only when we are not simulating the user environment brew-via-install workflow
+        if [[ -z "${{ matrix.brew_via_install }}" ]] ; then
+          echo HOMEBREW_NO_ANALYTICS=1 >> "$GITHUB_ENV"
+          echo HOMEBREW_NO_AUTO_UPDATE=1 >> "$GITHUB_ENV"
+          echo HOMEBREW_NO_GITHUB_API=1 >> "$GITHUB_ENV"
+          echo HOMEBREW_NO_INSTALL_CLEANUP=1 >> "$GITHUB_ENV"
+        fi
+
+    - name: Install macOS Dependencies
+      if: contains(matrix.os, 'macos')
+      run: |
         brew update
         brew install automake # autoconf
         if [[ "${{ matrix.compiler }}@${{ matrix.version }}" == gcc@12 ]] ; then
