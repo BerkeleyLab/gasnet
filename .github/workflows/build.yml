@@ -62,6 +62,14 @@ jobs:
         compiler: [ gcc ]
         version: [ 12, 13, 14, 15, 16 ]
 
+        exclude:
+
+          # Homebrew removed Intel bottles for gcc@16
+          - os: macos-15-intel
+            version: 16
+          - os: macos-26-intel
+            version: 16
+
         include:
           - os: ubuntu-24.04
             conduits: &ubuntu_conduits [ mpi, ibv, ofi, ucx ]
@@ -79,12 +87,12 @@ jobs:
           - os: macos-26
             compiler: clang
             version: 23
-          - os: macos-15-intel
-            compiler: clang
-            version: 23
-          - os: macos-26-intel
-            compiler: clang
-            version: 23
+          #- os: macos-15-intel
+          #  compiler: clang
+          #  version: 23
+          #- os: macos-26-intel
+          #  compiler: clang
+          #  version: 23
 
           # https://hub.docker.com/r/phhargrove/llvm-flang/tags
           - os: ubuntu-24.04
@@ -268,8 +276,14 @@ jobs:
         if [[ ${{ matrix.compiler }} == 'gcc' && ${COMPILER_VERSION} -gt 15 ]] ; then
           brew install gcc@${COMPILER_VERSION}
         fi
-        brew install libfabric openmpi
-        echo "CONFIGURE_ARGS=$CONFIGURE_ARGS --enable-ofi --enable-mpi" >> "$GITHUB_ENV"
+        if [[ ${{ runner.arch }} == "ARM64" ]]  ; then
+          # openmpi depends on gcc@latest which only has ARM64 bottles on macOS
+          brew install libfabric openmpi
+          echo "CONFIGURE_ARGS=$CONFIGURE_ARGS --enable-ofi --enable-mpi" >> "$GITHUB_ENV"
+        else
+          brew install libfabric
+          echo "CONFIGURE_ARGS=$CONFIGURE_ARGS --enable-ofi" >> "$GITHUB_ENV"
+        fi
 
 
     - name: Install LLVM on macOS
