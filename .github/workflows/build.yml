@@ -73,9 +73,6 @@ jobs:
 
           # --- LLVM clang coverage ---
 
-          - os: macos-14
-            compiler: clang
-            version: 23
           - os: macos-15
             compiler: clang
             version: 23
