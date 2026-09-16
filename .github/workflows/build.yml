@@ -79,6 +79,21 @@ jobs:
             version: 12 # no package available for gcc 13+
             conduits: *ubuntu_conduits
 
+          # --- Apple clang coverage ---
+
+          - os: macos-15
+            compiler: apple-clang
+            version: 17
+          - os: macos-15-intel
+            compiler: apple-clang
+            version: 17
+          - os: macos-26
+            compiler: apple-clang
+            version: 21
+          - os: macos-26-intel
+            compiler: apple-clang
+            version: 21
+
           # --- LLVM clang coverage ---
 
           - os: macos-15
@@ -165,7 +180,7 @@ jobs:
 
     env:
       COMPILER_VERSION: ${{ matrix.version }}
-      CC: ${{ matrix.compiler }}
+      CC: ${{ matrix.compiler == 'apple-clang' && 'clang' || matrix.compiler }}
       CFLAGS: ${{ matrix.cflags }}
       CXXFLAGS: ${{ matrix.cxxflags }}
       LDFLAGS: ${{ matrix.ldflags }}
