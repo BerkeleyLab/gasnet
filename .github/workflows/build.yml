@@ -317,15 +317,13 @@ jobs:
           retry brew install gcc@${COMPILER_VERSION} \
             2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         fi
-        if [[ ${{ runner.arch }} == "ARM64" ]]  ; then
+        if [[ ${{ matrix.os }} =~ macos-14 ]] || [[ ${{ runner.arch }} == "X64" ]] ; then
+          : # OpenMPI/libfabric bottles missing on macos-14 and Intel
+        else
           # openmpi depends on gcc@latest which only has ARM64 bottles on macOS
           retry brew install libfabric openmpi \
             2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
           echo "CONFIGURE_ARGS=$CONFIGURE_ARGS --enable-ofi --enable-mpi" >> "$GITHUB_ENV"
-        else
-          retry brew install libfabric \
-            2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
-          echo "CONFIGURE_ARGS=$CONFIGURE_ARGS --enable-ofi" >> "$GITHUB_ENV"
         fi
 
 
