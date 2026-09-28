@@ -185,6 +185,8 @@ jobs:
       CXXFLAGS: ${{ matrix.cxxflags }}
       LDFLAGS: ${{ matrix.ldflags }}
       CONFIGURE_ARGS: --disable-mpi-compat --enable-rpath --enable-debug --enable-smp --enable-udp ${{ inputs.configure_args }}
+      CURL_OPTIONS: --retry 10 --retry-all-errors --fail -L
+      BREW_WARNING_FILTER: 's/^[[:punct:]]*warning[[:punct:]]*(You are using macOS)/warn: \1/i'
       GASNET_BACKTRACE: 1
       GASNET_SPAWN_VERBOSE: 1
       GASNET_VERBOSEENV: 1
@@ -205,20 +207,41 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
+    - name: Install shell functions
+      run: |
+        mkdir -p ~/.bash_helpers
+        cat << 'EOF' > ~/.bash_helpers/custom_functions.sh
+        retry() {
+          local retry_cnt=0
+          local retry_delay
+          while ! "$@" ; do
+            retry_cnt=$(expr $retry_cnt + 1)
+            if [[ $retry_cnt > 5 ]] ; then exit 1 ; fi
+            ( set +x ;
+              echo "::warning::Command failed: <$@> Pausing before retry $retry_cnt..." );
+            retry_delay=$(( 5 ** retry_cnt ))
+            if [[ $retry_delay > 600 ]] ; then retry_delay=600 ; fi
+            sleep $retry_delay
+          done
+        }
+        EOF
+        # Register file in BASH_ENV so it automatically loads in all future steps
+        echo "BASH_ENV=~/.bash_helpers/custom_functions.sh" >> $GITHUB_ENV
+
     - name: Install Ubuntu Native Dependencies
       if: ${{ contains(matrix.os, 'ubuntu') && matrix.container == '' && matrix.compiler == 'gcc' }}
       run: |
-        sudo apt update
+        retry sudo apt update
         #sudo apt list -a 'gcc-*'
-        sudo apt install -y build-essential autoconf2.69 automake
+        retry sudo apt install -y build-essential autoconf2.69 automake
         if [[ ${COMPILER_VERSION} -lt 15 ]] || type -p gcc-${COMPILER_VERSION} ; then
-          sudo apt install -y gcc-${COMPILER_VERSION} g++-${COMPILER_VERSION}
+          retry sudo apt install -y gcc-${COMPILER_VERSION} g++-${COMPILER_VERSION}
         else
-          curl -L https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o install-homebrew.sh
+          curl $CURL_OPTIONS https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o install-homebrew.sh
           chmod +x install-homebrew.sh
           env CI=1 ./install-homebrew.sh
           HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
-          ${HOMEBREW_PREFIX}/bin/brew install -v gcc@${COMPILER_VERSION} binutils
+          retry ${HOMEBREW_PREFIX}/bin/brew install -v gcc@${COMPILER_VERSION} binutils
           ls -al ${HOMEBREW_PREFIX}/bin
           echo "PATH=${HOMEBREW_PREFIX}/bin:${PATH}" >> "$GITHUB_ENV"
           : Homebrew GCC@15 needs binutils 2.44+
@@ -232,8 +255,8 @@ jobs:
     - name: Install Ubuntu Container Dependencies
       if: ${{ contains(matrix.os, 'ubuntu') && matrix.container != '' }}
       run: |
-        apt update
-        apt install -y build-essential autoconf2.69 automake
+        retry apt update
+        retry apt install -y build-essential autoconf2.69 automake
 
     - name: Install Ubuntu Conduit Dependencies
       if: ${{ contains(matrix.os, 'ubuntu') && toJSON(matrix.conduits) != '[]' }}
@@ -245,22 +268,22 @@ jobs:
           SUDO=sudo
         fi
         if [[ ${{ contains(matrix.conduits,'ibv') }} == true ]] ; then
-          $SUDO apt install -y libibverbs-dev
+          retry $SUDO apt install -y libibverbs-dev
           FORCE_CONDUITS+=" --enable-ibv"
         fi
         if [[ ${{ contains(matrix.conduits,'ofi') }} == true ]] ; then
-          $SUDO apt install -y libfabric-dev
+          retry $SUDO apt install -y libfabric-dev
           FORCE_CONDUITS+=" --enable-ofi"
         fi
         if [[ ${{ contains(matrix.conduits,'ucx') }} == true ]] ; then
-          $SUDO apt install -y libucx-dev
+          retry $SUDO apt install -y libucx-dev
           FORCE_CONDUITS+=" --enable-ucx"
         fi
         if [[ ${{ contains(matrix.conduits,'mpi') }} == true ]] ; then
           if [[ ${{ matrix.compiler }} == 'icx' ]] ; then # icx uses Intel MPI
             echo "MPI_CC=mpiicx" >> "$GITHUB_ENV"
           else
-            $SUDO apt install -y libopenmpi-dev
+            retry $SUDO apt install -y libopenmpi-dev
           fi
           FORCE_CONDUITS+=" --enable-mpi --enable-mpi-compat"
         fi
@@ -270,7 +293,7 @@ jobs:
       if: ${{ contains(matrix.os, 'macos') }}
       run: |
         # silence Homebrew tap trust warnings:
-        (set +e ; brew untap -f aws/tap hashicorp/tap 2>&1 | perl -pe 's/#*.warning./warn: /' ; brew trust azure/bicep )
+        (set +e ; brew untap -f aws/tap hashicorp/tap 2>&1 | perl -pe 's/^::*//;s/^##*//' ; brew trust azure/bicep ; echo )
         # set some Homebrew knobs to accelerate installation
         # but only when we are not simulating the user environment brew-via-install workflow
         if [[ -z "${{ matrix.brew_via_install }}" ]] ; then
@@ -283,28 +306,32 @@ jobs:
     - name: Install macOS Dependencies
       if: contains(matrix.os, 'macos')
       run: |
-        brew update
-        brew install automake # autoconf
+        retry brew update
+        retry brew install automake \
+            2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         if [[ "${{ matrix.compiler }}@${{ matrix.version }}" == gcc@12 ]] ; then
-          brew install gcc@12
+          retry brew install gcc@12 \
+            2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         fi
         if [[ ${{ matrix.compiler }} == 'gcc' && ${COMPILER_VERSION} -gt 15 ]] ; then
-          brew install gcc@${COMPILER_VERSION}
+          retry brew install gcc@${COMPILER_VERSION} \
+            2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         fi
-        if [[ ${{ runner.arch }} == "ARM64" ]]  ; then
-          # openmpi depends on gcc@latest which only has ARM64 bottles on macOS
-          brew install libfabric openmpi
-          echo "CONFIGURE_ARGS=$CONFIGURE_ARGS --enable-ofi --enable-mpi" >> "$GITHUB_ENV"
+        if [[ ${{ matrix.os }} =~ macos-14 ]] || [[ ${{ runner.arch }} == "X64" ]] ; then
+          : # OpenMPI/libfabric bottles missing on macos-14 and Intel
         else
-          brew install libfabric
-          echo "CONFIGURE_ARGS=$CONFIGURE_ARGS --enable-ofi" >> "$GITHUB_ENV"
+          # openmpi depends on gcc@latest which only has ARM64 bottles on macOS
+          retry brew install libfabric openmpi \
+            2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
+          echo "CONFIGURE_ARGS=$CONFIGURE_ARGS --enable-ofi --enable-mpi" >> "$GITHUB_ENV"
         fi
 
 
     - name: Install LLVM on macOS
       if: contains(matrix.os, 'macos') && matrix.compiler == 'clang'
       run: |
-        brew install llvm@${COMPILER_VERSION} 
+        retry brew install llvm@${COMPILER_VERSION} \
+            2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         # Prepend homebrew clang to PATH:
         echo "PATH=$(brew --prefix)/opt/llvm/bin:${PATH}" >> "$GITHUB_ENV"
 
