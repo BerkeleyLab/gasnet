@@ -3143,6 +3143,75 @@ out_imm:
 }
 
 #if GASNET_HAVE_MK_CLASS_MULTIPLE
+// The libfabric maintainers say that attempting a memory registration with
+// a given iface value is the only reliable way to determine if the device
+// support is present (see https://github.com/ofiwg/libfabric/issues/7973 ).
+// However, libfabric releases prior to 1.16.0 incorrectly return
+// success from fi_mr_regattr() when called with an iface value which is not
+// supported (see https://github.com/ofiwg/libfabric/issues/7977 ).
+// We try here regardless of the library version.
+static int gasnetc_check_hmem(const gex_MK_Create_args_t *args)
+{
+    struct fi_mr_attr attr = {0};
+    uint64_t flags = 0;
+    const char *name = NULL;
+
+    switch (args->gex_class) {
+      #if GASNET_HAVE_MK_CLASS_CUDA_UVA
+      case GEX_MK_CLASS_CUDA_UVA:
+        name = "CUDA_UVA";
+        attr.iface = FI_HMEM_CUDA;
+        attr.device.cuda = args->gex_args.gex_class_cuda_uva.gex_CUdevice;
+        #ifdef FI_HMEM_DEVICE_ONLY
+          flags |= FI_HMEM_DEVICE_ONLY;
+        #endif
+        break;
+      #endif
+
+      #if GASNET_HAVE_MK_CLASS_HIP
+      case GEX_MK_CLASS_HIP:
+        name = "HIP";
+        attr.iface = FI_HMEM_ROCR;
+        break;
+      #endif
+
+      #if GASNET_HAVE_MK_CLASS_ZE
+      case GEX_MK_CLASS_ZE:
+        name = "ZE";
+        attr.iface = FI_HMEM_ZE;
+        break;
+      #endif
+
+      default:
+        gasneti_unreachable_error(("unknown or unsupported gex_MK_Class_t value: %d", args->gex_class));
+        break;
+    }
+
+    // We currently assume that *any* valid memory will do.
+    // No provider is known to validate that the memory is device memory.
+    struct iovec iov = { &iov, sizeof(iov) };
+
+    attr.mr_iov        = &iov;
+    attr.iov_count     = 1;
+    attr.access        = FI_REMOTE_READ | FI_REMOTE_WRITE;
+    struct fid_mr* mr;
+    int ret = fi_mr_regattr(gasnetc_ofi_domainfd, &attr, flags, &mr);
+
+    if (! ret) {
+        // Success
+        ret = fi_close(&mr->fid);
+        GASNETC_OFI_CHECK_RET(ret, "fi_close(mr) failed probing FI_MEM support");
+        return GASNET_OK;
+    } else if (ret != -FI_ENOSYS) {
+        // Unknown error is likely to indicate that our probe logic is broken
+        gasneti_console_message("WARNING",
+                                "Unexpected error %d (%s) when probing GEX_MK_CLASS_%s support",
+                                ret, fi_strerror(-ret), name);
+    }
+
+    return GASNET_ERR_RESOURCE;
+}
+
 int gasnetc_mk_create_hook(
                     gasneti_MK_t                     kind,
                     gasneti_Client_t                 client,
@@ -3157,28 +3226,20 @@ int gasnetc_mk_create_hook(
                                gasnetc_ofi_provider));
     }
 
-    // TODO: Fail (later fall back to ref) if the given device support is not present.
-    //
-    // The libfabric maintainers say that attempting a memory registration with
-    // a given iface value is the only reliable way to determine if the device
-    // support is present (see https://github.com/ofiwg/libfabric/issues/7973 ).
-    // However, libfabric releases through (at least) 1.15.2 incorrectly return
-    // success from fi_mr_regattr() when called with an iface value which is not
-    // supported (see https://github.com/ofiwg/libfabric/issues/7977 ).
-    // Once that is resolved, we can/should attempt a small registration
-    // here and look for `-FI_ENOSYS` as an indication that the requested
-    // device support is missing.
-
-    // Capture the user's device argument for use in memory registration
+    // 1. Set the name used for later messages
+    // 2. Capture the user's device argument for use in memory registration
+    const char *hmem_name = "INVALID";
     switch (args->gex_class) {
       #if GASNET_HAVE_MK_CLASS_CUDA_UVA
       case GEX_MK_CLASS_CUDA_UVA:
+        hmem_name = "CUDA";
         kind->_mk_conduit = (void*)(uintptr_t)args->gex_args.gex_class_cuda_uva.gex_CUdevice;
         break;
       #endif
 
       #if GASNET_HAVE_MK_CLASS_HIP
       case GEX_MK_CLASS_HIP:
+        hmem_name = "ROCR";
         // No device needed for HIP
         break;
       #endif
@@ -3192,6 +3253,14 @@ int gasnetc_mk_create_hook(
       default:
         gasneti_unreachable_error(("unknown or unsupported gex_MK_Class_t value: %d", args->gex_class));
         break;
+    }
+
+    // Fail if the specific HMEM capability is not present
+    // TODO: fall back to reference implementation when we have one
+    if (gasnetc_check_hmem(args)) {
+        GASNETI_RETURN_ERRR(RESOURCE,
+            gasneti_dynsprintf("Provider '%s' reports no support for FI_HMEM_%s",
+                               gasnetc_ofi_provider, hmem_name));
     }
 
     return GASNET_OK;
