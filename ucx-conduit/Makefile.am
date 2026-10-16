@@ -59,6 +59,7 @@ CONDUIT_FILELIST =           \
       gasnet_ucx_req.h       \
       gasnet_extended.c      \
       gasnet_extended_fwd.h  \
+      gasnet_kinds.c         \
       gasnet_ratomic.c       \
       gasnet_ratomic_fwd.h
 
@@ -68,6 +69,7 @@ CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
       $(srcdir)/gasnet_core_sndrcv.c \
       $(srcdir)/gasnet_extended.c \
+      $(srcdir)/gasnet_kinds.c \
       $(srcdir)/gasnet_ratomic.c \
       $(ssh_sources) $(pmi_sources)
 
