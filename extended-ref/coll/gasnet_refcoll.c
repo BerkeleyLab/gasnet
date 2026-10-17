@@ -1134,9 +1134,10 @@ void gasnete_tm_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstrank,
   
   gasneti_assert(nbytes <= gex_AM_LUBRequestLong());
   
-  // TODO-EX: restore "Async"
+  gasneti_begin_nbi_ff(GASNETI_THREAD_PASS_ALONE);
   gex_AM_RequestLong(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
-                         src, nbytes, dst, GEX_EVENT_NOW, flags, team_id, seq_num, idx);
+                         src, nbytes, dst, GEX_EVENT_GROUP, flags, team_id, seq_num, idx);
+  gasneti_end_nbi_ff(GASNETI_THREAD_PASS_ALONE);
 }
     
 /* Send data to be buffered by the recipient */
