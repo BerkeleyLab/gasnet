@@ -308,8 +308,9 @@ jobs:
     - name: Install macOS Dependencies
       if: contains(matrix.os, 'macos')
       run: |
-        retry brew update \
-            2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
+        # Brew update takes a VERY long time to do cleanup and we don't care
+        #retry brew update \
+        #    2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         retry brew install automake \
             2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         if [[ "${{ matrix.compiler }}@${{ matrix.version }}" == gcc@12 ]] ; then
