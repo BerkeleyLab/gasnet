@@ -244,7 +244,7 @@ jobs:
           retry ${HOMEBREW_PREFIX}/bin/brew install -v gcc@${COMPILER_VERSION} binutils \
               2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
           ls -al ${HOMEBREW_PREFIX}/bin
-          echo "PATH=${HOMEBREW_PREFIX}/bin:${PATH}" >> "$GITHUB_ENV"
+          echo "${HOMEBREW_PREFIX}/bin" >> "$GITHUB_PATH"
           : Homebrew GCC@15 needs binutils 2.44+
           HOMEBREW_BINUTILS=$(ls -d ${HOMEBREW_PREFIX}/Cellar/binutils/2.*/bin )
           ls -al ${HOMEBREW_BINUTILS}
@@ -337,7 +337,7 @@ jobs:
         retry brew install llvm@${COMPILER_VERSION} \
             2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         # Prepend homebrew clang to PATH:
-        echo "PATH=$(brew --prefix)/opt/llvm/bin:${PATH}" >> "$GITHUB_ENV"
+        echo "$(brew --prefix)/opt/llvm/bin" >> "$GITHUB_PATH"
 
     - name: Setup Compilers
       run: |
