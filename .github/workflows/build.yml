@@ -234,6 +234,7 @@ jobs:
         retry sudo apt update
         #sudo apt list -a 'gcc-*'
         retry sudo apt install -y build-essential autoconf2.69 automake
+        [[ ${{ matrix.compiler }} == 'gcc' ]] # assert no container means gcc
         if [[ ${COMPILER_VERSION} -lt 15 ]] || type -p gcc-${COMPILER_VERSION} ; then
           retry sudo apt install -y gcc-${COMPILER_VERSION} g++-${COMPILER_VERSION}
         else
@@ -244,13 +245,14 @@ jobs:
           retry ${HOMEBREW_PREFIX}/bin/brew install -v gcc@${COMPILER_VERSION} binutils \
               2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
           ls -al ${HOMEBREW_PREFIX}/bin
-          echo "PATH=${HOMEBREW_PREFIX}/bin:${PATH}" >> "$GITHUB_ENV"
+          echo "${HOMEBREW_PREFIX}/bin" >> "$GITHUB_PATH"
           : Homebrew GCC@15 needs binutils 2.44+
           HOMEBREW_BINUTILS=$(ls -d ${HOMEBREW_PREFIX}/Cellar/binutils/2.*/bin )
           ls -al ${HOMEBREW_BINUTILS}
-          echo "FFLAGS=$FFLAGS -B ${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
-          echo "CFLAGS=$CFLAGS -B ${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
-          echo "CXXFLAGS=$CXXFLAGS -B ${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
+          echo "FFLAGS=${FFLAGS:+"$FFLAGS" }-B${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
+          echo "CFLAGS=${CFLAGS:+"$CFLAGS" }-B${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
+          echo "CXXFLAGS=${CXXFLAGS:+"$CXXFLAGS" }-B${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
+          echo "LDFLAGS=${LDFLAGS:+"$LDFLAGS" }-B${HOMEBREW_BINUTILS}" >> "$GITHUB_ENV"
         fi
 
     - name: Install Ubuntu Container Dependencies
@@ -308,8 +310,9 @@ jobs:
     - name: Install macOS Dependencies
       if: contains(matrix.os, 'macos')
       run: |
-        retry brew update \
-            2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
+        # Brew update takes a VERY long time to do cleanup and we don't care
+        #retry brew update \
+        #    2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         retry brew install automake \
             2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         if [[ "${{ matrix.compiler }}@${{ matrix.version }}" == gcc@12 ]] ; then
@@ -336,7 +339,7 @@ jobs:
         retry brew install llvm@${COMPILER_VERSION} \
             2>&1 | perl -pe "$BREW_WARNING_FILTER" ; test ${PIPESTATUS[0]} = 0
         # Prepend homebrew clang to PATH:
-        echo "PATH=$(brew --prefix)/opt/llvm/bin:${PATH}" >> "$GITHUB_ENV"
+        echo "$(brew --prefix)/opt/llvm/bin" >> "$GITHUB_PATH"
 
     - name: Setup Compilers
       run: |
